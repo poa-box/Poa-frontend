@@ -279,6 +279,29 @@ export class TaskService {
   }
 
   /**
+   * Reject a submitted task, moving it back to CLAIMED status
+   * @param {string} contractAddress - TaskManager contract address
+   * @param {string|number} taskId - Task ID
+   * @param {string} rejectionCid - IPFS CID of rejection reason metadata
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async rejectTask(contractAddress, taskId, rejectionCid, options = {}) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+
+    const contract = this.factory.createWritable(contractAddress, TaskManagerABI);
+    const parsedTaskId = parseTaskId(taskId);
+    const rejectionHash = ipfsCidToBytes32(rejectionCid);
+
+    return this.txManager.execute(
+      contract,
+      'rejectTask',
+      [parsedTaskId, rejectionHash],
+      options
+    );
+  }
+
+  /**
    * Update a task
    * @param {string} contractAddress - TaskManager contract address
    * @param {string|number} taskId - Task ID

@@ -26,6 +26,7 @@ export const RefreshEvent = {
   TASK_COMPLETED: 'task:completed',
   TASK_UPDATED: 'task:updated',
   TASK_CANCELLED: 'task:cancelled',
+  TASK_REJECTED: 'task:rejected',
   TASK_APPLICATION_SUBMITTED: 'task:application_submitted',
   TASK_APPLICATION_APPROVED: 'task:application_approved',
   TASK_ASSIGNED: 'task:assigned',
@@ -47,6 +48,8 @@ export const RefreshEvent = {
   ROLE_CLAIMED: 'role:claimed',
   ROLE_VOUCHED: 'role:vouched',
   ROLE_VOUCH_REVOKED: 'role:vouch-revoked',
+  ROLE_APPLICATION_SUBMITTED: 'role:application-submitted',
+  ROLE_APPLICATION_WITHDRAWN: 'role:application-withdrawn',
 
   // User events
   USER_CREATED: 'user:created',

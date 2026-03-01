@@ -508,6 +508,84 @@ export const TaskBoardProvider = ({
     }
   }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit]);
 
+  /**
+   * Reject a submitted task, moving it back to inProgress
+   */
+  const rejectTask = useCallback(async (task, rejectionReason) => {
+    if (!isReady || !taskService) {
+      addNotification('Web3 not ready. Please connect your wallet.', 'error');
+      return { success: false };
+    }
+
+    if (!rejectionReason || rejectionReason.trim() === '') {
+      addNotification('Please provide a rejection reason.', 'error');
+      return { success: false };
+    }
+
+    // Save previous state for rollback
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+
+    // Optimistically move task from inReview to inProgress
+    const newTaskColumns = [...taskColumns];
+    const sourceColumn = newTaskColumns.find(col => col.id === 'inReview');
+    const destColumn = newTaskColumns.find(col => col.id === 'inProgress');
+
+    if (sourceColumn) {
+      const taskIndex = sourceColumn.tasks.findIndex(t => t.id === task.id);
+      if (taskIndex > -1) {
+        sourceColumn.tasks.splice(taskIndex, 1);
+      }
+    }
+
+    if (destColumn) {
+      destColumn.tasks.push({ ...task });
+    }
+
+    setTaskColumns(newTaskColumns);
+
+    const notifId = addNotification('Rejecting task...', 'loading');
+
+    try {
+      // Upload rejection reason to IPFS
+      const rejectionMetadata = JSON.stringify({ rejectionReason: rejectionReason.trim() });
+      const ipfsResult = await addToIpfs(rejectionMetadata);
+
+      const result = await taskService.rejectTask(
+        taskManagerContractAddress,
+        task.id,
+        ipfsResult.path
+      );
+
+      if (result.success) {
+        updateNotification(notifId, 'Task rejected successfully!', 'success');
+        emit(RefreshEvent.TASK_REJECTED, { taskId: task.id });
+
+        if (onUpdateColumns) {
+          onUpdateColumns(newTaskColumns);
+        }
+
+        return { success: true };
+      } else {
+        throw new Error(result.error?.userMessage || 'Failed to reject task');
+      }
+    } catch (error) {
+      console.error('Error rejecting task:', error);
+      updateNotification(notifId, error.message || 'Error rejecting task', 'error');
+      setTaskColumns(previousTaskColumns);
+      return { success: false, error };
+    }
+  }, [
+    taskColumns,
+    taskService,
+    taskManagerContractAddress,
+    isReady,
+    addNotification,
+    updateNotification,
+    emit,
+    addToIpfs,
+    onUpdateColumns,
+  ]);
+
   const value = {
     taskColumns,
     moveTask,
@@ -518,6 +596,7 @@ export const TaskBoardProvider = ({
     applyForTask,
     approveApplication,
     assignTask,
+    rejectTask,
   };
 
   return (
