@@ -1,7 +1,25 @@
 [
   {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
     "type": "receive",
     "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "CALLER_CHANGE_DELAY",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -15,6 +33,26 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "acceptBeaconOwnership",
+    "inputs": [
+      {
+        "name": "beacon",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "acceptCaller",
+    "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -59,6 +97,13 @@
         "internalType": "bool[]"
       }
     ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "cancelCallerChange",
+    "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -198,6 +243,19 @@
       }
     ],
     "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "proposeCaller",
+    "inputs": [
+      {
+        "name": "newCaller",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "function",
@@ -341,6 +399,31 @@
       },
       {
         "name": "value",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CallerChangeCancelled",
+    "inputs": [],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "CallerChangeProposed",
+    "inputs": [
+      {
+        "name": "newCaller",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "effectiveAt",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -560,6 +643,11 @@
   {
     "type": "error",
     "name": "TargetSelf",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TimelockNotExpired",
     "inputs": []
   },
   {

@@ -88,6 +88,52 @@ export class EligibilityService {
 
     return this.txManager.execute(contract, 'revokeVouch', [wearerAddress, hatId], options);
   }
+
+  /**
+   * Apply for a role (hat) that has vouching enabled
+   * @param {string} contractAddress - EligibilityModule contract address
+   * @param {string} hatId - The hat ID to apply for
+   * @param {string} applicationHash - bytes32 application hash (e.g. IPFS CID converted to bytes32)
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async applyForRole(contractAddress, hatId, applicationHash, options = {}) {
+    requireAddress(contractAddress, 'EligibilityModule contract address');
+
+    if (!hatId) {
+      throw new Error('Hat ID is required');
+    }
+    if (!applicationHash) {
+      throw new Error('Application hash is required');
+    }
+
+    const contract = this.factory.createWritable(contractAddress, EligibilityModuleABI);
+
+    console.log('[EligibilityService] Applying for role:', hatId);
+
+    return this.txManager.execute(contract, 'applyForRole', [hatId, applicationHash], options);
+  }
+
+  /**
+   * Withdraw a previously submitted role application
+   * @param {string} contractAddress - EligibilityModule contract address
+   * @param {string} hatId - The hat ID to withdraw application from
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async withdrawApplication(contractAddress, hatId, options = {}) {
+    requireAddress(contractAddress, 'EligibilityModule contract address');
+
+    if (!hatId) {
+      throw new Error('Hat ID is required');
+    }
+
+    const contract = this.factory.createWritable(contractAddress, EligibilityModuleABI);
+
+    console.log('[EligibilityService] Withdrawing application for role:', hatId);
+
+    return this.txManager.execute(contract, 'withdrawApplication', [hatId], options);
+  }
 }
 
 /**

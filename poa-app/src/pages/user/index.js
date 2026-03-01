@@ -150,7 +150,7 @@ const User = () => {
     const result = await executeWithNotification(
       () => organization.quickJoinNoUser(quickJoinContractAddress, newUsername),
       {
-        pendingMessage: 'Creating account and joining...',
+        pendingMessage: 'Registering username and joining organization...',
         successMessage: 'Account created! Redirecting...',
         refreshEvent: 'user:created',
       }

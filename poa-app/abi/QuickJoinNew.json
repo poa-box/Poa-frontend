@@ -1,5 +1,10 @@
 [
   {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
     "type": "function",
     "name": "MODULE_ID",
     "inputs": [],
@@ -145,13 +150,7 @@
   {
     "type": "function",
     "name": "quickJoinNoUser",
-    "inputs": [
-      {
-        "name": "username",
-        "type": "string",
-        "internalType": "string"
-      }
-    ],
+    "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -159,11 +158,6 @@
     "type": "function",
     "name": "quickJoinNoUserMasterDeploy",
     "inputs": [
-      {
-        "name": "username",
-        "type": "string",
-        "internalType": "string"
-      },
       {
         "name": "newUser",
         "type": "address",
@@ -177,11 +171,6 @@
     "type": "function",
     "name": "quickJoinWithPasskey",
     "inputs": [
-      {
-        "name": "username",
-        "type": "string",
-        "internalType": "string"
-      },
       {
         "name": "passkey",
         "type": "tuple",
@@ -223,11 +212,6 @@
     "type": "function",
     "name": "quickJoinWithPasskeyMasterDeploy",
     "inputs": [
-      {
-        "name": "username",
-        "type": "string",
-        "internalType": "string"
-      },
       {
         "name": "passkey",
         "type": "tuple",
@@ -454,12 +438,6 @@
         "internalType": "address"
       },
       {
-        "name": "usernameCreated",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
-      },
-      {
         "name": "hatIds",
         "type": "uint256[]",
         "indexed": false,
@@ -485,12 +463,6 @@
         "internalType": "address"
       },
       {
-        "name": "usernameCreated",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
-      },
-      {
         "name": "hatIds",
         "type": "uint256[]",
         "indexed": false,
@@ -508,12 +480,6 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
-      },
-      {
-        "name": "username",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
       },
       {
         "name": "credentialId",
@@ -547,12 +513,6 @@
         "internalType": "address"
       },
       {
-        "name": "username",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
         "name": "credentialId",
         "type": "bytes32",
         "indexed": true,
@@ -579,11 +539,6 @@
       }
     ],
     "anonymous": false
-  },
-  {
-    "type": "error",
-    "name": "AccountAlreadyRegistered",
-    "inputs": []
   },
   {
     "type": "error",
@@ -623,11 +578,6 @@
   {
     "type": "error",
     "name": "Unauthorized",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "UsernameTooLong",
     "inputs": []
   },
   {

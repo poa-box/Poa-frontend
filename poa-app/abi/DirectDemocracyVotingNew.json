@@ -710,6 +710,11 @@
   },
   {
     "type": "error",
+    "name": "AlreadyExecuted",
+    "inputs": []
+  },
+  {
+    "type": "error",
     "name": "AlreadyVoted",
     "inputs": []
   },
