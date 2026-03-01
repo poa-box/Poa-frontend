@@ -52,6 +52,11 @@ function RoleNode({
   isConnected = true,
   showClaimButton = true,
   vouchProgress = null,
+  hasApplied = false,
+  isApplying = false,
+  isWithdrawing = false,
+  onApplyForRole,
+  onWithdrawApplication,
 }) {
   const { name, memberCount, level, vouchingEnabled, vouchingQuorum } = role;
 
@@ -162,6 +167,11 @@ function RoleNode({
                 onClaim={onClaim}
                 isConnected={isConnected}
                 vouchProgress={vouchProgress}
+                hasApplied={hasApplied}
+                isApplying={isApplying}
+                isWithdrawing={isWithdrawing}
+                onApply={onApplyForRole}
+                onWithdraw={onWithdrawApplication}
               />
             )}
           </HStack>
@@ -181,6 +191,11 @@ export function RoleHierarchyTree({
   isClaimingHat,
   isConnected = true,
   showClaimButtons = true,
+  hasApplied,
+  isApplyingForHat,
+  isWithdrawingFromHat,
+  onApplyForRole,
+  onWithdrawApplication,
 }) {
   // Normalize user hat IDs for comparison
   const normalizedUserHatIds = userHatIds.map(id => normalizeHatId(id));
@@ -249,6 +264,11 @@ export function RoleHierarchyTree({
             isConnected={isConnected}
             showClaimButton={showClaimButtons}
             vouchProgress={getVouchProgress?.(userAddress, role.hatId)}
+            hasApplied={hasApplied?.(role.hatId) || false}
+            isApplying={isApplyingForHat?.(role.hatId) || false}
+            isWithdrawing={isWithdrawingFromHat?.(role.hatId) || false}
+            onApplyForRole={onApplyForRole}
+            onWithdrawApplication={onWithdrawApplication}
           />
         ))}
       </VStack>

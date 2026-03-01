@@ -134,6 +134,25 @@ export class EligibilityService {
 
     return this.txManager.execute(contract, 'withdrawApplication', [hatId], options);
   }
+
+  /**
+   * Check if a user has an active application for a role
+   * @param {string} contractAddress - EligibilityModule contract address
+   * @param {string} hatId - The hat ID to check
+   * @param {string} userAddress - The user's address
+   * @returns {Promise<boolean>}
+   */
+  async hasActiveApplication(contractAddress, hatId, userAddress) {
+    requireAddress(contractAddress, 'EligibilityModule contract address');
+    requireAddress(userAddress, 'User address');
+
+    if (!hatId) {
+      throw new Error('Hat ID is required');
+    }
+
+    const contract = this.factory.createReadOnly(contractAddress, EligibilityModuleABI);
+    return contract.hasActiveApplication(hatId, userAddress);
+  }
 }
 
 /**

@@ -57,6 +57,7 @@ export const ProjectProvider = ({ children }) => {
             RefreshEvent.TASK_COMPLETED,
             RefreshEvent.TASK_UPDATED,
             RefreshEvent.TASK_CANCELLED,
+            RefreshEvent.TASK_REJECTED,
         ],
         handleRefresh,
         [handleRefresh]

@@ -3,7 +3,7 @@
  * Displays org roles, permissions, members, and governance configuration
  */
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Box,
   VStack,
@@ -32,6 +32,7 @@ import {
   GovernanceConfigSection,
   DeveloperInfoSection,
   VouchingSection,
+  RoleApplicationModal,
 } from '@/components/orgStructure';
 
 const OrgStructurePage = () => {
@@ -63,16 +64,52 @@ const OrgStructurePage = () => {
     error,
   } = useOrgStructure();
 
-  // Role claiming functionality
+  // Role claiming and application functionality
   const {
     claimRole,
     isClaimingHat,
     isReady: claimReady,
+    applyForRole,
+    withdrawApplication,
+    checkApplicationStatuses,
+    hasApplied,
+    isApplyingForHat,
+    isWithdrawingFromHat,
   } = useClaimRole(eligibilityModuleAddress);
 
   // Vouching data for claim eligibility
   const rolesWithVouching = roles?.filter(role => role.vouchingEnabled) || [];
   const { getVouchProgress } = useVouches(eligibilityModuleAddress, rolesWithVouching);
+
+  // Application modal state
+  const [applicationModal, setApplicationModal] = useState({ isOpen: false, hatId: null, roleName: '' });
+
+  const handleOpenApplicationModal = useCallback((hatId) => {
+    const role = roles.find(r => r.hatId === hatId);
+    setApplicationModal({ isOpen: true, hatId, roleName: role?.name || 'Role' });
+  }, [roles]);
+
+  const handleCloseApplicationModal = useCallback(() => {
+    setApplicationModal({ isOpen: false, hatId: null, roleName: '' });
+  }, []);
+
+  const handleSubmitApplication = useCallback(async (applicationData) => {
+    if (!applicationModal.hatId) return;
+    handleCloseApplicationModal();
+    await applyForRole(applicationModal.hatId, applicationData);
+  }, [applicationModal.hatId, applyForRole, handleCloseApplicationModal]);
+
+  // Check application statuses on mount for roles with vouching
+  useEffect(() => {
+    if (roles?.length && eligibilityModuleAddress && userAddress) {
+      const vouchingRoleHatIds = roles
+        .filter(r => r.vouchingEnabled && !r.defaultEligible)
+        .map(r => r.hatId);
+      if (vouchingRoleHatIds.length) {
+        checkApplicationStatuses(vouchingRoleHatIds);
+      }
+    }
+  }, [roles, eligibilityModuleAddress, userAddress, checkApplicationStatuses]);
 
   // Loading state
   if (loading) {
@@ -184,6 +221,11 @@ const OrgStructurePage = () => {
               isClaimingHat={isClaimingHat}
               isConnected={isConnected}
               showClaimButtons={Boolean(eligibilityModuleAddress)}
+              hasApplied={hasApplied}
+              isApplyingForHat={isApplyingForHat}
+              isWithdrawingFromHat={isWithdrawingFromHat}
+              onApplyForRole={handleOpenApplicationModal}
+              onWithdrawApplication={withdrawApplication}
             />
           </Box>
 
@@ -258,6 +300,13 @@ const OrgStructurePage = () => {
 
         </VStack>
       </Box>
+
+      <RoleApplicationModal
+        isOpen={applicationModal.isOpen}
+        onClose={handleCloseApplicationModal}
+        onApply={handleSubmitApplication}
+        roleName={applicationModal.roleName}
+      />
     </Box>
   );
 };
