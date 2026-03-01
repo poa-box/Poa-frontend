@@ -281,6 +281,11 @@ export const FETCH_VOTING_DATA_NEW = gql`
           proposalId
           title
           descriptionHash
+          metadata {
+            id
+            description
+            optionNames
+          }
           numOptions
           startTimestamp
           endTimestamp
@@ -308,6 +313,11 @@ export const FETCH_VOTING_DATA_NEW = gql`
           proposalId
           title
           descriptionHash
+          metadata {
+            id
+            description
+            optionNames
+          }
           numOptions
           startTimestamp
           endTimestamp
@@ -339,6 +349,10 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
           id
           title
           metadataHash
+          metadata {
+            id
+            description
+          }
           cap
           createdAt
           rolePermissions {
@@ -610,6 +624,92 @@ export const FETCH_INFRASTRUCTURE_ADDRESSES = gql`
       beaconAddress
       currentImplementation
       version
+    }
+  }
+`;
+
+// ============================================
+// TREASURY QUERIES
+// ============================================
+
+// Fetch treasury data including distributions, payments, and executor info
+export const FETCH_TREASURY_DATA = gql`
+  query FetchTreasuryData($orgId: Bytes!) {
+    organization(id: $orgId) {
+      id
+      executorContract {
+        id
+        isPaused
+        owner
+        allowedCaller
+        sweeps(first: 50, orderBy: sweptAt, orderDirection: desc) {
+          id
+          to
+          amount
+          sweptAt
+          transactionHash
+        }
+      }
+      participationToken {
+        id
+        name
+        symbol
+        totalSupply
+      }
+      paymentManager {
+        id
+        owner
+        revenueShareToken
+        distributionCounter
+        distributions(first: 100, orderBy: createdAt, orderDirection: desc) {
+          id
+          distributionId
+          payoutToken
+          totalAmount
+          totalClaimed
+          checkpointBlock
+          merkleRoot
+          status
+          createdAt
+          finalizedAt
+          unclaimedAmount
+          claims(first: 200) {
+            id
+            claimer
+            claimerUsername
+            amount
+            claimedAt
+            transactionHash
+          }
+        }
+        payments(first: 100, orderBy: receivedAt, orderDirection: desc) {
+          id
+          payer
+          payerUsername
+          amount
+          token
+          receivedAt
+          transactionHash
+        }
+      }
+      taskManager {
+        id
+        projects(where: { deleted: false }, first: 100) {
+          id
+          title
+          tasks(where: { status: "Completed" }, first: 500, orderBy: completedAt, orderDirection: desc) {
+            id
+            taskId
+            title
+            payout
+            assignee
+            assigneeUsername
+            completer
+            completerUsername
+            completedAt
+          }
+        }
+      }
     }
   }
 `;

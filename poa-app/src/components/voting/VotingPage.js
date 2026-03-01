@@ -77,17 +77,16 @@ const VotingPage = () => {
   });
 
   // Get proposals for current tab
-  const currentOngoing = selectedTab === 0 ? democracyVotingOngoing : hybridVotingOngoing;
-  const currentCompleted = selectedTab === 0 ? democracyVotingCompleted : hybridVotingCompleted;
+  // Tab 0 = Hybrid/Participation Voting (Official governance)
+  // Tab 1 = Direct Democracy (Informal polls)
+  const currentOngoing = selectedTab === 0 ? hybridVotingOngoing : democracyVotingOngoing;
+  const currentCompleted = selectedTab === 0 ? hybridVotingCompleted : democracyVotingCompleted;
 
-  // Pagination
+  // Pagination for ongoing proposals only
   const {
     displayedOngoing,
-    displayedCompleted,
     handlePreviousOngoing,
     handleNextOngoing,
-    handlePreviousCompleted,
-    handleNextCompleted,
     resetPagination,
   } = useVotingPagination({
     ongoingProposals: currentOngoing,
@@ -112,6 +111,7 @@ const VotingPage = () => {
       description: proposalData.description,
       durationMinutes: proposalData.time,
       numOptions: proposalData.numOptions,
+      optionNames: proposalData.optionNames || [],
       batches: proposalData.batches || [],
       hatIds: proposalData.hatIds || [],
     };
@@ -241,24 +241,7 @@ const VotingPage = () => {
             <TabPanel>
               <VotingPanel
                 displayedOngoingProposals={displayedOngoing}
-                displayedCompletedProposals={displayedCompleted}
-                showDetermineWinner={showDetermineWinner}
-                getWinner={handleGetWinner}
-                calculateRemainingTime={calculateRemainingTime}
-                contractAddress={directDemocracyVotingContractAddress}
-                onPollClick={handlePollClick}
-                onPreviousOngoingClick={handlePreviousOngoing}
-                onNextOngoingClick={handleNextOngoing}
-                onPreviousCompletedClick={handlePreviousCompleted}
-                onNextCompletedClick={handleNextCompleted}
-                onCreateClick={handleCreatePollClick}
-                showCreatePoll={showCreatePoll}
-              />
-            </TabPanel>
-            <TabPanel>
-              <VotingPanel
-                displayedOngoingProposals={displayedOngoing}
-                displayedCompletedProposals={displayedCompleted}
+                completedProposals={currentCompleted}
                 showDetermineWinner={showDetermineWinner}
                 getWinner={handleGetWinner}
                 calculateRemainingTime={calculateRemainingTime}
@@ -266,8 +249,21 @@ const VotingPage = () => {
                 onPollClick={handlePollClick}
                 onPreviousOngoingClick={handlePreviousOngoing}
                 onNextOngoingClick={handleNextOngoing}
-                onPreviousCompletedClick={handlePreviousCompleted}
-                onNextCompletedClick={handleNextCompleted}
+                onCreateClick={handleCreatePollClick}
+                showCreatePoll={showCreatePoll}
+              />
+            </TabPanel>
+            <TabPanel>
+              <VotingPanel
+                displayedOngoingProposals={displayedOngoing}
+                completedProposals={currentCompleted}
+                showDetermineWinner={showDetermineWinner}
+                getWinner={handleGetWinner}
+                calculateRemainingTime={calculateRemainingTime}
+                contractAddress={directDemocracyVotingContractAddress}
+                onPollClick={handlePollClick}
+                onPreviousOngoingClick={handlePreviousOngoing}
+                onNextOngoingClick={handleNextOngoing}
                 onCreateClick={handleCreatePollClick}
                 showCreatePoll={showCreatePoll}
               />

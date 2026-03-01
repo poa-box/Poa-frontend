@@ -25,6 +25,7 @@ const Navbar = () => {
     { name: 'Dashboard', path: `/dashboard/?userDAO=${userDAO}` },
     { name: 'Tasks', path: `/tasks/?userDAO=${userDAO}` },
     { name: 'Voting', path: `/voting/?userDAO=${userDAO}` },
+    { name: 'Treasury', path: `/treasury/?userDAO=${userDAO}` },
     ...(educationHubEnabled ? [{ name: 'Learn & Earn', path: `/edu-Hub/?userDAO=${userDAO}` }] : []),
     ...(isAdmin ? [{ name: 'Settings', path: `/settings/?userDAO=${userDAO}` }] : []),
   ];
@@ -146,6 +147,16 @@ const Navbar = () => {
             mx={"2%"}
           >
             Voting
+          </Link>
+          <Link
+            as={NextLink}
+            href={`/treasury/?userDAO=${userDAO}`}
+            color="white"
+            fontWeight="extrabold"
+            fontSize="xl"
+            mx={"2%"}
+          >
+            Treasury
           </Link>
           {educationHubEnabled && (
             <Link
