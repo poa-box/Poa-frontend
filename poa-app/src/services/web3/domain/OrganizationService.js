@@ -4,6 +4,7 @@
  */
 
 import QuickJoinABI from '../../../../abi/QuickJoinNew.json';
+import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
 import { requireAddress, requireValidUsername } from '../utils/validation';
 
 /**
@@ -13,14 +14,17 @@ export class OrganizationService {
   /**
    * @param {ContractFactory} contractFactory - Contract factory instance
    * @param {TransactionManager} transactionManager - Transaction manager instance
+   * @param {string} [registryAddress] - UniversalAccountRegistry address for new user registration
    */
-  constructor(contractFactory, transactionManager) {
+  constructor(contractFactory, transactionManager, registryAddress = null) {
     this.factory = contractFactory;
     this.txManager = transactionManager;
+    this.registryAddress = registryAddress;
   }
 
   /**
    * Join an organization without an existing account (creates account + joins)
+   * Two-step process: first registers username, then joins the org.
    * @param {string} contractAddress - QuickJoin contract address
    * @param {string} username - Username for new account
    * @param {Object} [options={}] - Transaction options
@@ -30,12 +34,33 @@ export class OrganizationService {
     requireAddress(contractAddress, 'QuickJoin contract address');
     requireValidUsername(username);
 
-    const contract = this.factory.createWritable(contractAddress, QuickJoinABI);
+    if (!this.registryAddress) {
+      throw new Error('Registry address is required for new user registration');
+    }
 
-    console.log("Joining organization with username:", username);
-    console.log("Contract address:", contractAddress);
+    // Step 1: Register the username via UniversalAccountRegistry
+    const registryContract = this.factory.createWritable(
+      this.registryAddress,
+      UniversalAccountRegistryABI
+    );
 
-    return this.txManager.execute(contract, 'quickJoinNoUser', [username], options);
+    console.log("Step 1: Registering username:", username);
+    const registerResult = await this.txManager.execute(
+      registryContract,
+      'registerAccount',
+      [username],
+      options
+    );
+
+    if (!registerResult.success) {
+      return registerResult;
+    }
+
+    // Step 2: Join the organization (no username needed)
+    console.log("Step 2: Joining organization at:", contractAddress);
+    const quickJoinContract = this.factory.createWritable(contractAddress, QuickJoinABI);
+
+    return this.txManager.execute(quickJoinContract, 'quickJoinNoUser', [], options);
   }
 
   /**
@@ -57,8 +82,9 @@ export class OrganizationService {
  * Create an OrganizationService instance
  * @param {ContractFactory} factory - Contract factory
  * @param {TransactionManager} txManager - Transaction manager
+ * @param {string} [registryAddress] - UniversalAccountRegistry address
  * @returns {OrganizationService}
  */
-export function createOrganizationService(factory, txManager) {
-  return new OrganizationService(factory, txManager);
+export function createOrganizationService(factory, txManager, registryAddress = null) {
+  return new OrganizationService(factory, txManager, registryAddress);
 }

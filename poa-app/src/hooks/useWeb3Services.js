@@ -72,7 +72,7 @@ export function useWeb3Services(options = {}) {
 
     return {
       user: createUserService(factory, txManager, registryAddress),
-      organization: createOrganizationService(factory, txManager),
+      organization: createOrganizationService(factory, txManager, registryAddress),
       voting: createVotingService(factory, txManager, ipfsService),
       task: createTaskService(factory, txManager, ipfsService),
       education: createEducationService(factory, txManager, ipfsService),

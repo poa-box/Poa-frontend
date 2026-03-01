@@ -39,7 +39,7 @@ import { useWeb3Services, useTransactionWithNotification } from '@/hooks';
 import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
 import { RefreshEvent } from '@/context/RefreshContext';
-import OrgRegistryABI from '@/abi/OrgRegistry.json';
+import OrgRegistryABI from '../../../abi/OrgRegistry.json';
 
 // IPFS gateway - matches pattern used elsewhere in codebase
 const IPFS_GATEWAY = 'https://ipfs.io/ipfs/';

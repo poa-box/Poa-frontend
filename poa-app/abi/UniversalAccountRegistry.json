@@ -1,5 +1,23 @@
 [
   {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "DOMAIN_SEPARATOR",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
     "type": "function",
     "name": "addressToUsername",
     "inputs": [
@@ -91,6 +109,25 @@
   },
   {
     "type": "function",
+    "name": "nonces",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "owner",
     "inputs": [],
     "outputs": [
@@ -123,6 +160,19 @@
   },
   {
     "type": "function",
+    "name": "passkeyFactory",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "registerAccount",
     "inputs": [
       {
@@ -136,17 +186,112 @@
   },
   {
     "type": "function",
-    "name": "registerAccountQuickJoin",
+    "name": "registerAccountByPasskeySig",
     "inputs": [
+      {
+        "name": "credentialId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "pubKeyX",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "pubKeyY",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "salt",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
       {
         "name": "username",
         "type": "string",
         "internalType": "string"
       },
       {
-        "name": "newUser",
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "auth",
+        "type": "tuple",
+        "internalType": "struct WebAuthnLib.WebAuthnAuth",
+        "components": [
+          {
+            "name": "authenticatorData",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "clientDataJSON",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "challengeIndex",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "typeIndex",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "r",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "s",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerAccountBySig",
+    "inputs": [
+      {
+        "name": "user",
         "type": "address",
         "internalType": "address"
+      },
+      {
+        "name": "username",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -174,6 +319,19 @@
     "type": "function",
     "name": "renounceOwnership",
     "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setPasskeyFactory",
+    "inputs": [
+      {
+        "name": "factory",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -228,6 +386,19 @@
       },
       {
         "name": "newOwner",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PasskeyFactoryUpdated",
+    "inputs": [
+      {
+        "name": "factory",
         "type": "address",
         "indexed": true,
         "internalType": "address"
@@ -309,12 +480,49 @@
   },
   {
     "type": "error",
+    "name": "ECDSAInvalidSignature",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "ECDSAInvalidSignatureLength",
+    "inputs": [
+      {
+        "name": "length",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
+  },
+  {
+    "type": "error",
+    "name": "ECDSAInvalidSignatureS",
+    "inputs": [
+      {
+        "name": "s",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ]
+  },
+  {
+    "type": "error",
     "name": "InvalidChars",
     "inputs": []
   },
   {
     "type": "error",
     "name": "InvalidInitialization",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidNonce",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InvalidSigner",
     "inputs": []
   },
   {
@@ -343,6 +551,16 @@
         "internalType": "address"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "PasskeyFactoryNotSet",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "SignatureExpired",
+    "inputs": []
   },
   {
     "type": "error",

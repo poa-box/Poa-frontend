@@ -13,7 +13,7 @@ import { useUserContext } from '@/context/UserContext';
 import { usePOContext } from '@/context/POContext';
 import { useWeb3Services } from '@/hooks/useWeb3Services';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
-import OrgRegistryABI from '@/abi/OrgRegistry.json';
+import OrgRegistryABI from '../../abi/OrgRegistry.json';
 
 /**
  * Check if a user is an org admin
