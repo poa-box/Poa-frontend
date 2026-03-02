@@ -75,7 +75,7 @@ const WORKER_COOP_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 2,
-          voucherRoleIndex: 0, // Workers vouch for workers
+          voucherRoleIndex: 1, // Stewards vouch for new workers
           combineWithHierarchy: false,
         },
         defaults: { eligible: true, standing: true },
@@ -308,7 +308,7 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 2,
-          voucherRoleIndex: 0, // Artists vouch for artists
+          voucherRoleIndex: 1, // Curators vouch for new artists
           combineWithHierarchy: false,
         },
         defaults: { eligible: true, standing: true },
