@@ -112,7 +112,7 @@ export class SmartAccountTransactionManager {
 
       // 6. Submit to bundler
       const userOpHashFromBundler = await this.bundlerClient.sendUserOperation({
-        userOperation: userOp,
+        ...userOp,
         entryPointAddress: ENTRY_POINT_ADDRESS,
       });
 
@@ -216,7 +216,7 @@ export class SmartAccountTransactionManager {
       this._notifyState(onStateChange, TransactionState.PENDING);
 
       const userOpHashFromBundler = await this.bundlerClient.sendUserOperation({
-        userOperation: userOp,
+        ...userOp,
         entryPointAddress: ENTRY_POINT_ADDRESS,
       });
 

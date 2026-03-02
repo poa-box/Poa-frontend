@@ -94,7 +94,7 @@ export async function buildUserOp({
   // 5. Estimate gas via the bundler's eth_estimateUserOperationGas
   try {
     const gasEstimate = await bundlerClient.estimateUserOperationGas({
-      userOperation: userOp,
+      ...userOp,
       entryPointAddress: ENTRY_POINT_ADDRESS,
     });
 
