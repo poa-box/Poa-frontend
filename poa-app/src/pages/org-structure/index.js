@@ -99,15 +99,10 @@ const OrgStructurePage = () => {
     await applyForRole(applicationModal.hatId, applicationData);
   }, [applicationModal.hatId, applyForRole, handleCloseApplicationModal]);
 
-  // Check application statuses on mount for roles with vouching
+  // Refresh application statuses when roles data is available
   useEffect(() => {
     if (roles?.length && eligibilityModuleAddress && userAddress) {
-      const vouchingRoleHatIds = roles
-        .filter(r => r.vouchingEnabled && !r.defaultEligible)
-        .map(r => r.hatId);
-      if (vouchingRoleHatIds.length) {
-        checkApplicationStatuses(vouchingRoleHatIds);
-      }
+      checkApplicationStatuses();
     }
   }, [roles, eligibilityModuleAddress, userAddress, checkApplicationStatuses]);
 

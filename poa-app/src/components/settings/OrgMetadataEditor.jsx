@@ -31,12 +31,11 @@ import {
 import { CloseIcon, AddIcon } from '@chakra-ui/icons';
 import { PiImage } from 'react-icons/pi';
 import { useDropzone } from 'react-dropzone';
-import { ethers } from 'ethers';
 import { useQuery } from '@apollo/client';
 
 import { useIPFScontext } from '@/context/ipfsContext';
 import { useWeb3Services, useTransactionWithNotification } from '@/hooks';
-import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
+import { ipfsCidToBytes32, stringToBytes } from '@/services/web3/utils/encoding';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
 import { RefreshEvent } from '@/context/RefreshContext';
 import OrgRegistryABI from '../../../abi/OrgRegistry.json';
@@ -210,7 +209,7 @@ export default function OrgMetadataEditor({
 }) {
   const toast = useToast();
   const { addToIpfs } = useIPFScontext();
-  const { factory, isReady } = useWeb3Services();
+  const { factory, txManager, isReady } = useWeb3Services();
   const { executeWithNotification } = useTransactionWithNotification();
 
   // Fetch infrastructure addresses from subgraph
@@ -269,9 +268,23 @@ export default function OrgMetadataEditor({
 
     try {
       // 1. Prepare metadata JSON
+      const validLinks = links.filter(l => l.name && l.url);
+
+      // Validate link URLs to prevent XSS
+      const invalidLink = validLinks.find(l => !/^https?:\/\//i.test(l.url));
+      if (invalidLink) {
+        toast({
+          title: 'Invalid URL',
+          description: `"${invalidLink.name}" has an invalid URL. Links must start with http:// or https://`,
+          status: 'error',
+          duration: 4000,
+        });
+        return;
+      }
+
       const metadata = {
         description: description.trim(),
-        links: links.filter(l => l.name && l.url),
+        links: validLinks,
         template: 'default',
         logo: logoURL || null,
       };
@@ -288,18 +301,18 @@ export default function OrgMetadataEditor({
       const metadataHash = ipfsCidToBytes32(ipfsResult.path);
 
       // 4. Encode name as bytes
-      const nameBytes = ethers.utils.toUtf8Bytes(name.trim());
+      const nameBytes = stringToBytes(name.trim());
 
       // 5. Validate OrgRegistry address from infrastructure query
       if (!orgRegistryAddress) {
         throw new Error('OrgRegistry address not found. Infrastructure may not be deployed.');
       }
 
-      // 6. Call updateOrgMetaAsAdmin (hats address is stored in contract)
+      // 6. Call updateOrgMetaAsAdmin via txManager for proper result handling
       const contract = factory.createWritable(orgRegistryAddress, OrgRegistryABI);
 
       const result = await executeWithNotification(
-        () => contract.updateOrgMetaAsAdmin(orgId, nameBytes, metadataHash),
+        () => txManager.execute(contract, 'updateOrgMetaAsAdmin', [orgId, nameBytes, metadataHash]),
         {
           pendingMessage: 'Updating organization metadata...',
           successMessage: 'Organization metadata updated successfully!',
@@ -307,15 +320,6 @@ export default function OrgMetadataEditor({
           refreshEvent: RefreshEvent.METADATA_UPDATED,
         }
       );
-
-      if (result.success) {
-        toast({
-          title: 'Success',
-          description: 'Organization metadata has been updated. Changes may take a moment to appear.',
-          status: 'success',
-          duration: 5000,
-        });
-      }
     } catch (error) {
       console.error('Error updating metadata:', error);
       toast({

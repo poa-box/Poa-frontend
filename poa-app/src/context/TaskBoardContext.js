@@ -31,7 +31,7 @@ export const TaskBoardProvider = ({
   const { taskManagerContractAddress } = usePOContext();
   const { addToIpfs } = useIPFScontext();
   const { emit } = useRefreshEmit();
-  const { addNotification, updateNotification, removeNotification } = useNotification();
+  const { addNotification, updateNotification } = useNotification();
 
   // Get services from the new hook
   const { task: taskService, isReady } = useWeb3Services({
