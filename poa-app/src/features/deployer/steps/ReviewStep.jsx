@@ -53,6 +53,7 @@ import {
   PiInfo,
 } from 'react-icons/pi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import PasskeyLoginButton from '../../../components/passkey/PasskeyLoginButton';
 import { useDeployer, PERMISSION_KEYS, PERMISSION_DESCRIPTIONS, VOTING_STRATEGY, STEPS } from '../context/DeployerContext';
 import { validateDeployerState } from '../validation/schemas';
 import { validateDeploymentConfig } from '../utils/deploymentMapper';
@@ -1259,13 +1260,40 @@ export function ReviewStep({
                 <Box
                   bg="warmGray.50"
                   borderRadius="lg"
-                  p={4}
+                  p={6}
                   w="100%"
                   maxW="400px"
                   textAlign="center"
                 >
-                  <Text color="warmGray.600" mb={3}>Connect your wallet to deploy</Text>
-                  <ConnectButton showBalance={false} chainStatus="icon" accountStatus="address" />
+                  <Text fontWeight="600" fontSize="lg" color="warmGray.700" mb={1}>
+                    Create an Account or Sign In
+                  </Text>
+                  <Text color="warmGray.500" fontSize="sm" mb={5}>
+                    You need an account to deploy your organization
+                  </Text>
+                  <PasskeyLoginButton
+                    variant="full"
+                    size="lg"
+                    w="100%"
+                    fontSize="md"
+                    fontWeight="600"
+                    h="48px"
+                  />
+                  <Text color="warmGray.400" fontSize="xs" mt={4} mb={2}>or</Text>
+                  <ConnectButton.Custom>
+                    {({ openConnectModal }) => (
+                      <Button
+                        variant="ghost"
+                        color="warmGray.500"
+                        fontSize="sm"
+                        fontWeight="400"
+                        onClick={openConnectModal}
+                        _hover={{ color: 'warmGray.700', textDecoration: 'underline' }}
+                      >
+                        Sign in with wallet
+                      </Button>
+                    )}
+                  </ConnectButton.Custom>
                 </Box>
               </VStack>
             ) : (

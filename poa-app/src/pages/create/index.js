@@ -20,6 +20,7 @@ import LogoDropzoneModal from "@/components/Architect/LogoDropzoneModal";
 import LinksModal from "@/components/Architect/LinksModal";
 import { useAccount } from "wagmi";
 import { useEthersSigner } from "@/components/ProviderConverter";
+import { useAuth } from "@/context/AuthContext";
 import { useIPFScontext } from "@/context/ipfsContext";
 import { main } from "../../../scripts/newDeployment";
 import { useRouter } from "next/router";
@@ -40,6 +41,7 @@ import { resolveRoleUsernames } from "@/features/deployer/utils/usernameResolver
  */
 function DeployerPageContent() {
   const { address } = useAccount();
+  const { accountAddress } = useAuth();
   const signer = useEthersSigner();
   const { addToIpfs } = useIPFScontext();
   const toast = useToast();
@@ -368,7 +370,7 @@ function DeployerPageContent() {
         <DeployerWizard
           onDeployStart={handleDeployStart}
           onDeploySuccess={handleDeploySuccess}
-          deployerAddress={address}
+          deployerAddress={accountAddress || address}
         />
       </Box>
 
