@@ -301,7 +301,7 @@ export default function Home() {
                     <Box px={2} py={1}>
                       <PasskeyLoginButton width="100%" size="sm" borderRadius="md" />
                     </Box>
-                  ) : showSolidarityOnboarding ? (
+                  ) : (
                     <MenuItem
                       onClick={onOnboardingOpen}
                       icon={<Text fontSize="lg">🔐</Text>}
@@ -313,7 +313,7 @@ export default function Home() {
                     >
                       Create Account
                     </MenuItem>
-                  ) : null}
+                  )}
                   <MenuItem
                     onClick={openConnectModal}
                     icon={<Text fontSize="lg">🔗</Text>}
