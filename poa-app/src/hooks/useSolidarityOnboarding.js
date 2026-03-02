@@ -29,7 +29,7 @@ export function useSolidarityOnboarding() {
 
   // Fetch PasskeyAccountFactory address
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS);
-  const factoryAddress = factoryData?.passKeyAccountFactories?.[0]?.id || null;
+  const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
   // Fetch solidarity fund status
   const { data: solidarityData, loading: solidarityLoading } = useQuery(FETCH_SOLIDARITY_FUND_STATUS);
