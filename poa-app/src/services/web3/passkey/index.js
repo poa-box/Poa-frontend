@@ -4,6 +4,7 @@ export { buildUserOp, getUserOpHash } from './userOpBuilder';
 export {
   encodePaymasterData,
   encodeOnboardingPaymasterData,
+  encodeSolidarityOnboardingPaymasterData,
   encodeAccountPaymasterData,
   SubjectType,
 } from './paymasterData';

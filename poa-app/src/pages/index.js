@@ -15,15 +15,20 @@ import {
   MenuButton,
   MenuList,
   MenuItem,
+  useDisclosure,
 } from "@chakra-ui/react";
 import { HamburgerIcon } from "@chakra-ui/icons";
+import { FaFingerprint } from "react-icons/fa";
 import { useRouter } from "next/router";
 import { useAccount } from "wagmi";
+import { useQuery } from "@apollo/client";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useGlobalAccount } from "@/hooks/useGlobalAccount";
 import { useAuth } from "@/context/AuthContext";
+import { FETCH_SOLIDARITY_FUND_STATUS } from "@/util/passkeyQueries";
 import SignupModal from "@/components/account/SignupModal";
 import PasskeyLoginButton from "@/components/passkey/PasskeyLoginButton";
+import SolidarityOnboardingModal from "@/components/passkey/SolidarityOnboardingModal";
 
 import dynamic from "next/dynamic";
 
@@ -40,6 +45,12 @@ export default function Home() {
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+  const { isOpen: isOnboardingOpen, onOpen: onOnboardingOpen, onClose: onOnboardingClose } = useDisclosure();
+
+  // Check if solidarity fund is active (gates showing passkey CTA)
+  const { data: solidarityData } = useQuery(FETCH_SOLIDARITY_FUND_STATUS);
+  const solidarityBalance = solidarityData?.paymasterHubContracts?.[0]?.solidarityBalance || '0';
+  const showSolidarityOnboarding = mounted && !isPasskeyUser && !isConnected && !hasStoredPasskey && BigInt(solidarityBalance) > 0n;
 
   const handleClick = () => {
     router.push("/browser");
@@ -281,22 +292,50 @@ export default function Home() {
               >
                 Create
               </MenuItem>
-              {mounted && !isPasskeyUser && !isConnected && hasStoredPasskey && (
-                <Box px={2} py={1}>
-                  <PasskeyLoginButton width="100%" size="sm" borderRadius="md" />
-                </Box>
+              {mounted && !isPasskeyUser && !isConnected ? (
+                <>
+                  {hasStoredPasskey ? (
+                    <Box px={2} py={1}>
+                      <PasskeyLoginButton width="100%" size="sm" borderRadius="md" />
+                    </Box>
+                  ) : showSolidarityOnboarding ? (
+                    <MenuItem
+                      onClick={onOnboardingOpen}
+                      icon={<Text fontSize="lg">🔐</Text>}
+                      borderRadius="md"
+                      _hover={{ bg: "purple.50" }}
+                      fontSize={["sm", "md"]}
+                      fontWeight="500"
+                      py={3}
+                    >
+                      Create Account
+                    </MenuItem>
+                  ) : null}
+                  <MenuItem
+                    onClick={openConnectModal}
+                    icon={<Text fontSize="lg">🔗</Text>}
+                    borderRadius="md"
+                    _hover={{ bg: "blue.50" }}
+                    fontSize={["sm", "md"]}
+                    fontWeight="500"
+                    py={3}
+                  >
+                    Connect Wallet
+                  </MenuItem>
+                </>
+              ) : (
+                <MenuItem
+                  onClick={accountMenuItem.onClick}
+                  icon={<Text fontSize="lg">{accountMenuItem.icon}</Text>}
+                  borderRadius="md"
+                  _hover={{ bg: "blue.50" }}
+                  fontSize={["sm", "md"]}
+                  fontWeight="500"
+                  py={3}
+                >
+                  {accountMenuItem.text}
+                </MenuItem>
               )}
-              <MenuItem
-                onClick={accountMenuItem.onClick}
-                icon={<Text fontSize="lg">{accountMenuItem.icon}</Text>}
-                borderRadius="md"
-                _hover={{ bg: "blue.50" }}
-                fontSize={["sm", "md"]}
-                fontWeight="500"
-                py={3}
-              >
-                {accountMenuItem.text}
-              </MenuItem>
             </MenuList>
           </Menu>
         </Box>
@@ -410,6 +449,47 @@ export default function Home() {
         >
           Voting power is based on Membership and Contribution, not capital
         </Text>
+
+        {/* Solidarity Onboarding CTA */}
+        {showSolidarityOnboarding && (
+          <Box
+            zIndex={3}
+            mt={["6", "8"]}
+            textAlign="center"
+            animation="fadeIn 1s ease-out 1s forwards"
+            opacity="0"
+            sx={{
+              '@keyframes fadeIn': {
+                '0%': { opacity: 0 },
+                '100%': { opacity: 1 },
+              }
+            }}
+          >
+            <Button
+              size="lg"
+              bg="amethyst.500"
+              color="white"
+              borderRadius="xl"
+              px={8}
+              py={6}
+              fontSize={["md", "lg"]}
+              fontWeight="700"
+              _hover={{ bg: 'amethyst.600', transform: 'translateY(-2px)', boxShadow: 'lg' }}
+              _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
+              leftIcon={<FaFingerprint />}
+              onClick={onOnboardingOpen}
+            >
+              Create Free Account with Passkey
+            </Button>
+            <Text
+              mt={2}
+              fontSize="xs"
+              color="gray.500"
+            >
+              No wallet or ETH needed. Uses your device biometrics.
+            </Text>
+          </Box>
+        )}
 
         {/* Main Content - Improved spacing and mobile layout */}
         <Flex
@@ -832,6 +912,13 @@ export default function Home() {
 
       {/* Signup Modal */}
       <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
+
+      {/* Solidarity Onboarding Modal */}
+      <SolidarityOnboardingModal
+        isOpen={isOnboardingOpen}
+        onClose={onOnboardingClose}
+        onSuccess={() => router.push('/account')}
+      />
     </>
   );
 }

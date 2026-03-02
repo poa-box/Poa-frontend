@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { Box, Flex, HStack, Image, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, useBreakpointValue } from "@chakra-ui/react";
+import { Box, Flex, HStack, Image, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, useBreakpointValue, Divider } from "@chakra-ui/react";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
 import { FaHome } from 'react-icons/fa';
 import NextLink from "next/link";
 import { useRouter } from "next/router";
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import LoginButton from "@/components/LoginButton";
 import { useAuth } from "@/context/AuthContext";
 import { usePOContext } from "@/context/POContext";
@@ -202,7 +203,19 @@ const Navbar = () => {
               <LoginButton />
             </HStack>
           ) : (
-            <LoginButton />
+            <HStack spacing={2}>
+              <PasskeyLoginButton
+                variant="compact"
+                size="sm"
+                onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
+              />
+              <ConnectButton
+                showBalance={false}
+                chainStatus="none"
+                accountStatus="avatar"
+                label="Connect Wallet"
+              />
+            </HStack>
           )}
         </Flex>
 
@@ -276,7 +289,31 @@ const Navbar = () => {
                   <LoginButton />
                 </VStack>
               ) : (
-                <LoginButton />
+                <VStack spacing={4}>
+                  <PasskeyLoginButton
+                    width="100%"
+                    onSuccess={() => {
+                      onClose();
+                      router.push(`/dashboard/?userDAO=${userDAO}`);
+                    }}
+                  />
+                  <Text fontSize="xs" color="whiteAlpha.500" textAlign="center">
+                    No wallet or ETH needed
+                  </Text>
+                  <HStack width="100%" align="center">
+                    <Divider borderColor="whiteAlpha.300" />
+                    <Text fontSize="xs" color="whiteAlpha.500" whiteSpace="nowrap" px={2}>
+                      or
+                    </Text>
+                    <Divider borderColor="whiteAlpha.300" />
+                  </HStack>
+                  <ConnectButton
+                    showBalance={false}
+                    chainStatus="none"
+                    accountStatus="avatar"
+                    label="Connect Wallet"
+                  />
+                </VStack>
               )}
               <Text fontSize="xs" color="whiteAlpha.600" mt={6} textAlign="center">
                 Powered by PoA • {new Date().getFullYear()}
