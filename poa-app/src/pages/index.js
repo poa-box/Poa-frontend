@@ -61,6 +61,9 @@ export default function Home() {
     if (mounted && isPasskeyUser) {
       return { text: "My Account", icon: "👤", onClick: () => router.push("/account") };
     }
+    if (!isConnected && showSolidarityOnboarding) {
+      return { text: "Create Account", icon: "🔐", onClick: onOnboardingOpen };
+    }
     if (!isConnected) {
       return { text: "Connect Wallet", icon: "🔗", onClick: openConnectModal };
     }
