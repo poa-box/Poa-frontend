@@ -40,7 +40,7 @@ import { resolveRoleUsernames } from "@/features/deployer/utils/usernameResolver
  * Inner component that has access to DeployerContext
  */
 function DeployerPageContent() {
-  const { address } = useAccount();
+  const { address, isConnected } = useAccount();
   const { accountAddress } = useAuth();
   const signer = useEthersSigner();
   const { addToIpfs } = useIPFScontext();
@@ -370,7 +370,7 @@ function DeployerPageContent() {
         <DeployerWizard
           onDeployStart={handleDeployStart}
           onDeploySuccess={handleDeploySuccess}
-          deployerAddress={accountAddress || address}
+          deployerAddress={accountAddress || (isConnected ? address : undefined)}
         />
       </Box>
 
