@@ -6,7 +6,7 @@
 export const ENTRY_POINT_ADDRESS = '0x0000000071727De22E5E9d8BAf0edAc6f37da032';
 
 // Pimlico bundler endpoint — configured per chain via env var
-export const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY || '';
+export const PIMLICO_API_KEY = process.env.NEXT_PUBLIC_PIMLICO_API_KEY || 'pim_S7L8GpzFcq84Cc9aS3BRGa';
 
 export function getBundlerUrl(chainId = 560048) {
   if (!PIMLICO_API_KEY) {
