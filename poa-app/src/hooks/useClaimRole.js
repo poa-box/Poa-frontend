@@ -3,10 +3,12 @@
  * Provides functions for claiming, vouching, revoking vouches, and role applications
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
+import { useQuery } from '@apollo/client';
 import { useWeb3Services, useTransactionWithNotification } from './useWeb3Services';
 import { useAccount } from 'wagmi';
 import { useIPFScontext } from '../context/ipfsContext';
+import { FETCH_USER_ROLE_APPLICATIONS } from '../util/queries';
 
 /**
  * Hook for claiming roles and managing vouches
@@ -24,7 +26,29 @@ export function useClaimRole(eligibilityModuleAddress) {
   const [revokingFor, setRevokingFor] = useState(null);
   const [applyingForHatId, setApplyingForHatId] = useState(null);
   const [withdrawingHatId, setWithdrawingHatId] = useState(null);
-  const [applicationStatuses, setApplicationStatuses] = useState({});
+  // Fetch active role applications from subgraph instead of RPC calls
+  const { data: roleAppData, refetch: refetchRoleApps } = useQuery(
+    FETCH_USER_ROLE_APPLICATIONS,
+    {
+      variables: {
+        eligibilityModuleId: eligibilityModuleAddress,
+        applicant: userAddress,
+      },
+      skip: !eligibilityModuleAddress || !userAddress,
+      fetchPolicy: 'cache-and-network',
+    }
+  );
+
+  // Derive application statuses from subgraph data
+  const applicationStatuses = useMemo(() => {
+    const statuses = {};
+    if (roleAppData?.roleApplications) {
+      roleAppData.roleApplications.forEach(app => {
+        statuses[app.hatId] = true;
+      });
+    }
+    return statuses;
+  }, [roleAppData]);
 
   /**
    * Claim a hat that the user is eligible for
@@ -125,24 +149,10 @@ export function useClaimRole(eligibilityModuleAddress) {
    * Batch-check whether the user has applied for each role
    * @param {string[]} hatIds - Array of hat IDs to check
    */
-  const checkApplicationStatuses = useCallback(async (hatIds) => {
-    if (!eligibility || !eligibilityModuleAddress || !userAddress || !hatIds?.length) return;
-
-    try {
-      const results = await Promise.all(
-        hatIds.map(hatId =>
-          eligibility.hasActiveApplication(eligibilityModuleAddress, hatId, userAddress)
-            .then(result => ({ hatId, hasApplied: result }))
-            .catch(() => ({ hatId, hasApplied: false }))
-        )
-      );
-      const statuses = {};
-      results.forEach(({ hatId, hasApplied }) => { statuses[hatId] = hasApplied; });
-      setApplicationStatuses(statuses);
-    } catch (error) {
-      console.error('[useClaimRole] Error checking application statuses:', error);
-    }
-  }, [eligibility, eligibilityModuleAddress, userAddress]);
+  const checkApplicationStatuses = useCallback(async () => {
+    if (!eligibilityModuleAddress || !userAddress) return;
+    await refetchRoleApps();
+  }, [eligibilityModuleAddress, userAddress, refetchRoleApps]);
 
   /**
    * Check if the user has an active application for a hat
@@ -183,7 +193,7 @@ export function useClaimRole(eligibilityModuleAddress) {
       );
 
       if (result.success) {
-        setApplicationStatuses(prev => ({ ...prev, [hatId]: true }));
+        await refetchRoleApps();
       }
       return result;
     } catch (error) {
@@ -192,7 +202,7 @@ export function useClaimRole(eligibilityModuleAddress) {
     } finally {
       setApplyingForHatId(null);
     }
-  }, [eligibility, eligibilityModuleAddress, executeWithNotification, addToIpfs, ipfsCidToBytes32]);
+  }, [eligibility, eligibilityModuleAddress, executeWithNotification, addToIpfs, ipfsCidToBytes32, refetchRoleApps]);
 
   /**
    * Withdraw a previously submitted role application
@@ -220,7 +230,7 @@ export function useClaimRole(eligibilityModuleAddress) {
       );
 
       if (result.success) {
-        setApplicationStatuses(prev => ({ ...prev, [hatId]: false }));
+        await refetchRoleApps();
       }
       return result;
     } catch (error) {
@@ -229,7 +239,7 @@ export function useClaimRole(eligibilityModuleAddress) {
     } finally {
       setWithdrawingHatId(null);
     }
-  }, [eligibility, eligibilityModuleAddress, executeWithNotification]);
+  }, [eligibility, eligibilityModuleAddress, executeWithNotification, refetchRoleApps]);
 
   // State check helpers
   const isClaimingHat = useCallback((hatId) => claimingHatId === hatId, [claimingHatId]);

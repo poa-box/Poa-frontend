@@ -33,7 +33,7 @@ const SettingsPage = () => {
     orgId,
     poDescription,
     poLinks,
-    logoHash,
+    logoUrl,
     poContextLoading,
     error: contextError,
   } = usePOContext();
@@ -131,7 +131,7 @@ const SettingsPage = () => {
             currentName={userDAO}
             currentDescription={poDescription}
             currentLinks={poLinks}
-            currentLogoHash={logoHash}
+            currentLogoHash={logoUrl}
           />
         </VStack>
       </Box>

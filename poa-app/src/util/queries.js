@@ -171,6 +171,7 @@ export const FETCH_ORG_FULL_DATA = gql`
       id
       name
       metadataHash
+      metadataAdminHatId
       metadata {
         id
         description
@@ -368,6 +369,8 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
             title
             metadataHash
             submissionHash
+            rejectionHash
+            rejectionCount
             metadata {
               id
               name
@@ -391,7 +394,12 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
             completedAt
             applications {
               applicant
+              applicantUsername
+              applicationHash
               approved
+              approver
+              approverUsername
+              appliedAt
             }
           }
         }
@@ -480,6 +488,7 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
       id
       name
       metadataHash
+      metadataAdminHatId
       metadata {
         id
         description
@@ -796,6 +805,48 @@ export const FETCH_TOKEN_APPROVER_HATS = gql`
       hatId
       permissionRole
       allowed
+    }
+  }
+`;
+
+// ============================================
+// ROLE APPLICATION QUERIES
+// ============================================
+
+// Fetch active role applications for a user in an eligibility module
+export const FETCH_USER_ROLE_APPLICATIONS = gql`
+  query FetchUserRoleApplications($eligibilityModuleId: Bytes!, $applicant: Bytes!) {
+    roleApplications(
+      where: { eligibilityModule: $eligibilityModuleId, applicant: $applicant, active: true }
+      first: 50
+    ) {
+      id
+      hatId
+      applicant
+      applicantUsername
+      applicationHash
+      active
+      appliedAt
+    }
+  }
+`;
+
+// Fetch all active role applications for an eligibility module (admin view)
+export const FETCH_ALL_ROLE_APPLICATIONS = gql`
+  query FetchAllRoleApplications($eligibilityModuleId: Bytes!) {
+    roleApplications(
+      where: { eligibilityModule: $eligibilityModuleId, active: true }
+      orderBy: appliedAt
+      orderDirection: desc
+      first: 200
+    ) {
+      id
+      hatId
+      applicant
+      applicantUsername
+      applicationHash
+      active
+      appliedAt
     }
   }
 `;

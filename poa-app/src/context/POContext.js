@@ -6,6 +6,7 @@ import { useAccount } from 'wagmi';
 import { formatTokenAmount } from '../util/formatToken';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
+import { useIPFScontext } from './ipfsContext';
 
 const POContext = createContext();
 
@@ -76,12 +77,15 @@ export const POProvider = ({ children }) => {
     const { address } = useAccount();
     const router = useRouter();
     const poName = router.query.userDAO || '';
+    const { safeFetchFromIpfs } = useIPFScontext();
 
     // Organization data state
     const [orgId, setOrgId] = useState(null);
     const [poDescription, setPODescription] = useState('No description provided or IPFS content still being indexed');
     const [poLinks, setPOLinks] = useState({});
     const [logoHash, setLogoHash] = useState('');
+    const [logoUrl, setLogoUrl] = useState('');
+    const [metadataAdminHatId, setMetadataAdminHatId] = useState(null);
     const [poMembers, setPoMembers] = useState(0);
     const [activeTaskAmount, setActiveTaskAmount] = useState(0);
     const [completedTaskAmount, setCompletedTaskAmount] = useState(0);
@@ -184,6 +188,10 @@ export const POProvider = ({ children }) => {
             setPtTokenBalance(formatTokenAmount(org.participationToken?.totalSupply || '0'));
             setTopHatId(org.topHatId);
             setRoleHatIds(org.roleHatIds || []);
+
+            // Read metadataAdminHatId from subgraph
+            const adminHat = org.metadataAdminHatId;
+            setMetadataAdminHatId(adminHat && adminHat !== '0' ? adminHat : null);
             setCreatorHatIds(org.taskManager?.creatorHatIds || []);
 
             // Build role names map from roles data
@@ -288,6 +296,31 @@ export const POProvider = ({ children }) => {
         }
     }, [orgData]);
 
+    // Fetch logo CID from IPFS metadata JSON
+    // The subgraph OrgMetadata entity doesn't index the 'logo' field,
+    // so we extract it from IPFS directly.
+    useEffect(() => {
+        async function fetchLogoFromMetadata() {
+            const org = orgData?.organization;
+            if (!org?.metadataHash) {
+                setLogoUrl('');
+                return;
+            }
+            try {
+                const metadata = await safeFetchFromIpfs(org.metadataHash);
+                if (metadata?.logo) {
+                    setLogoUrl(metadata.logo);
+                } else {
+                    setLogoUrl('');
+                }
+            } catch (e) {
+                console.warn('[POContext] Failed to fetch logo from IPFS metadata:', e);
+                setLogoUrl('');
+            }
+        }
+        fetchLogoFromMetadata();
+    }, [orgData, safeFetchFromIpfs]);
+
     // Combined loading and error states
     const loading = orgLookupLoading || orgDataLoading;
     const error = orgLookupError || orgDataError;
@@ -306,6 +339,8 @@ export const POProvider = ({ children }) => {
         poDescription,
         poLinks,
         logoHash,
+        logoUrl,
+        metadataAdminHatId,
         poMembers,
         activeTaskAmount,
         completedTaskAmount,
@@ -345,6 +380,8 @@ export const POProvider = ({ children }) => {
         poDescription,
         poLinks,
         logoHash,
+        logoUrl,
+        metadataAdminHatId,
         poMembers,
         activeTaskAmount,
         completedTaskAmount,
