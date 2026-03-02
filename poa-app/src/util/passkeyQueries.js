@@ -57,6 +57,19 @@ export const FETCH_PASSKEY_ORG_CONFIG = gql`
 `;
 
 /**
+ * Fetch the PaymasterHub solidarity fund status.
+ * Used on the homepage to determine if solidarity-funded account creation is available.
+ */
+export const FETCH_SOLIDARITY_FUND_STATUS = gql`
+  query FetchSolidarityFundStatus {
+    paymasterHubContracts(first: 1) {
+      id
+      solidarityBalance
+    }
+  }
+`;
+
+/**
  * Fetch paymaster configuration for an organization.
  */
 export const FETCH_PAYMASTER_ORG_CONFIG = gql`

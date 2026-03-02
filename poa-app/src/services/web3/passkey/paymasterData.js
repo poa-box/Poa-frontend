@@ -54,14 +54,30 @@ export function encodePaymasterData({ subjectType, subjectId, orgId, ruleId = DE
 }
 
 /**
- * Encode paymaster data for onboarding (account creation).
- * Uses SubjectType.ONBOARDING (0x03) with the counterfactual account address.
+ * Encode paymaster data for org-based onboarding (account creation within an org).
+ * Uses SubjectType.ACCOUNT (0x00) because the contract rejects ONBOARDING (0x03)
+ * with non-zero orgId. The ACCOUNT path validates subjectId == sender, which holds
+ * since counterfactualAddress == userOp.sender.
  */
 export function encodeOnboardingPaymasterData({ counterfactualAddress, orgId }) {
   return encodePaymasterData({
-    subjectType: SubjectType.ONBOARDING,
+    subjectType: SubjectType.ACCOUNT,
     subjectId: counterfactualAddress,
     orgId,
+  });
+}
+
+/**
+ * Encode paymaster data for solidarity-fund onboarding (no org context).
+ * Uses SubjectType.ONBOARDING (0x03) with zero orgId and zero subjectId.
+ * Contract requirement: orgId must be bytes32(0), subjectId must be bytes20(0).
+ * Paid 100% from the solidarity fund.
+ */
+export function encodeSolidarityOnboardingPaymasterData() {
+  return encodePaymasterData({
+    subjectType: SubjectType.ONBOARDING,
+    subjectId: '0x0000000000000000000000000000000000000000',
+    orgId: '0x0000000000000000000000000000000000000000000000000000000000000000',
   });
 }
 
