@@ -37,7 +37,7 @@ export function usePasskeyOnboarding() {
 
   // Fetch PasskeyAccountFactory address
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS);
-  const factoryAddress = factoryData?.passKeyAccountFactories?.[0]?.id || null;
+  const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
   // Check if all required addresses are available
   const isReady = Boolean(

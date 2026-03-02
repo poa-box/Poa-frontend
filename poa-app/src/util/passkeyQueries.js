@@ -10,7 +10,7 @@ import { gql } from '@apollo/client';
  */
 export const FETCH_PASSKEY_FACTORY_ADDRESS = gql`
   query FetchPasskeyFactoryAddress {
-    passKeyAccountFactories(first: 1) {
+    passkeyAccountFactories(first: 1) {
       id
       accountBeacon
     }
