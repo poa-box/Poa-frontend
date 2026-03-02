@@ -295,22 +295,50 @@ export default function Home() {
               >
                 Create
               </MenuItem>
-              {mounted && !isPasskeyUser && !isConnected && hasStoredPasskey && (
-                <Box px={2} py={1}>
-                  <PasskeyLoginButton width="100%" size="sm" borderRadius="md" />
-                </Box>
+              {mounted && !isPasskeyUser && !isConnected ? (
+                <>
+                  {hasStoredPasskey ? (
+                    <Box px={2} py={1}>
+                      <PasskeyLoginButton width="100%" size="sm" borderRadius="md" />
+                    </Box>
+                  ) : showSolidarityOnboarding ? (
+                    <MenuItem
+                      onClick={onOnboardingOpen}
+                      icon={<Text fontSize="lg">🔐</Text>}
+                      borderRadius="md"
+                      _hover={{ bg: "purple.50" }}
+                      fontSize={["sm", "md"]}
+                      fontWeight="500"
+                      py={3}
+                    >
+                      Create Account
+                    </MenuItem>
+                  ) : null}
+                  <MenuItem
+                    onClick={openConnectModal}
+                    icon={<Text fontSize="lg">🔗</Text>}
+                    borderRadius="md"
+                    _hover={{ bg: "blue.50" }}
+                    fontSize={["sm", "md"]}
+                    fontWeight="500"
+                    py={3}
+                  >
+                    Connect Wallet
+                  </MenuItem>
+                </>
+              ) : (
+                <MenuItem
+                  onClick={accountMenuItem.onClick}
+                  icon={<Text fontSize="lg">{accountMenuItem.icon}</Text>}
+                  borderRadius="md"
+                  _hover={{ bg: "blue.50" }}
+                  fontSize={["sm", "md"]}
+                  fontWeight="500"
+                  py={3}
+                >
+                  {accountMenuItem.text}
+                </MenuItem>
               )}
-              <MenuItem
-                onClick={accountMenuItem.onClick}
-                icon={<Text fontSize="lg">{accountMenuItem.icon}</Text>}
-                borderRadius="md"
-                _hover={{ bg: "blue.50" }}
-                fontSize={["sm", "md"]}
-                fontWeight="500"
-                py={3}
-              >
-                {accountMenuItem.text}
-              </MenuItem>
             </MenuList>
           </Menu>
         </Box>
@@ -892,7 +920,7 @@ export default function Home() {
       <SolidarityOnboardingModal
         isOpen={isOnboardingOpen}
         onClose={onOnboardingClose}
-        onSuccess={() => router.push('/browser')}
+        onSuccess={() => router.push('/account')}
       />
     </>
   );
