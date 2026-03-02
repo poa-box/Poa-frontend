@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
 import {
   Box,
   useToast,
@@ -18,7 +18,7 @@ import { CloseIcon } from "@chakra-ui/icons";
 import { useQuery } from "@apollo/client";
 import LogoDropzoneModal from "@/components/Architect/LogoDropzoneModal";
 import LinksModal from "@/components/Architect/LinksModal";
-import { useAccount } from "wagmi";
+import { useAccount, useDisconnect } from "wagmi";
 import { useEthersSigner } from "@/components/ProviderConverter";
 import { useAuth } from "@/context/AuthContext";
 import { useIPFScontext } from "@/context/ipfsContext";
@@ -40,9 +40,27 @@ import { resolveRoleUsernames } from "@/features/deployer/utils/usernameResolver
  * Inner component that has access to DeployerContext
  */
 function DeployerPageContent() {
-  const { address, isConnected } = useAccount();
-  const { accountAddress } = useAuth();
+  const { address, status } = useAccount();
+  const { passkeyState } = useAuth();
   const signer = useEthersSigner();
+
+  const { disconnect } = useDisconnect();
+
+  // Clear any auto-reconnected wallet so users must explicitly choose auth method.
+  // Passkey sessions are unaffected (managed separately in AuthContext).
+  // Uses a ref so we only disconnect once (the first auto-reconnect), not after user-initiated connects.
+  const hasDisconnectedAutoReconnect = useRef(false);
+  const [walletUserConnected, setWalletUserConnected] = useState(false);
+  useEffect(() => {
+    if (!hasDisconnectedAutoReconnect.current && (status === 'reconnecting' || status === 'connected')) {
+      hasDisconnectedAutoReconnect.current = true;
+      disconnect();
+    }
+  }, [status, disconnect]);
+  useEffect(() => {
+    if (status === 'connecting') setWalletUserConnected(true);
+    if (status === 'disconnected') setWalletUserConnected(false);
+  }, [status]);
   const { addToIpfs } = useIPFScontext();
   const toast = useToast();
   const router = useRouter();
@@ -370,7 +388,7 @@ function DeployerPageContent() {
         <DeployerWizard
           onDeployStart={handleDeployStart}
           onDeploySuccess={handleDeploySuccess}
-          deployerAddress={accountAddress || (isConnected ? address : undefined)}
+          deployerAddress={(passkeyState?.accountAddress) || (walletUserConnected ? address : undefined)}
         />
       </Box>
 
