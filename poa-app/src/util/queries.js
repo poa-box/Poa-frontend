@@ -378,6 +378,11 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
               difficulty
               estimatedHours
               submission
+              rejection
+            }
+            rejections(orderBy: rejectedAt, orderDirection: desc, first: 10) {
+              rejectorUsername
+              rejectedAt
             }
             payout
             bountyToken

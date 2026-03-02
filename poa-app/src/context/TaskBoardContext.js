@@ -547,7 +547,7 @@ export const TaskBoardProvider = ({
 
     try {
       // Upload rejection reason to IPFS
-      const rejectionMetadata = JSON.stringify({ rejectionReason: rejectionReason.trim() });
+      const rejectionMetadata = JSON.stringify({ rejection: rejectionReason.trim() });
       const ipfsResult = await addToIpfs(rejectionMetadata);
 
       const result = await taskService.rejectTask(
