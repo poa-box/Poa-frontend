@@ -30,6 +30,7 @@ import { HamburgerIcon } from '@chakra-ui/icons';
 import Link2 from "next/link";
 import { usePOContext } from "@/context/POContext";
 import { useIPFScontext } from "@/context/ipfsContext";
+import { useOrgTheme } from "@/hooks";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 
 // CSS for the wave animation (slowed down and more subtle)
@@ -297,6 +298,7 @@ const ArtisticButton = styled(Button)`
 
 const Home = () => {
   const{logoHash, poDescription, poLinks} = usePOContext();
+  const { pageBackground } = useOrgTheme();
 
   const router = useRouter();
   const { userDAO } = router.query;
@@ -348,15 +350,16 @@ const Home = () => {
       
       <WaveBackground />
       
-      <Box 
+      <Box
         pt={{ base: "80px", md: "100px" }} /* Increased to ensure content is below navbar */
-        position="relative" 
+        position="relative"
         minH="100vh"
         display="flex"
         flexDirection="column"
         alignItems="center"
         justifyContent="center"
         zIndex={1} /* Ensure content is above background but below navbar */
+        background={pageBackground()}
       >
         <VStack 
           spacing={{ base: 8, md: 12 }} 

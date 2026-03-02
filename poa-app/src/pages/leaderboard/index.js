@@ -9,6 +9,7 @@ import {
 import { useRouter } from 'next/router';
 
 import { usePOContext } from '@/context/POContext';
+import { useOrgTheme } from '@/hooks';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
 import LeaderboardCard from '@/components/leaderboard/LeaderboardCard';
@@ -20,6 +21,7 @@ const Leaderboard = () => {
   const { userDAO } = router.query;
 
   const { leaderboardDisplayData, roleNames } = usePOContext();
+  const { pageBackground } = useOrgTheme();
   const [data, setData] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRank, setSelectedRank] = useState(null);
@@ -55,6 +57,7 @@ const Leaderboard = () => {
         w="100%"
         minH="100vh"
         p={{ base: 4, md: 6 }}
+        background={pageBackground()}
       >
         <VStack spacing={6} align="center">
           <Box
