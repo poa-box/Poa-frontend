@@ -173,7 +173,7 @@ export class PasskeyOnboardingService {
       // Step 5: Submit to bundler
       onStep(OnboardingStep.SUBMITTING);
       const submittedHash = await this.bundlerClient.sendUserOperation({
-        userOperation: userOp,
+        ...userOp,
         entryPointAddress: ENTRY_POINT_ADDRESS,
       });
 

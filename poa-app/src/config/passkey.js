@@ -23,3 +23,9 @@ export const BUNDLER_TIMEOUT = 120_000;
 
 // Gas estimation buffer percentage (applied on top of bundler estimates)
 export const GAS_BUFFER_PERCENT = 20n;
+
+// PasskeyAccountFactory proxy address on Hoodi testnet.
+// The subgraph currently returns the factory beacon instead of the proxy
+// (deployment script passes beacon to registerInfrastructure instead of proxy).
+// This override is used until the subgraph is fixed.
+export const PASSKEY_FACTORY_ADDRESS = '0x8dB19009B109176CD60ceEf313739789df62D83C';

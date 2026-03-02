@@ -4,7 +4,7 @@
  * Provides step tracking, error handling, and AuthContext integration.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../context/AuthContext';
 import { usePOContext } from '../context/POContext';
@@ -14,7 +14,7 @@ import {
   STEP_MESSAGES,
 } from '../services/web3/domain/PasskeyOnboardingService';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
-import { FETCH_PASSKEY_FACTORY_ADDRESS } from '../util/passkeyQueries';
+import { PASSKEY_FACTORY_ADDRESS } from '../config/passkey';
 
 /**
  * Hook for passkey onboarding within an organization context.
@@ -35,9 +35,8 @@ export function usePasskeyOnboarding() {
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
   const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
-  // Fetch PasskeyAccountFactory address
-  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS);
-  const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
+  // Use hardcoded factory proxy address (subgraph returns beacon instead of proxy)
+  const factoryAddress = PASSKEY_FACTORY_ADDRESS;
 
   // Check if all required addresses are available
   const isReady = Boolean(

@@ -13,7 +13,8 @@ import {
   STEP_MESSAGES,
 } from '../services/web3/domain/PasskeyOnboardingService';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
-import { FETCH_PASSKEY_FACTORY_ADDRESS, FETCH_SOLIDARITY_FUND_STATUS } from '../util/passkeyQueries';
+import { FETCH_SOLIDARITY_FUND_STATUS } from '../util/passkeyQueries';
+import { PASSKEY_FACTORY_ADDRESS } from '../config/passkey';
 
 export function useSolidarityOnboarding() {
   const { publicClient, bundlerClient, activatePasskey } = useAuth();
@@ -27,9 +28,8 @@ export function useSolidarityOnboarding() {
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
   const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
-  // Fetch PasskeyAccountFactory address
-  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS);
-  const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
+  // Use hardcoded factory proxy address (subgraph returns beacon instead of proxy)
+  const factoryAddress = PASSKEY_FACTORY_ADDRESS;
 
   // Fetch solidarity fund status
   const { data: solidarityData, loading: solidarityLoading } = useQuery(FETCH_SOLIDARITY_FUND_STATUS);
