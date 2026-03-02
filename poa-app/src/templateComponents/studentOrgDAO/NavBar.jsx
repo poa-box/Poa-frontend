@@ -1,24 +1,23 @@
 import React, { useState, useEffect } from "react";
-import { Box, Flex, HStack, Image, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, useBreakpointValue, Divider } from "@chakra-ui/react";
+import { Box, Flex, HStack, Image, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button } from "@chakra-ui/react";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
 import { FaHome } from 'react-icons/fa';
 import NextLink from "next/link";
 import { useRouter } from "next/router";
-import { ConnectButton } from '@rainbow-me/rainbowkit';
 import LoginButton from "@/components/LoginButton";
 import { useAuth } from "@/context/AuthContext";
 import { usePOContext } from "@/context/POContext";
 import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
 import PasskeyAccountInfo from "@/components/passkey/PasskeyAccountInfo";
-import PasskeyLoginButton from "@/components/passkey/PasskeyLoginButton";
 import GasSponsorshipBadge from "@/components/passkey/GasSponsorshipBadge";
+import SignInModal from "@/components/passkey/SignInModal";
 
 const Navbar = () => {
   const router = useRouter();
   const { userDAO } = router.query;
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const isMobile = useBreakpointValue({ base: true, md: false });
-  const { isPasskeyUser, accountAddress, hasStoredPasskey } = useAuth();
+  const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
+  const { isPasskeyUser, accountAddress, isAuthenticated } = useAuth();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const { educationHubEnabled, orgId } = usePOContext();
@@ -197,25 +196,21 @@ const Navbar = () => {
               <GasSponsorshipBadge />
               <PasskeyAccountInfo />
             </HStack>
-          ) : mounted && hasStoredPasskey ? (
-            <HStack spacing={2}>
-              <PasskeyLoginButton variant="compact" size="sm" />
-              <LoginButton />
-            </HStack>
+          ) : mounted && isAuthenticated ? (
+            <LoginButton />
           ) : (
-            <HStack spacing={2}>
-              <PasskeyLoginButton
-                variant="compact"
-                size="sm"
-                onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
-              />
-              <ConnectButton
-                showBalance={false}
-                chainStatus="none"
-                accountStatus="avatar"
-                label="Connect Wallet"
-              />
-            </HStack>
+            <Button
+              onClick={onSignInOpen}
+              bg="amethyst.500"
+              color="white"
+              borderRadius="xl"
+              size="sm"
+              fontWeight="600"
+              _hover={{ bg: 'amethyst.600', transform: 'translateY(-1px)', boxShadow: 'md' }}
+              _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
+            >
+              Sign In
+            </Button>
           )}
         </Flex>
 
@@ -283,36 +278,28 @@ const Navbar = () => {
                   <GasSponsorshipBadge />
                   <PasskeyAccountInfo />
                 </VStack>
-              ) : mounted && hasStoredPasskey ? (
+              ) : mounted && isAuthenticated ? (
                 <VStack spacing={3}>
-                  <PasskeyLoginButton width="100%" />
                   <LoginButton />
                 </VStack>
               ) : (
                 <VStack spacing={4}>
-                  <PasskeyLoginButton
-                    width="100%"
-                    onSuccess={() => {
+                  <Button
+                    onClick={() => {
                       onClose();
-                      router.push(`/dashboard/?userDAO=${userDAO}`);
+                      onSignInOpen();
                     }}
-                  />
-                  <Text fontSize="xs" color="whiteAlpha.500" textAlign="center">
-                    No wallet or ETH needed
-                  </Text>
-                  <HStack width="100%" align="center">
-                    <Divider borderColor="whiteAlpha.300" />
-                    <Text fontSize="xs" color="whiteAlpha.500" whiteSpace="nowrap" px={2}>
-                      or
-                    </Text>
-                    <Divider borderColor="whiteAlpha.300" />
-                  </HStack>
-                  <ConnectButton
-                    showBalance={false}
-                    chainStatus="none"
-                    accountStatus="avatar"
-                    label="Connect Wallet"
-                  />
+                    w="100%"
+                    bg="amethyst.500"
+                    color="white"
+                    borderRadius="xl"
+                    size="lg"
+                    fontWeight="600"
+                    _hover={{ bg: 'amethyst.600' }}
+                    _active={{ bg: 'amethyst.700' }}
+                  >
+                    Sign In
+                  </Button>
                 </VStack>
               )}
               <Text fontSize="xs" color="whiteAlpha.600" mt={6} textAlign="center">
@@ -322,6 +309,12 @@ const Navbar = () => {
           </DrawerBody>
         </DrawerContent>
       </Drawer>
+
+      <SignInModal
+        isOpen={isSignInOpen}
+        onClose={onSignInClose}
+        onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
+      />
     </Box>
   );
 };
