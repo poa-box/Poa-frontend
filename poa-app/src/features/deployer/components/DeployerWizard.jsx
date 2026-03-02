@@ -447,7 +447,7 @@ export function DeployerWizard({
               <ReviewStep
                 onDeploy={handleDeploy}
                 isDeploying={isDeploying}
-                isWalletConnected={!!deployerAddress}
+                isWalletConnected={(() => { console.log('[deployer-auth] DeployerWizard deployerAddress:', deployerAddress, '→ isWalletConnected:', !!deployerAddress); return !!deployerAddress; })()}
                 deploymentStatus={deploymentStatus}
                 onDeploySuccess={handleCelebrationContinue}
               />

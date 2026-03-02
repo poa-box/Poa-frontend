@@ -442,6 +442,9 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
               projectId={task.projectId}
               onEditTask={(updatedTask) => handleEditTask(updatedTask, index)}
               isMobile={isMobile}
+              rejectionCount={task.rejectionCount}
+              rejectionReason={task.rejectionReason}
+              rejections={task.rejections}
             />
           ))
         ) : (

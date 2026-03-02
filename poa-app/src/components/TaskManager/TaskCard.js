@@ -3,10 +3,10 @@ import { Box, useDisclosure, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip,
 import { useDrag } from 'react-dnd';
 import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
-import { TimeIcon, StarIcon, CheckIcon, InfoIcon } from '@chakra-ui/icons';
+import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 
-const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId, submission, claimedBy, claimerUsername, onEditTask, moveTask, projectId, Payout, bountyToken, bountyPayout, isMobile }) => {
+const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId, submission, claimedBy, claimerUsername, onEditTask, moveTask, projectId, Payout, bountyToken, bountyPayout, isMobile, rejectionCount, rejectionReason, rejections }) => {
   const router = useRouter();
   const { userDAO } = router.query;
   // Use the stable isMobile prop from parent (passed through TaskColumn)
@@ -223,6 +223,15 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
                 Completed
               </Badge>
             )}
+
+            {rejectionCount > 0 && columnId !== 'completed' && (
+              <Tooltip label={`Rejected ${rejectionCount} time${rejectionCount > 1 ? 's' : ''}`} placement="top">
+                <Badge colorScheme="red" {...badgeStyle}>
+                  <WarningIcon mr={1} boxSize={2} />
+                  Rejected
+                </Badge>
+              </Tooltip>
+            )}
           </Flex>
         </Flex>
       </Box>
@@ -230,7 +239,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
       <TaskCardModal
         isOpen={isOpen}
         onClose={onClose}
-        task={{ id, name, description, difficulty, estHours, Payout, submission, claimedBy, claimerUsername, projectId, bountyToken, bountyPayout }}
+        task={{ id, name, description, difficulty, estHours, Payout, submission, claimedBy, claimerUsername, projectId, bountyToken, bountyPayout, rejectionCount, rejectionReason, rejections }}
         columnId={columnId}
         onEditTask={onEditTask}
         moveTask={moveTask}

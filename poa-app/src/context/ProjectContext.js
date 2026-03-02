@@ -162,6 +162,11 @@ export const ProjectProvider = ({ children }) => {
                         })),
                         rejectionHash: task.rejectionHash,
                         rejectionCount: task.rejectionCount || 0,
+                        rejectionReason: (task.rejections || []).find(r => r.metadata?.rejection)?.metadata?.rejection || '',
+                        rejections: (task.rejections || []).map(r => ({
+                            rejectorUsername: r.rejectorUsername || '',
+                            rejectedAt: r.rejectedAt,
+                        })),
                         isIndexing: !task.title,
                         createdAt: task.createdAt,
                         assignedAt: task.assignedAt,
