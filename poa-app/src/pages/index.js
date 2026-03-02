@@ -27,8 +27,8 @@ import { useGlobalAccount } from "@/hooks/useGlobalAccount";
 import { useAuth } from "@/context/AuthContext";
 import { FETCH_SOLIDARITY_FUND_STATUS } from "@/util/passkeyQueries";
 import SignupModal from "@/components/account/SignupModal";
-import PasskeyLoginButton from "@/components/passkey/PasskeyLoginButton";
 import SolidarityOnboardingModal from "@/components/passkey/SolidarityOnboardingModal";
+import SignInModal from "@/components/passkey/SignInModal";
 
 import dynamic from "next/dynamic";
 
@@ -46,6 +46,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const { isOpen: isOnboardingOpen, onOpen: onOnboardingOpen, onClose: onOnboardingClose } = useDisclosure();
+  const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
 
   // Check if solidarity fund is active (gates showing passkey CTA)
   const { data: solidarityData } = useQuery(FETCH_SOLIDARITY_FUND_STATUS);
@@ -296,36 +297,17 @@ export default function Home() {
                 Create
               </MenuItem>
               {mounted && !isPasskeyUser && !isConnected ? (
-                <>
-                  {hasStoredPasskey ? (
-                    <Box px={2} py={1}>
-                      <PasskeyLoginButton width="100%" size="sm" borderRadius="md" />
-                    </Box>
-                  ) : (
-                    <MenuItem
-                      onClick={onOnboardingOpen}
-                      icon={<Text fontSize="lg">🔐</Text>}
-                      borderRadius="md"
-                      _hover={{ bg: "purple.50" }}
-                      fontSize={["sm", "md"]}
-                      fontWeight="500"
-                      py={3}
-                    >
-                      Create Account
-                    </MenuItem>
-                  )}
-                  <MenuItem
-                    onClick={openConnectModal}
-                    icon={<Text fontSize="lg">🔗</Text>}
-                    borderRadius="md"
-                    _hover={{ bg: "blue.50" }}
-                    fontSize={["sm", "md"]}
-                    fontWeight="500"
-                    py={3}
-                  >
-                    Connect Wallet
-                  </MenuItem>
-                </>
+                <MenuItem
+                  onClick={onSignInOpen}
+                  icon={<Text fontSize="lg">🔑</Text>}
+                  borderRadius="md"
+                  _hover={{ bg: "purple.50" }}
+                  fontSize={["sm", "md"]}
+                  fontWeight="500"
+                  py={3}
+                >
+                  Sign In
+                </MenuItem>
               ) : (
                 <MenuItem
                   onClick={accountMenuItem.onClick}
@@ -920,6 +902,13 @@ export default function Home() {
       <SolidarityOnboardingModal
         isOpen={isOnboardingOpen}
         onClose={onOnboardingClose}
+        onSuccess={() => router.push('/account')}
+      />
+
+      {/* Sign In Modal */}
+      <SignInModal
+        isOpen={isSignInOpen}
+        onClose={onSignInClose}
         onSuccess={() => router.push('/account')}
       />
     </>
