@@ -87,6 +87,7 @@ export const POProvider = ({ children }) => {
     const [poLinks, setPOLinks] = useState({});
     const [logoHash, setLogoHash] = useState('');
     const [logoUrl, setLogoUrl] = useState('');
+    const [backgroundColor, setBackgroundColor] = useState(null);
     const [metadataAdminHatId, setMetadataAdminHatId] = useState(null);
     const [poMembers, setPoMembers] = useState(0);
     const [activeTaskAmount, setActiveTaskAmount] = useState(0);
@@ -284,6 +285,7 @@ export const POProvider = ({ children }) => {
             // Use metadata from subgraph (indexed from IPFS)
             if (org.metadata) {
                 setPODescription(org.metadata.description || 'No description provided');
+                setBackgroundColor(org.metadata.backgroundColor || null);
                 // Transform links array to object format for compatibility
                 if (org.metadata.links && org.metadata.links.length > 0) {
                     const linksObj = {};
@@ -345,6 +347,7 @@ export const POProvider = ({ children }) => {
         poLinks,
         logoHash,
         logoUrl,
+        backgroundColor,
         metadataAdminHatId,
         poMembers,
         activeTaskAmount,
@@ -386,6 +389,7 @@ export const POProvider = ({ children }) => {
         poLinks,
         logoHash,
         logoUrl,
+        backgroundColor,
         metadataAdminHatId,
         poMembers,
         activeTaskAmount,

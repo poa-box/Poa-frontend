@@ -21,7 +21,7 @@ import { useAccount } from 'wagmi';
 
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { usePOContext } from '@/context/POContext';
-import { useIsOrgAdmin } from '@/hooks/useIsOrgAdmin';
+import { useIsOrgAdmin, useOrgTheme } from '@/hooks';
 import OrgMetadataEditor from '@/components/settings/OrgMetadataEditor';
 
 const SettingsPage = () => {
@@ -34,9 +34,11 @@ const SettingsPage = () => {
     poDescription,
     poLinks,
     logoUrl,
+    backgroundColor,
     poContextLoading,
     error: contextError,
   } = usePOContext();
+  const { pageBackground } = useOrgTheme();
 
   // Check if user is an org admin
   const { isAdmin, loading: adminLoading, error: adminError } = useIsOrgAdmin(orgId, address);
@@ -44,7 +46,7 @@ const SettingsPage = () => {
   // Loading state
   if (poContextLoading || adminLoading) {
     return (
-      <Box minH="100vh" bg="gray.900">
+      <Box minH="100vh" background={pageBackground("gray.900")}>
         <Navbar />
         <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
           <VStack spacing={4}>
@@ -59,7 +61,7 @@ const SettingsPage = () => {
   // Error state
   if (contextError || adminError) {
     return (
-      <Box minH="100vh" bg="gray.900">
+      <Box minH="100vh" background={pageBackground("gray.900")}>
         <Navbar />
         <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
           <Alert status="error" maxW="lg" borderRadius="md">
@@ -77,7 +79,7 @@ const SettingsPage = () => {
   // Not connected state
   if (!isConnected) {
     return (
-      <Box minH="100vh" bg="gray.900">
+      <Box minH="100vh" background={pageBackground("gray.900")}>
         <Navbar />
         <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
           <Alert status="warning" maxW="lg" borderRadius="md">
@@ -95,7 +97,7 @@ const SettingsPage = () => {
   // Not admin state
   if (!isAdmin) {
     return (
-      <Box minH="100vh" bg="gray.900">
+      <Box minH="100vh" background={pageBackground("gray.900")}>
         <Navbar />
         <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
           <Alert status="warning" maxW="lg" borderRadius="md">
@@ -113,7 +115,7 @@ const SettingsPage = () => {
   }
 
   return (
-    <Box minH="100vh" bg="gray.900">
+    <Box minH="100vh" background={pageBackground("gray.900")}>
       <Navbar />
       <Box maxW="4xl" mx="auto" px={4} pt={{ base: "80px", md: 8 }} pb={8}>
         <VStack spacing={8} align="stretch">
@@ -132,6 +134,7 @@ const SettingsPage = () => {
             currentDescription={poDescription}
             currentLinks={poLinks}
             currentLogoHash={logoUrl}
+            currentBackgroundColor={backgroundColor}
           />
         </VStack>
       </Box>

@@ -21,7 +21,7 @@ import Link from 'next/link';
 import { useAccount } from 'wagmi';
 
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
-import { useOrgStructure, useClaimRole, useVouches } from '@/hooks';
+import { useOrgStructure, useClaimRole, useVouches, useOrgTheme } from '@/hooks';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingContext } from '@/context/VotingContext';
 import {
@@ -42,6 +42,7 @@ const OrgStructurePage = () => {
 
   // Get user's current hat IDs
   const { userData } = useUserContext();
+  const { pageBackground } = useOrgTheme();
   const userHatIds = userData?.hatIds || [];
 
   // Get voting classes for governance display
@@ -111,7 +112,7 @@ const OrgStructurePage = () => {
     return (
       <Box
         minH="100vh"
-        bg="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
+        background={pageBackground("linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)")}
       >
         <Navbar />
         <Center minH="60vh">
@@ -129,7 +130,7 @@ const OrgStructurePage = () => {
     return (
       <Box
         minH="100vh"
-        bg="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
+        background={pageBackground("linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)")}
       >
         <Navbar />
         <Center minH="60vh">
@@ -152,7 +153,7 @@ const OrgStructurePage = () => {
   return (
     <Box
       minH="100vh"
-      bg="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
+      background={pageBackground("linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)")}
     >
       <Navbar />
 

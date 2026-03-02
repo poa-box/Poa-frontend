@@ -14,6 +14,7 @@ import { useRouter } from 'next/router';
 import { useQuery } from '@apollo/client';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
+import { useOrgTheme } from '@/hooks';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { FETCH_TREASURY_DATA } from '@/util/queries';
 import TreasuryHeader from './TreasuryHeader';
@@ -43,6 +44,7 @@ const TreasuryPage = () => {
     participationTokenAddress,
   } = usePOContext();
   const { hasExecRole } = useUserContext();
+  const { pageBackground } = useOrgTheme();
 
   // Modal state for PT stats
   const { isOpen: isPTModalOpen, onOpen: onPTModalOpen, onClose: onPTModalClose } = useDisclosure();
@@ -84,14 +86,14 @@ const TreasuryPage = () => {
     <>
       <Navbar />
       {isLoading ? (
-        <Center height="100vh">
+        <Center height="100vh" background={pageBackground()}>
           <VStack spacing={4}>
             <Spinner size="xl" color="purple.400" />
             <Text color="gray.400">Loading treasury data...</Text>
           </VStack>
         </Center>
       ) : (
-        <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }}>
+        <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }} minH="100vh" background={pageBackground()}>
           <Grid
             color="whitesmoke"
             templateAreas={{
