@@ -3,6 +3,7 @@ import { useQuery, useLazyQuery } from '@apollo/client';
 import { GET_ORG_BY_NAME, FETCH_ORG_FULL_DATA } from '../util/queries';
 import { useRouter } from 'next/router';
 import { useAccount } from 'wagmi';
+import { useAuth } from './AuthContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
@@ -75,6 +76,7 @@ function transformEducationModules(modules) {
 
 export const POProvider = ({ children }) => {
     const { address } = useAccount();
+    const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
     const poName = router.query.userDAO || '';
     const { safeFetchFromIpfs } = useIPFScontext();
@@ -124,11 +126,14 @@ export const POProvider = ({ children }) => {
 
     const [account, setAccount] = useState('0x00');
 
+    // Use AuthContext's unified address (supports both EOA and passkey)
+    const effectiveAddress = authAddress || address;
+
     useEffect(() => {
-        if (address) {
-            setAccount(address);
+        if (effectiveAddress) {
+            setAccount(effectiveAddress);
         }
-    }, [address]);
+    }, [effectiveAddress]);
 
     // Step 1: Look up org by name to get bytes ID
     const { data: orgLookupData, loading: orgLookupLoading, error: orgLookupError } = useQuery(GET_ORG_BY_NAME, {

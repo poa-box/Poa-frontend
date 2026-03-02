@@ -9,6 +9,7 @@ import { POProvider } from "@/context/POContext";
 import { VotingProvider } from "@/context/VotingContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { RefreshProvider } from "@/context/RefreshContext";
+import { AuthProvider } from "@/context/AuthContext";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import '@rainbow-me/rainbowkit/styles.css';
 import '../styles/globals.css';
@@ -198,6 +199,7 @@ function MyApp({ Component, pageProps }) {
   return (
     <ErrorBoundary>
       <WagmiProvider config={config}>
+        <AuthProvider>
         <ApolloProvider client={client}>
           <QueryClientProvider client={queryClient}>
             <RainbowKitProvider initialChain={hoodi}>
@@ -229,6 +231,7 @@ function MyApp({ Component, pageProps }) {
             </RainbowKitProvider>
           </QueryClientProvider>
         </ApolloProvider>
+        </AuthProvider>
       </WagmiProvider>
     </ErrorBoundary>
   );

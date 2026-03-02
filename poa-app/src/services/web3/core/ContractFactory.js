@@ -20,18 +20,27 @@ export class ContractFactory {
   }
 
   /**
-   * Create a contract instance for write operations (requires signer)
+   * Create a contract instance for write operations.
+   * When a signer is available (EOA), the contract is connected to it for direct calls.
+   * When only a provider is available (passkey), the contract is used for ABI encoding only
+   * — SmartAccountTransactionManager handles actual execution via UserOps.
    * @param {string} address - Contract address
    * @param {Array} abi - Contract ABI
-   * @returns {ethers.Contract} Contract instance connected to signer
+   * @returns {ethers.Contract} Contract instance
    * @throws {ContractCreationError} If validation fails
    */
   createWritable(address, abi) {
     this._validateAddress(address);
     this._validateAbi(abi);
-    this._validateSigner();
 
-    return new ethers.Contract(address, abi, this.signer);
+    if (this.signer) {
+      return new ethers.Contract(address, abi, this.signer);
+    }
+    if (this.provider) {
+      return new ethers.Contract(address, abi, this.provider);
+    }
+
+    this._validateSigner(); // throws
   }
 
   /**

@@ -37,8 +37,10 @@ import {
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
+import { useAuth } from '@/context/AuthContext';
 import { motion } from "framer-motion";
-import { FaWallet, FaUserPlus, FaUser, FaCheck, FaChevronRight, FaLink, FaInfoCircle, FaShieldAlt, FaRegLightbulb, FaUsers } from 'react-icons/fa';
+import { FaWallet, FaUserPlus, FaUser, FaCheck, FaChevronRight, FaLink, FaInfoCircle, FaShieldAlt, FaRegLightbulb, FaUsers, FaFingerprint } from 'react-icons/fa';
+import PasskeyLoginButton from '@/components/passkey/PasskeyLoginButton';
 import { BsFillLightningChargeFill } from 'react-icons/bs';
 
 // Animation keyframes
@@ -65,6 +67,7 @@ const MotionBox = motion(Box);
 const User = () => {
   const { hasMemberRole, graphUsername } = useUserContext();
   const { address } = useAccount();
+  const { isAuthenticated, isPasskeyUser, accountAddress } = useAuth();
   const { quickJoinContractAddress, poDescription, logoHash } = usePOContext();
   const { organization, executeWithNotification } = useWeb3();
   const router = useRouter();
@@ -225,7 +228,7 @@ const User = () => {
       </Box>
 
       <Container maxW="container.xl" pt={{ base: 16, md: 8 }}>
-        {address ? (
+        {address && !isPasskeyUser ? (
           <Flex justify="flex-end" mb={4}>
             <ConnectButton showBalance={false} chainStatus="icon" />
           </Flex>
@@ -319,20 +322,23 @@ const User = () => {
                 borderColor="rgba(255,255,255,0.1)"
               >
                 <CardBody p={cardPadding}>
-                  {address ? (
+                  {isAuthenticated ? (
                     <>
                       <VStack spacing={formSpacing} align="stretch">
-                        <Box 
-                          p={{ base: 3, md: 4 }} 
+                        <Box
+                          p={{ base: 3, md: 4 }}
                           borderRadius="lg"
                           bg={useColorModeValue("green.50", "green.900")}
                           borderWidth="1px"
                           borderColor={useColorModeValue("green.200", "green.700")}
                         >
                           <Flex align="center" flexWrap="wrap">
-                            <Icon as={FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
+                            <Icon as={isPasskeyUser ? FaFingerprint : FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
                             <Text color={textColor} fontWeight="medium" fontSize={{ base: "sm", md: "md" }}>
-                              Wallet Connected: {address.substring(0, 6)}...{address.substring(address.length - 4)}
+                              {isPasskeyUser
+                                ? `Passkey Account: ${accountAddress?.substring(0, 6)}...${accountAddress?.substring(accountAddress.length - 4)}`
+                                : `Wallet Connected: ${address?.substring(0, 6)}...${address?.substring(address?.length - 4)}`
+                              }
                             </Text>
                           </Flex>
                         </Box>
@@ -478,16 +484,38 @@ const User = () => {
                       >
                         <Icon as={FaWallet} color={accentColor} boxSize={{ base: 12, md: 16 }} />
                       </MotionBox>
-                      
+
                       <VStack spacing={{ base: 2, md: 3 }}>
                         <Heading size={{ base: "md", md: "lg" }} textAlign="center" color={textColor}>
-                          Connect Your Wallet
+                          Join {userDAO}
                         </Heading>
                         <Text textAlign="center" color={useColorModeValue('gray.600', 'gray.300')} maxW="md" fontSize={{ base: "sm", md: "md" }}>
-                          To join {userDAO} and access the Profile Hub, please connect your wallet first.
+                          Create an account with your fingerprint or connect a wallet to get started.
                         </Text>
                       </VStack>
-                      
+
+                      {/* Passkey option - primary, seamless onboarding */}
+                      <VStack spacing={3} width="100%">
+                        <PasskeyLoginButton
+                          width="100%"
+                          size="lg"
+                          height={buttonHeight}
+                          fontSize={{ base: "md", md: "lg" }}
+                          onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
+                        />
+                        <Text fontSize="xs" color={useColorModeValue('gray.500', 'gray.400')} textAlign="center">
+                          No wallet or ETH needed. Gas fees are sponsored.
+                        </Text>
+                      </VStack>
+
+                      <HStack width="100%" align="center">
+                        <Divider />
+                        <Text fontSize="xs" color="gray.400" whiteSpace="nowrap" px={2}>
+                          or
+                        </Text>
+                        <Divider />
+                      </HStack>
+
                       <Box
                         p={{ base: 1.5, md: 2 }}
                         borderRadius="xl"
@@ -499,19 +527,18 @@ const User = () => {
                         <HStack spacing={1} justify="center" flexWrap="wrap">
                           <Icon as={FaInfoCircle} color="blue.500" boxSize={{ base: 3, md: 4 }} />
                           <Text fontSize={{ base: "xs", md: "sm" }} color={useColorModeValue('blue.700', 'blue.300')} textAlign="center">
-                            Already a member? Connect to access your profile.
+                            Have a wallet? Connect to join or access your profile.
                           </Text>
                         </HStack>
                       </Box>
-                      
+
                       <Box
                         p={{ base: 3, md: 4 }}
                         borderRadius="lg"
-                        animation={`${pulse} 2s infinite`}
                       >
-                        <ConnectButton 
-                          showBalance={false} 
-                          chainStatus={isMobile ? "none" : "icon"} 
+                        <ConnectButton
+                          showBalance={false}
+                          chainStatus={isMobile ? "none" : "icon"}
                           accountStatus={isMobile ? "avatar" : "address"}
                           label="Connect Wallet"
                         />
