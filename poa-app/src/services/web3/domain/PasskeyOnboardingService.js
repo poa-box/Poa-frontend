@@ -17,7 +17,7 @@ import QuickJoinABI from '../../../../abi/QuickJoinNew.json';
 import { createPasskeyCredential } from '../passkey/passkeyCreate';
 import { signUserOpWithPasskey } from '../passkey/passkeySign';
 import { buildUserOp, getUserOpHash } from '../passkey/userOpBuilder';
-import { encodeOnboardingPaymasterData } from '../passkey/paymasterData';
+import { encodeOnboardingPaymasterData, encodeSolidarityOnboardingPaymasterData } from '../passkey/paymasterData';
 import { ENTRY_POINT_ADDRESS } from '../../../config/passkey';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
@@ -58,12 +58,13 @@ export class PasskeyOnboardingService {
    * @param {Object} params.publicClient - viem public client
    * @param {Object} params.bundlerClient - Pimlico bundler client
    * @param {string} params.factoryAddress - PasskeyAccountFactory address
-   * @param {string} params.registryAddress - UniversalAccountRegistry address
-   * @param {string} params.quickJoinAddress - QuickJoin contract address for the org
+   * @param {string} [params.registryAddress] - UniversalAccountRegistry address (org mode only)
+   * @param {string} [params.quickJoinAddress] - QuickJoin contract address (org mode only)
    * @param {string} params.paymasterAddress - PaymasterHub proxy address
-   * @param {string} params.orgId - bytes32 org ID
+   * @param {string} [params.orgId] - bytes32 org ID (org mode only)
+   * @param {string} [params.mode='org'] - 'org' for org-scoped onboarding, 'solidarity' for protocol-level
    */
-  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId }) {
+  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId, mode = 'org' }) {
     this.publicClient = publicClient;
     this.bundlerClient = bundlerClient;
     this.factoryAddress = factoryAddress;
@@ -71,6 +72,7 @@ export class PasskeyOnboardingService {
     this.quickJoinAddress = quickJoinAddress;
     this.paymasterAddress = paymasterAddress;
     this.orgId = orgId;
+    this.mode = mode;
   }
 
   /**
@@ -111,37 +113,42 @@ export class PasskeyOnboardingService {
       });
       const initCode = this.factoryAddress + factoryCallData.slice(2);
 
-      // callData = PasskeyAccount.executeBatch(
-      //   [registryAddress, quickJoinAddress],
-      //   [0, 0],
-      //   [registerAccount(username), quickJoinNoUser()]
-      // )
-      const registerCallData = encodeFunctionData({
-        abi: UniversalAccountRegistryABI,
-        functionName: 'registerAccount',
-        args: [username],
-      });
-      const joinCallData = encodeFunctionData({
-        abi: QuickJoinABI,
-        functionName: 'quickJoinNoUser',
-        args: [],
-      });
+      // Build callData and paymasterData based on mode
+      let callData;
+      let paymasterData;
 
-      const callData = encodeFunctionData({
-        abi: PasskeyAccountABI,
-        functionName: 'executeBatch',
-        args: [
-          [this.registryAddress, this.quickJoinAddress],
-          [0n, 0n],
-          [registerCallData, joinCallData],
-        ],
-      });
+      if (this.mode === 'solidarity') {
+        // Solidarity mode: bare account deployment only (contract requires empty callData)
+        callData = '0x';
+        paymasterData = encodeSolidarityOnboardingPaymasterData();
+      } else {
+        // Org mode: deploy + register + quickJoin in one tx
+        const registerCallData = encodeFunctionData({
+          abi: UniversalAccountRegistryABI,
+          functionName: 'registerAccount',
+          args: [username],
+        });
+        const joinCallData = encodeFunctionData({
+          abi: QuickJoinABI,
+          functionName: 'quickJoinNoUser',
+          args: [],
+        });
 
-      // Paymaster data for onboarding
-      const paymasterData = encodeOnboardingPaymasterData({
-        counterfactualAddress: accountAddress,
-        orgId: this.orgId,
-      });
+        callData = encodeFunctionData({
+          abi: PasskeyAccountABI,
+          functionName: 'executeBatch',
+          args: [
+            [this.registryAddress, this.quickJoinAddress],
+            [0n, 0n],
+            [registerCallData, joinCallData],
+          ],
+        });
+
+        paymasterData = encodeOnboardingPaymasterData({
+          counterfactualAddress: accountAddress,
+          orgId: this.orgId,
+        });
+      }
 
       const userOp = await buildUserOp({
         sender: accountAddress,
