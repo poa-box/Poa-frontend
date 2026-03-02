@@ -51,13 +51,19 @@ function DeployerPageContent() {
   // Uses a ref so we only disconnect once (the first auto-reconnect), not after user-initiated connects.
   const hasDisconnectedAutoReconnect = useRef(false);
   const [walletUserConnected, setWalletUserConnected] = useState(false);
+
+  console.log('[deployer-auth] render:', { status, address, walletUserConnected, hasDisconnected: hasDisconnectedAutoReconnect.current, passkeyAddress: passkeyState?.accountAddress });
+
   useEffect(() => {
+    console.log('[deployer-auth] disconnect effect:', { status, hasDisconnected: hasDisconnectedAutoReconnect.current });
     if (!hasDisconnectedAutoReconnect.current && (status === 'reconnecting' || status === 'connected')) {
+      console.log('[deployer-auth] disconnecting auto-reconnected wallet');
       hasDisconnectedAutoReconnect.current = true;
       disconnect();
     }
   }, [status, disconnect]);
   useEffect(() => {
+    console.log('[deployer-auth] status effect:', { status });
     if (status === 'connecting') setWalletUserConnected(true);
     if (status === 'disconnected') setWalletUserConnected(false);
   }, [status]);
@@ -388,7 +394,11 @@ function DeployerPageContent() {
         <DeployerWizard
           onDeployStart={handleDeployStart}
           onDeploySuccess={handleDeploySuccess}
-          deployerAddress={(passkeyState?.accountAddress) || (walletUserConnected ? address : undefined)}
+          deployerAddress={(() => {
+            const d = (passkeyState?.accountAddress) || (walletUserConnected ? address : undefined);
+            console.log('[deployer-auth] deployerAddress:', d, '| passkeyAddr:', passkeyState?.accountAddress, '| walletUserConnected:', walletUserConnected, '| address:', address);
+            return d;
+          })()}
         />
       </Box>
 
