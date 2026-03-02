@@ -5,12 +5,14 @@ import { useDataBaseContext } from '@/context/dataBaseContext';
 import { useRouter } from 'next/router';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { usePOContext } from '@/context/POContext';
+import { useOrgTheme } from '@/hooks';
 
 const Tasks = () => {
   const router = useRouter();
   const { userDAO } = router.query;
   const { setSelectedProjectId, projects } = useDataBaseContext();
   const { poContextLoading } = usePOContext();
+  const { pageBackground } = useOrgTheme();
   const containerRef = useRef();
 
   useEffect(() => {
@@ -28,11 +30,11 @@ const Tasks = () => {
     <>
       <Navbar />
       {poContextLoading ? (
-        <Center height="90vh">
+        <Center height="90vh" background={pageBackground("blackAlpha.600")}>
           <Spinner size="xl" />
         </Center>
       ) : (
-        <Box minH="90vh" position="relative" bg="blackAlpha.600" ref={containerRef}>
+        <Box minH="90vh" position="relative" background={pageBackground("blackAlpha.600")} ref={containerRef}>
           <MainLayout />
         </Box>
       )}

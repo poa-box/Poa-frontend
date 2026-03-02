@@ -35,3 +35,6 @@ export { useVotingPower } from './useVotingPower';
 
 // Global Account
 export { useGlobalAccount } from './useGlobalAccount';
+
+// Org Theme
+export { useOrgTheme } from './useOrgTheme';
