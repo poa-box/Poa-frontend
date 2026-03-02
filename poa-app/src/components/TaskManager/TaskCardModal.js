@@ -640,11 +640,11 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                           Rejected{task.rejectionCount > 1 ? ` (${task.rejectionCount} times)` : ''}
                         </Text>
                       </HStack>
-                      {(task.rejectionReason || rejectionMetadata?.rejection) && (
+                      {(task.rejectionReason || rejectionMetadata?.rejection || rejectionMetadata?.rejectionReason) && (
                         <Box mb={2}>
                           <Text fontSize="sm" color="red.200" fontWeight="semibold" mb={1}>Reason:</Text>
                           <Text fontSize="sm" color="gray.200" style={{ whiteSpace: 'pre-wrap' }}>
-                            {task.rejectionReason || rejectionMetadata?.rejection}
+                            {task.rejectionReason || rejectionMetadata?.rejection || rejectionMetadata?.rejectionReason}
                           </Text>
                         </Box>
                       )}
