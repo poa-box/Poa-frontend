@@ -1,24 +1,30 @@
-import React from "react";
-import { Box, Flex, Image, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, useBreakpointValue } from "@chakra-ui/react";
+import React, { useState, useEffect } from "react";
+import { Box, Flex, HStack, Image, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, useBreakpointValue } from "@chakra-ui/react";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
 import { FaHome } from 'react-icons/fa';
 import NextLink from "next/link";
 import { useRouter } from "next/router";
-import { useAccount } from 'wagmi';
 import LoginButton from "@/components/LoginButton";
+import { useAuth } from "@/context/AuthContext";
 import { usePOContext } from "@/context/POContext";
 import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
+import PasskeyAccountInfo from "@/components/passkey/PasskeyAccountInfo";
+import PasskeyLoginButton from "@/components/passkey/PasskeyLoginButton";
+import GasSponsorshipBadge from "@/components/passkey/GasSponsorshipBadge";
 
 const Navbar = () => {
   const router = useRouter();
   const { userDAO } = router.query;
   const { isOpen, onOpen, onClose } = useDisclosure();
   const isMobile = useBreakpointValue({ base: true, md: false });
-  const { address } = useAccount();
+  const { isPasskeyUser, accountAddress, hasStoredPasskey } = useAuth();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
   const { educationHubEnabled, orgId } = usePOContext();
 
   // Check if user is an org admin (for showing Settings link)
-  const { isAdmin } = useIsOrgAdmin(orgId, address);
+  // Use AuthContext's unified address so passkey users get admin check too
+  const { isAdmin } = useIsOrgAdmin(orgId, accountAddress);
 
   // Navigation items - conditionally include Learn & Earn based on educationHubEnabled
   const navItems = [
@@ -185,7 +191,19 @@ const Navbar = () => {
               </Flex>
             </Link>
           )}
-          <LoginButton />
+          {mounted && isPasskeyUser ? (
+            <HStack spacing={2}>
+              <GasSponsorshipBadge />
+              <PasskeyAccountInfo />
+            </HStack>
+          ) : mounted && hasStoredPasskey ? (
+            <HStack spacing={2}>
+              <PasskeyLoginButton variant="compact" size="sm" />
+              <LoginButton />
+            </HStack>
+          ) : (
+            <LoginButton />
+          )}
         </Flex>
 
         {/* Mobile Hamburger Button */}
@@ -247,7 +265,19 @@ const Navbar = () => {
             </VStack>
             
             <Box p={6} mt={4}>
-              <LoginButton />
+              {mounted && isPasskeyUser ? (
+                <VStack spacing={3}>
+                  <GasSponsorshipBadge />
+                  <PasskeyAccountInfo />
+                </VStack>
+              ) : mounted && hasStoredPasskey ? (
+                <VStack spacing={3}>
+                  <PasskeyLoginButton width="100%" />
+                  <LoginButton />
+                </VStack>
+              ) : (
+                <LoginButton />
+              )}
               <Text fontSize="xs" color="whiteAlpha.600" mt={6} textAlign="center">
                 Powered by PoA • {new Date().getFullYear()}
               </Text>

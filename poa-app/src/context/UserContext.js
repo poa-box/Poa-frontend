@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAccount } from 'wagmi';
+import { useAuth } from './AuthContext';
 import { FETCH_USER_DATA_NEW, FETCH_TOKEN_APPROVER_HATS } from '../util/queries';
 import { useRouter } from 'next/router';
 import { usePOContext } from './POContext';
@@ -13,6 +14,7 @@ export const useUserContext = () => useContext(UserContext);
 
 export const UserProvider = ({ children }) => {
     const { address } = useAccount();
+    const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
     const { userDAO } = router.query;
     const { orgId, roleHatIds, participationTokenAddress } = usePOContext();
@@ -29,11 +31,14 @@ export const UserProvider = ({ children }) => {
 
     const [account, setAccount] = useState(null);
 
+    // Use AuthContext's unified address (supports both EOA and passkey)
+    const effectiveAddress = authAddress || address;
+
     useEffect(() => {
-        if (address) {
-            setAccount(address.toLowerCase());
+        if (effectiveAddress) {
+            setAccount(effectiveAddress.toLowerCase());
         }
-    }, [address]);
+    }, [effectiveAddress]);
 
     // Construct the org-specific user ID
     const orgUserID = orgId && account ? `${orgId}-${account}` : null;
