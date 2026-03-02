@@ -3,9 +3,11 @@ import { useQuery, useLazyQuery } from '@apollo/client';
 import { GET_ORG_BY_NAME, FETCH_ORG_FULL_DATA } from '../util/queries';
 import { useRouter } from 'next/router';
 import { useAccount } from 'wagmi';
+import { useAuth } from './AuthContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
+import { useIPFScontext } from './ipfsContext';
 
 const POContext = createContext();
 
@@ -74,14 +76,18 @@ function transformEducationModules(modules) {
 
 export const POProvider = ({ children }) => {
     const { address } = useAccount();
+    const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
     const poName = router.query.userDAO || '';
+    const { safeFetchFromIpfs } = useIPFScontext();
 
     // Organization data state
     const [orgId, setOrgId] = useState(null);
     const [poDescription, setPODescription] = useState('No description provided or IPFS content still being indexed');
     const [poLinks, setPOLinks] = useState({});
     const [logoHash, setLogoHash] = useState('');
+    const [logoUrl, setLogoUrl] = useState('');
+    const [metadataAdminHatId, setMetadataAdminHatId] = useState(null);
     const [poMembers, setPoMembers] = useState(0);
     const [activeTaskAmount, setActiveTaskAmount] = useState(0);
     const [completedTaskAmount, setCompletedTaskAmount] = useState(0);
@@ -120,11 +126,14 @@ export const POProvider = ({ children }) => {
 
     const [account, setAccount] = useState('0x00');
 
+    // Use AuthContext's unified address (supports both EOA and passkey)
+    const effectiveAddress = authAddress || address;
+
     useEffect(() => {
-        if (address) {
-            setAccount(address);
+        if (effectiveAddress) {
+            setAccount(effectiveAddress);
         }
-    }, [address]);
+    }, [effectiveAddress]);
 
     // Step 1: Look up org by name to get bytes ID
     const { data: orgLookupData, loading: orgLookupLoading, error: orgLookupError } = useQuery(GET_ORG_BY_NAME, {
@@ -167,6 +176,7 @@ export const POProvider = ({ children }) => {
             RefreshEvent.MODULE_CREATED,
             RefreshEvent.MODULE_COMPLETED,
             RefreshEvent.TASK_COMPLETED, // Updates user stats
+            RefreshEvent.METADATA_UPDATED, // Updates org metadata (name, description, etc.)
         ],
         handleRefresh,
         [handleRefresh]
@@ -183,6 +193,10 @@ export const POProvider = ({ children }) => {
             setPtTokenBalance(formatTokenAmount(org.participationToken?.totalSupply || '0'));
             setTopHatId(org.topHatId);
             setRoleHatIds(org.roleHatIds || []);
+
+            // Read metadataAdminHatId from subgraph
+            const adminHat = org.metadataAdminHatId;
+            setMetadataAdminHatId(adminHat && adminHat !== '0' ? adminHat : null);
             setCreatorHatIds(org.taskManager?.creatorHatIds || []);
 
             // Build role names map from roles data
@@ -287,6 +301,31 @@ export const POProvider = ({ children }) => {
         }
     }, [orgData]);
 
+    // Fetch logo CID from IPFS metadata JSON
+    // The subgraph OrgMetadata entity doesn't index the 'logo' field,
+    // so we extract it from IPFS directly.
+    useEffect(() => {
+        async function fetchLogoFromMetadata() {
+            const org = orgData?.organization;
+            if (!org?.metadataHash) {
+                setLogoUrl('');
+                return;
+            }
+            try {
+                const metadata = await safeFetchFromIpfs(org.metadataHash);
+                if (metadata?.logo) {
+                    setLogoUrl(metadata.logo);
+                } else {
+                    setLogoUrl('');
+                }
+            } catch (e) {
+                console.warn('[POContext] Failed to fetch logo from IPFS metadata:', e);
+                setLogoUrl('');
+            }
+        }
+        fetchLogoFromMetadata();
+    }, [orgData, safeFetchFromIpfs]);
+
     // Combined loading and error states
     const loading = orgLookupLoading || orgDataLoading;
     const error = orgLookupError || orgDataError;
@@ -305,6 +344,8 @@ export const POProvider = ({ children }) => {
         poDescription,
         poLinks,
         logoHash,
+        logoUrl,
+        metadataAdminHatId,
         poMembers,
         activeTaskAmount,
         completedTaskAmount,
@@ -344,6 +385,8 @@ export const POProvider = ({ children }) => {
         poDescription,
         poLinks,
         logoHash,
+        logoUrl,
+        metadataAdminHatId,
         poMembers,
         activeTaskAmount,
         completedTaskAmount,

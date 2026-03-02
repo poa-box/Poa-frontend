@@ -8,6 +8,7 @@
 import React, { createContext, useState, useEffect, useContext } from 'react';
 import { useAccount } from "wagmi";
 import { useEthersProvider, useEthersSigner } from '@/components/ProviderConverter';
+import { useAuth } from './AuthContext';
 
 const Web3Context = createContext();
 
@@ -22,10 +23,12 @@ export const Web3Provider = ({ children }) => {
     const { address, chainId } = useAccount();
     const provider = useEthersProvider();
     const signer = useEthersSigner();
+    const { accountAddress } = useAuth();
 
+    // Use AuthContext's unified address (supports both EOA and passkey)
     useEffect(() => {
-        setAccount(address);
-    }, [address]);
+        setAccount(accountAddress || address);
+    }, [accountAddress, address]);
 
     const checkNetwork = () => {
         if (chainId !== 560048) {

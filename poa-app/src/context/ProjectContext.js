@@ -57,6 +57,7 @@ export const ProjectProvider = ({ children }) => {
             RefreshEvent.TASK_COMPLETED,
             RefreshEvent.TASK_UPDATED,
             RefreshEvent.TASK_CANCELLED,
+            RefreshEvent.TASK_REJECTED,
         ],
         handleRefresh,
         [handleRefresh]
@@ -151,6 +152,16 @@ export const ProjectProvider = ({ children }) => {
                         completerUsername: task.completerUsername || '',
                         requiresApplication: task.requiresApplication,
                         applications: task.applications || [],
+                        // Transform applications to applicants format for TaskCardModal
+                        applicants: (task.applications || []).map(app => ({
+                            address: app.applicant,
+                            username: app.applicantUsername || '',
+                            applicationHash: app.applicationHash,
+                            approved: app.approved,
+                            appliedAt: app.appliedAt,
+                        })),
+                        rejectionHash: task.rejectionHash,
+                        rejectionCount: task.rejectionCount || 0,
                         isIndexing: !task.title,
                         createdAt: task.createdAt,
                         assignedAt: task.assignedAt,

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Head from "next/head";
 import Link from "next/link";
 import {
@@ -21,7 +21,9 @@ import { useRouter } from "next/router";
 import { useAccount } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useGlobalAccount } from "@/hooks/useGlobalAccount";
+import { useAuth } from "@/context/AuthContext";
 import SignupModal from "@/components/account/SignupModal";
+import PasskeyLoginButton from "@/components/passkey/PasskeyLoginButton";
 
 import dynamic from "next/dynamic";
 
@@ -34,7 +36,10 @@ export default function Home() {
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
+  const { isPasskeyUser, hasStoredPasskey } = useAuth();
   const [isSignupOpen, setIsSignupOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const handleClick = () => {
     router.push("/browser");
@@ -42,6 +47,9 @@ export default function Home() {
 
   // Determine account menu item state
   const getAccountMenuItem = () => {
+    if (mounted && isPasskeyUser) {
+      return { text: "My Account", icon: "👤", onClick: () => router.push("/account") };
+    }
     if (!isConnected) {
       return { text: "Connect Wallet", icon: "🔗", onClick: openConnectModal };
     }
@@ -273,6 +281,11 @@ export default function Home() {
               >
                 Create
               </MenuItem>
+              {mounted && !isPasskeyUser && !isConnected && hasStoredPasskey && (
+                <Box px={2} py={1}>
+                  <PasskeyLoginButton width="100%" size="sm" borderRadius="md" />
+                </Box>
+              )}
               <MenuItem
                 onClick={accountMenuItem.onClick}
                 icon={<Text fontSize="lg">{accountMenuItem.icon}</Text>}

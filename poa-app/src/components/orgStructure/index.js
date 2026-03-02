@@ -15,3 +15,6 @@ export { VouchingSection } from './VouchingSection';
 export { VouchRequestCard } from './VouchRequestCard';
 export { VouchProgressBar } from './VouchProgressBar';
 export { VouchForNewMember } from './VouchForNewMember';
+
+// Role application
+export { RoleApplicationModal } from './RoleApplicationModal';

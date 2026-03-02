@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Button,
   FormControl,
@@ -38,6 +38,8 @@ import { useIPFScontext } from '@/context/ipfsContext';
 import { useRouter } from 'next/router';
 import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
+import { useProjectContext } from '@/context/ProjectContext';
+import { userCanReviewTask } from '../../util/permissions';
 
 
 const glassLayerStyle = {
@@ -54,8 +56,10 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   const [submission, setSubmission] = useState('');
   const [assignAddress, setAssignAddress] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
-  const { moveTask, deleteTask, applyForTask, approveApplication, assignTask } = useTaskBoard();
-  const { hasExecRole, hasMemberRole, address: account, fetchUserDetails } = useUserContext();
+  const [rejectionReason, setRejectionReason] = useState('');
+  const { moveTask, deleteTask, applyForTask, approveApplication, assignTask, rejectTask } = useTaskBoard();
+  const { hasExecRole, hasMemberRole, address: account, fetchUserDetails, userData } = useUserContext();
+  const { projectsData } = useProjectContext();
   const { getUsernameByAddress, setSelectedProject, projects } = useDataBaseContext();
   const { safeFetchFromIpfs } = useIPFScontext();
   const router = useRouter();
@@ -69,6 +73,20 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   const [taskMetadata, setTaskMetadata] = useState(null);
   const [submissionMetadata, setSubmissionMetadata] = useState(null);
   const [metadataLoading, setMetadataLoading] = useState(false);
+
+  // Project-level review permission (matches TaskColumn.js pattern)
+  const userHatIds = userData?.hatIds || [];
+  const currentProject = useMemo(() => {
+    return projectsData?.find(p => p.id === task?.projectId);
+  }, [projectsData, task?.projectId]);
+  const projectRolePermissions = currentProject?.rolePermissions || [];
+
+  const canReviewTask = useMemo(() => {
+    const hasPermission = userCanReviewTask(userHatIds, projectRolePermissions);
+    if (hasPermission) return true;
+    if (!projectRolePermissions?.length && hasExecRole) return true;
+    return false;
+  }, [userHatIds, projectRolePermissions, hasExecRole]);
 
   // Ref to prevent re-opening modal during intentional close
   const isClosingRef = useRef(false);
@@ -307,6 +325,37 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     }
   };
 
+  const handleRejectTask = async () => {
+    if (!canReviewTask) {
+      toast({
+        title: 'Permission Required',
+        description: 'You must have review permissions to reject a task.',
+        status: 'warning',
+        duration: 4000,
+        isClosable: true,
+        position: 'top',
+      });
+      return;
+    }
+
+    if (!rejectionReason.trim()) {
+      toast({
+        title: 'Rejection Reason Required',
+        description: 'Please provide a reason for rejection.',
+        status: 'error',
+        duration: 3500,
+        isClosable: true,
+      });
+      return;
+    }
+
+    await handleCloseModal();
+
+    rejectTask(task, rejectionReason).catch(error => {
+      console.error("Error rejecting task:", error);
+    });
+  };
+
   const handleButtonClick = async () => {
     // For tasks requiring application, open the application modal instead
     if (columnId === 'open' && task.requiresApplication && !hasExecRole) {
@@ -365,10 +414,10 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     }
 
     if (columnId === 'inReview') {
-      if (!hasExecRole) {
+      if (!canReviewTask) {
         toast({
           title: 'Permission Required',
-          description: 'You must be an executive to complete the review.',
+          description: 'You must have review permissions to complete the review.',
           status: 'warning',
           duration: 4000,
           isClosable: true,
@@ -566,6 +615,19 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                       </Text>
                     </Box>
                   )}
+                  {columnId === 'inReview' && canReviewTask && (
+                    <FormControl mt={3}>
+                      <FormLabel fontWeight="bold" fontSize="lg">
+                        Rejection Reason:
+                      </FormLabel>
+                      <Textarea
+                        height="100px"
+                        placeholder="Explain why this submission is being rejected..."
+                        value={rejectionReason}
+                        onChange={(e) => setRejectionReason(e.target.value)}
+                      />
+                    </FormControl>
+                  )}
 
                   {/* Show requiresApplication badge */}
                   {columnId === 'open' && task.requiresApplication && (
@@ -668,6 +730,11 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
               {!task.isIndexing && columnId === 'open' && (
                 <Button textColor={"white"} variant="outline" onClick={handleOpenEditTaskModal} mr={2}>
                   Edit
+                </Button>
+              )}
+              {!task.isIndexing && columnId === 'inReview' && canReviewTask && (
+                <Button colorScheme="red" variant="outline" onClick={handleRejectTask} mr={2}>
+                  Reject
                 </Button>
               )}
               <Button onClick={handleButtonClick} colorScheme="teal" isDisabled={task.isIndexing}>

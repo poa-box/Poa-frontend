@@ -132,6 +132,19 @@
   },
   {
     "type": "function",
+    "name": "getHats",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "getOrgContract",
     "inputs": [
       {
@@ -163,6 +176,25 @@
         "name": "",
         "type": "bytes32[]",
         "internalType": "bytes32[]"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getOrgMetadataAdminHat",
+    "inputs": [
+      {
+        "name": "orgId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "stateMutability": "view"
@@ -216,6 +248,11 @@
     "inputs": [
       {
         "name": "initialOwner",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "_hats",
         "type": "address",
         "internalType": "address"
       }
@@ -448,29 +485,6 @@
   },
   {
     "type": "function",
-    "name": "setAutoUpgrade",
-    "inputs": [
-      {
-        "name": "orgId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "typeId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "enabled",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "setOrgExecutor",
     "inputs": [
       {
@@ -482,6 +496,24 @@
         "name": "executorAddr",
         "type": "address",
         "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "setOrgMetadataAdminHat",
+    "inputs": [
+      {
+        "name": "orgId",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      },
+      {
+        "name": "hatId",
+        "type": "uint256",
+        "internalType": "uint256"
       }
     ],
     "outputs": [],
@@ -537,23 +569,27 @@
     "stateMutability": "nonpayable"
   },
   {
-    "type": "event",
-    "name": "AutoUpgradeSet",
+    "type": "function",
+    "name": "updateOrgMetaAsAdmin",
     "inputs": [
       {
-        "name": "contractId",
+        "name": "orgId",
         "type": "bytes32",
-        "indexed": true,
         "internalType": "bytes32"
       },
       {
-        "name": "enabled",
-        "type": "bool",
-        "indexed": false,
-        "internalType": "bool"
+        "name": "newName",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "newMetadataHash",
+        "type": "bytes32",
+        "internalType": "bytes32"
       }
     ],
-    "anonymous": false
+    "outputs": [],
+    "stateMutability": "nonpayable"
   },
   {
     "type": "event",
@@ -669,6 +705,25 @@
   },
   {
     "type": "event",
+    "name": "OrgMetadataAdminHatSet",
+    "inputs": [
+      {
+        "name": "orgId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "hatId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "OrgRegistered",
     "inputs": [
       {
@@ -750,6 +805,11 @@
   {
     "type": "error",
     "name": "NotOrgExecutor",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "NotOrgMetadataAdmin",
     "inputs": []
   },
   {

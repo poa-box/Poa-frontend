@@ -1,14 +1,17 @@
 /**
  * useWeb3Services - Hook to access Web3 service layer
- * Provides a unified interface to all Web3 services with proper initialization
+ * Provides a unified interface to all Web3 services with proper initialization.
+ * Supports both EOA (RainbowKit/wagmi) and Passkey (ERC-4337) auth types.
  */
 
 import { useMemo, useCallback } from 'react';
 import { useQuery } from '@apollo/client';
-import { useEthersSigner } from '@/components/ProviderConverter';
+import { useEthersSigner, useEthersProvider } from '@/components/ProviderConverter';
+import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useRefreshEmit } from '../context/RefreshContext';
 import { useIPFScontext } from '../context/ipfsContext';
+import { usePOContext } from '../context/POContext';
 import { INFRASTRUCTURE_CONTRACTS, getInfrastructureAddress } from '../config/contracts';
 import { DEFAULT_NETWORK } from '../config/networks';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
@@ -16,6 +19,7 @@ import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
 // Core services
 import { ContractFactory, createContractFactory } from '../services/web3/core/ContractFactory';
 import { TransactionManager, createTransactionManager } from '../services/web3/core/TransactionManager';
+import { createSmartAccountTransactionManager } from '../services/web3/core/SmartAccountTransactionManager';
 
 // Domain services
 import { UserService, createUserService } from '../services/web3/domain/UserService';
@@ -36,25 +40,52 @@ import { TokenRequestService, createTokenRequestService } from '../services/web3
 export function useWeb3Services(options = {}) {
   const { ipfsService: providedIpfs = null, network = DEFAULT_NETWORK } = options;
   const signer = useEthersSigner();
+  const provider = useEthersProvider();
+  const { isPasskeyUser, isAuthenticated, passkeyState, publicClient, bundlerClient } = useAuth();
 
   // Get IPFS service from context if not provided
   const ipfsContext = useIPFScontext();
   const ipfsService = providedIpfs || ipfsContext;
 
+  // Get org ID from POContext for paymaster data
+  // usePOContext returns undefined when outside POProvider (non-org routes)
+  const poContext = usePOContext();
+  const orgId = poContext?.orgId || null;
+
   // Fetch infrastructure addresses from subgraph
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
+  const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
-  // Create core services
+  // Create core services — auth-type-aware
   const factory = useMemo(() => {
+    if (isPasskeyUser) {
+      // Passkey: create factory with provider only (contracts used for ABI encoding)
+      if (!provider) return null;
+      return createContractFactory(null, provider);
+    }
+    // EOA: create factory with signer
     if (!signer) return null;
     return createContractFactory(signer);
-  }, [signer]);
+  }, [signer, provider, isPasskeyUser]);
 
   const txManager = useMemo(() => {
+    if (isPasskeyUser) {
+      // Passkey: create SmartAccountTransactionManager
+      if (!passkeyState || !publicClient || !bundlerClient || !paymasterAddress) return null;
+      return createSmartAccountTransactionManager({
+        accountAddress: passkeyState.accountAddress,
+        rawCredentialId: passkeyState.rawCredentialId,
+        publicClient,
+        bundlerClient,
+        paymasterAddress,
+        orgId,
+      });
+    }
+    // EOA: create standard TransactionManager
     if (!signer) return null;
     return createTransactionManager(signer);
-  }, [signer]);
+  }, [signer, isPasskeyUser, passkeyState, publicClient, bundlerClient, paymasterAddress, orgId]);
 
   // Create domain services
   const services = useMemo(() => {
@@ -72,7 +103,7 @@ export function useWeb3Services(options = {}) {
 
     return {
       user: createUserService(factory, txManager, registryAddress),
-      organization: createOrganizationService(factory, txManager),
+      organization: createOrganizationService(factory, txManager, registryAddress),
       voting: createVotingService(factory, txManager, ipfsService),
       task: createTaskService(factory, txManager, ipfsService),
       education: createEducationService(factory, txManager, ipfsService),
@@ -86,8 +117,10 @@ export function useWeb3Services(options = {}) {
     return getInfrastructureAddress(contractName);
   }, []);
 
-  // Check if services are ready
-  const isReady = Boolean(signer && factory && txManager);
+  // Check if services are ready (auth-type-aware)
+  const isReady = isPasskeyUser
+    ? Boolean(isAuthenticated && factory && txManager)
+    : Boolean(signer && factory && txManager);
 
   return {
     // Core

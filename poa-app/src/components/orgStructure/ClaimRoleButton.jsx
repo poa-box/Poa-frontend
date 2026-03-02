@@ -1,6 +1,6 @@
 /**
  * ClaimRoleButton - Button to claim a role (hat) for the current user
- * Shows different states based on eligibility and claiming status
+ * Shows different states based on eligibility, application, and claiming status
  */
 
 import React from 'react';
@@ -10,7 +10,7 @@ import {
   Icon,
   Spinner,
 } from '@chakra-ui/react';
-import { FiCheckCircle, FiUserPlus, FiLock } from 'react-icons/fi';
+import { FiCheckCircle, FiUserPlus, FiLock, FiSend } from 'react-icons/fi';
 
 /**
  * ClaimRoleButton component
@@ -22,6 +22,11 @@ import { FiCheckCircle, FiUserPlus, FiLock } from 'react-icons/fi';
  * @param {boolean} props.disabled - Whether the button should be disabled
  * @param {boolean} props.isConnected - Whether wallet is connected
  * @param {Object} props.vouchProgress - User's vouch progress { current, quorum, isComplete }
+ * @param {boolean} props.hasApplied - Whether user has an active application
+ * @param {boolean} props.isApplying - Whether an application is being submitted
+ * @param {boolean} props.isWithdrawing - Whether an application is being withdrawn
+ * @param {Function} props.onApply - Callback when apply button is clicked
+ * @param {Function} props.onWithdraw - Callback when withdraw button is clicked
  */
 export function ClaimRoleButton({
   role,
@@ -31,6 +36,11 @@ export function ClaimRoleButton({
   disabled = false,
   isConnected = true,
   vouchProgress = null,
+  hasApplied = false,
+  isApplying = false,
+  isWithdrawing = false,
+  onApply,
+  onWithdraw,
 }) {
   const { hatId, defaultEligible, vouchingEnabled, vouchingQuorum } = role;
 
@@ -103,15 +113,18 @@ export function ClaimRoleButton({
     if (vouchProgress?.current > 0) {
       return (
         <Tooltip
-          label={`${vouchProgress.current} of ${vouchProgress.quorum} vouches received`}
+          label={`${vouchProgress.current} of ${vouchProgress.quorum} vouches received${hasApplied ? ' - Application submitted' : ''}`}
           placement="top"
         >
           <Button
             size="sm"
             variant="outline"
-            colorScheme="yellow"
-            leftIcon={<Icon as={FiUserPlus} />}
-            isDisabled
+            colorScheme={hasApplied ? 'green' : 'yellow'}
+            leftIcon={<Icon as={hasApplied ? FiCheckCircle : FiUserPlus} />}
+            isDisabled={!hasApplied}
+            isLoading={isWithdrawing}
+            loadingText="Withdrawing..."
+            onClick={hasApplied ? () => onWithdraw?.(hatId) : undefined}
           >
             {vouchProgress.current}/{vouchProgress.quorum} Vouches
           </Button>
@@ -119,20 +132,39 @@ export function ClaimRoleButton({
       );
     }
 
-    // No vouches yet - show "Vouching Required"
+    // No vouches yet - show "Apply" or "Applied"
+    if (hasApplied) {
+      return (
+        <Tooltip label="You have applied for this role. Click to withdraw." placement="top">
+          <Button
+            size="sm"
+            variant="outline"
+            colorScheme="green"
+            leftIcon={isWithdrawing ? <Spinner size="xs" /> : <Icon as={FiCheckCircle} />}
+            isLoading={isWithdrawing}
+            loadingText="Withdrawing..."
+            isDisabled={isWithdrawing}
+            onClick={() => onWithdraw?.(hatId)}
+          >
+            Applied
+          </Button>
+        </Tooltip>
+      );
+    }
+
     return (
-      <Tooltip
-        label={`Requires ${vouchingQuorum || 'N'} vouches from existing members`}
-        placement="top"
-      >
+      <Tooltip label={`Apply for this role (requires ${vouchingQuorum || 'N'} vouches)`} placement="top">
         <Button
           size="sm"
-          variant="outline"
-          colorScheme="yellow"
-          leftIcon={<Icon as={FiUserPlus} />}
-          isDisabled
+          variant="solid"
+          colorScheme="purple"
+          leftIcon={isApplying ? <Spinner size="xs" /> : <Icon as={FiSend} />}
+          isLoading={isApplying}
+          loadingText="Applying..."
+          isDisabled={disabled || isApplying}
+          onClick={() => onApply?.(hatId)}
         >
-          Vouching Required
+          Apply
         </Button>
       </Tooltip>
     );
