@@ -162,7 +162,7 @@ export const ProjectProvider = ({ children }) => {
                         })),
                         rejectionHash: task.rejectionHash,
                         rejectionCount: task.rejectionCount || 0,
-                        rejectionReason: (task.metadata || []).map(m => m.rejection).filter(Boolean).pop() || '',
+                        rejectionReason: task.metadata?.rejection || '',
                         rejections: (task.rejections || []).map(r => ({
                             rejectorUsername: r.rejectorUsername || '',
                             rejectedAt: r.rejectedAt,
