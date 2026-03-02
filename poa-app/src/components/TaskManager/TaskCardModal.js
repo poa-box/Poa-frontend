@@ -27,7 +27,7 @@ import {
   InputGroup,
   InputRightElement,
 } from '@chakra-ui/react';
-import { CheckIcon, ExternalLinkIcon } from '@chakra-ui/icons';
+import { CheckIcon, ExternalLinkIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import EditTaskModal from './EditTaskModal';
 import TaskApplicationModal from './TaskApplicationModal';
@@ -72,6 +72,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   // IPFS metadata state
   const [taskMetadata, setTaskMetadata] = useState(null);
   const [submissionMetadata, setSubmissionMetadata] = useState(null);
+  const [rejectionMetadata, setRejectionMetadata] = useState(null);
   const [metadataLoading, setMetadataLoading] = useState(false);
 
   // Project-level review permission (matches TaskColumn.js pattern)
@@ -111,8 +112,10 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
       const needsTaskMetadata = !task.description && task.metadataHash && !taskMetadata;
       const needsSubmissionMetadata = !task.submission && task.submissionHash &&
         !submissionMetadata && (task.status === 'Submitted' || task.status === 'Completed');
+      const needsRejectionMetadata = !task.rejectionReason && task.rejectionHash &&
+        task.rejectionCount > 0 && !rejectionMetadata;
 
-      if (!needsTaskMetadata && !needsSubmissionMetadata) return;
+      if (!needsTaskMetadata && !needsSubmissionMetadata && !needsRejectionMetadata) return;
 
       setMetadataLoading(true);
 
@@ -144,11 +147,25 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
         }
       }
 
+      // Fetch rejection metadata - IPFS fallback
+      if (needsRejectionMetadata) {
+        console.log('[TaskCardModal] Indexed rejection missing, fetching from IPFS:', task.rejectionHash);
+        try {
+          const metadata = await safeFetchFromIpfs(task.rejectionHash);
+          console.log('[TaskCardModal] IPFS rejection metadata result:', metadata);
+          if (metadata) {
+            setRejectionMetadata(metadata);
+          }
+        } catch (err) {
+          console.error('[TaskCardModal] IPFS fallback failed for rejection metadata:', err);
+        }
+      }
+
       setMetadataLoading(false);
     };
 
     fetchIpfsMetadata();
-  }, [isOpen, task, safeFetchFromIpfs, taskMetadata, submissionMetadata]);
+  }, [isOpen, task, safeFetchFromIpfs, taskMetadata, submissionMetadata, rejectionMetadata]);
 
   const handleCloseModal = async () => {
     // Set flag to prevent useEffect from re-opening
@@ -613,6 +630,32 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                       <Text style={{ whiteSpace: 'pre-wrap' }}>
                         {metadataLoading ? 'Loading submission...' : (task.submission || submissionMetadata?.submission || 'No submission available')}
                       </Text>
+                    </Box>
+                  )}
+                  {task.rejectionCount > 0 && (
+                    <Box w="100%" p={4} bg="red.900" borderRadius="md" borderLeft="4px solid" borderColor="red.400">
+                      <HStack mb={2}>
+                        <WarningIcon color="red.300" />
+                        <Text fontWeight="bold" color="red.200" fontSize="md">
+                          Rejected{task.rejectionCount > 1 ? ` (${task.rejectionCount} times)` : ''}
+                        </Text>
+                      </HStack>
+                      {(task.rejectionReason || rejectionMetadata?.rejection) && (
+                        <Box mb={2}>
+                          <Text fontSize="sm" color="red.200" fontWeight="semibold" mb={1}>Reason:</Text>
+                          <Text fontSize="sm" color="gray.200" style={{ whiteSpace: 'pre-wrap' }}>
+                            {task.rejectionReason || rejectionMetadata?.rejection}
+                          </Text>
+                        </Box>
+                      )}
+                      {task.rejections && task.rejections.length > 0 && task.rejections[0].rejectorUsername && (
+                        <Text fontSize="xs" color="gray.400">
+                          Rejected by {task.rejections[0].rejectorUsername}
+                          {task.rejections[0].rejectedAt && (
+                            <> on {new Date(task.rejections[0].rejectedAt * 1000).toLocaleDateString()}</>
+                          )}
+                        </Text>
+                      )}
                     </Box>
                   )}
                   {columnId === 'inReview' && canReviewTask && (
