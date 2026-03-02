@@ -32,13 +32,14 @@ import {
 import { CheckIcon } from '@chakra-ui/icons';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { usePOContext } from '@/context/POContext';
-import { useWeb3 } from '@/hooks';
+import { useWeb3, useOrgTheme } from '@/hooks';
 import { useUserContext } from '@/context/UserContext';
 import QuizModal from '@/components/eduHub/QuizModal';
 import { useRouter } from 'next/router';
 
 const EducationHub = () => {
   const { poContextLoading, educationModules, educationHubAddress, educationHubEnabled } = usePOContext();
+  const { pageBackground } = useOrgTheme();
   const { completedModules, hasExecRole, userDataLoading } = useUserContext();
   const { education, executeWithNotification } = useWeb3();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -127,11 +128,11 @@ const EducationHub = () => {
     <>
       <Navbar />
       {poContextLoading || isLoadingExecCheck ? (
-        <Center height="90vh">
+        <Center height="90vh" background={pageBackground()}>
           <Spinner size="xl" />
         </Center>
       ) : (
-        <Box position="relative">
+        <Box position="relative" minH="100vh" background={pageBackground()}>
           {/* Main Box */}
           <Box
             p={5}

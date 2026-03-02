@@ -176,6 +176,7 @@ export const FETCH_ORG_FULL_DATA = gql`
         id
         description
         template
+        backgroundColor
         links {
           name
           url
@@ -493,6 +494,7 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
         id
         description
         template
+        backgroundColor
         links {
           name
           url

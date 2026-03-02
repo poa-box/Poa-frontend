@@ -27,6 +27,7 @@ import { useRouter } from "next/router";
 
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { usePOContext } from "@/context/POContext";
+import { useOrgTheme } from "@/hooks";
 import { useVotingContext } from "@/context/VotingContext";
 import HistoryCard from "@/components/voting/HistoryCard";
 import EmptyState from "@/components/voting/EmptyState";
@@ -52,6 +53,7 @@ const VotingHistoryPage = () => {
 
   // Context data
   const { poContextLoading } = usePOContext();
+  const { pageBackground } = useOrgTheme();
   const {
     democracyVotingCompleted,
     hybridVotingCompleted,
@@ -193,7 +195,7 @@ const VotingHistoryPage = () => {
     return (
       <>
         <Navbar />
-        <Center height="90vh">
+        <Center height="90vh" background={pageBackground()}>
           <Spinner size="xl" color="purple.400" />
         </Center>
       </>
@@ -203,7 +205,7 @@ const VotingHistoryPage = () => {
   return (
     <>
       <Navbar />
-      <Box position="relative" w="100%" minH="100vh" p={containerPadding}>
+      <Box position="relative" w="100%" minH="100vh" p={containerPadding} background={pageBackground()}>
         <Container maxW="1400px" mx="auto">
           <VStack spacing={6} align="stretch">
             {/* Header with back button */}

@@ -12,7 +12,7 @@ import {
 } from "@chakra-ui/react";
 import { usePOContext } from "@/context/POContext";
 import { useVotingContext } from "@/context/VotingContext";
-import { useWeb3 } from "@/hooks";
+import { useWeb3, useOrgTheme } from "@/hooks";
 import { VotingType } from "@/services/web3/domain/VotingService";
 
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
@@ -44,6 +44,7 @@ const VotingPage = () => {
     poContextLoading,
     roleNames,
   } = usePOContext();
+  const { pageBackground } = useOrgTheme();
 
   const {
     hybridVotingOngoing,
@@ -226,11 +227,11 @@ const VotingPage = () => {
     <>
       <Navbar />
       {poContextLoading ? (
-        <Center height="90vh">
+        <Center height="90vh" background={pageBackground()}>
           <Spinner size="xl" />
         </Center>
       ) : (
-        <Container maxW="container.2xl" py={{ base: 20, md: 4 }} px={{ base: "1%", md: "3%" }}>
+        <Container maxW="container.2xl" py={{ base: 20, md: 4 }} px={{ base: "1%", md: "3%" }} minH="100vh" background={pageBackground()}>
           <VotingEducationHeader selectedTab={selectedTab} PTVoteType={PTVoteType} />
 
           <VotingTabs
