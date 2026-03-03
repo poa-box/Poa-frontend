@@ -40,7 +40,6 @@ import { OrgStructureCard } from '@/components/dashboard/OrgStructureCard';
 
 const PerpetualOrgDashboard = () => {
   const { ongoingPolls } = useVotingContext();
-  console.log("ongoingPolls", ongoingPolls);
   const { poContextLoading, poDescription, poLinks, logoHash, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
 
   const router = useRouter();

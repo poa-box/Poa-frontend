@@ -145,7 +145,7 @@ export const POProvider = ({ children }) => {
     const { data: orgData, loading: orgDataLoading, error: orgDataError, refetch: refetchOrgData } = useQuery(FETCH_ORG_FULL_DATA, {
         variables: { orgId: orgId },
         skip: !orgId,
-        fetchPolicy: 'cache-and-network',
+        fetchPolicy: 'cache-first',
     });
 
     // Handle refresh events from Web3 transactions

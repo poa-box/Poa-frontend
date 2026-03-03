@@ -253,7 +253,7 @@ export function useOrgStructure() {
   const { data, loading: queryLoading, error } = useQuery(FETCH_ORG_STRUCTURE_DATA, {
     variables: { orgId },
     skip: !orgId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   const org = data?.organization;

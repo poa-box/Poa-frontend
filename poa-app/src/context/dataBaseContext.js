@@ -22,7 +22,6 @@ export const DataBaseProvider = ({ children }) => {
 
     useEffect(()=>{
         if (typeof projectsData === 'object' && projectsData !== null && Object.keys(projectsData).length !== 0) {
-            console.log("projectsData", projectsData);
             setProjects(projectsData);
 
             // Only set selectedProject if:
