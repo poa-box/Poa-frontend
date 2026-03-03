@@ -5,7 +5,7 @@
  * have been migrated to the new service layer in /services/web3/
  * Use the useWeb3 hook from /hooks for those operations.
  */
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useMemo, useCallback } from 'react';
 import { useAccount } from "wagmi";
 import { useEthersProvider, useEthersSigner } from '@/components/ProviderConverter';
 import { useAuth } from './AuthContext';
@@ -30,32 +30,32 @@ export const Web3Provider = ({ children }) => {
         setAccount(accountAddress || address);
     }, [accountAddress, address]);
 
-    const checkNetwork = () => {
+    const checkNetwork = useCallback(() => {
         if (chainId !== 560048) {
             setNetworkModalOpen(true);
             return false;
         }
         return true;
-    };
+    }, [chainId]);
 
-    const closeNetworkModal = () => {
+    const closeNetworkModal = useCallback(() => {
         setNetworkModalOpen(false);
-    };
+    }, []);
+
+    const contextValue = useMemo(() => ({
+        address,
+        chainId,
+        signer,
+        provider,
+        account,
+        setAccount,
+        isNetworkModalOpen,
+        closeNetworkModal,
+        checkNetwork,
+    }), [address, chainId, signer, provider, account, isNetworkModalOpen, closeNetworkModal, checkNetwork]);
 
     return (
-        <Web3Context.Provider value={{
-            // Wallet state (also available via wagmi hooks directly)
-            address,
-            chainId,
-            signer,
-            provider,
-            account,
-            setAccount,
-            // Network modal state
-            isNetworkModalOpen,
-            closeNetworkModal,
-            checkNetwork,
-        }}>
+        <Web3Context.Provider value={contextValue}>
             {children}
         </Web3Context.Provider>
     );

@@ -44,7 +44,7 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
   const { data, loading, error, refetch } = useQuery(FETCH_VOUCHES_FOR_ORG, {
     variables: { eligibilityModuleId: eligibilityModuleAddress },
     skip: !eligibilityModuleAddress,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   // Subscribe to refresh events for real-time updates

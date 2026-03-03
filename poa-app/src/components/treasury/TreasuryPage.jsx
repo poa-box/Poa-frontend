@@ -53,7 +53,7 @@ const TreasuryPage = () => {
   const { data: treasuryData, loading: treasuryLoading, refetch } = useQuery(FETCH_TREASURY_DATA, {
     variables: { orgId },
     skip: !orgId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   const isLoading = poContextLoading || treasuryLoading;

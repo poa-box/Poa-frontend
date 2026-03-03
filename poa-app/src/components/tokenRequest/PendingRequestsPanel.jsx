@@ -40,7 +40,7 @@ const PendingRequestsPanel = () => {
   const { data, loading, error, refetch } = useQuery(FETCH_PENDING_TOKEN_REQUESTS, {
     variables: { tokenAddress: participationTokenAddress },
     skip: !participationTokenAddress,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   // Subscribe to refresh events

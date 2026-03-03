@@ -58,7 +58,7 @@ const AccountPage = () => {
   const { data: orgsData, loading: orgsLoading } = useQuery(FETCH_USER_ORGANIZATIONS, {
     variables: { userAddress: accountAddress?.toLowerCase() },
     skip: !accountAddress || !hasAccount,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   // Colors

@@ -1,6 +1,6 @@
 //react component gets poll data from votingcontext and displays ongoing polls in cards
 
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useMemo } from 'react';
 
 
 import CountDown from '../../templateComponents/studentOrgDAO/voting/countDown';
@@ -38,11 +38,8 @@ const OngoingPolls = ({OngoingPolls}) => {
         return <Text mt="4" ml="7">No ongoing polls available</Text>;
     }
 
-    //randomize polls
-    const randomPolls = OngoingPolls.sort(() => Math.random() - Math.random()).slice(0, 3);
-
-    // duplicate poll 2 times 
-    //const randomPolls = OngoingPolls.sort(() => Math.random() - Math.random()).slice(0, 3).concat(OngoingPolls.sort(() => Math.random() - Math.random()).slice(0, 3)).concat(OngoingPolls.sort(() => Math.random() - Math.random()).slice(0, 3));
+    // Take first 3 polls without mutating the prop array
+    const randomPolls = useMemo(() => [...OngoingPolls].slice(0, 3), [OngoingPolls]);
 
 
     function calculateRemainingTime(expirationTimestamp) {

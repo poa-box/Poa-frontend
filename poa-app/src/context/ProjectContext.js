@@ -96,7 +96,7 @@ export const ProjectProvider = ({ children }) => {
                             };
                         })
                 )
-                .sort(() => Math.random() - 0.5);
+;
             setRecommendedTasks(openTasks);
 
             // Transform projects for kanban board
