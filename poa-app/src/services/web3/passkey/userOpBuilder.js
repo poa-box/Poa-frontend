@@ -41,29 +41,29 @@ export async function buildUserOp({
 }) {
   const entryPoint = ENTRY_POINT_ADDRESS;
 
-  // 1. Get the nonce from EntryPoint
-  const nonce = await publicClient.readContract({
-    address: entryPoint,
-    abi: entryPoint07Abi,
-    functionName: 'getNonce',
-    args: [sender, 0n],
-  });
-
-  // For EntryPoint v0.7, the UserOp uses "packed" format:
-  // factory + factoryData instead of initCode
-  // paymaster + paymasterVerificationGasLimit + paymasterPostOpGasLimit + paymasterData
-  // accountGasLimits = verificationGasLimit(uint128) || callGasLimit(uint128)
-  // gasFees = maxPriorityFeePerGas(uint128) || maxFeePerGas(uint128)
+  // 1. Fetch nonce and gas prices in parallel (single round-trip)
+  const [nonce, gasPrices] = await Promise.all([
+    publicClient.readContract({
+      address: entryPoint,
+      abi: entryPoint07Abi,
+      functionName: 'getNonce',
+      args: [sender, 0n],
+    }),
+    bundlerClient.getUserOperationGasPrice().catch((e) => {
+      console.warn('Failed to get gas price from bundler, using defaults:', e.message);
+      return null;
+    }),
+  ]);
 
   // Parse initCode into factory + factoryData (v0.7 format)
   let factory = undefined;
   let factoryData = undefined;
   if (initCode && initCode !== '0x' && initCode.length > 2) {
-    factory = '0x' + initCode.slice(2, 42); // First 20 bytes = factory address
-    factoryData = '0x' + initCode.slice(42);  // Rest = factoryData
+    factory = '0x' + initCode.slice(2, 42);
+    factoryData = '0x' + initCode.slice(42);
   }
 
-  // 3. Build initial UserOp with placeholder gas values and a dummy signature for estimation
+  // 2. Build base UserOp with placeholder gas values and dummy signature
   const userOp = {
     sender,
     nonce,
@@ -71,27 +71,128 @@ export async function buildUserOp({
     factoryData,
     callData,
     callGasLimit: 500_000n,
-    verificationGasLimit: 1_500_000n,   // High for on-chain P-256 verify fallback (~328k) + factory creation
+    verificationGasLimit: 1_500_000n,
     preVerificationGas: 100_000n,
-    maxFeePerGas: 3_000_000_000n,       // 3 gwei placeholder
-    maxPriorityFeePerGas: 1_500_000_000n, // 1.5 gwei placeholder
-    paymaster: paymasterAddress,
-    paymasterVerificationGasLimit: 200_000n,
-    paymasterPostOpGasLimit: 200_000n,
-    paymasterData,
+    maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 3_000_000_000n,
+    maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 1_500_000_000n,
+    ...(paymasterAddress ? {
+      paymaster: paymasterAddress,
+      paymasterVerificationGasLimit: 200_000n,
+      paymasterPostOpGasLimit: 200_000n,
+      paymasterData,
+    } : {}),
     signature: DUMMY_SIGNATURE,
   };
 
-  // 4. Get current gas prices from the Pimlico bundler
-  try {
-    const gasPrices = await bundlerClient.getUserOperationGasPrice();
-    userOp.maxFeePerGas = gasPrices.standard.maxFeePerGas;
-    userOp.maxPriorityFeePerGas = gasPrices.standard.maxPriorityFeePerGas;
-  } catch (e) {
-    console.warn('Failed to get gas price from bundler, using defaults:', e.message);
+  // 3. Estimate gas via bundler
+  await estimateGas(userOp, bundlerClient);
+
+  return userOp;
+}
+
+/**
+ * Build a UserOp with paymaster fallback.
+ * Fetches nonce + gas prices once, then tries gas estimation with paymaster.
+ * If the paymaster rejects, strips paymaster fields and re-estimates (only the
+ * estimation call is repeated, not the nonce/gas price fetches).
+ *
+ * @param {Object} params
+ * @param {string} params.sender - Smart account address
+ * @param {string} params.callData - Encoded call data
+ * @param {Object} params.bundlerClient - Pimlico bundler client
+ * @param {Object} params.publicClient - viem public client
+ * @param {string} [params.initCode='0x'] - initCode for account deployment
+ * @param {string} [params.paymasterAddress] - PaymasterHub address (optional)
+ * @param {string} [params.paymasterData] - Paymaster-specific data (optional)
+ * @returns {Object} UserOperation ready for signing
+ */
+export async function buildUserOpWithFallback({
+  sender,
+  callData,
+  bundlerClient,
+  publicClient,
+  initCode = '0x',
+  paymasterAddress,
+  paymasterData,
+}) {
+  const entryPoint = ENTRY_POINT_ADDRESS;
+
+  // 1. Fetch nonce and gas prices in parallel — done once regardless of fallback
+  const [nonce, gasPrices] = await Promise.all([
+    publicClient.readContract({
+      address: entryPoint,
+      abi: entryPoint07Abi,
+      functionName: 'getNonce',
+      args: [sender, 0n],
+    }),
+    bundlerClient.getUserOperationGasPrice().catch((e) => {
+      console.warn('Failed to get gas price from bundler, using defaults:', e.message);
+      return null;
+    }),
+  ]);
+
+  // Parse initCode into factory + factoryData (v0.7 format)
+  let factory = undefined;
+  let factoryData = undefined;
+  if (initCode && initCode !== '0x' && initCode.length > 2) {
+    factory = '0x' + initCode.slice(2, 42);
+    factoryData = '0x' + initCode.slice(42);
   }
 
-  // 5. Estimate gas via the bundler's eth_estimateUserOperationGas
+  const baseFields = {
+    sender,
+    nonce,
+    factory,
+    factoryData,
+    callData,
+    callGasLimit: 500_000n,
+    verificationGasLimit: 1_500_000n,
+    preVerificationGas: 100_000n,
+    maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 3_000_000_000n,
+    maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 1_500_000_000n,
+    signature: DUMMY_SIGNATURE,
+  };
+
+  // 2. Try with paymaster if available
+  if (paymasterAddress) {
+    const userOp = {
+      ...baseFields,
+      paymaster: paymasterAddress,
+      paymasterVerificationGasLimit: 200_000n,
+      paymasterPostOpGasLimit: 200_000n,
+      paymasterData,
+    };
+
+    try {
+      await estimateGas(userOp, bundlerClient);
+      console.log('UserOp built with gas sponsorship');
+      return userOp;
+    } catch (e) {
+      const msg = e.message || '';
+      const isPaymasterRejection = msg.includes('AA31') || msg.includes('AA33')
+        || msg.includes('paymaster') || msg.includes('Paymaster')
+        || msg.includes('validatePaymasterUserOp');
+
+      if (isPaymasterRejection) {
+        console.warn('Paymaster rejected, falling back to self-funded:', msg);
+      } else {
+        throw e;
+      }
+    }
+  }
+
+  // 3. Self-funded (no paymaster fields)
+  const userOp = { ...baseFields };
+  console.log('Building self-funded UserOp (account pays gas)');
+  await estimateGas(userOp, bundlerClient);
+  return userOp;
+}
+
+/**
+ * Run bundler gas estimation on a UserOp and apply results.
+ * Mutates the userOp in place.
+ */
+async function estimateGas(userOp, bundlerClient) {
   try {
     const gasEstimate = await bundlerClient.estimateUserOperationGas({
       ...userOp,
@@ -99,8 +200,17 @@ export async function buildUserOp({
     });
 
     userOp.callGasLimit = applyBuffer(gasEstimate.callGasLimit);
-    userOp.verificationGasLimit = applyBuffer(gasEstimate.verificationGasLimit);
     userOp.preVerificationGas = applyBuffer(gasEstimate.preVerificationGas);
+
+    // P-256 signature verification costs ~300-400k gas on-chain (Solidity fallback)
+    // or ~3k with the RIP-7212 precompile. The bundler's gas estimation uses a dummy
+    // signature that quick-fails, causing it to underestimate the real verification cost.
+    // Enforce a minimum to prevent AA23 (validateUserOp OOG) errors.
+    const MIN_VERIFICATION_GAS = 500_000n;
+    const estimatedVerification = applyBuffer(gasEstimate.verificationGasLimit);
+    userOp.verificationGasLimit = estimatedVerification < MIN_VERIFICATION_GAS
+      ? MIN_VERIFICATION_GAS
+      : estimatedVerification;
 
     if (gasEstimate.paymasterVerificationGasLimit) {
       userOp.paymasterVerificationGasLimit = applyBuffer(gasEstimate.paymasterVerificationGasLimit);
@@ -109,11 +219,15 @@ export async function buildUserOp({
       userOp.paymasterPostOpGasLimit = applyBuffer(gasEstimate.paymasterPostOpGasLimit);
     }
   } catch (e) {
-    console.warn('Gas estimation failed, using generous defaults:', e.message);
-    // Keep the generous placeholder values
+    // Re-throw paymaster rejections so callers can fall back to self-funded.
+    const msg = e.message || '';
+    if (msg.includes('AA31') || msg.includes('AA33')
+        || msg.includes('paymaster') || msg.includes('Paymaster')
+        || msg.includes('validatePaymasterUserOp')) {
+      throw e;
+    }
+    console.warn('Gas estimation failed, using generous defaults:', msg);
   }
-
-  return userOp;
 }
 
 /**

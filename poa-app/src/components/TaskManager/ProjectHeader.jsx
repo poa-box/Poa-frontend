@@ -65,7 +65,7 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
                     bg: "blackAlpha.200",
                     transform: "scale(1.1)"
                   }}
-                  transition="all 0.2s"
+                  transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                 />
               </Tooltip>
             )}
@@ -90,7 +90,7 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
                   bg: "blackAlpha.200",
                   transform: "scale(1.1)"
                 }}
-                transition="all 0.2s"
+                transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
               />
             </Tooltip>
           </Flex>

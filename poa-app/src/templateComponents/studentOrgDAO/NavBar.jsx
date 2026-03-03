@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Box, Flex, HStack, Image, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button } from "@chakra-ui/react";
+import { Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button } from "@chakra-ui/react";
+import NextImage from "next/image";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
 import { FaHome } from 'react-icons/fa';
 import NextLink from "next/link";
@@ -63,14 +64,16 @@ const Navbar = () => {
         <Box h="100%" w={{ base: "40%", md: "12%" }} mr={{ base: "2", md: "4" }}>
           <Link as={NextLink} href={`/home/?userDAO=${userDAO}`} passHref>
             {/* Desktop Logo */}
-            <Image
-              src="/images/high_res_poa.png"
-              alt="PoA Logo"
-              height="111%"
-              width="auto"
-              objectFit="contain"
-              display={{ base: 'none', md: 'block' }}
-            />
+            <Box display={{ base: 'none', md: 'block' }} height="100%" position="relative">
+              <NextImage
+                src="/images/high_res_poa.png"
+                alt="PoA Logo"
+                width={60}
+                height={60}
+                priority
+                style={{ objectFit: 'contain', height: '100%', width: 'auto' }}
+              />
+            </Box>
             {/* Mobile Home Icon */}
             <IconButton
               icon={<FaHome size="34px" />}
@@ -109,12 +112,13 @@ const Navbar = () => {
             h="100%"
             w="100%"
           >
-            <Image
+            <NextImage
               src="/images/high_res_poa.png"
               alt="PoA Logo"
-              maxH="87%"
-              width="auto"
-              objectFit="contain"
+              width={40}
+              height={40}
+              priority
+              style={{ objectFit: 'contain', maxHeight: '87%', width: 'auto' }}
             />
           </Link>
         </Flex>
@@ -233,12 +237,12 @@ const Navbar = () => {
           <DrawerCloseButton color="white" />
           <DrawerHeader borderBottomWidth="1px" borderColor="rgba(255, 255, 255, 0.1)" color="white">
             <Flex align="center">
-              <Image
+              <NextImage
                 src="/images/high_res_poa.png"
                 alt="PoA Logo"
-                height="30px"
-                width="auto"
-                mr={2.5}
+                width={30}
+                height={30}
+                style={{ objectFit: 'contain', marginRight: '10px' }}
               />
               {userDAO}
             </Flex>
@@ -252,7 +256,7 @@ const Navbar = () => {
                     align="center"
                     bg={isActive(item.path) ? "rgba(101, 184, 145, 0.1)" : "transparent"}
                     borderLeft={isActive(item.path) ? "4px solid #65B891" : "4px solid transparent"}
-                    transition="all 0.2s ease"
+                    transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                     _hover={{ bg: "whiteAlpha.100" }}
                     onClick={onClose}
                   >

@@ -250,7 +250,7 @@ export function VotingClassForm({
               borderRadius="lg"
               borderWidth="1px"
               borderColor={formData.quadratic ? 'orange.200' : 'gray.200'}
-              transition="all 0.2s"
+              transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
             >
               <FormControl display="flex" alignItems="center" mb={3}>
                 <HStack flex={1}>

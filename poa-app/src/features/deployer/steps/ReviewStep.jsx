@@ -118,7 +118,7 @@ function ReviewSectionCard({
       borderWidth="1px"
       borderColor={borderColor}
       overflow="hidden"
-      transition="all 0.2s ease"
+      transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
       _hover={{ boxShadow: '0 4px 20px rgba(0, 0, 0, 0.06)' }}
     >
       {/* Status indicator bar at top */}
@@ -163,7 +163,7 @@ function ReviewSectionCard({
           variant="ghost"
           color="coral.600"
           _hover={{ bg: 'coral.50', transform: 'translateY(-1px)' }}
-          transition="all 0.15s ease"
+          transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
           onClick={() => goToStep(stepIndex)}
         >
           Edit
@@ -214,7 +214,7 @@ function ReadinessChecklist({ items, goToStep }) {
             border="1px solid"
             borderColor={item.isComplete ? 'green.200' : 'orange.200'}
             cursor="pointer"
-            transition="all 0.15s ease"
+            transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
             _hover={{ transform: 'translateY(-1px)', boxShadow: 'sm' }}
             onClick={() => goToStep(item.stepIndex)}
           >
@@ -335,7 +335,7 @@ function RoleCard({ role, index, roles }) {
       p={4}
       border="1px solid"
       borderColor="warmGray.200"
-      transition="all 0.15s ease"
+      transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
       _hover={{ borderColor: 'coral.300', boxShadow: 'sm' }}
     >
       <HStack justify="space-between" mb={3}>
@@ -446,7 +446,7 @@ function FeatureCard({ name, description, icon, isEnabled }) {
       p={4}
       border="1px solid"
       borderColor={isEnabled ? 'green.200' : 'warmGray.200'}
-      transition="all 0.15s ease"
+      transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
       flex={1}
       minW="180px"
     >
@@ -1313,7 +1313,7 @@ export function ReviewStep({
                   onClick={handleDeploy}
                   isDisabled={!isValid || isDeploying}
                   leftIcon={<Icon as={PiRocketLaunch} boxSize={5} />}
-                  transition="all 0.2s ease"
+                  transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                 >
                   Launch {state.organization.name || 'Your Organization'}
                 </Button>

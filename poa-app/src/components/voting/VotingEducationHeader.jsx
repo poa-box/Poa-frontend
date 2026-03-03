@@ -263,7 +263,7 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
               align="center"
               justify="center"
               cursor="help"
-              transition="all 0.3s"
+              transition="transform 0.3s, box-shadow 0.3s, background 0.3s, border-color 0.3s"
               _hover={{ filter: "brightness(1.15)" }}
               position="relative"
             >
@@ -304,7 +304,7 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
               align="center"
               justify="center"
               cursor="help"
-              transition="all 0.3s"
+              transition="transform 0.3s, box-shadow 0.3s, background 0.3s, border-color 0.3s"
               _hover={{ filter: "brightness(1.15)" }}
             >
               <VStack spacing={0}>
@@ -508,7 +508,7 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
       position="relative"
       display="flex"
       zIndex={0}
-      transition="all 0.3s ease"
+      transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
     >
       <Box
         className="glass"

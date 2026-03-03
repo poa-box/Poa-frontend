@@ -277,7 +277,7 @@ const User = () => {
                             bg={useColorModeValue('white', 'gray.800')} 
                             boxShadow="md"
                             _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
-                            transition="all 0.2s"
+                            transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                           >
                             <Center width={{ base: "40px", md: "50px" }}>
                               <Icon as={benefit.icon} color={accentColor} boxSize={benefitIconSize} />

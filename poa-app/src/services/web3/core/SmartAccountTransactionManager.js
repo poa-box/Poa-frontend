@@ -10,7 +10,7 @@
 import { encodeFunctionData } from 'viem';
 import { TransactionResult, TransactionState } from './TransactionManager';
 import PasskeyAccountABI from '../../../../abi/PasskeyAccount.json';
-import { buildUserOp, getUserOpHash } from '../passkey/userOpBuilder';
+import { buildUserOpWithFallback, getUserOpHash } from '../passkey/userOpBuilder';
 import { signUserOpWithPasskey } from '../passkey/passkeySign';
 import { encodeAccountPaymasterData } from '../passkey/paymasterData';
 import { ENTRY_POINT_ADDRESS } from '../../../config/passkey';
@@ -79,25 +79,8 @@ export class SmartAccountTransactionManager {
         args: [targetAddress, 0n, targetCallData],
       });
 
-      // 3. Build paymaster data
-      if (!this.paymasterAddress || !this.orgId) {
-        throw new Error('Paymaster address and org ID are required for passkey transactions');
-      }
-
-      const paymasterData = encodeAccountPaymasterData({
-        accountAddress: this.accountAddress,
-        orgId: this.orgId,
-      });
-
-      // 4. Build the UserOp
-      const userOp = await buildUserOp({
-        sender: this.accountAddress,
-        callData,
-        bundlerClient: this.bundlerClient,
-        publicClient: this.publicClient,
-        paymasterAddress: this.paymasterAddress,
-        paymasterData,
-      });
+      // 3. Build UserOp — try with paymaster first, fall back to self-funded
+      const userOp = await this._buildUserOpWithFallback(callData);
 
       // State: Awaiting signature (biometric prompt)
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
@@ -189,23 +172,8 @@ export class SmartAccountTransactionManager {
         args: [targets, values, datas],
       });
 
-      if (!this.paymasterAddress || !this.orgId) {
-        throw new Error('Paymaster address and org ID are required for passkey transactions');
-      }
-
-      const paymasterData = encodeAccountPaymasterData({
-        accountAddress: this.accountAddress,
-        orgId: this.orgId,
-      });
-
-      const userOp = await buildUserOp({
-        sender: this.accountAddress,
-        callData,
-        bundlerClient: this.bundlerClient,
-        publicClient: this.publicClient,
-        paymasterAddress: this.paymasterAddress,
-        paymasterData,
-      });
+      // Build UserOp — try with paymaster first, fall back to self-funded
+      const userOp = await this._buildUserOpWithFallback(callData);
 
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
 
@@ -251,6 +219,28 @@ export class SmartAccountTransactionManager {
 
       return TransactionResult.failure(parsedError);
     }
+  }
+
+  /**
+   * Build a UserOp with paymaster-first-then-self-funded fallback.
+   * Nonce + gas prices are fetched once; only estimation is retried on paymaster rejection.
+   */
+  async _buildUserOpWithFallback(callData) {
+    const hasPaymaster = this.paymasterAddress && this.orgId;
+
+    return buildUserOpWithFallback({
+      sender: this.accountAddress,
+      callData,
+      bundlerClient: this.bundlerClient,
+      publicClient: this.publicClient,
+      ...(hasPaymaster ? {
+        paymasterAddress: this.paymasterAddress,
+        paymasterData: encodeAccountPaymasterData({
+          accountAddress: this.accountAddress,
+          orgId: this.orgId,
+        }),
+      } : {}),
+    });
   }
 
   /**

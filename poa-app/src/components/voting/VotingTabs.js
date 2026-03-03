@@ -107,7 +107,7 @@ const VotingTabs = ({
             borderRadius="xl"
             py={tabPadding}
             px={{ base: 2, md: 4 }}
-            transition="all 0.3s ease"
+            transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
             flex="1"
             minW={0}
           >
@@ -162,7 +162,7 @@ const VotingTabs = ({
             borderRadius="xl"
             py={tabPadding}
             px={{ base: 2, md: 4 }}
-            transition="all 0.3s ease"
+            transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
             flex="1"
             minW={0}
           >

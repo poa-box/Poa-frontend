@@ -306,7 +306,7 @@ const EducationHub = () => {
                       border: '1px solid rgba(255, 255, 255, 0.25)',
                       boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
                     }}
-                    transition="all 0.3s ease"
+                    transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                     display="flex"
                     flexDirection="column"
                     justifyContent="space-between"

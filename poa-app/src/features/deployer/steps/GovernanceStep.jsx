@@ -144,7 +144,7 @@ function SimpleGovernanceUI({ state, actions }) {
                       borderColor: canVote ? 'coral.400' : 'coral.300',
                       bg: canVote ? 'coral.200' : 'coral.50',
                     }}
-                    transition="all 0.15s ease"
+                    transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
                   >
                     {role.name}
                   </Badge>
@@ -193,7 +193,7 @@ function SimpleGovernanceUI({ state, actions }) {
                       borderColor: canCreate ? 'amethyst.400' : 'amethyst.300',
                       bg: canCreate ? 'amethyst.200' : 'amethyst.50',
                     }}
-                    transition="all 0.15s ease"
+                    transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
                   >
                     {role.name}
                   </Badge>

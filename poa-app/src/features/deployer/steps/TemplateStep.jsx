@@ -136,7 +136,7 @@ function ExpandableFeatureCard({ benefit, isExpanded, onToggle, votingData }) {
         p={8}
         borderRadius="xl"
         boxShadow="lg"
-        transition="all 0.3s ease"
+        transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
         gridColumn="1 / -1"
       >
         <Flex justify="space-between" align="flex-start" mb={5}>
@@ -193,7 +193,7 @@ function ExpandableFeatureCard({ benefit, isExpanded, onToggle, votingData }) {
       onClick={onToggle}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      transition="all 0.3s ease"
+      transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
       _hover={{
         transform: 'scale(1.02)',
         boxShadow: 'md',
@@ -389,7 +389,7 @@ function TemplateCard({ template, isSelected, onSelect }) {
         transform: 'translateY(-2px)',
         boxShadow: '0 8px 30px rgba(0, 0, 0, 0.08)',
       }}
-      transition="all 0.2s ease"
+      transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
       h="100%"
       position="relative"
       overflow="hidden"
@@ -558,7 +558,7 @@ function TemplateDetailPanel({ template, onContinue, onBack, onOpenGrowthPath })
           py={6}
           fontSize="md"
           boxShadow="md"
-          transition="all 0.3s ease"
+          transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
         >
           Customize This Model
         </Button>

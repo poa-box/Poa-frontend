@@ -15,6 +15,7 @@ import { usePOContext } from '../context/POContext';
 import { INFRASTRUCTURE_CONTRACTS, getInfrastructureAddress } from '../config/contracts';
 import { DEFAULT_NETWORK } from '../config/networks';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
+import { FETCH_PAYMASTER_ORG_CONFIG } from '../util/passkeyQueries';
 
 // Core services
 import { ContractFactory, createContractFactory } from '../services/web3/core/ContractFactory';
@@ -55,7 +56,19 @@ export function useWeb3Services(options = {}) {
   // Fetch infrastructure addresses from subgraph
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
-  const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
+  const paymasterHubAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
+
+  // Check if this org has gas sponsorship enabled (subgraph lookup, no RPC)
+  const { data: pmConfig } = useQuery(FETCH_PAYMASTER_ORG_CONFIG, {
+    variables: { orgId },
+    skip: !orgId,
+    fetchPolicy: 'cache-first',
+  });
+  const orgPaymaster = pmConfig?.paymasterOrgConfigs?.[0];
+  // Only pass paymaster address when the org is registered and not paused
+  const paymasterAddress = (orgPaymaster?.isRegistered && !orgPaymaster?.isPaused)
+    ? paymasterHubAddress
+    : null;
 
   // Create core services — auth-type-aware
   const factory = useMemo(() => {
@@ -72,7 +85,8 @@ export function useWeb3Services(options = {}) {
   const txManager = useMemo(() => {
     if (isPasskeyUser) {
       // Passkey: create SmartAccountTransactionManager
-      if (!passkeyState || !publicClient || !bundlerClient || !paymasterAddress) return null;
+      // paymasterAddress is optional — if absent, account pays its own gas
+      if (!passkeyState || !publicClient || !bundlerClient) return null;
       return createSmartAccountTransactionManager({
         accountAddress: passkeyState.accountAddress,
         rawCredentialId: passkeyState.rawCredentialId,

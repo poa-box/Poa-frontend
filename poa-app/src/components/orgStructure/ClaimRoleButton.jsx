@@ -101,7 +101,7 @@ export function ClaimRoleButton({
               transform: 'scale(1.02)',
               boxShadow: '0 0 20px rgba(72, 187, 120, 0.4)',
             }}
-            transition="all 0.2s"
+            transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
           >
             Claim Role
           </Button>
@@ -187,7 +187,7 @@ export function ClaimRoleButton({
             transform: 'scale(1.02)',
             boxShadow: '0 0 20px rgba(148, 115, 220, 0.4)',
           }}
-          transition="all 0.2s"
+          transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
         >
           Claim Role
         </Button>

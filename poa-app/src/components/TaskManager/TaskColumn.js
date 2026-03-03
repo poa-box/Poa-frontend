@@ -326,7 +326,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
     borderRadius: '8px',
     border: isOver ? '1px dashed rgba(123, 104, 238, 0.5)' : '1px dashed rgba(255, 255, 255, 0.2)',
     margin: '0 auto 16px auto',
-    transition: 'all 0.3s ease',
+    transition: 'transform 0.3s ease, box-shadow 0.3s ease',
   };
 
   const handleOpenAddTaskModal = () => {

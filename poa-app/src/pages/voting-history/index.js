@@ -218,7 +218,7 @@ const VotingHistoryPage = () => {
                   bg: "rgba(148, 115, 220, 0.2)",
                   transform: "translateX(-3px)",
                 }}
-                transition="all 0.2s ease"
+                transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                 onClick={handleBackClick}
               />
               <Box position="relative" borderRadius="xl" px={6} py={3} overflow="hidden">
@@ -282,7 +282,7 @@ const VotingHistoryPage = () => {
                     borderRadius="xl"
                     py={{ base: 2, md: 4 }}
                     px={{ base: 2, md: 4 }}
-                    transition="all 0.3s ease"
+                    transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                   >
                     {getVotingTypeLabel(0)}
                   </Tab>
@@ -302,7 +302,7 @@ const VotingHistoryPage = () => {
                     borderRadius="xl"
                     py={{ base: 2, md: 4 }}
                     px={{ base: 2, md: 4 }}
-                    transition="all 0.3s ease"
+                    transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                   >
                     {getVotingTypeLabel(1)}
                   </Tab>
@@ -503,7 +503,7 @@ const VotingHistoryPage = () => {
                         bg: "rgba(148, 115, 220, 0.2)",
                         transform: "translateY(-2px)",
                       }}
-                      transition="all 0.3s ease"
+                      transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                     >
                       Load More ({processedProposals.length - displayCount} remaining)
                     </Button>

@@ -145,7 +145,7 @@ function RecommendedTasksCompact({ tasks, userDAO }) {
                   transform: 'translateY(-2px)',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
                 }}
-                transition="all 0.2s"
+                transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                 cursor="pointer"
               >
                 <HStack justify="space-between">
@@ -374,7 +374,7 @@ const UserprofileHub = () => {
                           transform: 'translateY(-2px)',
                           boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
                         }}
-                        transition="all 0.2s"
+                        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                         cursor="pointer"
                       >
                         <HStack justify="space-between">
@@ -405,7 +405,7 @@ const UserprofileHub = () => {
                           transform: 'translateY(-2px)',
                           boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
                         }}
-                        transition="all 0.2s"
+                        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                         cursor="pointer"
                       >
                         <Text fontSize="sm" fontWeight="bold" color="white" noOfLines={1}>
@@ -439,7 +439,7 @@ const UserprofileHub = () => {
                           transform: 'translateY(-2px)',
                           boxShadow: '0 4px 12px rgba(0,0,0,0.4)'
                         }}
-                        transition="all 0.2s"
+                        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                         cursor="pointer"
                       >
                         <Text fontSize="sm" fontWeight="bold" color="white" noOfLines={1}>

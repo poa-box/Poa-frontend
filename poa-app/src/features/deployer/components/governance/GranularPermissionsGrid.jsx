@@ -84,7 +84,7 @@ function PermissionToggle({ isActive, onClick, roleIndex, roleName }) {
         justifyContent="center"
         onClick={onClick}
         cursor="pointer"
-        transition="all 0.15s ease"
+        transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
         _hover={{
           borderColor: isActive ? 'coral.500' : 'coral.300',
           bg: isActive ? 'coral.200' : 'coral.50',

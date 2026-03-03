@@ -133,7 +133,7 @@ const AnimatedBox = styled(Box)`
 const PulseButton = styled(Button)`
   position: relative;
   overflow: hidden;
-  transition: all 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease;
   
   &:hover {
     animation: ${pulseAnimation} 2s infinite;
@@ -171,7 +171,7 @@ const EnhancedBadge = styled(Box)`
   padding: 0.35em 0.8em;
   letter-spacing: 0.5px;
   border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease;
   display: inline-flex;
   align-items: center;
   
@@ -189,7 +189,7 @@ const GlassCard = styled(Box)`
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   transform: perspective(1000px) translateZ(0);
   overflow: hidden;
   position: relative;
@@ -223,7 +223,7 @@ const DarkGlassCard = styled(Box)`
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   transform: perspective(1000px) translateZ(0);
   overflow: hidden;
   position: relative;
@@ -263,7 +263,7 @@ const ArtisticButton = styled(Button)`
   position: relative;
   overflow: hidden;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease;
   
   &::before {
     content: '';
@@ -409,7 +409,7 @@ const Home = () => {
                     fontWeight="bold"
                     textDecoration="underline"
                     _hover={{ color: "#8FEFD9", textDecoration: "none" }}
-                    transition="all 0.3s ease"
+                    transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                     letterSpacing="0.5px"
                   >
                     poa.community
@@ -484,7 +484,7 @@ const Home = () => {
                     mx="auto"
                     mt={4}
                     border="1px solid rgba(255, 255, 255, 0.1)"
-                    transition="all 0.3s ease"
+                    transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                     boxShadow="0 4px 12px rgba(0, 0, 0, 0.2)"
                     _hover={{
                       transform: "scale(1.02) translateY(-5px)",
@@ -547,7 +547,7 @@ const Home = () => {
             mt={8}
             display={isLoaded ? "block" : "none"}
             letterSpacing="0.5px"
-            transition="all 0.3s ease"
+            transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
             _hover={{ color: "rgba(0, 0, 0, 0.9)" }}
           >
             Powered by Poa • Built on Blockchain • Designed for Community

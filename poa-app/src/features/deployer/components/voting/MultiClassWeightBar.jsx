@@ -142,7 +142,7 @@ export function MultiClassWeightBar({ classes, roles = [], showLabels = true }) 
                 w={`${cls.slicePct}%`}
                 h="100%"
                 bg={`${color}.400`}
-                transition="all 0.2s ease"
+                transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                 display="flex"
                 alignItems="center"
                 justifyContent="center"

@@ -263,7 +263,7 @@ export function WelcomeClaimPage({
                         borderColor: "purple.400",
                         bg: isRecommended ? "purple.800" : "whiteAlpha.100",
                       }}
-                      transition="all 0.2s"
+                      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                     >
                       {isRecommended && canClaim && (
                         <Badge
@@ -337,7 +337,7 @@ export function WelcomeClaimPage({
                             _hover={{
                               transform: isReady ? "translateX(2px)" : undefined,
                             }}
-                            transition="all 0.2s"
+                            transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                           >
                             {!isReady ? "Connecting..." : isClaiming ? "Claiming..." : "Join"}
                           </Button>

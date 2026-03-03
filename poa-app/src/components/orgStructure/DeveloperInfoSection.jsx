@@ -69,7 +69,7 @@ function ContractRow({ label, address }) {
       borderRadius="lg"
       bg="rgba(30, 30, 40, 0.5)"
       border="1px solid rgba(148, 115, 220, 0.1)"
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       _hover={{
         borderColor: 'rgba(148, 115, 220, 0.3)',
       }}
@@ -139,7 +139,7 @@ export function DeveloperInfoSection({ contracts = {} }) {
         bg="rgba(30, 30, 40, 0.3)"
         border="1px solid rgba(148, 115, 220, 0.1)"
         textAlign="left"
-        transition="all 0.2s"
+        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
         _hover={{
           bg: 'rgba(30, 30, 40, 0.5)',
           borderColor: 'rgba(148, 115, 220, 0.2)',

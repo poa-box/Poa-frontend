@@ -68,6 +68,9 @@ const BrowserPage = () => {
   );
   const accentColor = useColorModeValue("blue.500", "blue.300");
   const borderColor = useColorModeValue("gray.200", "gray.700");
+  const imageBg = useColorModeValue("gray.100", "gray.900");
+  const descriptionColor = useColorModeValue("gray.600", "gray.300");
+  const membersBg = useColorModeValue("blue.50", "blue.900");
 
   useEffect(() => {
     const loadImages = async () => {
@@ -167,7 +170,7 @@ const BrowserPage = () => {
               </Text>
             )}
             {selectedOrg?.totalMembers && (
-              <Flex align="center" mt={4} bg={useColorModeValue("blue.50", "blue.900")} p={3} borderRadius="md">
+              <Flex align="center" mt={4} bg={membersBg} p={3} borderRadius="md">
                 <Icon as={FaUsers} color={accentColor} mr={2} boxSize="18px" />
                 <Text fontWeight="medium">{selectedOrg.totalMembers} Members</Text>
               </Flex>
@@ -375,7 +378,7 @@ const BrowserPage = () => {
                         bg={cardBg}
                         borderWidth="1px"
                         borderColor={borderColor}
-                        transition="all 0.3s"
+                        transition="transform 0.3s, box-shadow 0.3s, background 0.3s, border-color 0.3s"
                         height="100%"
                         _hover={{
                           transform: { base: "none", md: "translateY(-8px)" },
@@ -386,7 +389,7 @@ const BrowserPage = () => {
                         <Link href={`/home?userDAO=${po.id}`} passHref>
                           <Box
                             as="a"
-                            bg={useColorModeValue("gray.100", "gray.900")}
+                            bg={imageBg}
                             p={{ base: 4, md: 6 }}
                             display="flex"
                             justifyContent="center"
@@ -432,7 +435,7 @@ const BrowserPage = () => {
                                 fontSize={{ base: "sm", md: po.aboutInfo.description.length < 50 ? "lg" : "md" }}
                                 lineHeight={po.aboutInfo.description.length < 50 ? "1.5" : "normal"}
                                 fontWeight={po.aboutInfo.description.length < 50 ? "medium" : "normal"}
-                                color={useColorModeValue("gray.600", "gray.300")}
+                                color={descriptionColor}
                                 noOfLines={{ base: 2, md: 3 }}
                                 position="relative"
                                 pr="5px"

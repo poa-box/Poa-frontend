@@ -314,7 +314,7 @@ const PerpetualOrgDashboard = () => {
                       w={{ base: "100%", md: "31%" }}
                       mb={{ base: 2, md: 0 }}
                       _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
-                      transition="all 0.2s"
+                      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                       p={4}
                       borderRadius="2xl"
                       overflow="hidden"
@@ -372,7 +372,7 @@ const PerpetualOrgDashboard = () => {
                   position="relative"
                   zIndex={2}
                   _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
-                  transition="all 0.2s"
+                  transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                 >
                   <div style={glassLayerStyle} />
                   <VStack pb={1} align="flex-start" position="relative" borderTopRadius="2xl">
@@ -504,7 +504,7 @@ const PerpetualOrgDashboard = () => {
                             onClick={() => router.push(`/edu-Hub`)}
                             bg="black"
                             _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
-                            transition="all 0.2s"
+                            transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                             cursor="pointer"
                             mb={{ base: 2, md: 0 }}
                           >

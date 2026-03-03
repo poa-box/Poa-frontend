@@ -71,7 +71,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
       : '0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)',
     padding: '14px',
     marginBottom: '14px',
-    transition: 'all 0.25s ease',
+    transition: 'transform 0.25s ease, box-shadow 0.25s ease',
     transform: isDragging ? 'scale(0.98) rotate(-1deg)' : 'scale(1) rotate(0)',
     opacity: isDragging ? 0.9 : 1,
     borderLeft: difficulty ? `4px solid ${getDifficultyColor(difficulty)}` : undefined,
@@ -86,7 +86,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
     marginBottom: '16px',
     cursor: 'grab',
     opacity: isDragging ? 0.7 : 1,
-    transition: 'all 0.2s ease',
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
     transform: isDragging ? 'rotate(-1deg)' : 'rotate(0)',
     _hover: {
       boxShadow: 'md',

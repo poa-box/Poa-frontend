@@ -50,7 +50,7 @@ function AssignToMeToggle({ isChecked, onChange, roleName }) {
       bg={isChecked ? 'green.50' : 'warmGray.50'}
       border="1px solid"
       borderColor={isChecked ? 'green.200' : 'warmGray.200'}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
     >
       <HStack justify="space-between">
         <VStack align="start" spacing={0}>
@@ -397,7 +397,7 @@ export function RoleCardSimple({
       borderLeft="4px solid"
       borderLeftColor={isTopLevel ? 'coral.400' : 'warmGray.200'}
       boxShadow="0 2px 12px rgba(0, 0, 0, 0.04)"
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       _hover={{
         boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
       }}

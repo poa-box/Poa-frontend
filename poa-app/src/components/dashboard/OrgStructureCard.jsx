@@ -23,7 +23,7 @@ const glassLayerStyle = {
   borderRadius: 'inherit',
   backgroundColor: 'rgba(0, 0, 0, 0.73)',
   border: '1px solid rgba(148, 115, 220, 0.15)',
-  transition: 'all 0.3s ease',
+  transition: 'transform 0.3s ease, box-shadow 0.3s ease',
 };
 
 export function OrgStructureCard({
@@ -46,13 +46,13 @@ export function OrgStructureCard({
         position="relative"
         zIndex={2}
         cursor="pointer"
-        transition="all 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
+        transition="transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s cubic-bezier(0.4, 0, 0.2, 1)"
         sx={{
           '& .glass-layer': {
-            transition: 'all 0.3s ease',
+            transition: 'transform 0.3s ease, box-shadow 0.3s ease',
           },
           '& .arrow-icon': {
-            transition: 'all 0.3s ease',
+            transition: 'transform 0.3s ease, box-shadow 0.3s ease',
           },
         }}
         _hover={{

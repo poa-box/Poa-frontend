@@ -16,7 +16,7 @@ const Layout = ({ children, isArchitectPage }) => {
           zIndex="banner"
           color={"black"}
         >
-          <Link href="/landing" passHref>
+          <Link href="/" passHref>
             <IconButton
               _hover={{transform:"scale(1.06)"}}
               icon={

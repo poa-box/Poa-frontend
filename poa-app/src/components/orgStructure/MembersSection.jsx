@@ -82,7 +82,7 @@ function MemberCard({ member }) {
       borderRadius="lg"
       p={4}
       overflow="hidden"
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       _hover={{
         transform: 'translateY(-2px)',
         '& > div:first-of-type': {

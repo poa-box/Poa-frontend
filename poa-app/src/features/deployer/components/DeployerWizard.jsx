@@ -137,7 +137,7 @@ function StepProgressIndicator({ steps, currentStep, onStepClick, selectors }) {
                 display="flex"
                 alignItems="center"
                 justifyContent="center"
-                transition="all 0.2s ease"
+                transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                 animation={isActive ? `${pulseAnimation} 2s ease-in-out infinite` : undefined}
                 boxShadow={isActive ? '0 0 0 3px rgba(240, 101, 67, 0.15)' : undefined}
                 cursor={isClickable ? 'pointer' : 'default'}
@@ -170,7 +170,7 @@ function StepProgressIndicator({ steps, currentStep, onStepClick, selectors }) {
                 fontWeight={isActive ? '600' : '500'}
                 color={isActive ? activeLabelColor : labelColor}
                 textAlign="center"
-                transition="all 0.2s ease"
+                transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                 cursor={isClickable ? 'pointer' : 'default'}
                 onClick={handleClick}
                 _hover={isClickable ? { color: activeLabelColor } : undefined}
@@ -417,7 +417,6 @@ export function DeployerWizard({
           {/* Minimal Step Progress Indicator */}
           <Box
             bg={cardBg}
-            backdropFilter="blur(12px)"
             borderRadius="xl"
             p={{ base: 3, md: 4 }}
             border="1px solid"
@@ -435,7 +434,6 @@ export function DeployerWizard({
           {/* Current Step Content */}
           <Box
             bg={cardBg}
-            backdropFilter="blur(12px)"
             borderRadius="2xl"
             p={{ base: 6, md: 8 }}
             border="1px solid"
@@ -447,7 +445,7 @@ export function DeployerWizard({
               <ReviewStep
                 onDeploy={handleDeploy}
                 isDeploying={isDeploying}
-                isWalletConnected={(() => { console.log('[deployer-auth] DeployerWizard deployerAddress:', deployerAddress, '→ isWalletConnected:', !!deployerAddress); return !!deployerAddress; })()}
+                isWalletConnected={!!deployerAddress}
                 deploymentStatus={deploymentStatus}
                 onDeploySuccess={handleCelebrationContinue}
               />

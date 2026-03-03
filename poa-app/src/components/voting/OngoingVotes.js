@@ -51,7 +51,7 @@ const OngoingVotes = ({
             transform: "translateY(0)",
           }}
           borderRadius="lg"
-          transition="all 0.3s ease"
+          transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
           size={{ base: "md", md: "lg" }}
         >
           {showCreatePoll ? "Hide Create Form" : "Create Vote"}

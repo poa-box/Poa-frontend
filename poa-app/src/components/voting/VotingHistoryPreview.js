@@ -66,7 +66,7 @@ const VotingHistoryPreview = ({
             _active={{
               bg: "rgba(148, 115, 220, 0.3)",
             }}
-            transition="all 0.3s ease"
+            transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
             onClick={handleViewAllClick}
           >
             View All History

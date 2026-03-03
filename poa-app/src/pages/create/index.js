@@ -22,7 +22,7 @@ import { useAccount, useDisconnect } from "wagmi";
 import { useEthersSigner } from "@/components/ProviderConverter";
 import { useAuth } from "@/context/AuthContext";
 import { useIPFScontext } from "@/context/ipfsContext";
-import { main } from "../../../scripts/newDeployment";
+import { main, buildDeployCalldata } from "../../../scripts/newDeployment";
 import { useRouter } from "next/router";
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from "@/util/queries";
 import { ipfsCidToBytes32 } from "@/services/web3/utils/encoding";
@@ -37,12 +37,20 @@ import {
 } from "@/features/deployer";
 import { resolveRoleUsernames } from "@/features/deployer/utils/usernameResolver";
 
+// Passkey deployment via ERC-4337 UserOp
+import { encodeFunctionData } from "viem";
+import PasskeyAccountABI from "../../../abi/PasskeyAccount.json";
+import { buildUserOp, getUserOpHash } from "@/services/web3/passkey/userOpBuilder";
+import { signUserOpWithPasskey } from "@/services/web3/passkey/passkeySign";
+import { ENTRY_POINT_ADDRESS } from "@/config/passkey";
+import { NETWORKS, DEFAULT_NETWORK } from "@/config/networks";
+
 /**
  * Inner component that has access to DeployerContext
  */
 function DeployerPageContent() {
   const { address, status } = useAccount();
-  const { passkeyState } = useAuth();
+  const { passkeyState, publicClient, bundlerClient } = useAuth();
   const signer = useEthersSigner();
 
   const { disconnect } = useDisconnect();
@@ -53,18 +61,13 @@ function DeployerPageContent() {
   const hasDisconnectedAutoReconnect = useRef(false);
   const [walletUserConnected, setWalletUserConnected] = useState(false);
 
-  console.log('[deployer-auth] render:', { status, address, walletUserConnected, hasDisconnected: hasDisconnectedAutoReconnect.current, passkeyAddress: passkeyState?.accountAddress });
-
   useEffect(() => {
-    console.log('[deployer-auth] disconnect effect:', { status, hasDisconnected: hasDisconnectedAutoReconnect.current });
     if (!hasDisconnectedAutoReconnect.current && (status === 'reconnecting' || status === 'connected')) {
-      console.log('[deployer-auth] disconnecting auto-reconnected wallet');
       hasDisconnectedAutoReconnect.current = true;
       disconnect();
     }
   }, [status, disconnect]);
   useEffect(() => {
-    console.log('[deployer-auth] status effect:', { status });
     if (status === 'connecting') setWalletUserConnected(true);
     if (status === 'disconnected') setWalletUserConnected(false);
   }, [status]);
@@ -78,8 +81,6 @@ function DeployerPageContent() {
     fetchPolicy: 'network-only',
   });
 
-  // Debug logging for infrastructure addresses
-  console.log('Infrastructure query:', { loading: infraLoading, error: infraError, data: infraData });
 
   // Extract addresses from subgraph data
   const infrastructureAddresses = useMemo(() => {
@@ -155,7 +156,7 @@ function DeployerPageContent() {
 
   const handleExitConfirm = () => {
     setIsExitModalOpen(false);
-    router.push("/landing");
+    router.push("/");
   };
 
   const handleExitCancel = () => {
@@ -358,30 +359,103 @@ function DeployerPageContent() {
       // Pass customRoles if there are any custom distribution settings
       // This ensures mintToDeployer and additionalWearers settings are respected
       const customRoles = hasCustomDistribution ? deployParams.roles : null;
-      console.log('Passing customRoles:', customRoles !== null);
 
-      await main(
-        membershipTypeNames,
-        executiveRoleNames,
-        state.organization.name,
-        hasQuadratic,
-        50, // democracyVoteWeight - will be replaced by voting classes
-        50, // participationVoteWeight
-        hybridVotingEnabled,
-        !hybridVotingEnabled, // participationVotingEnabled
-        state.features.electionHubEnabled,
-        state.features.educationHubEnabled,
-        state.organization.logoURL,
-        infoIPFSHash,
-        'DirectDemocracy', // votingControlType
-        state.voting.ddQuorum,
-        state.voting.hybridQuorum,
-        deployerUsername,
-        signer,
-        customRoles,
-        infrastructureAddresses,
-        regSignatureData
-      );
+      if (isPasskeyDeployer) {
+        // === PASSKEY DEPLOYMENT via ERC-4337 UserOp ===
+        const { calldata, orgDeployerAddress } = buildDeployCalldata({
+          memberTypeNames: membershipTypeNames,
+          executivePermissionNames: executiveRoleNames,
+          POname: state.organization.name,
+          quadraticVotingEnabled: hasQuadratic,
+          democracyVoteWeight: 50,
+          participationVoteWeight: 50,
+          hybridVotingEnabled,
+          participationVotingEnabled: !hybridVotingEnabled,
+          electionEnabled: state.features.electionHubEnabled,
+          educationHubEnabled: state.features.educationHubEnabled,
+          infoIPFSHash,
+          quorumPercentageDD: state.voting.ddQuorum,
+          quorumPercentagePV: state.voting.hybridQuorum,
+          username: deployerUsername,
+          deployerAddress: passkeyState.accountAddress,
+          customRoles,
+          infrastructureAddresses,
+          regSignatureData,
+        });
+
+        // Wrap in PasskeyAccount.execute(target, value, data)
+        const accountCallData = encodeFunctionData({
+          abi: PasskeyAccountABI,
+          functionName: 'execute',
+          args: [orgDeployerAddress, 0n, calldata],
+        });
+
+        // Build UserOp (no paymaster — account pays gas directly)
+        const userOp = await buildUserOp({
+          sender: passkeyState.accountAddress,
+          callData: accountCallData,
+          bundlerClient,
+          publicClient,
+        });
+
+        // Sign with passkey (triggers biometric prompt)
+        toast({
+          title: 'Passkey Signature Required',
+          description: 'Please authenticate with your passkey to deploy.',
+          status: 'info',
+          duration: 5000,
+          isClosable: true,
+        });
+
+        const chainId = NETWORKS[DEFAULT_NETWORK].chainId;
+        const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, chainId);
+        const signature = await signUserOpWithPasskey(userOpHash, passkeyState.rawCredentialId);
+        userOp.signature = signature;
+
+        // Submit to bundler
+        const opHash = await bundlerClient.sendUserOperation({
+          ...userOp,
+          entryPointAddress: ENTRY_POINT_ADDRESS,
+        });
+
+        console.log('[DEPLOY] UserOp submitted:', opHash);
+
+        // Wait for confirmation
+        const receipt = await bundlerClient.waitForUserOperationReceipt({
+          hash: opHash,
+          timeout: 120_000,
+        });
+
+        if (!receipt.success) {
+          throw new Error('Deployment transaction failed on-chain.');
+        }
+
+        console.log('[DEPLOY] Passkey deployment confirmed:', receipt.receipt.transactionHash);
+      } else {
+        // === WALLET DEPLOYMENT via ethers signer ===
+        await main(
+          membershipTypeNames,
+          executiveRoleNames,
+          state.organization.name,
+          hasQuadratic,
+          50, // democracyVoteWeight
+          50, // participationVoteWeight
+          hybridVotingEnabled,
+          !hybridVotingEnabled, // participationVotingEnabled
+          state.features.electionHubEnabled,
+          state.features.educationHubEnabled,
+          state.organization.logoURL,
+          infoIPFSHash,
+          'DirectDemocracy', // votingControlType
+          state.voting.ddQuorum,
+          state.voting.hybridQuorum,
+          deployerUsername,
+          signer,
+          customRoles,
+          infrastructureAddresses,
+          regSignatureData
+        );
+      }
 
       // Return success - let DeployerWizard handle the celebration
       return { success: true, orgName: state.organization.name };
@@ -464,11 +538,7 @@ function DeployerPageContent() {
         <DeployerWizard
           onDeployStart={handleDeployStart}
           onDeploySuccess={handleDeploySuccess}
-          deployerAddress={(() => {
-            const d = (passkeyState?.accountAddress) || (walletUserConnected ? address : undefined);
-            console.log('[deployer-auth] deployerAddress:', d, '| passkeyAddr:', passkeyState?.accountAddress, '| walletUserConnected:', walletUserConnected, '| address:', address);
-            return d;
-          })()}
+          deployerAddress={passkeyState?.accountAddress || (walletUserConnected ? address : undefined)}
         />
       </Box>
 

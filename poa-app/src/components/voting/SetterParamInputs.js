@@ -100,7 +100,7 @@ const ParameterInput = ({ param, value, onChange, allRoles, allProjects }) => {
               color="white"
               onClick={() => handleChange(option)}
               _hover={{ borderColor: 'purple.400' }}
-              transition="all 0.2s"
+              transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
             >
               <Text fontSize="sm" fontWeight={value === option ? 'bold' : 'normal'}>
                 {option}

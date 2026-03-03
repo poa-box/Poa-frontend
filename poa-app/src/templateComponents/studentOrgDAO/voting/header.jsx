@@ -57,7 +57,7 @@ const HeadingVote = ({ selectedTab, PTVoteType }) => {
       position="relative"
       display="flex"
       zIndex={0}
-      transition="all 0.3s ease"
+      transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
       _hover={{ 
         transform: "translateY(-3px)",
         boxShadow: "xl"

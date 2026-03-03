@@ -287,7 +287,7 @@ const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCrea
             boxShadow: "0 4px 12px rgba(45, 134, 255, 0.4)"
           }}
           leftIcon={<AddIcon />}
-          transition="all 0.2s ease"
+          transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
         >
           Create Project
         </Button>

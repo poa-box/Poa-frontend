@@ -26,6 +26,7 @@ import {
   savePasskeyCredential,
   removeCredential,
 } from '../services/web3/passkey/passkeyStorage';
+import { discoverPasskeyCredential } from '../services/web3/passkey/passkeyDiscover';
 
 const AuthContext = createContext();
 
@@ -122,16 +123,27 @@ export const AuthProvider = ({ children }) => {
   }, [eoaConnected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
-   * Connect a returning passkey user from stored credentials.
+   * Connect a returning passkey user.
+   * 1. Try stored credentials from localStorage (instant).
+   * 2. If none stored, trigger WebAuthn discoverable auth and look up account from subgraph.
    */
   const connectPasskey = useCallback(async (credential = null) => {
     setPasskeyConnecting(true);
     try {
-      const cred = credential || getLastUsedCredential();
-      if (!cred) throw new Error('No passkey credential found');
+      // Fast path: use provided credential or localStorage
+      const storedCred = credential || getLastUsedCredential();
+      if (storedCred) {
+        setPasskeyState(storedCred);
+        return storedCred;
+      }
 
-      setPasskeyState(cred);
-      return cred;
+      // Slow path: WebAuthn discoverable authentication + subgraph lookup
+      const discovered = await discoverPasskeyCredential();
+
+      // Save to localStorage for future fast reconnects
+      savePasskeyCredential(discovered);
+      setPasskeyState(discovered);
+      return discovered;
     } finally {
       setPasskeyConnecting(false);
     }
@@ -155,7 +167,9 @@ export const AuthProvider = ({ children }) => {
     setPasskeyState(null);
   }, [passkeyState]);
 
-  const value = {
+  const hasStoredPasskey = typeof window !== 'undefined' ? hasStoredCredentials() : false;
+
+  const value = useMemo(() => ({
     // Auth state
     authType,
     accountAddress,
@@ -169,12 +183,12 @@ export const AuthProvider = ({ children }) => {
     connectPasskey,
     activatePasskey,
     disconnectPasskey,
-    hasStoredPasskey: typeof window !== 'undefined' ? hasStoredCredentials() : false,
+    hasStoredPasskey,
 
     // Shared infrastructure
     publicClient,
     bundlerClient,
-  };
+  }), [authType, accountAddress, isAuthenticated, passkeyState, passkeyConnecting, connectPasskey, activatePasskey, disconnectPasskey, hasStoredPasskey, publicClient, bundlerClient]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
