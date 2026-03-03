@@ -8,8 +8,6 @@ import LoginButton from "@/components/LoginButton";
 import { useAuth } from "@/context/AuthContext";
 import { usePOContext } from "@/context/POContext";
 import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
-import PasskeyAccountInfo from "@/components/passkey/PasskeyAccountInfo";
-import GasSponsorshipBadge from "@/components/passkey/GasSponsorshipBadge";
 import SignInModal from "@/components/passkey/SignInModal";
 
 const Navbar = () => {
@@ -53,7 +51,6 @@ const Navbar = () => {
       zIndex={100}
       width="100%"
       boxShadow={{ base: "0px 1px 5px rgba(0,0,0,0.3)", md: "none" }}
-      backdropFilter={{ base: "blur(10px)", md: "none" }}
       borderBottom={{ base: "1px solid rgba(255,255,255,0.1)", md: "none" }}
     >
       <Flex
@@ -191,12 +188,7 @@ const Navbar = () => {
               </Flex>
             </Link>
           )}
-          {mounted && isPasskeyUser ? (
-            <HStack spacing={2}>
-              <GasSponsorshipBadge />
-              <PasskeyAccountInfo />
-            </HStack>
-          ) : mounted && isAuthenticated ? (
+          {mounted && (isPasskeyUser || isAuthenticated) ? (
             <LoginButton />
           ) : (
             <Button
@@ -236,8 +228,8 @@ const Navbar = () => {
 
       {/* Mobile Navigation Drawer */}
       <Drawer isOpen={isOpen} placement="right" onClose={onClose} size="xs">
-        <DrawerOverlay backdropFilter="blur(10px)" bg="rgba(0,0,0,0.7)" />
-        <DrawerContent bg="rgba(20, 20, 25, 0.95)" backdropFilter="blur(10px)">
+        <DrawerOverlay bg="rgba(0,0,0,0.7)" />
+        <DrawerContent bg="rgba(20, 20, 25, 0.95)">
           <DrawerCloseButton color="white" />
           <DrawerHeader borderBottomWidth="1px" borderColor="rgba(255, 255, 255, 0.1)" color="white">
             <Flex align="center">
@@ -273,12 +265,7 @@ const Navbar = () => {
             </VStack>
             
             <Box p={6} mt={4}>
-              {mounted && isPasskeyUser ? (
-                <VStack spacing={3}>
-                  <GasSponsorshipBadge />
-                  <PasskeyAccountInfo />
-                </VStack>
-              ) : mounted && isAuthenticated ? (
+              {mounted && (isPasskeyUser || isAuthenticated) ? (
                 <VStack spacing={3}>
                   <LoginButton />
                 </VStack>

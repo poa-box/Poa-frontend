@@ -33,7 +33,6 @@ function GlassLayer() {
       inset={0}
       zIndex={-1}
       borderRadius="inherit"
-      backdropFilter="blur(20px)"
       bg="rgba(0, 0, 0, 0.73)"
     />
   );

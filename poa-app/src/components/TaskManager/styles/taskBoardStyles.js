@@ -7,23 +7,20 @@ export const glassLayerStyle = {
   width: '100%',
   height: '100%',
   borderRadius: '3xl',
-  backdropFilter: 'blur(20px)',
-  backgroundColor: 'rgba(0, 0, 0, .3)',
+  backgroundColor: 'rgba(0, 0, 0, .45)',
 };
 
 export const mobileGlassStyle = {
   width: '100%',
   height: '100%',
   borderRadius: '16px',
-  backdropFilter: 'blur(15px)',
-  backgroundColor: 'rgba(0, 0, 0, .5)',
+  backgroundColor: 'rgba(0, 0, 0, .6)',
   boxShadow: '0 4px 15px rgba(0, 0, 0, 0.3)',
   border: '1px solid rgba(255, 255, 255, 0.1)',
 };
 
 export const mobileNavGlassStyle = {
-  backdropFilter: 'blur(20px)',
-  backgroundColor: 'rgba(0, 0, 0, .7)',
+  backgroundColor: 'rgba(0, 0, 0, .8)',
   borderRadius: '12px',
   border: '1px solid rgba(255, 255, 255, 0.08)',
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
@@ -31,7 +28,6 @@ export const mobileNavGlassStyle = {
 
 export const infoPopupStyle = {
   backgroundColor: 'rgba(255, 255, 255, 1)',
-  backdropFilter: 'blur(10px)',
   boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
   border: '1px solid rgba(105, 57, 153, 0.4)',
   borderRadius: '12px',

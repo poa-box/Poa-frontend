@@ -137,8 +137,7 @@ const EducationHub = () => {
             p={5}
             pt={{ base: 4, md: 5 }}
             sx={{
-              backdropFilter: 'blur(20px)',
-              backgroundColor: 'rgba(0, 0, 0, 0.73)',
+              backgroundColor: 'rgba(0, 0, 0, 0.82)',
               border: '1px solid rgba(255, 255, 255, 0.25)',
               boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
             }}
@@ -303,8 +302,7 @@ const EducationHub = () => {
                     p={6}
                     position="relative" // To position the check mark
                     sx={{
-                      backdropFilter: 'blur(20px)',
-                      backgroundColor: 'rgba(0, 0, 0, 0.73)',
+                      backgroundColor: 'rgba(0, 0, 0, 0.82)',
                       border: '1px solid rgba(255, 255, 255, 0.25)',
                       boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
                     }}

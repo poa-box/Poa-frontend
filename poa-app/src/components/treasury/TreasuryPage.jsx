@@ -29,7 +29,6 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(70px)',
   backgroundColor: 'rgba(0, 0, 0, .79)',
 };
 

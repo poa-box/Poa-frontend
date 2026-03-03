@@ -1,5 +1,10 @@
 /**
  * Shared glass morphism styles used across the application
+ *
+ * Note: backdrop-filter: blur() was removed for Safari performance.
+ * Safari renders blur using CPU, causing severe rendering lag with
+ * 40+ blur elements across the app. At 82% opacity the visual
+ * difference is negligible.
  */
 
 export const glassLayerStyle = {
@@ -8,8 +13,7 @@ export const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(20px)',
-  backgroundColor: 'rgba(0, 0, 0, .73)',
+  backgroundColor: 'rgba(0, 0, 0, .82)',
 };
 
 /**
@@ -17,5 +21,5 @@ export const glassLayerStyle = {
  */
 export const glassLayerLightStyle = {
   ...glassLayerStyle,
-  backgroundColor: 'rgba(0, 0, 0, .5)',
+  backgroundColor: 'rgba(0, 0, 0, .6)',
 };

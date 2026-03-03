@@ -278,8 +278,7 @@ export default function Home({ allPostsData }) {
                 align="center"
                 justify="center"
                 textAlign="center"
-                bg="rgba(0, 0, 0, 0.8)"
-                backdropFilter="blur(10px)"
+                bg="rgba(0, 0, 0, 0.88)"
                 borderRadius="xl"
                 p={{ base: 8, md: 12 }}
                 mb={12}

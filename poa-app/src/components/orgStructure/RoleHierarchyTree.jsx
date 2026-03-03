@@ -22,7 +22,6 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(20px)',
   backgroundColor: 'rgba(0, 0, 0, 0.8)',
   boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
   border: '1px solid rgba(148, 115, 220, 0.2)',
@@ -106,7 +105,6 @@ function RoleNode({
           position="absolute"
           inset={0}
           borderRadius="inherit"
-          backdropFilter="blur(10px)"
           backgroundColor="rgba(30, 30, 40, 0.6)"
           border="1px solid rgba(148, 115, 220, 0.2)"
           transition="border-color 0.2s"

@@ -73,7 +73,6 @@ const AccountPage = () => {
 
   // Glass effect style
   const glassStyle = {
-    backdropFilter: 'blur(20px)',
     backgroundColor: cardBg,
   };
 

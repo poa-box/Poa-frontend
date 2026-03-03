@@ -122,9 +122,8 @@ const BrowserPage = () => {
     <Layout>
       {/* Description Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size={{ base: "full", md: "lg" }} isCentered>
-        <ModalOverlay 
-          bg="blackAlpha.300"
-          backdropFilter="blur(10px)"
+        <ModalOverlay
+          bg="blackAlpha.400"
         />
         <ModalContent margin={{ base: 0, md: "auto" }} borderRadius={{ base: 0, md: "md" }}>
           <ModalHeader>

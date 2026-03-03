@@ -21,7 +21,6 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(20px)',
   backgroundColor: 'rgba(0, 0, 0, 0.73)',
   border: '1px solid rgba(148, 115, 220, 0.15)',
   transition: 'all 0.3s ease',
@@ -91,7 +90,6 @@ export function OrgStructureCard({
             right={0}
             bottom={0}
             borderTopRadius="inherit"
-            backdropFilter="blur(20px)"
             backgroundColor="rgba(0, 0, 0, 0.73)"
             zIndex={-1}
           />

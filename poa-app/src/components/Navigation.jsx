@@ -24,7 +24,6 @@ const Navigation = () => {
       wrap="wrap"
       padding="1rem"
       bg="rgba(0, 0, 0, 0.03)"
-      backdropFilter="blur(6px)"
       position="fixed"
       top={0}
       w="100%"

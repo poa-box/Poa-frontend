@@ -37,7 +37,6 @@ const SideBar = () => {
       p={4}
       borderRadius="xl"
       bg="rgba(0, 0, 0, 0.8)"
-      backdropFilter="blur(10px)"
       borderWidth="1px"
       borderColor="rgba(255, 255, 255, 0.1)"
       width="250px"

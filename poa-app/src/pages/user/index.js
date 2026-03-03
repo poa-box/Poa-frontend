@@ -244,8 +244,7 @@ const User = () => {
           <GridItem order={{ base: 2, lg: 1 }}>
             <ScaleFade in={true} initialScale={0.95} transition={{ enter: { duration: 0.3 } }}>
               <Card 
-                bg={cardBg} 
-                backdropFilter="blur(10px)" 
+                bg={cardBg}
                 borderRadius="xl" 
                 boxShadow="xl"
                 height="100%"
@@ -314,8 +313,7 @@ const User = () => {
           <GridItem order={{ base: 1, lg: 2 }} mb={{ base: 4, lg: 0 }}>
             <ScaleFade in={animateForm} initialScale={0.95} delay={0.05} transition={{ enter: { duration: 0.3 } }}>
               <Card 
-                bg={cardBg} 
-                backdropFilter="blur(10px)" 
+                bg={cardBg}
                 borderRadius="xl" 
                 boxShadow="xl"
                 borderWidth="1px"

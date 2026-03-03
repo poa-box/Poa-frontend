@@ -38,8 +38,7 @@ const glassLayerStyle = {
   width: "100%",
   zIndex: -1,
   borderRadius: "inherit",
-  backdropFilter: "blur(20px)",
-  backgroundColor: "rgba(0, 0, 0, .9)",
+  backgroundColor: "rgba(0, 0, 0, .93)",
   boxShadow: "inset 0 0 15px rgba(148, 115, 220, 0.15)",
   border: "1px solid rgba(148, 115, 220, 0.2)",
 };
@@ -79,7 +78,7 @@ const CreateVoteModal = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg">
-      <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(10px)" />
+      <ModalOverlay bg="blackAlpha.800" />
       <ModalContent
         bg="transparent"
         borderRadius="xl"

@@ -37,6 +37,7 @@ import { useIPFScontext } from "@/context/ipfsContext";
 import { useOrgStructure } from '@/hooks/useOrgStructure';
 import { VouchingSection } from '@/components/orgStructure/VouchingSection';
 import { OrgStructureCard } from '@/components/dashboard/OrgStructureCard';
+import { glassLayerStyle } from '@/components/shared/glassStyles';
 
 const PerpetualOrgDashboard = () => {
   const { ongoingPolls } = useVotingContext();
@@ -49,17 +50,13 @@ const PerpetualOrgDashboard = () => {
   const [isVouchingExpanded, setIsVouchingExpanded] = useState(false);
   const { fetchImageFromIpfs } = useIPFScontext();
 
-  // Responsive design breakpoints
-  const isMobile = useBreakpointValue({ base: true, sm: true, md: false });
-  const logoWidth = useBreakpointValue({ base: "160px", sm: "180px", md: "220px" });
-  const headingSize = useBreakpointValue({ base: "2xl", sm: "3xl", md: "4xl" });
-  const sectionHeadingSize = useBreakpointValue({ base: "xl", md: "2xl" });
-  const textSize = useBreakpointValue({ base: "sm", md: "md" });
-  const statsTextSize = useBreakpointValue({ base: "md", md: "lg" });
-  const leaderboardTitle = useBreakpointValue({
-    base: "Members & Leaderboard",
-    md: "Browse Members and Leaderboard"
-  });
+  // Responsive design breakpoints — single call to reduce matchMedia listeners
+  const bp = useBreakpointValue({
+    base: { isMobile: true, logoWidth: "160px", headingSize: "2xl", sectionHeadingSize: "xl", textSize: "sm", statsTextSize: "md", leaderboardTitle: "Members & Leaderboard" },
+    sm: { isMobile: true, logoWidth: "180px", headingSize: "3xl", sectionHeadingSize: "xl", textSize: "sm", statsTextSize: "md", leaderboardTitle: "Members & Leaderboard" },
+    md: { isMobile: false, logoWidth: "220px", headingSize: "4xl", sectionHeadingSize: "2xl", textSize: "md", statsTextSize: "lg", leaderboardTitle: "Browse Members and Leaderboard" },
+  }) || {};
+  const { isMobile, logoWidth, headingSize, sectionHeadingSize, textSize, statsTextSize, leaderboardTitle } = bp;
 
   useEffect(() => {
     const fetchImage = async () => {
@@ -104,16 +101,6 @@ const PerpetualOrgDashboard = () => {
       default:
         return null;
     }
-  };
-
-  const glassLayerStyle = {
-    position: 'absolute',
-    height: '100%',
-    width: '100%',
-    zIndex: -1,
-    borderRadius: 'inherit',
-    backdropFilter: 'blur(70px)',
-    backgroundColor: 'rgba(0, 0, 0, .79)',
   };
 
   const difficultyColorScheme = {

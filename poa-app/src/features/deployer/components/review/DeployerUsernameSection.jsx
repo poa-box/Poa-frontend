@@ -66,7 +66,6 @@ export function DeployerUsernameSection({ onUsernameReady }) {
     return (
       <Box
         bg={cardBg}
-        backdropFilter="blur(8px)"
         borderRadius="xl"
         borderWidth="1px"
         borderColor={borderColor}
@@ -87,7 +86,6 @@ export function DeployerUsernameSection({ onUsernameReady }) {
     return (
       <Box
         bg={cardBg}
-        backdropFilter="blur(8px)"
         borderRadius="xl"
         borderWidth="1px"
         borderColor="red.200"
@@ -119,7 +117,6 @@ export function DeployerUsernameSection({ onUsernameReady }) {
     return (
       <Box
         bg={cardBg}
-        backdropFilter="blur(8px)"
         borderRadius="xl"
         borderWidth="1px"
         borderColor="green.200"
@@ -176,7 +173,6 @@ export function DeployerUsernameSection({ onUsernameReady }) {
   return (
     <Box
       bg={cardBg}
-      backdropFilter="blur(8px)"
       borderRadius="xl"
       borderWidth="1px"
       borderColor={hasError ? 'coral.200' : isValid ? 'green.200' : borderColor}

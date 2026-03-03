@@ -629,7 +629,6 @@ export function IdentityStep() {
             {/* Extra Details Card */}
             <Box
               bg={optionalCardBg}
-              backdropFilter="blur(8px)"
               p={{ base: 4, md: 5 }}
               borderRadius="xl"
               border="1px solid"
@@ -661,7 +660,6 @@ export function IdentityStep() {
             {isAdvancedMode && (
               <Box
                 bg={optionalCardBg}
-                backdropFilter="blur(8px)"
                 p={{ base: 4, md: 5 }}
                 borderRadius="xl"
                 border="1px solid"

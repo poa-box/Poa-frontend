@@ -384,7 +384,6 @@ function TemplateCard({ template, isSelected, onSelect }) {
       borderWidth="2px"
       borderColor={isSelected ? selectedBorderColor : borderColor}
       bg={isSelected ? selectedBg : cardBg}
-      backdropFilter="blur(8px)"
       _hover={{
         borderColor: isSelected ? selectedBorderColor : hoverBorderColor,
         transform: 'translateY(-2px)',

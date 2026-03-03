@@ -114,7 +114,6 @@ function ReviewSectionCard({
   return (
     <Box
       bg={cardBg}
-      backdropFilter="blur(8px)"
       borderRadius="xl"
       borderWidth="1px"
       borderColor={borderColor}
@@ -188,7 +187,6 @@ function ReadinessChecklist({ items, goToStep }) {
     <Box
       p={5}
       bg={cardBg}
-      backdropFilter="blur(12px)"
       borderRadius="xl"
       mb={6}
     >
@@ -246,7 +244,6 @@ function OrganizationHero({ organization, templateName, goToStep }) {
   return (
     <Box
       bg={cardBg}
-      backdropFilter="blur(12px)"
       borderRadius="2xl"
       p={6}
       borderLeft="4px solid"
@@ -549,8 +546,7 @@ function DeploymentOverlay({ orgName, isVisible }) {
         left="0"
         right="0"
         bottom="0"
-        bg="rgba(0, 0, 0, 0.75)"
-        backdropFilter="blur(8px)"
+        bg="rgba(0, 0, 0, 0.85)"
         zIndex={9999}
         display="flex"
         alignItems="center"
@@ -907,7 +903,6 @@ export function ReviewStep({
       {!isValid ? (
         <Box
           bg={validationWarningBg}
-          backdropFilter="blur(8px)"
           borderRadius="xl"
           p={5}
           border="1px solid"
@@ -931,7 +926,6 @@ export function ReviewStep({
       ) : (
         <Box
           bg={validationSuccessBg}
-          backdropFilter="blur(8px)"
           borderRadius="xl"
           p={5}
           border="1px solid"
@@ -1222,8 +1216,7 @@ export function ReviewStep({
 
         {/* Deploy Section */}
         <Box
-          bg="rgba(255, 255, 255, 0.8)"
-          backdropFilter="blur(12px)"
+          bg="rgba(255, 255, 255, 0.9)"
           borderRadius="2xl"
           p={8}
           boxShadow="0 -4px 24px rgba(0, 0, 0, 0.04)"

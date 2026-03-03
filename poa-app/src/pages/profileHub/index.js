@@ -76,8 +76,7 @@ function WelcomePageSkeleton() {
           maxW="600px"
           w="100%"
           borderRadius="2xl"
-          bg="rgba(0, 0, 0, 0.73)"
-          backdropFilter="blur(20px)"
+          bg="rgba(0, 0, 0, 0.82)"
           overflow="hidden"
           boxShadow="2xl"
         >

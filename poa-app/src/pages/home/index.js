@@ -170,7 +170,6 @@ const EnhancedBadge = styled(Box)`
   font-weight: 500;
   padding: 0.35em 0.8em;
   letter-spacing: 0.5px;
-  backdrop-filter: blur(4px);
   border: 1px solid rgba(255, 255, 255, 0.1);
   transition: all 0.3s ease;
   display: inline-flex;
@@ -187,7 +186,6 @@ const EnhancedBadge = styled(Box)`
 // Artistic Card with refined glass effect
 const GlassCard = styled(Box)`
   background: rgba(35, 30, 25, 0.85);
-  backdrop-filter: blur(12px);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.15);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
@@ -222,7 +220,6 @@ const GlassCard = styled(Box)`
 // Dark artistic card
 const DarkGlassCard = styled(Box)`
   background: rgba(10, 10, 10, 0.9);
-  backdrop-filter: blur(12px);
   border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
