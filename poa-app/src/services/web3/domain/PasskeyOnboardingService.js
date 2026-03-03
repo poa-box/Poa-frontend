@@ -58,7 +58,7 @@ export class PasskeyOnboardingService {
    * @param {Object} params.publicClient - viem public client
    * @param {Object} params.bundlerClient - Pimlico bundler client
    * @param {string} params.factoryAddress - PasskeyAccountFactory address
-   * @param {string} [params.registryAddress] - UniversalAccountRegistry address (org mode only)
+   * @param {string} params.registryAddress - UniversalAccountRegistry address
    * @param {string} [params.quickJoinAddress] - QuickJoin contract address (org mode only)
    * @param {string} params.paymasterAddress - PaymasterHub proxy address
    * @param {string} [params.orgId] - bytes32 org ID (org mode only)
@@ -118,8 +118,17 @@ export class PasskeyOnboardingService {
       let paymasterData;
 
       if (this.mode === 'solidarity') {
-        // Solidarity mode: bare account deployment only (contract requires empty callData)
-        callData = '0x';
+        // Solidarity mode: deploy + register username (contract whitelists registerAccount)
+        const registerCallData = encodeFunctionData({
+          abi: UniversalAccountRegistryABI,
+          functionName: 'registerAccount',
+          args: [username],
+        });
+        callData = encodeFunctionData({
+          abi: PasskeyAccountABI,
+          functionName: 'execute',
+          args: [this.registryAddress, 0n, registerCallData],
+        });
         paymasterData = encodeSolidarityOnboardingPaymasterData();
       } else {
         // Org mode: deploy + register + quickJoin in one tx

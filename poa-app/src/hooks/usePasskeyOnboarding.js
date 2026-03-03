@@ -14,7 +14,7 @@ import {
   STEP_MESSAGES,
 } from '../services/web3/domain/PasskeyOnboardingService';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
-import { PASSKEY_FACTORY_ADDRESS } from '../config/passkey';
+import { FETCH_PASSKEY_FACTORY_ADDRESS } from '../util/passkeyQueries';
 
 /**
  * Hook for passkey onboarding within an organization context.
@@ -35,8 +35,9 @@ export function usePasskeyOnboarding() {
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
   const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
-  // Use hardcoded factory proxy address (subgraph returns beacon instead of proxy)
-  const factoryAddress = PASSKEY_FACTORY_ADDRESS;
+  // Fetch factory address from subgraph
+  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS);
+  const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
   // Check if all required addresses are available
   const isReady = Boolean(
