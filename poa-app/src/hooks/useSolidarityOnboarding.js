@@ -13,8 +13,7 @@ import {
   STEP_MESSAGES,
 } from '../services/web3/domain/PasskeyOnboardingService';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
-import { FETCH_SOLIDARITY_FUND_STATUS } from '../util/passkeyQueries';
-import { PASSKEY_FACTORY_ADDRESS } from '../config/passkey';
+import { FETCH_PASSKEY_FACTORY_ADDRESS, FETCH_SOLIDARITY_FUND_STATUS } from '../util/passkeyQueries';
 
 export function useSolidarityOnboarding() {
   const { publicClient, bundlerClient, activatePasskey } = useAuth();
@@ -27,9 +26,11 @@ export function useSolidarityOnboarding() {
   // Fetch infrastructure addresses (no org context needed)
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
   const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
+  const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
 
-  // Use hardcoded factory proxy address (subgraph returns beacon instead of proxy)
-  const factoryAddress = PASSKEY_FACTORY_ADDRESS;
+  // Fetch factory address from subgraph
+  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS);
+  const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
   // Fetch solidarity fund status
   const { data: solidarityData, loading: solidarityLoading } = useQuery(FETCH_SOLIDARITY_FUND_STATUS);
@@ -42,6 +43,7 @@ export function useSolidarityOnboarding() {
     bundlerClient &&
     factoryAddress &&
     paymasterAddress &&
+    registryAddress &&
     isSolidarityFundActive
   );
 
@@ -66,6 +68,7 @@ export function useSolidarityOnboarding() {
         publicClient,
         bundlerClient,
         factoryAddress,
+        registryAddress,
         paymasterAddress,
         mode: 'solidarity',
       });
@@ -101,7 +104,7 @@ export function useSolidarityOnboarding() {
     } finally {
       setIsOnboarding(false);
     }
-  }, [isReady, publicClient, bundlerClient, factoryAddress, paymasterAddress, activatePasskey]);
+  }, [isReady, publicClient, bundlerClient, factoryAddress, registryAddress, paymasterAddress, activatePasskey]);
 
   /**
    * Reset the onboarding state (e.g., to retry).

@@ -71,13 +71,13 @@ export async function buildUserOp({
     factoryData,
     callData,
     callGasLimit: 500_000n,
-    verificationGasLimit: 500_000n,
+    verificationGasLimit: 1_500_000n,   // High for on-chain P-256 verify fallback (~328k) + factory creation
     preVerificationGas: 100_000n,
     maxFeePerGas: 3_000_000_000n,       // 3 gwei placeholder
     maxPriorityFeePerGas: 1_500_000_000n, // 1.5 gwei placeholder
     paymaster: paymasterAddress,
     paymasterVerificationGasLimit: 200_000n,
-    paymasterPostOpGasLimit: 100_000n,
+    paymasterPostOpGasLimit: 200_000n,
     paymasterData,
     signature: DUMMY_SIGNATURE,
   };
