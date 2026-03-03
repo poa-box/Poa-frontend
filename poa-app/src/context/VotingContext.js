@@ -126,13 +126,11 @@ export const VotingProvider = ({ children }) => {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-first',
-        notifyOnNetworkStatusChange: true,
     });
 
     // Memoize refetch handler for stable reference
     const handleRefresh = useCallback(() => {
         if (orgId) {
-            console.log('VotingContext: Refreshing voting data');
             refetch();
         }
     }, [orgId, refetch]);
@@ -147,6 +145,8 @@ export const VotingProvider = ({ children }) => {
     useEffect(() => {
         if (data?.organization) {
             const org = data.organization;
+            let hybridProposals = [];
+            let ddProposals = [];
 
             if (org.hybridVoting) {
                 setVotingType('Hybrid');
@@ -157,7 +157,7 @@ export const VotingProvider = ({ children }) => {
             // Process Hybrid Voting proposals and classes
             if (org.hybridVoting) {
                 const hybridQuorum = org.hybridVoting.quorum || 0;
-                const hybridProposals = (org.hybridVoting.proposals || []).map(p =>
+                hybridProposals = (org.hybridVoting.proposals || []).map(p =>
                     transformProposal(p, org.hybridVoting.id, 'Hybrid', hybridQuorum)
                 );
                 setHybridVotingOngoing(hybridProposals.filter(p => p.isOngoing));
@@ -167,7 +167,6 @@ export const VotingProvider = ({ children }) => {
                 setHybridVotingCompleted(hybridCompleted);
 
                 // Process voting classes - convert to usable format
-                console.log('[VotingContext] Raw voting classes from subgraph:', org.hybridVoting.votingClasses);
                 const classes = (org.hybridVoting.votingClasses || []).map(c => ({
                     classIndex: c.classIndex,
                     strategy: c.strategy,
@@ -177,7 +176,6 @@ export const VotingProvider = ({ children }) => {
                     asset: c.asset,
                     hatIds: (c.hatIds || []).map(h => h.toString()),
                 }));
-                console.log('[VotingContext] Processed voting classes:', classes);
                 setVotingClasses(classes);
             } else {
                 setHybridVotingOngoing([]);
@@ -188,7 +186,7 @@ export const VotingProvider = ({ children }) => {
             // Process Direct Democracy Voting proposals
             if (org.directDemocracyVoting) {
                 const ddQuorum = org.directDemocracyVoting.quorumPercentage || 0;
-                const ddProposals = (org.directDemocracyVoting.ddvProposals || []).map(p =>
+                ddProposals = (org.directDemocracyVoting.ddvProposals || []).map(p =>
                     transformProposal(p, org.directDemocracyVoting.id, 'Direct Democracy', ddQuorum)
                 );
                 setDemocracyVotingOngoing(ddProposals.filter(p => p.isOngoing));
@@ -201,14 +199,10 @@ export const VotingProvider = ({ children }) => {
                 setDemocracyVotingCompleted([]);
             }
 
-            // Combine all ongoing polls
+            // Combine all ongoing polls from already-transformed proposals
             const allOngoing = [
-                ...(org.hybridVoting?.proposals || []).map(p =>
-                    transformProposal(p, org.hybridVoting?.id, 'Hybrid', org.hybridVoting?.quorum || 0)
-                ).filter(p => p.isOngoing),
-                ...(org.directDemocracyVoting?.ddvProposals || []).map(p =>
-                    transformProposal(p, org.directDemocracyVoting?.id, 'Direct Democracy', org.directDemocracyVoting?.quorumPercentage || 0)
-                ).filter(p => p.isOngoing),
+                ...hybridProposals.filter(p => p.isOngoing),
+                ...ddProposals.filter(p => p.isOngoing),
             ];
             setOngoingPolls(allOngoing);
         }

@@ -71,22 +71,6 @@ function transformRolesData(roles, roleHatIds, roleNamesFromIPFS = {}, users = [
   // Note: Roles are already filtered by isUserRole: true in the GraphQL query
   // No need for frontend filtering
 
-  // Debug: Log data to understand the structure
-  console.log('[OrgStructure] transformRolesData called with:', {
-    rolesCount: roles.length,
-    roleHatIds,
-    roleNamesFromIPFS,
-    usersCount: users?.length || 0,
-    // Log all roles with names to debug
-    rolesWithNames: roles.map(r => ({
-      hatId: r.hatId,
-      roleName: r.name,
-      roleCanVote: r.canVote,
-      isUserRole: r.isUserRole,
-      hatName: r.hat?.name,
-    }))
-  });
-
   return roles.map((role, index) => {
     const hatId = role.hatId;
     const hatIdNorm = normalizeHatId(hatId);
@@ -112,20 +96,6 @@ function transformRolesData(roles, roleHatIds, roleNamesFromIPFS = {}, users = [
 
     // Use the larger count (in case one source is incomplete)
     const memberCount = Math.max(activeRoleWearers.length, usersWithHat.length);
-
-    // Debug: Log member count calculation for first role
-    if (index === 0) {
-      console.log('[OrgStructure] Member count for first role:', {
-        hatId,
-        hatIdNorm,
-        roleWearersLength: roleWearers.length,
-        activeRoleWearersLength: activeRoleWearers.length,
-        usersWithHatLength: usersWithHat.length,
-        finalMemberCount: memberCount,
-        roleWearers: roleWearers.map(w => ({ wearer: w.wearer, isActive: w.isActive })),
-        usersWithHat: usersWithHat.map(u => ({ username: u.account?.username, currentHatIds: u.currentHatIds }))
-      });
-    }
 
     // Get hat details
     const hat = role.hat || {};
@@ -258,13 +228,6 @@ function groupMembersByRole(users, roles) {
     });
   });
 
-  console.log('[OrgStructure] groupMembersByRole result:', {
-    groupKeys: Object.keys(groups),
-    memberCounts: Object.fromEntries(
-      Object.entries(groups).map(([k, v]) => [k, v.length])
-    )
-  });
-
   return groups;
 }
 
@@ -290,7 +253,7 @@ export function useOrgStructure() {
   const { data, loading: queryLoading, error } = useQuery(FETCH_ORG_STRUCTURE_DATA, {
     variables: { orgId },
     skip: !orgId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   const org = data?.organization;

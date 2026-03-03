@@ -29,7 +29,6 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(70px)',
   backgroundColor: 'rgba(0, 0, 0, .79)',
 };
 
@@ -54,7 +53,7 @@ const TreasuryPage = () => {
   const { data: treasuryData, loading: treasuryLoading, refetch } = useQuery(FETCH_TREASURY_DATA, {
     variables: { orgId },
     skip: !orgId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   const isLoading = poContextLoading || treasuryLoading;

@@ -9,8 +9,7 @@ const glassLayerStyle = {
   width: "100%",
   zIndex: -1,
   borderRadius: "inherit",
-  backdropFilter: "blur(20px)",
-  backgroundColor: "rgba(0, 0, 0, .8)",
+  backgroundColor: "rgba(0, 0, 0, .85)",
   boxShadow: "inset 0 0 15px rgba(148, 115, 220, 0.15)",
   border: "1px solid rgba(148, 115, 220, 0.2)",
 };
@@ -53,7 +52,7 @@ const VoteCard = ({
       p={cardPadding}
       zIndex={1}
       h={cardHeight}
-      transition="all 0.3s ease"
+      transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
       cursor="pointer"
       _hover={{
         transform: "translateY(-5px) scale(1.02)",
@@ -79,7 +78,7 @@ const VoteCard = ({
         bottom={0}
         borderRadius="inherit"
         zIndex={-1}
-        transition="all 0.3s ease"
+        transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
       />
 
       <VStack spacing={1} align="stretch" w="100%" h="100%" justify="space-between">

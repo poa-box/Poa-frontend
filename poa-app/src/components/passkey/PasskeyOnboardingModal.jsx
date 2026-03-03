@@ -112,7 +112,7 @@ export default function PasskeyOnboardingModal({ isOpen, onClose, onSuccess }) {
       closeOnOverlayClick={!isInProgress}
       closeOnEsc={!isInProgress}
     >
-      <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(4px)" />
+      <ModalOverlay bg="blackAlpha.600" />
       <ModalContent
         borderRadius="2xl"
         bg="white"

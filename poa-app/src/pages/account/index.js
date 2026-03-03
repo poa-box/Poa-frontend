@@ -58,7 +58,7 @@ const AccountPage = () => {
   const { data: orgsData, loading: orgsLoading } = useQuery(FETCH_USER_ORGANIZATIONS, {
     variables: { userAddress: accountAddress?.toLowerCase() },
     skip: !accountAddress || !hasAccount,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   // Colors
@@ -73,7 +73,6 @@ const AccountPage = () => {
 
   // Glass effect style
   const glassStyle = {
-    backdropFilter: 'blur(20px)',
     backgroundColor: cardBg,
   };
 
@@ -300,7 +299,7 @@ const AccountPage = () => {
                             variant="outline"
                             borderRadius="xl"
                             cursor="pointer"
-                            transition="all 0.2s"
+                            transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                             _hover={{
                               transform: 'translateY(-2px)',
                               boxShadow: 'lg',

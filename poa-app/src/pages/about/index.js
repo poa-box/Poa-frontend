@@ -45,7 +45,8 @@ const FeatureCard = ({ title, icon, children }) => {
       borderWidth="1px"
       borderColor={borderColor}
       height="100%"
-      _hover={{ transform: "translateY(-5px)", boxShadow: "lg", transition: "all 0.3s ease" }}
+      _hover={{ transform: "translateY(-5px)", boxShadow: "lg" }}
+      transition="transform 0.3s ease, box-shadow 0.3s ease"
     >
       <Flex direction="column" height="100%">
         <Flex mb={4} align="center">

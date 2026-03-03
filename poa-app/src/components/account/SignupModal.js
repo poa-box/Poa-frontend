@@ -128,7 +128,7 @@ const SignupModal = ({ isOpen, onClose }) => {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
-      <ModalOverlay backdropFilter="blur(4px)" />
+      <ModalOverlay />
       <ModalContent bg={bgColor} borderRadius="xl" mx={4}>
         <ModalHeader>Create Your Account</ModalHeader>
         <ModalCloseButton />

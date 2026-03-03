@@ -33,7 +33,6 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(20px)',
   backgroundColor: 'rgba(0, 0, 0, 0.8)',
   boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
   border: '1px solid rgba(148, 115, 220, 0.2)',
@@ -83,7 +82,7 @@ function MemberCard({ member }) {
       borderRadius="lg"
       p={4}
       overflow="hidden"
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       _hover={{
         transform: 'translateY(-2px)',
         '& > div:first-of-type': {

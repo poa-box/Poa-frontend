@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useProjectContext } from './ProjectContext';
 import { useRouter } from 'next/router';
 
@@ -22,7 +22,6 @@ export const DataBaseProvider = ({ children }) => {
 
     useEffect(()=>{
         if (typeof projectsData === 'object' && projectsData !== null && Object.keys(projectsData).length !== 0) {
-            console.log("projectsData", projectsData);
             setProjects(projectsData);
 
             // Only set selectedProject if:
@@ -48,48 +47,43 @@ export const DataBaseProvider = ({ children }) => {
     const [projects, setProjects] = useState([]);
 
 
-    function setSelectedProjectId(projectId){
-
-      const project = projects.find(project => project.id === projectId);
-      setSelectedProject(project);
-    }
-
     const [selectedProject,setSelectedProject] = useState('')
 
+    const setSelectedProjectId = useCallback((projectId) => {
+      const project = projects.find(project => project.id === projectId);
+      setSelectedProject(project);
+    }, [projects]);
+
     // Placeholder function - username lookup should use subgraph data
-    const getUsernameByAddress = async (address) => {
-      // In POP, usernames are stored in the subgraph via UniversalAccountRegistry
-      // For now, return a truncated address as fallback
+    const getUsernameByAddress = useCallback(async (address) => {
       if (!address) return 'Unknown';
       return `${address.substring(0, 6)}...${address.substring(38)}`;
-    };
+    }, []);
 
     // Handle column updates from TaskBoard
-    const handleUpdateColumns = (newColumns) => {
+    const handleUpdateColumns = useCallback((newColumns) => {
       if (selectedProject) {
         const updatedProject = { ...selectedProject, columns: newColumns };
         setSelectedProject(updatedProject);
 
-        // Update in projects array too
         setProjects(prev => prev.map(p =>
           p.id === selectedProject.id ? updatedProject : p
         ));
       }
-    };
+    }, [selectedProject]);
+
+    const contextValue = useMemo(() => ({
+      projects,
+      setSelectedProjectId,
+      selectedProject,
+      setSelectedProject,
+      handleUpdateColumns,
+      getUsernameByAddress,
+    }), [projects, setSelectedProjectId, selectedProject, handleUpdateColumns, getUsernameByAddress]);
 
     return (
-        <DataBaseContext.Provider
-        value={{
-          projects,
-          setSelectedProjectId,
-          selectedProject,
-          setSelectedProject,
-          handleUpdateColumns,
-          getUsernameByAddress,
-        }}
-        >
-        {children}
+        <DataBaseContext.Provider value={contextValue}>
+          {children}
         </DataBaseContext.Provider>
-
       );
     };

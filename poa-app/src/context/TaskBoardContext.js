@@ -4,7 +4,7 @@
  * Uses the new service layer for blockchain interactions.
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { useDataBaseContext } from './dataBaseContext';
 import { usePOContext } from './POContext';
 import { useIPFScontext } from './ipfsContext';
@@ -134,13 +134,6 @@ export const TaskBoardProvider = ({
         }
         notifId = addNotification('Submitting task...', 'loading');
 
-        console.log('=== moveTask SUBMIT DEBUG ===');
-        console.log('draggedTask:', draggedTask);
-        console.log('draggedTask.id:', draggedTask.id);
-        console.log('draggedTask.taskId:', draggedTask.taskId);
-        console.log('taskManagerContractAddress:', taskManagerContractAddress);
-        console.log('submissionData:', submissionData);
-
         const ipfsHash = await createTaskMetadata(
           draggedTask.name,
           draggedTask.description,
@@ -149,10 +142,6 @@ export const TaskBoardProvider = ({
           draggedTask.estHours,
           submissionData
         );
-
-        console.log('IPFS result:', ipfsHash);
-        console.log('IPFS path:', ipfsHash?.path);
-        console.log('=== END moveTask SUBMIT DEBUG ===');
 
         const result = await taskService.submitTask(
           taskManagerContractAddress,
@@ -586,7 +575,7 @@ export const TaskBoardProvider = ({
     onUpdateColumns,
   ]);
 
-  const value = {
+  const value = useMemo(() => ({
     taskColumns,
     moveTask,
     addTask,
@@ -597,7 +586,7 @@ export const TaskBoardProvider = ({
     approveApplication,
     assignTask,
     rejectTask,
-  };
+  }), [taskColumns, moveTask, addTask, editTask, setTaskColumns, deleteTask, applyForTask, approveApplication, assignTask, rejectTask]);
 
   return (
     <TaskBoardContext.Provider value={value}>

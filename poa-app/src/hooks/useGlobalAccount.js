@@ -33,7 +33,7 @@ export function useGlobalAccount() {
   const { data, loading, refetch } = useQuery(FETCH_USERNAME_NEW, {
     variables: { id: lookupAddress?.toLowerCase() },
     skip: !lookupAddress,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   // Subscribe to refresh events to update when account is created/changed

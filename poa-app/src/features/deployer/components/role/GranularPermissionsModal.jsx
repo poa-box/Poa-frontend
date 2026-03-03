@@ -118,7 +118,7 @@ export function GranularPermissionsModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg" scrollBehavior="inside">
-      <ModalOverlay bg="blackAlpha.400" backdropFilter="blur(4px)" />
+      <ModalOverlay bg="blackAlpha.500" />
       <ModalContent
         borderRadius="2xl"
         boxShadow="0 25px 50px rgba(0, 0, 0, 0.15)"

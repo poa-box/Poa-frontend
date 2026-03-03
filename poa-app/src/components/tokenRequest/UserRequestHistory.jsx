@@ -55,7 +55,7 @@ const UserRequestHistory = () => {
       userAddress: address?.toLowerCase(),
     },
     skip: !participationTokenAddress || !address,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
   });
 
   // Subscribe to refresh events

@@ -31,13 +31,11 @@ export const ProjectProvider = ({ children }) => {
     const { data, loading, error, refetch } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
-        fetchPolicy: 'cache-and-network',
-        notifyOnNetworkStatusChange: true,
+        fetchPolicy: 'cache-first',
     });
 
     // Handle refresh events from Web3 transactions
     const handleRefresh = useCallback(() => {
-        console.log('[ProjectContext] Refresh triggered, refetching projects data...');
         if (orgId && refetch) {
             // Small delay to allow subgraph to index the new data
             setTimeout(() => {
@@ -98,7 +96,7 @@ export const ProjectProvider = ({ children }) => {
                             };
                         })
                 )
-                .sort(() => Math.random() - 0.5);
+;
             setRecommendedTasks(openTasks);
 
             // Transform projects for kanban board

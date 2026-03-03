@@ -163,7 +163,7 @@ export default function Home({ allPostsData }) {
                 bg="white"
                 borderColor="#e2d6ca"
                 boxShadow="sm"
-                transition="all 0.3s ease"
+                transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                 position="relative"
                 overflow="hidden"
                 _before={{
@@ -278,8 +278,7 @@ export default function Home({ allPostsData }) {
                 align="center"
                 justify="center"
                 textAlign="center"
-                bg="rgba(0, 0, 0, 0.8)"
-                backdropFilter="blur(10px)"
+                bg="rgba(0, 0, 0, 0.88)"
                 borderRadius="xl"
                 p={{ base: 8, md: 12 }}
                 mb={12}
@@ -361,7 +360,7 @@ export default function Home({ allPostsData }) {
                           bg="white"
                           borderColor="#e2d6ca"
                           boxShadow="sm"
-                          transition="all 0.3s ease"
+                          transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                           position="relative"
                           overflow="hidden"
                           _before={{
@@ -418,7 +417,7 @@ export default function Home({ allPostsData }) {
                           bg="white"
                           borderColor="#e2d6ca"
                           boxShadow="sm"
-                          transition="all 0.3s ease"
+                          transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                           position="relative"
                           overflow="hidden"
                           _before={{
@@ -477,7 +476,7 @@ export default function Home({ allPostsData }) {
                               bg="white"
                               borderColor="#e2d6ca"
                               boxShadow="sm"
-                              transition="all 0.3s ease"
+                              transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                               position="relative"
                               overflow="hidden"
                               _before={{

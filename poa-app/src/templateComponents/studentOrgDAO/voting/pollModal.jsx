@@ -39,8 +39,7 @@ const glassLayerStyle = {
   width: "100%",
   zIndex: -1,
   borderRadius: "inherit",
-  backdropFilter: "blur(9px)",
-  backgroundColor: "rgba(33, 33, 33, 0.97)",
+  backgroundColor: "rgba(33, 33, 33, 0.98)",
 };
 
 const PollModal = ({

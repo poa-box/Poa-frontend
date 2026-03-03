@@ -17,7 +17,6 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 // Enhanced styles for mobile project selector
 const mobileHeaderStyle = {
   background: 'linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(20,20,20,0.75) 100%)',
-  backdropFilter: 'blur(10px)',
   borderRadius: '8px',
   padding: '8px 12px',
   boxShadow: '0 3px 10px rgba(0, 0, 0, 0.2)',
@@ -370,7 +369,7 @@ const MainLayout = () => {
           height={isMobile ? "100%" : "auto"}
           width="100%"
           zIndex={2}
-          transition="all 0.3s ease"
+          transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
           display="flex"
           flexDirection="column"
           pb={isMobile ? "1px" : undefined} // Add extra padding at bottom for mobile

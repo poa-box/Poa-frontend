@@ -72,7 +72,7 @@ const CategoryCard = ({ category, categoryKey, isSelected, onClick }) => {
         borderColor: `${category.color}.400`,
         bg: isSelected ? `${category.color}.900` : 'whiteAlpha.100',
       }}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
     >
       <HStack spacing={3}>
         <Icon as={IconComponent} boxSize={5} color={`${category.color}.400`} />
@@ -106,7 +106,7 @@ const TemplateCard = ({ template, isSelected, onClick }) => {
         borderColor: 'purple.400',
         bg: isSelected ? 'purple.900' : 'whiteAlpha.100',
       }}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
     >
       <HStack justify="space-between">
         <VStack align="start" spacing={1}>

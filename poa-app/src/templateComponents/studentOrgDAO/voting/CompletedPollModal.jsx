@@ -28,8 +28,7 @@ const glassLayerStyle = {
   width: "100%",
   zIndex: -1,
   borderRadius: "inherit",
-  backdropFilter: "blur(9px)",
-  backgroundColor: "rgba(33, 33, 33, 0.97)",
+  backgroundColor: "rgba(33, 33, 33, 0.98)",
   boxShadow: "inset 0 0 15px rgba(148, 115, 220, 0.15)",
   border: "1px solid rgba(148, 115, 220, 0.2)",
 };
@@ -134,7 +133,7 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
 
   return (
     <Modal onOpen={onOpen} isOpen={isOpen} onClose={handleModalClose} size="lg">
-      <ModalOverlay backdropFilter="blur(10px)" />
+      <ModalOverlay />
       <ModalContent
         alignItems="center"
         justifyContent="center"

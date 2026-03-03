@@ -114,12 +114,11 @@ function ReviewSectionCard({
   return (
     <Box
       bg={cardBg}
-      backdropFilter="blur(8px)"
       borderRadius="xl"
       borderWidth="1px"
       borderColor={borderColor}
       overflow="hidden"
-      transition="all 0.2s ease"
+      transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
       _hover={{ boxShadow: '0 4px 20px rgba(0, 0, 0, 0.06)' }}
     >
       {/* Status indicator bar at top */}
@@ -164,7 +163,7 @@ function ReviewSectionCard({
           variant="ghost"
           color="coral.600"
           _hover={{ bg: 'coral.50', transform: 'translateY(-1px)' }}
-          transition="all 0.15s ease"
+          transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
           onClick={() => goToStep(stepIndex)}
         >
           Edit
@@ -188,7 +187,6 @@ function ReadinessChecklist({ items, goToStep }) {
     <Box
       p={5}
       bg={cardBg}
-      backdropFilter="blur(12px)"
       borderRadius="xl"
       mb={6}
     >
@@ -216,7 +214,7 @@ function ReadinessChecklist({ items, goToStep }) {
             border="1px solid"
             borderColor={item.isComplete ? 'green.200' : 'orange.200'}
             cursor="pointer"
-            transition="all 0.15s ease"
+            transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
             _hover={{ transform: 'translateY(-1px)', boxShadow: 'sm' }}
             onClick={() => goToStep(item.stepIndex)}
           >
@@ -246,7 +244,6 @@ function OrganizationHero({ organization, templateName, goToStep }) {
   return (
     <Box
       bg={cardBg}
-      backdropFilter="blur(12px)"
       borderRadius="2xl"
       p={6}
       borderLeft="4px solid"
@@ -338,7 +335,7 @@ function RoleCard({ role, index, roles }) {
       p={4}
       border="1px solid"
       borderColor="warmGray.200"
-      transition="all 0.15s ease"
+      transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
       _hover={{ borderColor: 'coral.300', boxShadow: 'sm' }}
     >
       <HStack justify="space-between" mb={3}>
@@ -449,7 +446,7 @@ function FeatureCard({ name, description, icon, isEnabled }) {
       p={4}
       border="1px solid"
       borderColor={isEnabled ? 'green.200' : 'warmGray.200'}
-      transition="all 0.15s ease"
+      transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
       flex={1}
       minW="180px"
     >
@@ -549,8 +546,7 @@ function DeploymentOverlay({ orgName, isVisible }) {
         left="0"
         right="0"
         bottom="0"
-        bg="rgba(0, 0, 0, 0.75)"
-        backdropFilter="blur(8px)"
+        bg="rgba(0, 0, 0, 0.85)"
         zIndex={9999}
         display="flex"
         alignItems="center"
@@ -907,7 +903,6 @@ export function ReviewStep({
       {!isValid ? (
         <Box
           bg={validationWarningBg}
-          backdropFilter="blur(8px)"
           borderRadius="xl"
           p={5}
           border="1px solid"
@@ -931,7 +926,6 @@ export function ReviewStep({
       ) : (
         <Box
           bg={validationSuccessBg}
-          backdropFilter="blur(8px)"
           borderRadius="xl"
           p={5}
           border="1px solid"
@@ -1222,8 +1216,7 @@ export function ReviewStep({
 
         {/* Deploy Section */}
         <Box
-          bg="rgba(255, 255, 255, 0.8)"
-          backdropFilter="blur(12px)"
+          bg="rgba(255, 255, 255, 0.9)"
           borderRadius="2xl"
           p={8}
           boxShadow="0 -4px 24px rgba(0, 0, 0, 0.04)"
@@ -1320,7 +1313,7 @@ export function ReviewStep({
                   onClick={handleDeploy}
                   isDisabled={!isValid || isDeploying}
                   leftIcon={<Icon as={PiRocketLaunch} boxSize={5} />}
-                  transition="all 0.2s ease"
+                  transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                 >
                   Launch {state.organization.name || 'Your Organization'}
                 </Button>

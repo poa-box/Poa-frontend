@@ -76,7 +76,7 @@ function TreeNode({ roleIndex, role, depth, isLast, parentLines = [] }) {
         borderColor={borderColor}
         borderRadius="md"
         _hover={{ borderColor: 'blue.300', boxShadow: 'sm' }}
-        transition="all 0.2s"
+        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       >
         <HStack justify="space-between">
           <HStack spacing={2}>

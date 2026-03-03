@@ -18,7 +18,7 @@ import {
   useDisclosure,
 } from "@chakra-ui/react";
 import { HamburgerIcon } from "@chakra-ui/icons";
-import { FaFingerprint } from "react-icons/fa";
+
 import { useRouter } from "next/router";
 import { useAccount } from "wagmi";
 import { useQuery } from "@apollo/client";
@@ -30,21 +30,21 @@ import SignupModal from "@/components/account/SignupModal";
 import SolidarityOnboardingModal from "@/components/passkey/SolidarityOnboardingModal";
 import SignInModal from "@/components/passkey/SignInModal";
 
-import dynamic from "next/dynamic";
-
-const AutoPlayVideo1 = dynamic(() => import("../components/AutoPlayVideo1"), {
-  ssr: false,
-});
-
 export default function Home() {
   const router = useRouter();
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
-  const { isPasskeyUser, isAuthenticated, hasStoredPasskey, connectPasskey, passkeyConnecting } = useAuth();
+  const { isPasskeyUser, isAuthenticated, hasStoredPasskey } = useAuth();
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+  // Prefetch key routes so navigation is instant
+  useEffect(() => {
+    router.prefetch('/create');
+    router.prefetch('/browser');
+  }, [router]);
   const { isOpen: isOnboardingOpen, onOpen: onOnboardingOpen, onClose: onOnboardingClose } = useDisclosure();
   const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
 
@@ -451,51 +451,22 @@ export default function Home() {
             }}
           >
             <VStack spacing={4}>
-              {/* Primary auth buttons */}
-              <HStack spacing={4} flexWrap="wrap" justify="center">
-                {hasStoredPasskey ? (
-                  <Button
-                    size="lg"
-                    bg="amethyst.500"
-                    color="white"
-                    borderRadius="xl"
-                    px={8}
-                    py={6}
-                    fontSize={["md", "lg"]}
-                    fontWeight="700"
-                    _hover={{ bg: 'amethyst.600', transform: 'translateY(-2px)', boxShadow: 'lg' }}
-                    _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
-                    leftIcon={<FaFingerprint />}
-                    isLoading={passkeyConnecting}
-                    loadingText="Signing in..."
-                    onClick={async () => {
-                      try {
-                        await connectPasskey();
-                        router.push('/account');
-                      } catch (err) {
-                        console.error('Failed to reconnect passkey:', err);
-                      }
-                    }}
-                  >
-                    Sign in with Passkey
-                  </Button>
-                ) : null}
-                <Button
-                  size="lg"
-                  bg="blue.500"
-                  color="white"
-                  borderRadius="xl"
-                  px={8}
-                  py={6}
-                  fontSize={["md", "lg"]}
-                  fontWeight="700"
-                  _hover={{ bg: 'blue.600', transform: 'translateY(-2px)', boxShadow: 'lg' }}
-                  _active={{ bg: 'blue.700', transform: 'translateY(0)' }}
-                  onClick={openConnectModal}
-                >
-                  Connect Wallet
-                </Button>
-              </HStack>
+              {/* Primary auth button */}
+              <Button
+                size="lg"
+                bg="blue.500"
+                color="white"
+                borderRadius="xl"
+                px={8}
+                py={6}
+                fontSize={["md", "lg"]}
+                fontWeight="700"
+                _hover={{ bg: 'blue.600', transform: 'translateY(-2px)', boxShadow: 'lg' }}
+                _active={{ bg: 'blue.700', transform: 'translateY(0)' }}
+                onClick={onSignInOpen}
+              >
+                Sign In
+              </Button>
 
               {/* Secondary: Create account */}
               <Text
@@ -503,7 +474,7 @@ export default function Home() {
                 color="gray.600"
                 cursor="pointer"
                 _hover={{ color: 'amethyst.600', textDecoration: 'underline' }}
-                onClick={onSignInOpen}
+                onClick={onOnboardingOpen}
               >
                 Don&apos;t have an account? <Text as="span" fontWeight="600">Create one</Text>
               </Text>
@@ -531,10 +502,10 @@ export default function Home() {
           }}
         >
           {/* Left Box - Enhanced with better hover effects and mobile styling */}
+          <Link href="/create" passHref style={{ textDecoration: 'none', flex: 1, order: 2, maxWidth: '650px', width: '100%' }}>
           <Box
-            transition="all 0.3s"
+            transition="transform 0.3s, box-shadow 0.3s"
             _hover={{ transform: "scale(1.03)", boxShadow: "0 10px 30px -5px rgba(0, 0, 0, 0.1)" }}
-            onClick={() => router.push("/create")}
             cursor="pointer"
             maxW={["100%", "100%", "650px"]}
             flex="1"
@@ -607,6 +578,7 @@ export default function Home() {
               </Box>
             </HStack>
           </Box>
+          </Link>
 
           {/* Right Box - Enhanced with better mobile styling */}
           <Box 
@@ -695,7 +667,7 @@ export default function Home() {
                 textAlign="center"
                 boxShadow="md"
                 _hover={{ boxShadow: "lg", transform: "translateY(-2px)" }}
-                transition="all 0.3s ease"
+                transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                 onClick={handleClick}
                 cursor="pointer"
               >
@@ -739,7 +711,7 @@ export default function Home() {
                 textAlign="center"
                 boxShadow="md"
                 _hover={{ boxShadow: "lg", transform: "translateY(-2px)" }}
-                transition="all 0.3s ease"
+                transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
                 onClick={handleClick}
                 cursor="pointer"
                 maxW={["100%", "100%", "600px"]}
@@ -816,40 +788,6 @@ export default function Home() {
           </Box>
         </Flex>
 
-        {/* AutoPlay Video - Completely revised centering solution */}
-        <Box
-          width="100%"
-          mt={[4, 6, 8]}
-          animation="fadeIn 1s ease-out 1.2s forwards"
-          opacity="0"
-          position="relative"
-          sx={{
-            '@keyframes fadeIn': {
-              '0%': { opacity: 0 },
-              '100%': { opacity: 1 },
-            },
-            '& > div': {
-              margin: '0 auto !important',
-              display: 'flex !important',
-              justifyContent: 'center !important'
-            },
-            '& video': {
-              maxWidth: '100% !important',
-              height: 'auto !important',
-              margin: '0 auto !important'
-            }
-          }}
-        >
-          <Box
-            maxW="1200px"
-            mx="auto"
-            px={[3, 4, 6]}
-            textAlign="center"
-          >
-            <AutoPlayVideo1 />
-          </Box>
-        </Box>
-
         {/* Community Links - Enhanced styling */}
         <VStack 
           mt={["10", "12", "14"]} 
@@ -877,7 +815,7 @@ export default function Home() {
             <Link href="https://discord.gg/kKDKgetdNx" passHref>
               <Box 
                 width={["12", "16", "20"]} 
-                transition="all 0.2s"
+                transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                 _hover={{ transform: "scale(1.1)" }}
                 p={2}
                 borderRadius="full"
@@ -890,7 +828,7 @@ export default function Home() {
             <Link href="https://twitter.com/PoaPerpetual" passHref>
               <Box 
                 width={["12", "16", "20"]} 
-                transition="all 0.2s"
+                transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                 _hover={{ transform: "scale(1.1)" }}
                 p={2}
                 borderRadius="full"
@@ -945,6 +883,7 @@ export default function Home() {
         isOpen={isSignInOpen}
         onClose={onSignInClose}
         onSuccess={() => router.push('/account')}
+        onCreateAccount={onOnboardingOpen}
       />
     </>
   );

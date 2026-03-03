@@ -251,7 +251,7 @@ function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
       textAlign="center"
       cursor="pointer"
       bg={isDragActive ? hoverBgColor : bgColor}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       _hover={{
         borderColor: hoverBorderColor,
         bg: hoverBgColor,
@@ -629,7 +629,6 @@ export function IdentityStep() {
             {/* Extra Details Card */}
             <Box
               bg={optionalCardBg}
-              backdropFilter="blur(8px)"
               p={{ base: 4, md: 5 }}
               borderRadius="xl"
               border="1px solid"
@@ -661,7 +660,6 @@ export function IdentityStep() {
             {isAdvancedMode && (
               <Box
                 bg={optionalCardBg}
-                backdropFilter="blur(8px)"
                 p={{ base: 4, md: 5 }}
                 borderRadius="xl"
                 border="1px solid"

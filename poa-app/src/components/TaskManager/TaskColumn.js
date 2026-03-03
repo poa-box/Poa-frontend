@@ -21,7 +21,6 @@ const glassLayerStyle = {
   height: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(60px)',
   backgroundColor: 'rgba(0, 0, 0, .3)',
 };
 
@@ -327,7 +326,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
     borderRadius: '8px',
     border: isOver ? '1px dashed rgba(123, 104, 238, 0.5)' : '1px dashed rgba(255, 255, 255, 0.2)',
     margin: '0 auto 16px auto',
-    transition: 'all 0.3s ease',
+    transition: 'transform 0.3s ease, box-shadow 0.3s ease',
   };
 
   const handleOpenAddTaskModal = () => {

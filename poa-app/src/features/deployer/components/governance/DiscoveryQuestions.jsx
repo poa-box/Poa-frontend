@@ -78,7 +78,7 @@ function QuestionCard({ question, answer, onAnswer, isActive }) {
                     bg={answer === option.value ? selectedBg : 'transparent'}
                     cursor="pointer"
                     onClick={() => onAnswer(option.value)}
-                    transition="all 0.2s"
+                    transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                     _hover={{
                       borderColor: answer === option.value ? selectedBorder : 'gray.300',
                       bg: answer === option.value ? selectedBg : 'gray.50',

@@ -144,12 +144,11 @@ const theme = extendTheme({
           },
         },
         glass: {
-          bg: 'rgba(255, 255, 255, 0.7)',
-          backdropFilter: 'blur(10px)',
+          bg: 'rgba(255, 255, 255, 0.8)',
           border: '1px solid',
           borderColor: 'rgba(255, 255, 255, 0.2)',
           _hover: {
-            bg: 'rgba(255, 255, 255, 0.85)',
+            bg: 'rgba(255, 255, 255, 0.9)',
           },
         },
       },
@@ -158,8 +157,7 @@ const theme = extendTheme({
       variants: {
         glass: {
           container: {
-            bg: 'rgba(255, 255, 255, 0.7)',
-            backdropFilter: 'blur(12px)',
+            bg: 'rgba(255, 255, 255, 0.8)',
             border: '1px solid',
             borderColor: 'rgba(255, 255, 255, 0.18)',
             boxShadow: '0 4px 30px rgba(0, 0, 0, 0.05)',
@@ -179,8 +177,7 @@ const theme = extendTheme({
       variants: {
         glass: {
           field: {
-            bg: 'rgba(255, 255, 255, 0.6)',
-            backdropFilter: 'blur(8px)',
+            bg: 'rgba(255, 255, 255, 0.75)',
             border: '1px solid',
             borderColor: 'rgba(255, 255, 255, 0.15)',
             _focus: {

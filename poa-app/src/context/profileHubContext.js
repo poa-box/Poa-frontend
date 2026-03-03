@@ -1,6 +1,6 @@
 //profileHubContext
 
-import React, { createContext, useReducer, useContext, useState, useEffect } from 'react';
+import React, { createContext, useReducer, useContext, useState, useEffect, useMemo } from 'react';
 
 
 const ProfileHubContext = createContext();
@@ -16,16 +16,12 @@ export const ProfileHubProvider = ({ children }) => {
     const [perpetualOrganizations, setPerpetualOrganizations] = useState([]);
 
     useEffect(() => {
-        console.log("profileHubed load", profileHubLoaded)
         if (profileHubLoaded) {
             fetchPOs().then((data) => {
-                console.log(data);
                 setPerpetualOrganizations(data);
             });
-            
         }
-    }
-    , [profileHubLoaded]);
+    }, [profileHubLoaded]);
 
 
 
@@ -35,7 +31,6 @@ export const ProfileHubProvider = ({ children }) => {
 
     async function querySubgraph(query) {
         try {
-            console.log('Fetching from subgraph:', SUBGRAPH_URL);
             const response = await fetch(SUBGRAPH_URL, {
                 method: 'POST',
                 headers: {
@@ -103,8 +98,13 @@ export const ProfileHubProvider = ({ children }) => {
 
 
 
+    const contextValue = useMemo(() => ({
+        perpetualOrganizations,
+        setprofileHubLoaded,
+    }), [perpetualOrganizations, setprofileHubLoaded]);
+
     return (
-        <ProfileHubContext.Provider value={{perpetualOrganizations, setprofileHubLoaded}}>
+        <ProfileHubContext.Provider value={contextValue}>
         {children}
         </ProfileHubContext.Provider>
     );

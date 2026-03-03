@@ -35,7 +35,7 @@ export function useClaimRole(eligibilityModuleAddress) {
         applicant: userAddress,
       },
       skip: !eligibilityModuleAddress || !userAddress,
-      fetchPolicy: 'cache-and-network',
+      fetchPolicy: 'cache-first',
     }
   );
 

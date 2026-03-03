@@ -35,7 +35,6 @@ const glassLayerStyle = {
   height: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(15px)',
   backgroundColor: 'rgba(0, 0, 0, .85)',
   border: '1px solid rgba(255, 255, 255, 0.1)',
   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
@@ -288,7 +287,7 @@ const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCrea
             boxShadow: "0 4px 12px rgba(45, 134, 255, 0.4)"
           }}
           leftIcon={<AddIcon />}
-          transition="all 0.2s ease"
+          transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
         >
           Create Project
         </Button>

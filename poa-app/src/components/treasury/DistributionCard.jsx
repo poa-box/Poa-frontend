@@ -84,7 +84,7 @@ const DistributionCard = ({
       borderRadius="xl"
       border="1px solid"
       borderColor={distribution.status === 'Active' ? 'purple.500' : 'gray.600'}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       _hover={{
         borderColor: 'purple.400',
         transform: 'translateY(-2px)',

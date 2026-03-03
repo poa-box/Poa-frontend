@@ -24,10 +24,9 @@ import {
         minH="100vh"
       >
         <Box
-          bg="rgba(255, 255, 255, 0.65)" 
+          bg="rgba(255, 255, 255, 0.8)"
           borderRadius="2xl"
           boxShadow="lg"
-          backdropFilter="blur(10px)"
           p={8}
           maxW="600px"
           w="full"
