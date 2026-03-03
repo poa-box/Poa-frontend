@@ -139,6 +139,10 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     registryAddr: registryAddress,
     deployerAddress,
     deployerUsername: organization.username || '',
+    // EIP-712 registration signature (safe defaults skip registration in contract)
+    regDeadline: options.regSignatureData?.regDeadline ?? 0,
+    regNonce: options.regSignatureData?.regNonce ?? 0,
+    regSignature: options.regSignatureData?.regSignature ?? '0x',
     autoUpgrade: organization.autoUpgrade,
     hybridQuorumPct: voting.hybridQuorum,
     ddQuorumPct: voting.ddQuorum,
@@ -146,6 +150,9 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     ddInitialTargets: [], // Empty for now
     roles: contractRoles,
     roleAssignments,
+    // Metadata admin: which role's hat gets metadata-admin privilege.
+    // ethers.constants.MaxUint256 = skip (topHat fallback in contract).
+    metadataAdminRoleIndex: options.metadataAdminRoleIndex ?? ethers.constants.MaxUint256,
     // Passkey support (boolean - matches deployed contract v1.0.1)
     passkeyEnabled: false,
     // Education hub configuration
@@ -284,6 +291,10 @@ export function logDeploymentParams(params) {
   console.log('OrgId:', params.orgId);
   console.log('OrgName:', params.orgName);
   console.log('Deployer:', params.deployerAddress);
+  console.log('Username:', params.deployerUsername || '(none)');
+  console.log('Reg Deadline:', params.regDeadline?.toString?.() ?? '0');
+  console.log('Reg Nonce:', params.regNonce?.toString?.() ?? '0');
+  console.log('Reg Signature:', params.regSignature === '0x' ? '(skip)' : params.regSignature?.slice(0, 20) + '...');
   console.log('Auto Upgrade:', params.autoUpgrade);
   console.log('Hybrid Quorum:', params.hybridQuorumPct);
   console.log('DD Quorum:', params.ddQuorumPct);
@@ -300,6 +311,7 @@ export function logDeploymentParams(params) {
     console.log(`  [${i}] Strategy: ${c.strategy}, Slice: ${c.slicePct}%, Quadratic: ${c.quadratic}`);
   });
   console.log('Role Assignments:', params.roleAssignments);
+  console.log('Metadata Admin Role Index:', params.metadataAdminRoleIndex?.toString?.() ?? 'max (skip)');
 }
 
 export default {

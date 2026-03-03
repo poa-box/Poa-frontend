@@ -26,6 +26,7 @@ import { main } from "../../../scripts/newDeployment";
 import { useRouter } from "next/router";
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from "@/util/queries";
 import { ipfsCidToBytes32 } from "@/services/web3/utils/encoding";
+import { signRegistration, getSkipRegistrationDefaults, fetchExistingUsername } from "@/services/web3/utils/registrySigner";
 
 // New deployer imports
 import {
@@ -275,9 +276,77 @@ function DeployerPageContent() {
         });
       });
 
+      // === EIP-712 Registration Signature ===
+      // Determine whether we need to sign for username registration during deploy.
+      // The contract's HatsTreeSetup checks: accountRegistry != 0 && username.length > 0
+      // && regSignature.length > 0. If any condition fails it silently skips registration.
+      let regSignatureData = getSkipRegistrationDefaults();
+
+      // When a passkey account is set it takes priority as deployer address (line 398).
+      // We can only produce a valid ECDSA signature when the EOA IS the deployer,
+      // because the contract checks that the recovered signer matches deployerAddress.
+      const isPasskeyDeployer = !!passkeyState?.accountAddress;
+      const hasNewUsername = deployerUsername && deployerUsername.trim().length > 0;
+
+      if (!isPasskeyDeployer && signer && hasNewUsername) {
+        try {
+          console.log('[DEPLOY] Checking on-chain username for', address);
+          const registryAddress = infrastructureAddresses.registryAddress;
+          const existingOnChainUsername = await fetchExistingUsername(
+            registryAddress,
+            address,
+            signer.provider
+          );
+
+          if (!existingOnChainUsername || existingOnChainUsername.trim().length === 0) {
+            console.log('[DEPLOY] No existing username — requesting EIP-712 signature...');
+            toast({
+              title: 'Signature Required',
+              description: 'Please sign the message in your wallet to register your username.',
+              status: 'info',
+              duration: 5000,
+              isClosable: true,
+            });
+
+            const sigResult = await signRegistration({
+              signer,
+              registryAddress,
+              username: deployerUsername,
+              deadlineSeconds: 300,
+            });
+
+            regSignatureData = {
+              regDeadline: sigResult.deadline,
+              regNonce: sigResult.nonce,
+              regSignature: sigResult.signature,
+            };
+
+            console.log('[DEPLOY] EIP-712 signature obtained:', {
+              deadline: sigResult.deadline.toString(),
+              nonce: sigResult.nonce.toString(),
+              signatureLength: sigResult.signature.length,
+            });
+          } else {
+            console.log('[DEPLOY] User already has on-chain username:', existingOnChainUsername, '— skipping signature');
+          }
+        } catch (sigError) {
+          if (sigError.code === 4001 || sigError.code === 'ACTION_REJECTED') {
+            throw new Error('Username registration signature was rejected. Deployment cancelled.');
+          }
+          console.error('[DEPLOY] EIP-712 signing failed, continuing with defaults:', sigError);
+          toast({
+            title: 'Username registration skipped',
+            description: 'Could not prepare the username signature. Your org will deploy without on-chain username registration. You can register your username later.',
+            status: 'warning',
+            duration: 8000,
+            isClosable: true,
+          });
+        }
+      } else {
+        console.log('[DEPLOY] Skipping EIP-712 signing:', { isPasskeyDeployer, hasSigner: !!signer, hasNewUsername });
+      }
+
       // Call the deployment function
-      // Note: The existing `main` function signature may need to be updated
-      // to accept the new params format. For now, mapping to existing format:
       const membershipTypeNames = state.roles.map(r => r.name);
       const executiveRoleNames = state.roles
         .filter(r => r.hierarchy.adminRoleIndex === null)
@@ -309,8 +378,9 @@ function DeployerPageContent() {
         state.voting.hybridQuorum,
         deployerUsername,
         signer,
-        customRoles,  // Only pass custom roles if there are additionalWearers
-        infrastructureAddresses  // Addresses fetched from subgraph
+        customRoles,
+        infrastructureAddresses,
+        regSignatureData
       );
 
       // Return success - let DeployerWizard handle the celebration

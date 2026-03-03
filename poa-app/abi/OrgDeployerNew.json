@@ -107,6 +107,21 @@
             "internalType": "string"
           },
           {
+            "name": "regDeadline",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "regNonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "regSignature",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
             "name": "autoUpgrade",
             "type": "bool",
             "internalType": "bool"
@@ -331,6 +346,11 @@
                 "internalType": "uint256"
               }
             ]
+          },
+          {
+            "name": "metadataAdminRoleIndex",
+            "type": "uint256",
+            "internalType": "uint256"
           },
           {
             "name": "passkeyEnabled",

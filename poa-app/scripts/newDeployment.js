@@ -95,7 +95,8 @@ export async function main(
     username,
     wallet,
     customRoles = null,
-    infrastructureAddresses = {}
+    infrastructureAddresses = {},
+    regSignatureData = null
   ) {
     // Validate infrastructure addresses - these must be fetched from subgraph
     const orgDeployerAddress = infrastructureAddresses.orgDeployerAddress;
@@ -179,6 +180,10 @@ export async function main(
       registryAddr: registryAddress,
       deployerAddress: deployerAddress,
       deployerUsername: username || "",
+      // EIP-712 registration signature fields
+      regDeadline: regSignatureData?.regDeadline ?? 0,
+      regNonce: regSignatureData?.regNonce ?? 0,
+      regSignature: regSignatureData?.regSignature ?? '0x',
       autoUpgrade: true,
       hybridQuorumPct: quorumPercentagePV || 50,
       ddQuorumPct: quorumPercentageDD || 50,
@@ -186,6 +191,8 @@ export async function main(
       ddInitialTargets: [],
       roles: roles,
       roleAssignments: roleAssignments,
+      // Metadata admin: type(uint256).max = skip (topHat fallback in contract)
+      metadataAdminRoleIndex: ethers.constants.MaxUint256,
       // Passkey support (boolean - matches deployed contract v1.0.1)
       passkeyEnabled: false,
       // Education hub configuration
