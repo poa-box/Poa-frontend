@@ -19,13 +19,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 // Transform users array to leaderboard format
 function transformLeaderboardData(users, roleHatIds) {
     if (!users || !Array.isArray(users)) {
-        console.log('transformLeaderboardData: No users or not an array', users);
         return [];
-    }
-    console.log('transformLeaderboardData: Processing', users.length, 'users');
-    // Debug: Log first user's participationTokenBalance
-    if (users.length > 0) {
-        console.log('transformLeaderboardData: First user raw balance:', users[0].participationTokenBalance, 'type:', typeof users[0].participationTokenBalance);
     }
     return users.map(user => {
         const rawBalance = user.participationTokenBalance;
@@ -142,7 +136,6 @@ export const POProvider = ({ children }) => {
         fetchPolicy: 'cache-first',
         onCompleted: (data) => {
             if (data?.organizations?.[0]) {
-                console.log('Found org ID:', data.organizations[0].id);
                 setOrgId(data.organizations[0].id);
             }
         },
@@ -153,14 +146,10 @@ export const POProvider = ({ children }) => {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-and-network',
-        onCompleted: () => {
-            console.log('Org data query completed successfully');
-        },
     });
 
     // Handle refresh events from Web3 transactions
     const handleRefresh = useCallback(() => {
-        console.log('[POContext] Refresh triggered, refetching org data...');
         if (orgId && refetchOrgData) {
             // Small delay to allow subgraph to index the new data
             setTimeout(() => {
