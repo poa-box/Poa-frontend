@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAccount } from 'wagmi';
+import { useAuth } from '@/context/AuthContext';
 import apolloClient from '@/util/apolloClient';
 import { FETCH_USERNAME_NEW, GET_ACCOUNT_BY_USERNAME } from '@/util/queries';
 
@@ -47,7 +48,11 @@ function validateUsernameFormat(username) {
  * @returns {Object} Username state and utilities
  */
 export function useDeployerUsername() {
-  const { address } = useAccount();
+  const { address: wagmiAddress } = useAccount();
+  const { accountAddress } = useAuth();
+
+  // Use unified address (works for both passkey and wallet users)
+  const address = accountAddress || wagmiAddress;
 
   // State for existing username check
   const [existingUsername, setExistingUsername] = useState(null);

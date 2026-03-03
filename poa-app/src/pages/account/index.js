@@ -1,6 +1,7 @@
 /**
  * Account Page
  * Displays user's global account information and organization memberships.
+ * Supports both wallet (EOA) and passkey authentication.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -25,32 +26,38 @@ import {
   SkeletonText,
   Icon,
   Tooltip,
+  useDisclosure,
 } from '@chakra-ui/react';
 import { SettingsIcon, CopyIcon, CheckIcon, ExternalLinkIcon } from '@chakra-ui/icons';
 import { useRouter } from 'next/router';
 import { useAccount } from 'wagmi';
 import { useQuery } from '@apollo/client';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAuth } from '@/context/AuthContext';
 import { useGlobalAccount } from '@/hooks/useGlobalAccount';
 import { FETCH_USER_ORGANIZATIONS } from '@/util/queries';
 import { formatTokenAmount } from '@/util/formatToken';
 import GlobalAccountSettingsModal from '@/components/account/GlobalAccountSettingsModal';
+import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
+import SignInModal from '@/components/passkey/SignInModal';
 import Link from 'next/link';
 
 const AccountPage = () => {
   const router = useRouter();
   const toast = useToast();
-  const { address, isConnected } = useAccount();
+  const { isConnected } = useAccount();
+  const { isAuthenticated, isPasskeyUser, accountAddress } = useAuth();
   const { globalUsername, hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
+  const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
 
   const [isSSR, setIsSSR] = useState(true);
   const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
 
-  // Query user's organizations
+  // Query user's organizations using unified accountAddress
   const { data: orgsData, loading: orgsLoading } = useQuery(FETCH_USER_ORGANIZATIONS, {
-    variables: { userAddress: address?.toLowerCase() },
-    skip: !address || !hasAccount,
+    variables: { userAddress: accountAddress?.toLowerCase() },
+    skip: !accountAddress || !hasAccount,
     fetchPolicy: 'cache-and-network',
   });
 
@@ -77,8 +84,8 @@ const AccountPage = () => {
 
   // Copy address to clipboard
   const handleCopyAddress = () => {
-    if (address) {
-      navigator.clipboard.writeText(address);
+    if (accountAddress) {
+      navigator.clipboard.writeText(accountAddress);
       setCopiedAddress(true);
       toast({
         title: 'Address copied!',
@@ -96,20 +103,19 @@ const AccountPage = () => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  // Redirect if not connected or no account
+  // Redirect if authenticated but no account registered
   useEffect(() => {
-    if (!isSSR && !isAccountLoading && isConnected && !hasAccount) {
-      // User connected but no account - redirect to homepage to sign up
+    if (!isSSR && !isAccountLoading && isAuthenticated && !hasAccount) {
       router.push('/');
     }
-  }, [isSSR, isAccountLoading, isConnected, hasAccount, router]);
+  }, [isSSR, isAccountLoading, isAuthenticated, hasAccount, router]);
 
   if (isSSR) {
     return null;
   }
 
-  // Not connected state
-  if (!isConnected) {
+  // Not authenticated state
+  if (!isAuthenticated) {
     return (
       <Box
         minH="100vh"
@@ -129,15 +135,32 @@ const AccountPage = () => {
           <CardBody p={8}>
             <VStack spacing={6} align="center">
               <Heading size="lg" color={textColor}>
-                Connect Your Wallet
+                Sign In
               </Heading>
               <Text color={subtextColor} textAlign="center">
-                Connect your wallet to view your account and organizations.
+                Sign in to view your account and organizations.
               </Text>
-              <ConnectButton />
+              <Button
+                onClick={onSignInOpen}
+                bg="amethyst.500"
+                color="white"
+                borderRadius="xl"
+                size="lg"
+                fontWeight="600"
+                _hover={{ bg: 'amethyst.600', transform: 'translateY(-1px)', boxShadow: 'md' }}
+                _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
+              >
+                Sign In
+              </Button>
             </VStack>
           </CardBody>
         </Card>
+
+        <SignInModal
+          isOpen={isSignInOpen}
+          onClose={onSignInClose}
+          onSuccess={() => {}}
+        />
       </Box>
     );
   }
@@ -171,7 +194,11 @@ const AccountPage = () => {
           >
             Back to Home
           </Button>
-          <ConnectButton showBalance={false} chainStatus="icon" />
+          {isPasskeyUser ? (
+            <PasskeyAccountInfo />
+          ) : (
+            <ConnectButton showBalance={false} chainStatus="icon" />
+          )}
         </HStack>
 
         <VStack spacing={6} align="stretch">
@@ -203,11 +230,11 @@ const AccountPage = () => {
                 <HStack justify="space-between" flexWrap="wrap" gap={4}>
                   <VStack align="start" spacing={1}>
                     <Text color={subtextColor} fontSize="sm">
-                      Wallet Address
+                      {isPasskeyUser ? 'Account Address' : 'Wallet Address'}
                     </Text>
                     <HStack>
                       <Text color={textColor} fontFamily="mono" fontSize="md">
-                        {formatAddress(address)}
+                        {formatAddress(accountAddress)}
                       </Text>
                       <Tooltip label={copiedAddress ? 'Copied!' : 'Copy address'}>
                         <IconButton
