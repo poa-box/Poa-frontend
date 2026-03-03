@@ -21,6 +21,7 @@ import Link from 'next/link';
 import { useAccount } from 'wagmi';
 
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
+import { useAuth } from '@/context/AuthContext';
 import { useOrgStructure, useClaimRole, useVouches } from '@/hooks';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingContext } from '@/context/VotingContext';
@@ -38,7 +39,11 @@ import {
 const OrgStructurePage = () => {
   const router = useRouter();
   const { userDAO } = router.query;
-  const { isConnected, address: userAddress } = useAccount();
+  const { isConnected, address: wagmiAddress } = useAccount();
+  const { isAuthenticated, accountAddress } = useAuth();
+
+  // Use unified address (works for both passkey and wallet users)
+  const userAddress = accountAddress || wagmiAddress;
 
   // Get user's current hat IDs
   const { userData } = useUserContext();
@@ -101,10 +106,10 @@ const OrgStructurePage = () => {
 
   // Refresh application statuses when roles data is available
   useEffect(() => {
-    if (roles?.length && eligibilityModuleAddress && userAddress) {
+    if (roles?.length && eligibilityModuleAddress && (userAddress || accountAddress)) {
       checkApplicationStatuses();
     }
-  }, [roles, eligibilityModuleAddress, userAddress, checkApplicationStatuses]);
+  }, [roles, eligibilityModuleAddress, userAddress, accountAddress, checkApplicationStatuses]);
 
   // Loading state
   if (loading) {
@@ -214,7 +219,7 @@ const OrgStructurePage = () => {
               getVouchProgress={getVouchProgress}
               onClaimRole={claimRole}
               isClaimingHat={isClaimingHat}
-              isConnected={isConnected}
+              isConnected={isAuthenticated}
               showClaimButtons={Boolean(eligibilityModuleAddress)}
               hasApplied={hasApplied}
               isApplyingForHat={isApplyingForHat}
@@ -269,7 +274,7 @@ const OrgStructurePage = () => {
                 eligibilityModuleAddress={eligibilityModuleAddress}
                 userHatIds={userHatIds}
                 userAddress={userAddress}
-                isConnected={isConnected}
+                isConnected={isAuthenticated}
               />
             </Box>
           )}

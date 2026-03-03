@@ -17,9 +17,9 @@ import {
   AlertDescription,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
 
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
+import { useAuth } from '@/context/AuthContext';
 import { usePOContext } from '@/context/POContext';
 import { useIsOrgAdmin } from '@/hooks/useIsOrgAdmin';
 import OrgMetadataEditor from '@/components/settings/OrgMetadataEditor';
@@ -27,7 +27,7 @@ import OrgMetadataEditor from '@/components/settings/OrgMetadataEditor';
 const SettingsPage = () => {
   const router = useRouter();
   const { userDAO } = router.query;
-  const { isConnected, address } = useAccount();
+  const { isAuthenticated, accountAddress } = useAuth();
 
   const {
     orgId,
@@ -38,8 +38,8 @@ const SettingsPage = () => {
     error: contextError,
   } = usePOContext();
 
-  // Check if user is an org admin
-  const { isAdmin, loading: adminLoading, error: adminError } = useIsOrgAdmin(orgId, address);
+  // Check if user is an org admin using unified accountAddress
+  const { isAdmin, loading: adminLoading, error: adminError } = useIsOrgAdmin(orgId, accountAddress);
 
   // Loading state
   if (poContextLoading || adminLoading) {
@@ -74,8 +74,8 @@ const SettingsPage = () => {
     );
   }
 
-  // Not connected state
-  if (!isConnected) {
+  // Not authenticated state
+  if (!isAuthenticated) {
     return (
       <Box minH="100vh" bg="gray.900">
         <Navbar />
@@ -83,8 +83,8 @@ const SettingsPage = () => {
           <Alert status="warning" maxW="lg" borderRadius="md">
             <AlertIcon />
             <Box>
-              <AlertTitle>Wallet not connected</AlertTitle>
-              <AlertDescription>Please connect your wallet to access organization settings.</AlertDescription>
+              <AlertTitle>Not signed in</AlertTitle>
+              <AlertDescription>Please sign in to access organization settings.</AlertDescription>
             </Box>
           </Alert>
         </Center>

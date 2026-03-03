@@ -41,7 +41,7 @@ export default function Home() {
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
-  const { isPasskeyUser, hasStoredPasskey } = useAuth();
+  const { isPasskeyUser, isAuthenticated, hasStoredPasskey, connectPasskey, passkeyConnecting } = useAuth();
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -435,8 +435,8 @@ export default function Home() {
           Voting power is based on Membership and Contribution, not capital
         </Text>
 
-        {/* Solidarity Onboarding CTA */}
-        {showSolidarityOnboarding && (
+        {/* Auth CTA - shown when not authenticated */}
+        {mounted && !isAuthenticated && (
           <Box
             zIndex={3}
             mt={["6", "8"]}
@@ -450,29 +450,64 @@ export default function Home() {
               }
             }}
           >
-            <Button
-              size="lg"
-              bg="amethyst.500"
-              color="white"
-              borderRadius="xl"
-              px={8}
-              py={6}
-              fontSize={["md", "lg"]}
-              fontWeight="700"
-              _hover={{ bg: 'amethyst.600', transform: 'translateY(-2px)', boxShadow: 'lg' }}
-              _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
-              leftIcon={<FaFingerprint />}
-              onClick={onOnboardingOpen}
-            >
-              Create Free Account with Passkey
-            </Button>
-            <Text
-              mt={2}
-              fontSize="xs"
-              color="gray.500"
-            >
-              No wallet or ETH needed. Uses your device biometrics.
-            </Text>
+            <VStack spacing={4}>
+              {/* Primary auth buttons */}
+              <HStack spacing={4} flexWrap="wrap" justify="center">
+                {hasStoredPasskey ? (
+                  <Button
+                    size="lg"
+                    bg="amethyst.500"
+                    color="white"
+                    borderRadius="xl"
+                    px={8}
+                    py={6}
+                    fontSize={["md", "lg"]}
+                    fontWeight="700"
+                    _hover={{ bg: 'amethyst.600', transform: 'translateY(-2px)', boxShadow: 'lg' }}
+                    _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
+                    leftIcon={<FaFingerprint />}
+                    isLoading={passkeyConnecting}
+                    loadingText="Signing in..."
+                    onClick={async () => {
+                      try {
+                        await connectPasskey();
+                        router.push('/account');
+                      } catch (err) {
+                        console.error('Failed to reconnect passkey:', err);
+                      }
+                    }}
+                  >
+                    Sign in with Passkey
+                  </Button>
+                ) : null}
+                <Button
+                  size="lg"
+                  bg="blue.500"
+                  color="white"
+                  borderRadius="xl"
+                  px={8}
+                  py={6}
+                  fontSize={["md", "lg"]}
+                  fontWeight="700"
+                  _hover={{ bg: 'blue.600', transform: 'translateY(-2px)', boxShadow: 'lg' }}
+                  _active={{ bg: 'blue.700', transform: 'translateY(0)' }}
+                  onClick={openConnectModal}
+                >
+                  Connect Wallet
+                </Button>
+              </HStack>
+
+              {/* Secondary: Create account */}
+              <Text
+                fontSize="sm"
+                color="gray.600"
+                cursor="pointer"
+                _hover={{ color: 'amethyst.600', textDecoration: 'underline' }}
+                onClick={onSignInOpen}
+              >
+                Don&apos;t have an account? <Text as="span" fontWeight="600">Create one</Text>
+              </Text>
+            </VStack>
           </Box>
         )}
 
