@@ -15,7 +15,7 @@ import {
   parseAbiParameters,
 } from 'viem';
 import { entryPoint07Abi } from 'viem/account-abstraction';
-import { ENTRY_POINT_ADDRESS, GAS_BUFFER_PERCENT } from '../../../config/passkey';
+import { ENTRY_POINT_ADDRESS, GAS_BUFFER_PERCENT, MAX_USEROP_GAS } from '../../../config/passkey';
 
 /**
  * Build a complete UserOp ready for signing.
@@ -217,6 +217,25 @@ async function estimateGas(userOp, bundlerClient) {
     }
     if (gasEstimate.paymasterPostOpGasLimit) {
       userOp.paymasterPostOpGasLimit = applyBuffer(gasEstimate.paymasterPostOpGasLimit);
+    }
+
+    // Ensure total gas stays under bundler's per-UserOp limit.
+    // If the total exceeds MAX_USEROP_GAS, reduce callGasLimit since the
+    // bundler's execution trace gives accurate estimates and it needs less
+    // buffer than verification gas (which is underestimated due to dummy sig).
+    const totalGas = userOp.callGasLimit + userOp.verificationGasLimit
+      + userOp.preVerificationGas
+      + (userOp.paymasterVerificationGasLimit || 0n)
+      + (userOp.paymasterPostOpGasLimit || 0n);
+
+    if (totalGas > MAX_USEROP_GAS) {
+      const excess = totalGas - MAX_USEROP_GAS;
+      const reduced = userOp.callGasLimit - excess;
+      console.warn(
+        `[UserOp] Total gas ${totalGas} exceeds max ${MAX_USEROP_GAS}. ` +
+        `Reducing callGasLimit from ${userOp.callGasLimit} to ${reduced}`
+      );
+      userOp.callGasLimit = reduced;
     }
   } catch (e) {
     // Re-throw paymaster rejections so callers can fall back to self-funded.
