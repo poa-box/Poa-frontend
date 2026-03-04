@@ -14,6 +14,7 @@ import PasskeyAccountABI from '../../../../abi/PasskeyAccount.json';
 import PasskeyAccountFactoryABI from '../../../../abi/PasskeyAccountFactory.json';
 import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
 import QuickJoinABI from '../../../../abi/QuickJoinNew.json';
+import EligibilityModuleABI from '../../../../abi/EligibilityModuleNew.json';
 import { createPasskeyCredential } from '../passkey/passkeyCreate';
 import { signUserOpWithPasskey } from '../passkey/passkeySign';
 import { buildUserOp, getUserOpHash } from '../passkey/userOpBuilder';
@@ -64,7 +65,7 @@ export class PasskeyOnboardingService {
    * @param {string} [params.orgId] - bytes32 org ID (org mode only)
    * @param {string} [params.mode='org'] - 'org' for org-scoped onboarding, 'solidarity' for protocol-level
    */
-  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId, mode = 'org' }) {
+  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId, mode = 'org', eligibilityModuleAddress, claimHatId }) {
     this.publicClient = publicClient;
     this.bundlerClient = bundlerClient;
     this.factoryAddress = factoryAddress;
@@ -73,6 +74,20 @@ export class PasskeyOnboardingService {
     this.paymasterAddress = paymasterAddress;
     this.orgId = orgId;
     this.mode = mode;
+    this.eligibilityModuleAddress = eligibilityModuleAddress;
+    this.claimHatId = claimHatId;
+  }
+
+  /**
+   * Compute the counterfactual address for a credential without deploying.
+   */
+  static async computeCounterfactualAddress(publicClient, factoryAddress, credential) {
+    return publicClient.readContract({
+      address: factoryAddress,
+      abi: PasskeyAccountFactoryABI,
+      functionName: 'getAddress',
+      args: [credential.credentialId, credential.publicKeyX, credential.publicKeyY, credential.salt],
+    });
   }
 
   /**
@@ -131,7 +146,7 @@ export class PasskeyOnboardingService {
         });
         paymasterData = encodeSolidarityOnboardingPaymasterData();
       } else {
-        // Org mode: deploy + register + quickJoin in one tx
+        // Org mode: deploy + register + quickJoin (+ optional claimVouchedHat) in one tx
         const registerCallData = encodeFunctionData({
           abi: UniversalAccountRegistryABI,
           functionName: 'registerAccount',
@@ -143,14 +158,25 @@ export class PasskeyOnboardingService {
           args: [],
         });
 
+        const targets = [this.registryAddress, this.quickJoinAddress];
+        const values = [0n, 0n];
+        const datas = [registerCallData, joinCallData];
+
+        if (this.claimHatId && this.eligibilityModuleAddress) {
+          const claimCallData = encodeFunctionData({
+            abi: EligibilityModuleABI,
+            functionName: 'claimVouchedHat',
+            args: [BigInt(this.claimHatId)],
+          });
+          targets.push(this.eligibilityModuleAddress);
+          values.push(0n);
+          datas.push(claimCallData);
+        }
+
         callData = encodeFunctionData({
           abi: PasskeyAccountABI,
           functionName: 'executeBatch',
-          args: [
-            [this.registryAddress, this.quickJoinAddress],
-            [0n, 0n],
-            [registerCallData, joinCallData],
-          ],
+          args: [targets, values, datas],
         });
 
         paymasterData = encodeOnboardingPaymasterData({
@@ -209,6 +235,129 @@ export class PasskeyOnboardingService {
         publicKeyY,
         rawCredentialId,
         salt: salt.toString(),
+        transactionHash: receipt.receipt.transactionHash,
+      };
+
+      onStep(OnboardingStep.SUCCESS, result);
+      return result;
+
+    } catch (error) {
+      console.error('[Onboarding] Error:', error);
+      onStep(OnboardingStep.ERROR, { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Deploy an account using an existing (pre-created) credential.
+   * Used by vouch-first flow where the credential was created earlier.
+   *
+   * @param {string} username - Username to register
+   * @param {Object} credential - Pre-created credential { credentialId, publicKeyX, publicKeyY, rawCredentialId, salt, accountAddress }
+   * @param {Function} [onStep] - Callback for step changes
+   * @returns {Object} Same as onboard()
+   */
+  async deployWithExistingCredential(username, credential, onStep = () => {}) {
+    const { credentialId, publicKeyX, publicKeyY, rawCredentialId, salt, accountAddress } = credential;
+
+    try {
+      // Skip credential creation — use pre-computed address
+      onStep(OnboardingStep.BUILDING_TRANSACTION);
+
+      const factoryCallData = encodeFunctionData({
+        abi: PasskeyAccountFactoryABI,
+        functionName: 'createAccount',
+        args: [credentialId, publicKeyX, publicKeyY, salt],
+      });
+      const initCode = this.factoryAddress + factoryCallData.slice(2);
+
+      // Build callData (always org mode for vouch-first)
+      const registerCallData = encodeFunctionData({
+        abi: UniversalAccountRegistryABI,
+        functionName: 'registerAccount',
+        args: [username],
+      });
+      const joinCallData = encodeFunctionData({
+        abi: QuickJoinABI,
+        functionName: 'quickJoinNoUser',
+        args: [],
+      });
+
+      const targets = [this.registryAddress, this.quickJoinAddress];
+      const values = [0n, 0n];
+      const datas = [registerCallData, joinCallData];
+
+      if (this.claimHatId && this.eligibilityModuleAddress) {
+        const claimCallData = encodeFunctionData({
+          abi: EligibilityModuleABI,
+          functionName: 'claimVouchedHat',
+          args: [BigInt(this.claimHatId)],
+        });
+        targets.push(this.eligibilityModuleAddress);
+        values.push(0n);
+        datas.push(claimCallData);
+      }
+
+      const callData = encodeFunctionData({
+        abi: PasskeyAccountABI,
+        functionName: 'executeBatch',
+        args: [targets, values, datas],
+      });
+
+      const paymasterData = encodeOnboardingPaymasterData({
+        counterfactualAddress: accountAddress,
+        orgId: this.orgId,
+      });
+
+      const userOp = await buildUserOp({
+        sender: accountAddress,
+        callData,
+        bundlerClient: this.bundlerClient,
+        publicClient: this.publicClient,
+        initCode,
+        paymasterAddress: this.paymasterAddress,
+        paymasterData,
+      });
+
+      // Sign UserOp hash with passkey (biometric prompt)
+      onStep(OnboardingStep.SIGNING);
+      const userOpHash = getUserOpHash(
+        userOp,
+        ENTRY_POINT_ADDRESS,
+        networkConfig.chainId,
+      );
+      const signature = await signUserOpWithPasskey(userOpHash, rawCredentialId);
+      userOp.signature = signature;
+
+      // Submit to bundler
+      onStep(OnboardingStep.SUBMITTING);
+      const submittedHash = await this.bundlerClient.sendUserOperation({
+        ...userOp,
+        entryPointAddress: ENTRY_POINT_ADDRESS,
+      });
+
+      console.log('[Onboarding] UserOp submitted:', submittedHash);
+
+      // Wait for receipt
+      onStep(OnboardingStep.CONFIRMING);
+      const receipt = await this.bundlerClient.waitForUserOperationReceipt({
+        hash: submittedHash,
+        timeout: 120_000,
+      });
+
+      if (!receipt.success) {
+        throw new Error(receipt.reason || 'Onboarding UserOp failed on-chain');
+      }
+
+      console.log('[Onboarding] Confirmed:', receipt.receipt.transactionHash);
+
+      const result = {
+        accountAddress,
+        credentialId,
+        publicKeyX,
+        publicKeyY,
+        rawCredentialId,
+        salt: typeof salt === 'bigint' ? salt.toString() : salt,
         transactionHash: receipt.receipt.transactionHash,
       };
 

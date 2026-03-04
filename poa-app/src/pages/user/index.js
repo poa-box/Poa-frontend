@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useWeb3 } from "@/hooks";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useWeb3, useOrgStructure, useClaimRole, useVouches, useVouchFirstOnboarding } from "@/hooks";
 import { usePOContext } from "@/context/POContext";
 import { useUserContext } from "@/context/UserContext";
 import { useRouter } from 'next/router';
@@ -33,15 +33,21 @@ import {
   Card,
   CardBody,
   useToast,
+  Spinner,
+  IconButton,
+  Alert,
+  AlertIcon,
 } from "@chakra-ui/react";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { useAuth } from '@/context/AuthContext';
 import { motion } from "framer-motion";
-import { FaWallet, FaUserPlus, FaUser, FaCheck, FaChevronRight, FaLink, FaInfoCircle, FaShieldAlt, FaRegLightbulb, FaUsers, FaFingerprint } from 'react-icons/fa';
+import { FaWallet, FaUserPlus, FaUser, FaCheck, FaChevronRight, FaLink, FaInfoCircle, FaShieldAlt, FaRegLightbulb, FaUsers, FaFingerprint, FaPaperPlane, FaCopy, FaHandshake, FaRedo } from 'react-icons/fa';
 import PasskeyLoginButton from '@/components/passkey/PasskeyLoginButton';
 import { BsFillLightningChargeFill } from 'react-icons/bs';
+import { RoleApplicationForm, VouchLinkHandler, VouchProgressBar } from '@/components/orgStructure';
+import { VouchFirstPhase } from '@/hooks/useVouchFirstOnboarding';
 
 // Animation keyframes
 const gradientAnimation = keyframes`
@@ -71,9 +77,24 @@ const User = () => {
   const { quickJoinContractAddress, poDescription, logoHash } = usePOContext();
   const { organization, executeWithNotification } = useWeb3();
   const router = useRouter();
-  const { userDAO } = router.query;
+  const { userDAO, vouch: vouchAddress, hatId: vouchHatId } = router.query;
   const usernameInputRef = useRef(null);
   const toast = useToast();
+
+  // Org structure for vouch detection
+  const { roles, eligibilityModuleAddress, loading: orgStructureLoading } = useOrgStructure();
+  const { applyForRole, isApplying, vouchFor, isVouching } = useClaimRole(eligibilityModuleAddress);
+
+  // Vouch data (for vouch link handler and vouch-first progress)
+  const rolesWithVouching = useMemo(() => {
+    return (roles || []).filter(r => r.vouchingEnabled);
+  }, [roles]);
+  const { hasUserVouched, getVouchProgress, refetch: refetchVouches } = useVouches(eligibilityModuleAddress, rolesWithVouching);
+
+  const allRolesRequireVouching = useMemo(() => {
+    if (!roles || roles.length === 0) return false;
+    return roles.every(r => r.vouchingEnabled && !r.defaultEligible);
+  }, [roles]);
 
   const [newUsername, setNewUsername] = useState("");
   const [loading, setLoading] = useState(false);
@@ -81,6 +102,38 @@ const User = () => {
   const [isSSR, setIsSSR] = useState(true);
   const [showBenefits, setShowBenefits] = useState(false);
   const [animateForm, setAnimateForm] = useState(false);
+
+  // Role application state (for vouch-gated orgs)
+  const [selectedHatId, setSelectedHatId] = useState(null);
+  const [applicationNotes, setApplicationNotes] = useState('');
+  const [applicationExperience, setApplicationExperience] = useState('');
+
+  // Vouch-first passkey onboarding hook
+  const vouchFirstHook = useVouchFirstOnboarding({
+    orgName: userDAO,
+    eligibilityModuleAddress,
+    refetchVouches,
+  });
+
+  // Compute vouch progress for the pending credential (if any)
+  const vouchFirstPendingProgress = useMemo(() => {
+    if (!vouchFirstHook.pendingCredential) return null;
+    return getVouchProgress(
+      vouchFirstHook.pendingCredential.accountAddress,
+      vouchFirstHook.pendingCredential.selectedHatId,
+    );
+  }, [vouchFirstHook.pendingCredential, getVouchProgress]);
+
+  // Vouch link progress (for existing members viewing a vouch link)
+  const vouchLinkProgress = useMemo(() => {
+    if (!vouchAddress || !vouchHatId) return null;
+    return getVouchProgress(vouchAddress, vouchHatId);
+  }, [vouchAddress, vouchHatId, getVouchProgress]);
+
+  const hasAlreadyVouched = useMemo(() => {
+    if (!vouchAddress || !vouchHatId) return false;
+    return hasUserVouched(vouchAddress, vouchHatId);
+  }, [vouchAddress, vouchHatId, hasUserVouched]);
 
   const isMobile = useBreakpointValue({ base: true, md: false });
   const textSize = useBreakpointValue({ base: "xl", md: "2xl" });
@@ -100,6 +153,16 @@ const User = () => {
   const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(0, 0, 0, 0.6)');
   const textColor = useColorModeValue('gray.800', 'white');
   const accentColor = "teal.400";
+  const inputBg = useColorModeValue('white', 'gray.800');
+  const inputBorderColor = useColorModeValue('gray.300', 'gray.600');
+  const subtextColor = useColorModeValue('gray.600', 'gray.300');
+  const hintColor = useColorModeValue('gray.500', 'gray.400');
+  const footerColor = useColorModeValue('gray.600', 'gray.400');
+  const successBg = useColorModeValue('green.50', 'green.900');
+  const successBorderColor = useColorModeValue('green.200', 'green.700');
+  const infoBg = useColorModeValue('blue.50', 'blue.900');
+  const infoBorderColor = useColorModeValue('blue.200', 'blue.700');
+  const infoTextColor = useColorModeValue('blue.700', 'blue.300');
 
   useEffect(() => {
     setIsSSR(false);
@@ -109,10 +172,25 @@ const User = () => {
   }, [userDAO]);
 
   useEffect(() => {
-    if (hasMemberRole) {
+    // Don't redirect members when they're here to vouch for someone
+    if (hasMemberRole && !vouchAddress) {
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
-  }, [hasMemberRole, address]);
+  }, [hasMemberRole, address, vouchAddress]);
+
+  // Redirect on vouch-first success
+  useEffect(() => {
+    if (vouchFirstHook.phase === VouchFirstPhase.SUCCESS) {
+      router.push(`/profileHub/?userDAO=${userDAO}`);
+    }
+  }, [vouchFirstHook.phase]);
+
+  // Auto-select when there's only one role
+  useEffect(() => {
+    if (allRolesRequireVouching && roles.length === 1) {
+      setSelectedHatId(roles[0].hatId);
+    }
+  }, [allRolesRequireVouching, roles]);
 
   const handleJoinWithUser = useCallback(async () => {
     if (!organization) return;
@@ -164,6 +242,108 @@ const User = () => {
     }
     setLoading(false);
   }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast]);
+
+  const handleApplyAndJoin = useCallback(async () => {
+    if (!organization) return;
+
+    if (!selectedHatId) {
+      toast({
+        title: "Role required",
+        description: "Please select a role to apply for",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+        position: "top",
+      });
+      return;
+    }
+
+    if (!applicationNotes.trim()) {
+      toast({
+        title: "Application notes required",
+        description: "Please explain why you want this role",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+        position: "top",
+      });
+      return;
+    }
+
+    const hasExistingUsername = dispaly && graphUsername;
+    if (!hasExistingUsername && !newUsername.trim()) {
+      usernameInputRef.current?.focus();
+      toast({
+        title: "Username required",
+        description: "Please enter a username to continue",
+        status: "warning",
+        duration: 3000,
+        isClosable: true,
+        position: "top",
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Step 1: Join the organization
+      const joinResult = await executeWithNotification(
+        () => hasExistingUsername
+          ? organization.quickJoinWithUser(quickJoinContractAddress)
+          : organization.quickJoinNoUser(quickJoinContractAddress, newUsername),
+        {
+          pendingMessage: 'Joining organization...',
+          successMessage: 'Joined! Submitting application...',
+          refreshEvent: hasExistingUsername ? 'member:joined' : 'user:created',
+        }
+      );
+
+      if (!joinResult.success) return;
+
+      // Step 2: Apply for the selected role
+      let applyResult;
+      try {
+        applyResult = await applyForRole(selectedHatId, {
+          notes: applicationNotes.trim(),
+          experience: applicationExperience.trim(),
+          appliedAt: new Date().toISOString(),
+        });
+      } catch (applyErr) {
+        // Join succeeded but apply threw — redirect with guidance
+        toast({
+          title: "Joined, but application failed",
+          description: "You're now a member. Please apply for a role from the Organization page.",
+          status: "warning",
+          duration: 8000,
+          isClosable: true,
+          position: "top",
+        });
+        router.push(`/profileHub/?userDAO=${userDAO}`);
+        return;
+      }
+
+      if (applyResult?.success) {
+        router.push(`/profileHub/?userDAO=${userDAO}`);
+      } else {
+        // Join succeeded but apply returned failure
+        toast({
+          title: "Joined, but application failed",
+          description: "You're now a member. Please apply for a role from the Organization page.",
+          status: "warning",
+          duration: 8000,
+          isClosable: true,
+          position: "top",
+        });
+        router.push(`/profileHub/?userDAO=${userDAO}`);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [
+    organization, selectedHatId, applicationNotes, applicationExperience,
+    dispaly, graphUsername, newUsername, quickJoinContractAddress,
+    executeWithNotification, applyForRole, router, userDAO, toast,
+  ]);
 
   const benefits = [
     { 
@@ -260,7 +440,10 @@ const User = () => {
                       bgGradient="linear(to-r, teal.400, blue.500)"
                       bgClip="text"
                     >
-                      Join {userDAO}
+                      {vouchAddress && vouchHatId && hasMemberRole
+                        ? `Vouch for ${userDAO}`
+                        : allRolesRequireVouching ? `Apply to Join ${userDAO}` : `Join ${userDAO}`
+                      }
                     </Heading>
                     
                     <HStack spacing={4}>
@@ -274,7 +457,7 @@ const User = () => {
                           <Flex 
                             p={{ base: 3, md: 4 }} 
                             borderRadius="md" 
-                            bg={useColorModeValue('white', 'gray.800')} 
+                            bg={inputBg} 
                             boxShadow="md"
                             _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
                             transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
@@ -286,7 +469,7 @@ const User = () => {
                               <Text fontWeight="bold" fontSize={{ base: "md", md: "lg" }} color={textColor}>
                                 {benefit.title}
                               </Text>
-                              <Text color={useColorModeValue('gray.600', 'gray.300')} fontSize={{ base: "sm", md: "md" }}>
+                              <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
                                 {benefit.description}
                               </Text>
                             </Box>
@@ -299,8 +482,12 @@ const User = () => {
                     
                     <Box>
                       <Text color={textColor} fontSize={{ base: "xs", md: "sm" }} fontStyle="italic">
-                        Joining is a one-time process that creates your membership NFT.
-                        This gives you access to all DAO features and benefits.
+                        {vouchAddress && vouchHatId && hasMemberRole
+                          ? "Your vouch helps new members join the community. Each role requires a certain number of vouches before the applicant can claim it."
+                          : allRolesRequireVouching
+                            ? "Applying creates your membership and submits your role application. Existing members will review and vouch for you."
+                            : "Joining is a one-time process that creates your membership NFT. This gives you access to all DAO features and benefits."
+                        }
                       </Text>
                     </Box>
                   </VStack>
@@ -320,15 +507,181 @@ const User = () => {
                 borderColor="rgba(255,255,255,0.1)"
               >
                 <CardBody p={cardPadding}>
-                  {isAuthenticated ? (
-                    <>
+                  {/* ── Branch 1: Member + vouch link → VouchLinkHandler ── */}
+                  {isAuthenticated && hasMemberRole && vouchAddress && vouchHatId ? (
+                    <VouchLinkHandler
+                      vouchAddress={vouchAddress}
+                      hatId={vouchHatId}
+                      userDAO={userDAO}
+                      roles={roles}
+                      vouchFor={vouchFor}
+                      isVouching={isVouching}
+                      hasAlreadyVouched={hasAlreadyVouched}
+                      vouchProgress={vouchLinkProgress}
+                    />
+
+                  /* ── Branch 2: Pending vouch-first credential → waiting UI ── */
+                  ) : vouchFirstHook.pendingCredential && vouchFirstHook.phase !== VouchFirstPhase.SUCCESS ? (
+                    <VStack spacing={formSpacing} align="stretch">
+                      <Box textAlign="center">
+                        <MotionBox
+                          animate={{ y: [0, -10, 0] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                          display="inline-block"
+                          mb={4}
+                        >
+                          <Icon as={FaHandshake} color={accentColor} boxSize={{ base: 10, md: 12 }} />
+                        </MotionBox>
+                        <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
+                          Waiting for Vouches
+                        </Heading>
+                        <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
+                          Share the link below with existing members to vouch for you.
+                        </Text>
+                      </Box>
+
+                      {/* Account address badge */}
+                      <Box
+                        p={3}
+                        borderRadius="lg"
+                        bg={successBg}
+                        borderWidth="1px"
+                        borderColor={successBorderColor}
+                      >
+                        <Flex align="center" justify="center">
+                          <Icon as={FaFingerprint} color="green.500" mr={2} />
+                          <Text color={textColor} fontWeight="medium" fontSize="sm" fontFamily="mono">
+                            {vouchFirstHook.pendingCredential.accountAddress?.substring(0, 10)}...{vouchFirstHook.pendingCredential.accountAddress?.substring(vouchFirstHook.pendingCredential.accountAddress.length - 6)}
+                          </Text>
+                        </Flex>
+                      </Box>
+
+                      {/* Vouch link with copy */}
+                      <Box
+                        p={3}
+                        borderRadius="lg"
+                        bg={infoBg}
+                        borderWidth="1px"
+                        borderColor={infoBorderColor}
+                      >
+                        <Flex align="center" justify="space-between">
+                          <Text fontSize="xs" color={infoTextColor} isTruncated flex="1" mr={2}>
+                            {vouchFirstHook.vouchLink}
+                          </Text>
+                          <IconButton
+                            icon={<FaCopy />}
+                            size="sm"
+                            colorScheme="blue"
+                            variant="ghost"
+                            aria-label="Copy vouch link"
+                            onClick={async () => {
+                              try {
+                                await navigator.clipboard.writeText(vouchFirstHook.vouchLink);
+                                toast({ title: "Link copied!", status: "success", duration: 2000, position: "top" });
+                              } catch {
+                                toast({ title: "Couldn't copy — please copy manually", status: "warning", duration: 3000, position: "top" });
+                              }
+                            }}
+                          />
+                        </Flex>
+                      </Box>
+
+                      {/* Vouch progress */}
+                      {vouchFirstPendingProgress && (
+                        <Box px={2}>
+                          <VouchProgressBar
+                            current={vouchFirstPendingProgress.current}
+                            quorum={vouchFirstPendingProgress.quorum}
+                            size="lg"
+                          />
+                          {!vouchFirstPendingProgress.isComplete && (
+                            <Text fontSize="xs" color={hintColor} textAlign="center" mt={2}>
+                              Waiting for {vouchFirstPendingProgress.quorum - vouchFirstPendingProgress.current} more {vouchFirstPendingProgress.quorum - vouchFirstPendingProgress.current === 1 ? 'vouch' : 'vouches'}...
+                            </Text>
+                          )}
+                        </Box>
+                      )}
+
+                      {/* Onboarding step progress (when completing) */}
+                      {vouchFirstHook.phase === VouchFirstPhase.COMPLETING && vouchFirstHook.stepMessage && (
+                        <HStack justify="center" spacing={2}>
+                          <Spinner size="sm" color="teal.400" />
+                          <Text fontSize="sm" color={textColor}>{vouchFirstHook.stepMessage}</Text>
+                        </HStack>
+                      )}
+
+                      {/* Error display */}
+                      {vouchFirstHook.error && (
+                        <Alert status="error" borderRadius="md">
+                          <AlertIcon />
+                          <Text fontSize="sm">{vouchFirstHook.error.message}</Text>
+                        </Alert>
+                      )}
+
+                      {/* Complete Join button — shown when quorum met AND quorum is actually known */}
+                      {vouchFirstPendingProgress?.isComplete && vouchFirstPendingProgress.quorum > 0 ? (
+                        <VStack spacing={3}>
+                          <InputGroup size={isMobile ? "md" : "lg"}>
+                            <Input
+                              placeholder="Choose a username"
+                              value={newUsername}
+                              onChange={(e) => setNewUsername(e.target.value)}
+                              bg={inputBg}
+                              borderColor={inputBorderColor}
+                              _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
+                              ref={usernameInputRef}
+                            />
+                            <InputRightElement width="4.5rem">
+                              <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
+                            </InputRightElement>
+                          </InputGroup>
+                          <Button
+                            colorScheme="teal"
+                            size="lg"
+                            width="100%"
+                            height={buttonHeight}
+                            isLoading={vouchFirstHook.phase === VouchFirstPhase.COMPLETING}
+                            loadingText={vouchFirstHook.stepMessage || "Completing..."}
+                            onClick={() => vouchFirstHook.completeOnboarding(newUsername.trim())}
+                            isDisabled={!newUsername.trim()}
+                            leftIcon={<FaCheck />}
+                            animation={newUsername ? `${pulse} 2s infinite` : undefined}
+                          >
+                            Complete Join
+                          </Button>
+                        </VStack>
+                      ) : null}
+
+                      {/* Reset / start over */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={vouchFirstHook.reset}
+                        leftIcon={<FaRedo />}
+                        color={hintColor}
+                      >
+                        Start Over
+                      </Button>
+                    </VStack>
+
+                  ) : isAuthenticated ? (
+                    orgStructureLoading ? (
+                      <VStack spacing={6} align="center" py={12}>
+                        <Spinner size="lg" color="teal.400" />
+                        <Text color={subtextColor} fontSize="sm">
+                          Loading organization details...
+                        </Text>
+                      </VStack>
+
+                    /* ── Branch 3: Authenticated + vouch-gated → apply-to-join (wallet users) ── */
+                    ) : allRolesRequireVouching ? (
                       <VStack spacing={formSpacing} align="stretch">
                         <Box
                           p={{ base: 3, md: 4 }}
                           borderRadius="lg"
-                          bg={useColorModeValue("green.50", "green.900")}
+                          bg={successBg}
                           borderWidth="1px"
-                          borderColor={useColorModeValue("green.200", "green.700")}
+                          borderColor={successBorderColor}
                         >
                           <Flex align="center" flexWrap="wrap">
                             <Icon as={isPasskeyUser ? FaFingerprint : FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
@@ -348,132 +701,330 @@ const User = () => {
                             display="inline-block"
                             mb={4}
                           >
-                            <Icon as={FaUserPlus} color={accentColor} boxSize={{ base: 10, md: 12 }} />
+                            <Icon as={FaPaperPlane} color={accentColor} boxSize={{ base: 10, md: 12 }} />
                           </MotionBox>
                           <Heading size={{ base: "md", md: "lg" }} mb={{ base: 2, md: 4 }} color={textColor}>
-                            Complete Your Membership
+                            Apply to Join {userDAO}
                           </Heading>
-                          <Text color={useColorModeValue('gray.600', 'gray.300')} mb={{ base: 4, md: 6 }} fontSize={{ base: "sm", md: "md" }}>
-                            You're one step away from joining {userDAO}. 
-                            {dispaly && graphUsername ? " Use your existing account or create a new one." : " Create your new account."}
+                          <Text color={subtextColor} mb={{ base: 4, md: 6 }} fontSize={{ base: "sm", md: "md" }}>
+                            Membership in {userDAO} is by application. Select a role and tell us about yourself.
+                            Existing members will review and vouch for you.
                           </Text>
                         </Box>
 
+                        {/* Username section */}
                         {dispaly && graphUsername ? (
-                          <VStack spacing={{ base: 4, md: 6 }}>
-                            <Button
-                              size={isMobile ? "md" : "lg"}
-                              colorScheme="teal"
-                              width="100%"
-                              height={buttonHeight}
-                              fontSize={{ base: "md", md: "lg" }}
-                              isLoading={loading}
-                              loadingText="Joining..."
-                              onClick={handleJoinWithUser}
-                              leftIcon={<FaUser />}
-                              _hover={{
-                                transform: "translateY(-2px)",
-                                boxShadow: "lg",
-                              }}
-                            >
-                              Join with Existing Account
-                            </Button>
-                            
-                            <Text textAlign="center" fontSize={{ base: "xs", md: "sm" }} color={useColorModeValue('gray.500', 'gray.400')}>
-                              Your existing username will be used: <b>{graphUsername}</b>
-                            </Text>
-                            
-                            <Divider />
-                            
-                            <Text textAlign="center" fontSize={{ base: "xs", md: "sm" }} color={useColorModeValue('gray.500', 'gray.400')}>
-                              Or create a new account instead
-                            </Text>
-                            
-                            <InputGroup size={isMobile ? "md" : "lg"}>
-                              <Input
-                                placeholder="Choose a new username"
-                                value={newUsername}
-                                onChange={(e) => setNewUsername(e.target.value)}
-                                bg={useColorModeValue("white", "gray.800")}
-                                borderColor={useColorModeValue("gray.300", "gray.600")}
-                                _focus={{
-                                  borderColor: "teal.400",
-                                  boxShadow: "0 0 0 1px teal.400",
-                                }}
-                                ref={usernameInputRef}
-                              />
-                            </InputGroup>
-                            
-                            <Button
-                              colorScheme="blue"
-                              size={isMobile ? "md" : "lg"}
-                              width="100%"
-                              isLoading={loading && newUsername}
-                              loadingText="Creating Account..."
-                              onClick={handleJoinNewUser}
-                              isDisabled={!newUsername}
-                              rightIcon={<FaChevronRight />}
-                              _hover={{
-                                transform: "translateY(-2px)",
-                                boxShadow: "lg",
-                              }}
-                            >
-                              Create New Account & Join
-                            </Button>
-                          </VStack>
+                          <Text textAlign="center" fontSize={{ base: "sm", md: "md" }} color={hintColor}>
+                            Applying as: <b>{graphUsername}</b>
+                          </Text>
                         ) : (
-                          <VStack spacing={{ base: 4, md: 6 }}>
-                            <Text textAlign="center" fontSize={{ base: "sm", md: "md" }} color={textColor}>
-                              Create your account to join {userDAO}
-                            </Text>
-                            
-                            <InputGroup size={isMobile ? "md" : "lg"}>
-                              <Input
-                                placeholder="Choose a username"
-                                value={newUsername}
-                                onChange={(e) => setNewUsername(e.target.value)}
-                                bg={useColorModeValue("white", "gray.800")}
-                                borderColor={useColorModeValue("gray.300", "gray.600")}
-                                _focus={{
-                                  borderColor: "teal.400",
-                                  boxShadow: "0 0 0 1px teal.400",
-                                }}
-                                ref={usernameInputRef}
-                              />
-                              <InputRightElement width="4.5rem">
-                                <Icon 
-                                  as={FaUser} 
-                                  color={newUsername ? "green.500" : "gray.300"} 
-                                />
-                              </InputRightElement>
-                            </InputGroup>
-                            
-                            <Button
-                              colorScheme="teal"
-                              size={isMobile ? "md" : "lg"}
-                              width="100%"
-                              height={buttonHeight}
-                              fontSize={{ base: "md", md: "lg" }}
-                              isLoading={loading}
-                              loadingText="Creating Account..."
-                              onClick={handleJoinNewUser}
-                              isDisabled={!newUsername}
-                              _hover={{
-                                transform: "translateY(-2px)",
-                                boxShadow: "lg",
+                          <InputGroup size={isMobile ? "md" : "lg"}>
+                            <Input
+                              placeholder="Choose a username"
+                              value={newUsername}
+                              onChange={(e) => setNewUsername(e.target.value)}
+                              bg={inputBg}
+                              borderColor={inputBorderColor}
+                              _focus={{
+                                borderColor: "teal.400",
+                                boxShadow: "0 0 0 1px teal.400",
                               }}
-                              animation={newUsername ? `${pulse} 2s infinite` : undefined}
-                            >
-                              Create Account & Join {userDAO}
-                            </Button>
-                            
-                            <Text fontSize={{ base: "xs", md: "sm" }} color={useColorModeValue('gray.600', 'gray.400')} textAlign="center">
-                              This will create your membership NFT and profile
-                            </Text>
-                          </VStack>
+                              ref={usernameInputRef}
+                            />
+                            <InputRightElement width="4.5rem">
+                              <Icon
+                                as={FaUser}
+                                color={newUsername ? "green.500" : "gray.300"}
+                              />
+                            </InputRightElement>
+                          </InputGroup>
                         )}
+
+                        {/* Role application form */}
+                        <RoleApplicationForm
+                          roles={roles}
+                          selectedHatId={selectedHatId}
+                          onSelectRole={setSelectedHatId}
+                          notes={applicationNotes}
+                          onNotesChange={(e) => setApplicationNotes(e.target.value)}
+                          experience={applicationExperience}
+                          onExperienceChange={(e) => setApplicationExperience(e.target.value)}
+                        />
+
+                        <Button
+                          colorScheme="teal"
+                          size={isMobile ? "md" : "lg"}
+                          width="100%"
+                          height={buttonHeight}
+                          fontSize={{ base: "md", md: "lg" }}
+                          isLoading={loading || isApplying}
+                          loadingText="Submitting Application..."
+                          onClick={handleApplyAndJoin}
+                          isDisabled={
+                            !selectedHatId ||
+                            !applicationNotes.trim() ||
+                            (!graphUsername && !newUsername.trim()) ||
+                            !eligibilityModuleAddress
+                          }
+                          leftIcon={<FaPaperPlane />}
+                          _hover={{
+                            transform: "translateY(-2px)",
+                            boxShadow: "lg",
+                          }}
+                        >
+                          Apply & Join {userDAO}
+                        </Button>
                       </VStack>
-                    </>
+                    ) : (
+                      /* ── Default join flow (roles are freely claimable) ── */
+                      <>
+                        <VStack spacing={formSpacing} align="stretch">
+                          <Box
+                            p={{ base: 3, md: 4 }}
+                            borderRadius="lg"
+                            bg={successBg}
+                            borderWidth="1px"
+                            borderColor={successBorderColor}
+                          >
+                            <Flex align="center" flexWrap="wrap">
+                              <Icon as={isPasskeyUser ? FaFingerprint : FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
+                              <Text color={textColor} fontWeight="medium" fontSize={{ base: "sm", md: "md" }}>
+                                {isPasskeyUser
+                                  ? `Passkey Account: ${accountAddress?.substring(0, 6)}...${accountAddress?.substring(accountAddress.length - 4)}`
+                                  : `Wallet Connected: ${address?.substring(0, 6)}...${address?.substring(address?.length - 4)}`
+                                }
+                              </Text>
+                            </Flex>
+                          </Box>
+
+                          <Box textAlign="center">
+                            <MotionBox
+                              animate={{ y: [0, -10, 0] }}
+                              transition={{ duration: 2, repeat: Infinity }}
+                              display="inline-block"
+                              mb={4}
+                            >
+                              <Icon as={FaUserPlus} color={accentColor} boxSize={{ base: 10, md: 12 }} />
+                            </MotionBox>
+                            <Heading size={{ base: "md", md: "lg" }} mb={{ base: 2, md: 4 }} color={textColor}>
+                              Complete Your Membership
+                            </Heading>
+                            <Text color={subtextColor} mb={{ base: 4, md: 6 }} fontSize={{ base: "sm", md: "md" }}>
+                              You're one step away from joining {userDAO}.
+                              {dispaly && graphUsername ? " Use your existing account or create a new one." : " Create your new account."}
+                            </Text>
+                          </Box>
+
+                          {dispaly && graphUsername ? (
+                            <VStack spacing={{ base: 4, md: 6 }}>
+                              <Button
+                                size={isMobile ? "md" : "lg"}
+                                colorScheme="teal"
+                                width="100%"
+                                height={buttonHeight}
+                                fontSize={{ base: "md", md: "lg" }}
+                                isLoading={loading}
+                                loadingText="Joining..."
+                                onClick={handleJoinWithUser}
+                                leftIcon={<FaUser />}
+                                _hover={{
+                                  transform: "translateY(-2px)",
+                                  boxShadow: "lg",
+                                }}
+                              >
+                                Join with Existing Account
+                              </Button>
+
+                              <Text textAlign="center" fontSize={{ base: "xs", md: "sm" }} color={hintColor}>
+                                Your existing username will be used: <b>{graphUsername}</b>
+                              </Text>
+
+                              <Divider />
+
+                              <Text textAlign="center" fontSize={{ base: "xs", md: "sm" }} color={hintColor}>
+                                Or create a new account instead
+                              </Text>
+
+                              <InputGroup size={isMobile ? "md" : "lg"}>
+                                <Input
+                                  placeholder="Choose a new username"
+                                  value={newUsername}
+                                  onChange={(e) => setNewUsername(e.target.value)}
+                                  bg={inputBg}
+                                  borderColor={inputBorderColor}
+                                  _focus={{
+                                    borderColor: "teal.400",
+                                    boxShadow: "0 0 0 1px teal.400",
+                                  }}
+                                  ref={usernameInputRef}
+                                />
+                              </InputGroup>
+
+                              <Button
+                                colorScheme="blue"
+                                size={isMobile ? "md" : "lg"}
+                                width="100%"
+                                isLoading={loading && newUsername}
+                                loadingText="Creating Account..."
+                                onClick={handleJoinNewUser}
+                                isDisabled={!newUsername}
+                                rightIcon={<FaChevronRight />}
+                                _hover={{
+                                  transform: "translateY(-2px)",
+                                  boxShadow: "lg",
+                                }}
+                              >
+                                Create New Account & Join
+                              </Button>
+                            </VStack>
+                          ) : (
+                            <VStack spacing={{ base: 4, md: 6 }}>
+                              <Text textAlign="center" fontSize={{ base: "sm", md: "md" }} color={textColor}>
+                                Create your account to join {userDAO}
+                              </Text>
+
+                              <InputGroup size={isMobile ? "md" : "lg"}>
+                                <Input
+                                  placeholder="Choose a username"
+                                  value={newUsername}
+                                  onChange={(e) => setNewUsername(e.target.value)}
+                                  bg={inputBg}
+                                  borderColor={inputBorderColor}
+                                  _focus={{
+                                    borderColor: "teal.400",
+                                    boxShadow: "0 0 0 1px teal.400",
+                                  }}
+                                  ref={usernameInputRef}
+                                />
+                                <InputRightElement width="4.5rem">
+                                  <Icon
+                                    as={FaUser}
+                                    color={newUsername ? "green.500" : "gray.300"}
+                                  />
+                                </InputRightElement>
+                              </InputGroup>
+
+                              <Button
+                                colorScheme="teal"
+                                size={isMobile ? "md" : "lg"}
+                                width="100%"
+                                height={buttonHeight}
+                                fontSize={{ base: "md", md: "lg" }}
+                                isLoading={loading}
+                                loadingText="Creating Account..."
+                                onClick={handleJoinNewUser}
+                                isDisabled={!newUsername}
+                                _hover={{
+                                  transform: "translateY(-2px)",
+                                  boxShadow: "lg",
+                                }}
+                                animation={newUsername ? `${pulse} 2s infinite` : undefined}
+                              >
+                                Create Account & Join {userDAO}
+                              </Button>
+
+                              <Text fontSize={{ base: "xs", md: "sm" }} color={footerColor} textAlign="center">
+                                This will create your membership NFT and profile
+                              </Text>
+                            </VStack>
+                          )}
+                        </VStack>
+                      </>
+                    )
+                  /* ── Branch 5: Not authenticated + vouch-gated → credential creation + vouch link ── */
+                  ) : !isAuthenticated && allRolesRequireVouching ? (
+                    <VStack spacing={formSpacing} align="stretch">
+                      <Box textAlign="center">
+                        <MotionBox
+                          animate={{ y: [0, -10, 0] }}
+                          transition={{ duration: 2, repeat: Infinity }}
+                          display="inline-block"
+                          mb={4}
+                        >
+                          <Icon as={FaFingerprint} color={accentColor} boxSize={{ base: 10, md: 12 }} />
+                        </MotionBox>
+                        <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
+                          Apply to Join {userDAO}
+                        </Heading>
+                        <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
+                          Create your passkey account, then share a link with existing members to vouch for you.
+                        </Text>
+                      </Box>
+
+                      {/* Username input */}
+                      <InputGroup size={isMobile ? "md" : "lg"}>
+                        <Input
+                          placeholder="Choose a username"
+                          value={newUsername}
+                          onChange={(e) => setNewUsername(e.target.value)}
+                          bg={inputBg}
+                          borderColor={inputBorderColor}
+                          _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
+                          ref={usernameInputRef}
+                        />
+                        <InputRightElement width="4.5rem">
+                          <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
+                        </InputRightElement>
+                      </InputGroup>
+
+                      {/* Role selection + application form */}
+                      <RoleApplicationForm
+                        roles={roles}
+                        selectedHatId={selectedHatId}
+                        onSelectRole={setSelectedHatId}
+                        notes={applicationNotes}
+                        onNotesChange={(e) => setApplicationNotes(e.target.value)}
+                        experience={applicationExperience}
+                        onExperienceChange={(e) => setApplicationExperience(e.target.value)}
+                      />
+
+                      {/* Error display */}
+                      {vouchFirstHook.error && (
+                        <Alert status="error" borderRadius="md">
+                          <AlertIcon />
+                          <Text fontSize="sm">{vouchFirstHook.error.message}</Text>
+                        </Alert>
+                      )}
+
+                      <Button
+                        colorScheme="teal"
+                        size={isMobile ? "md" : "lg"}
+                        width="100%"
+                        height={buttonHeight}
+                        fontSize={{ base: "md", md: "lg" }}
+                        isLoading={vouchFirstHook.phase === VouchFirstPhase.CREATING_CREDENTIAL}
+                        loadingText="Creating Passkey..."
+                        onClick={() => vouchFirstHook.createCredentialAndLink(newUsername.trim(), selectedHatId)}
+                        isDisabled={!newUsername.trim() || !selectedHatId}
+                        leftIcon={<FaFingerprint />}
+                        _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
+                      >
+                        Create Account & Get Vouch Link
+                      </Button>
+
+                      <Text fontSize="xs" color={hintColor} textAlign="center">
+                        No wallet needed. Your passkey will be created with your fingerprint.
+                      </Text>
+
+                      <HStack width="100%" align="center">
+                        <Divider />
+                        <Text fontSize="xs" color="gray.400" whiteSpace="nowrap" px={2}>
+                          or connect a wallet
+                        </Text>
+                        <Divider />
+                      </HStack>
+
+                      <Box p={2} borderRadius="lg">
+                        <ConnectButton
+                          showBalance={false}
+                          chainStatus={isMobile ? "none" : "icon"}
+                          accountStatus={isMobile ? "avatar" : "address"}
+                          label="Connect Wallet"
+                        />
+                      </Box>
+                    </VStack>
+
+                  /* ── Branch 6: Not authenticated + open org → standard passkey/wallet connect ── */
                   ) : (
                     <VStack spacing={{ base: 6, md: 8 }} align="center">
                       <MotionBox
@@ -487,7 +1038,7 @@ const User = () => {
                         <Heading size={{ base: "md", md: "lg" }} textAlign="center" color={textColor}>
                           Join {userDAO}
                         </Heading>
-                        <Text textAlign="center" color={useColorModeValue('gray.600', 'gray.300')} maxW="md" fontSize={{ base: "sm", md: "md" }}>
+                        <Text textAlign="center" color={subtextColor} maxW="md" fontSize={{ base: "sm", md: "md" }}>
                           Create an account with your fingerprint or connect a wallet to get started.
                         </Text>
                       </VStack>
@@ -501,7 +1052,7 @@ const User = () => {
                           fontSize={{ base: "md", md: "lg" }}
                           onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
                         />
-                        <Text fontSize="xs" color={useColorModeValue('gray.500', 'gray.400')} textAlign="center">
+                        <Text fontSize="xs" color={hintColor} textAlign="center">
                           No wallet or ETH needed. Gas fees are sponsored.
                         </Text>
                       </VStack>
@@ -517,14 +1068,14 @@ const User = () => {
                       <Box
                         p={{ base: 1.5, md: 2 }}
                         borderRadius="xl"
-                        bg={useColorModeValue("blue.50", "blue.900")}
+                        bg={infoBg}
                         borderWidth="1px"
-                        borderColor={useColorModeValue("blue.200", "blue.700")}
+                        borderColor={infoBorderColor}
                         width="100%"
                       >
                         <HStack spacing={1} justify="center" flexWrap="wrap">
                           <Icon as={FaInfoCircle} color="blue.500" boxSize={{ base: 3, md: 4 }} />
-                          <Text fontSize={{ base: "xs", md: "sm" }} color={useColorModeValue('blue.700', 'blue.300')} textAlign="center">
+                          <Text fontSize={{ base: "xs", md: "sm" }} color={infoTextColor} textAlign="center">
                             Have a wallet? Connect to join or access your profile.
                           </Text>
                         </HStack>

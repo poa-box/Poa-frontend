@@ -4,6 +4,7 @@
  */
 
 const STORAGE_KEY = 'poa-passkey-credentials';
+const PENDING_STORAGE_KEY = 'poa-passkey-pending';
 
 /**
  * Save passkey credential after successful onboarding.
@@ -63,4 +64,54 @@ export function removeCredential(accountAddress) {
  */
 export function hasStoredCredentials() {
   return Object.keys(getAllCredentials()).length > 0;
+}
+
+// ── Pending (pre-deployment) credential storage ──
+
+function getAllPendingCredentials() {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_STORAGE_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Save a pending passkey credential (created but not yet deployed).
+ * Keyed by orgName so each org has its own pending state.
+ */
+export function savePendingCredential(data) {
+  const existing = getAllPendingCredentials();
+  existing[data.orgName.toLowerCase()] = {
+    ...data,
+    savedAt: Date.now(),
+  };
+  localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(existing));
+}
+
+/**
+ * Get pending credential for a specific org.
+ * @param {string} orgName
+ * @returns {Object|null}
+ */
+export function getPendingCredentialForOrg(orgName) {
+  if (!orgName) return null;
+  return getAllPendingCredentials()[orgName.toLowerCase()] || null;
+}
+
+/**
+ * Remove a pending credential after successful deployment.
+ * @param {string} accountAddress
+ */
+export function removePendingCredential(accountAddress) {
+  if (!accountAddress) return;
+  const existing = getAllPendingCredentials();
+  const lowered = accountAddress.toLowerCase();
+  // Remove by matching accountAddress across all orgs
+  for (const key of Object.keys(existing)) {
+    if (existing[key].accountAddress?.toLowerCase() === lowered) {
+      delete existing[key];
+    }
+  }
+  localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(existing));
 }
