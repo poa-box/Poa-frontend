@@ -20,9 +20,11 @@ import {
   Progress,
   HStack,
   Icon,
+  Divider,
   useToast,
 } from '@chakra-ui/react';
-import { FaFingerprint, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
+import { FaFingerprint, FaCheck, FaExclamationTriangle, FaWallet } from 'react-icons/fa';
+import { useConnectModal } from '@rainbow-me/rainbowkit';
 import { usePasskeyOnboarding } from '../../hooks/usePasskeyOnboarding';
 import { OnboardingStep } from '../../services/web3/domain/PasskeyOnboardingService';
 
@@ -41,10 +43,11 @@ const STEP_PROGRESS = {
   [OnboardingStep.ERROR]: 0,
 };
 
-export default function PasskeyOnboardingModal({ isOpen, onClose, onSuccess }) {
+export default function PasskeyOnboardingModal({ isOpen, onClose, onSuccess, showWalletOption = false }) {
   const [username, setUsername] = useState('');
   const inputRef = useRef(null);
   const toast = useToast();
+  const { openConnectModal } = useConnectModal();
 
   const {
     step,
@@ -101,6 +104,11 @@ export default function PasskeyOnboardingModal({ isOpen, onClose, onSuccess }) {
 
   const handleRetry = () => {
     reset();
+  };
+
+  const handleWalletClick = () => {
+    onClose();
+    openConnectModal?.();
   };
 
   return (
@@ -288,20 +296,50 @@ export default function PasskeyOnboardingModal({ isOpen, onClose, onSuccess }) {
         <ModalFooter px={6} pb={6} pt={2}>
           {/* Initial state: Create button */}
           {!isInProgress && !isSuccess && !isError && (
-            <Button
-              w="100%"
-              size="lg"
-              borderRadius="xl"
-              bg="amethyst.500"
-              color="white"
-              _hover={{ bg: 'amethyst.600', transform: 'translateY(-1px)', boxShadow: 'lg' }}
-              _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
-              onClick={handleStart}
-              isDisabled={!isReady || !username.trim()}
-              leftIcon={<FaFingerprint />}
-            >
-              Create with Passkey
-            </Button>
+            <VStack w="100%" spacing={3}>
+              <Button
+                w="100%"
+                size="lg"
+                borderRadius="xl"
+                bg="amethyst.500"
+                color="white"
+                _hover={{ bg: 'amethyst.600', transform: 'translateY(-1px)', boxShadow: 'lg' }}
+                _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
+                onClick={handleStart}
+                isDisabled={!isReady || !username.trim()}
+                leftIcon={<FaFingerprint />}
+              >
+                Create with Passkey
+              </Button>
+
+              {showWalletOption && (
+                <>
+                  <HStack width="100%" align="center">
+                    <Divider borderColor="warmGray.200" />
+                    <Text fontSize="xs" color="warmGray.400" whiteSpace="nowrap" px={2}>
+                      or
+                    </Text>
+                    <Divider borderColor="warmGray.200" />
+                  </HStack>
+
+                  <Button
+                    w="100%"
+                    size="lg"
+                    borderRadius="xl"
+                    bg="blue.50"
+                    border="1px solid"
+                    borderColor="blue.200"
+                    color="warmGray.800"
+                    _hover={{ bg: 'blue.100', transform: 'translateY(-1px)', boxShadow: 'md' }}
+                    _active={{ bg: 'blue.200', transform: 'translateY(0)' }}
+                    onClick={handleWalletClick}
+                    leftIcon={<Icon as={FaWallet} color="blue.500" />}
+                  >
+                    Connect Wallet
+                  </Button>
+                </>
+              )}
+            </VStack>
           )}
 
           {/* Success: Get Started button */}

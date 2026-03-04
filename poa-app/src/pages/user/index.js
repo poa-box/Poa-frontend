@@ -37,6 +37,7 @@ import {
   IconButton,
   Alert,
   AlertIcon,
+  useDisclosure,
 } from "@chakra-ui/react";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -45,6 +46,8 @@ import { useAuth } from '@/context/AuthContext';
 import { motion } from "framer-motion";
 import { FaWallet, FaUserPlus, FaUser, FaCheck, FaChevronRight, FaLink, FaInfoCircle, FaShieldAlt, FaRegLightbulb, FaUsers, FaFingerprint, FaPaperPlane, FaCopy, FaHandshake, FaRedo } from 'react-icons/fa';
 import PasskeyLoginButton from '@/components/passkey/PasskeyLoginButton';
+import PasskeyOnboardingModal from '@/components/passkey/PasskeyOnboardingModal';
+import SignInModal from '@/components/passkey/SignInModal';
 import { BsFillLightningChargeFill } from 'react-icons/bs';
 import { RoleApplicationForm, VouchLinkHandler, VouchProgressBar } from '@/components/orgStructure';
 import { VouchFirstPhase } from '@/hooks/useVouchFirstOnboarding';
@@ -91,9 +94,9 @@ const User = () => {
   }, [roles]);
   const { hasUserVouched, getVouchProgress, refetch: refetchVouches } = useVouches(eligibilityModuleAddress, rolesWithVouching);
 
-  const allRolesRequireVouching = useMemo(() => {
+  const hasVouchGatedRoles = useMemo(() => {
     if (!roles || roles.length === 0) return false;
-    return roles.every(r => r.vouchingEnabled && !r.defaultEligible);
+    return roles.some(r => r.vouchingEnabled);
   }, [roles]);
 
   const [newUsername, setNewUsername] = useState("");
@@ -102,6 +105,10 @@ const User = () => {
   const [isSSR, setIsSSR] = useState(true);
   const [showBenefits, setShowBenefits] = useState(false);
   const [animateForm, setAnimateForm] = useState(false);
+
+  // Modal state for create account / sign in
+  const { isOpen: isCreateOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure();
+  const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
 
   // Role application state (for vouch-gated orgs)
   const [selectedHatId, setSelectedHatId] = useState(null);
@@ -187,10 +194,10 @@ const User = () => {
 
   // Auto-select when there's only one role
   useEffect(() => {
-    if (allRolesRequireVouching && roles.length === 1) {
-      setSelectedHatId(roles[0].hatId);
+    if (hasVouchGatedRoles && rolesWithVouching.length === 1) {
+      setSelectedHatId(rolesWithVouching[0].hatId);
     }
-  }, [allRolesRequireVouching, roles]);
+  }, [hasVouchGatedRoles, rolesWithVouching]);
 
   const handleJoinWithUser = useCallback(async () => {
     if (!organization) return;
@@ -442,7 +449,7 @@ const User = () => {
                     >
                       {vouchAddress && vouchHatId && hasMemberRole
                         ? `Vouch for ${userDAO}`
-                        : allRolesRequireVouching ? `Apply to Join ${userDAO}` : `Join ${userDAO}`
+                        : hasVouchGatedRoles ? `Apply to Join ${userDAO}` : `Join ${userDAO}`
                       }
                     </Heading>
                     
@@ -484,7 +491,7 @@ const User = () => {
                       <Text color={textColor} fontSize={{ base: "xs", md: "sm" }} fontStyle="italic">
                         {vouchAddress && vouchHatId && hasMemberRole
                           ? "Your vouch helps new members join the community. Each role requires a certain number of vouches before the applicant can claim it."
-                          : allRolesRequireVouching
+                          : hasVouchGatedRoles
                             ? "Applying creates your membership and submits your role application. Existing members will review and vouch for you."
                             : "Joining is a one-time process that creates your membership NFT. This gives you access to all DAO features and benefits."
                         }
@@ -674,7 +681,7 @@ const User = () => {
                       </VStack>
 
                     /* ── Branch 3: Authenticated + vouch-gated → apply-to-join (wallet users) ── */
-                    ) : allRolesRequireVouching ? (
+                    ) : hasVouchGatedRoles ? (
                       <VStack spacing={formSpacing} align="stretch">
                         <Box
                           p={{ base: 3, md: 4 }}
@@ -742,7 +749,7 @@ const User = () => {
 
                         {/* Role application form */}
                         <RoleApplicationForm
-                          roles={roles}
+                          roles={rolesWithVouching}
                           selectedHatId={selectedHatId}
                           onSelectRole={setSelectedHatId}
                           notes={applicationNotes}
@@ -932,7 +939,15 @@ const User = () => {
                       </>
                     )
                   /* ── Branch 5: Not authenticated + vouch-gated → credential creation + vouch link ── */
-                  ) : !isAuthenticated && allRolesRequireVouching ? (
+                  ) : !isAuthenticated && orgStructureLoading ? (
+                    <VStack spacing={6} align="center" py={12}>
+                      <Spinner size="lg" color="teal.400" />
+                      <Text color={subtextColor} fontSize="sm">
+                        Loading organization details...
+                      </Text>
+                    </VStack>
+
+                  ) : !isAuthenticated && hasVouchGatedRoles ? (
                     <VStack spacing={formSpacing} align="stretch">
                       <Box textAlign="center">
                         <MotionBox
@@ -1024,7 +1039,7 @@ const User = () => {
                       </Box>
                     </VStack>
 
-                  /* ── Branch 6: Not authenticated + open org → standard passkey/wallet connect ── */
+                  /* ── Branch 6: Not authenticated + open org → Create Account / Sign In ── */
                   ) : (
                     <VStack spacing={{ base: 6, md: 8 }} align="center">
                       <MotionBox
@@ -1043,15 +1058,19 @@ const User = () => {
                         </Text>
                       </VStack>
 
-                      {/* Passkey option - primary, seamless onboarding */}
                       <VStack spacing={3} width="100%">
-                        <PasskeyLoginButton
+                        <Button
+                          onClick={onCreateOpen}
                           width="100%"
                           size="lg"
                           height={buttonHeight}
                           fontSize={{ base: "md", md: "lg" }}
-                          onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
-                        />
+                          colorScheme="green"
+                          leftIcon={<FaFingerprint />}
+                          _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
+                        >
+                          Create Account
+                        </Button>
                         <Text fontSize="xs" color={hintColor} textAlign="center">
                           No wallet or ETH needed. Gas fees are sponsored.
                         </Text>
@@ -1065,33 +1084,16 @@ const User = () => {
                         <Divider />
                       </HStack>
 
-                      <Box
-                        p={{ base: 1.5, md: 2 }}
-                        borderRadius="xl"
-                        bg={infoBg}
-                        borderWidth="1px"
-                        borderColor={infoBorderColor}
-                        width="100%"
+                      <Text
+                        fontSize="sm"
+                        color={subtextColor}
+                        textAlign="center"
+                        cursor="pointer"
+                        _hover={{ color: 'amethyst.600', textDecoration: 'underline' }}
+                        onClick={onSignInOpen}
                       >
-                        <HStack spacing={1} justify="center" flexWrap="wrap">
-                          <Icon as={FaInfoCircle} color="blue.500" boxSize={{ base: 3, md: 4 }} />
-                          <Text fontSize={{ base: "xs", md: "sm" }} color={infoTextColor} textAlign="center">
-                            Have a wallet? Connect to join or access your profile.
-                          </Text>
-                        </HStack>
-                      </Box>
-
-                      <Box
-                        p={{ base: 3, md: 4 }}
-                        borderRadius="lg"
-                      >
-                        <ConnectButton
-                          showBalance={false}
-                          chainStatus={isMobile ? "none" : "icon"}
-                          accountStatus={isMobile ? "avatar" : "address"}
-                          label="Connect Wallet"
-                        />
-                      </Box>
+                        Already have an account? <Text as="span" fontWeight="600">Sign In</Text>
+                      </Text>
                     </VStack>
                   )}
                 </CardBody>
@@ -1099,6 +1101,19 @@ const User = () => {
             </ScaleFade>
           </GridItem>
         </Grid>
+
+        <PasskeyOnboardingModal
+          isOpen={isCreateOpen}
+          onClose={onCreateClose}
+          onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
+          showWalletOption
+        />
+        <SignInModal
+          isOpen={isSignInOpen}
+          onClose={onSignInClose}
+          onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
+          onCreateAccount={() => { onSignInClose(); onCreateOpen(); }}
+        />
       </Container>
     </>
   );
