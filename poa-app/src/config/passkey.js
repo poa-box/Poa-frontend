@@ -23,3 +23,7 @@ export const BUNDLER_TIMEOUT = 120_000;
 
 // Gas estimation buffer percentage (applied on top of bundler estimates)
 export const GAS_BUFFER_PERCENT = 20n;
+
+// Maximum total gas per UserOp — Pimlico bundler rejects ops above 15M.
+// Leave headroom for bundler-side overhead calculations.
+export const MAX_USEROP_GAS = 14_500_000n;
