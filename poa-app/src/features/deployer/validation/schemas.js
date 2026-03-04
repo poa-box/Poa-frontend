@@ -301,6 +301,34 @@ export const featuresSchema = z.object({
 });
 
 // ============================================
+// Paymaster Schema
+// ============================================
+
+/**
+ * Non-negative numeric string (ETH/gwei amounts).
+ * Empty string means disabled/zero.
+ */
+const numericStringSchema = z.string().refine(
+  (val) => val === '' || (!isNaN(parseFloat(val)) && parseFloat(val) >= 0),
+  'Must be a non-negative number or empty'
+);
+
+export const paymasterSchema = z.object({
+  enabled: z.boolean(),
+  operatorRoleIndex: z.number().int().min(0).nullable(),
+  autoWhitelistContracts: z.boolean(),
+  fundingAmountEth: numericStringSchema,
+  maxFeePerGas: numericStringSchema,
+  maxPriorityFeePerGas: numericStringSchema,
+  maxCallGas: numericStringSchema,
+  maxVerificationGas: numericStringSchema,
+  maxPreVerificationGas: numericStringSchema,
+  budgetCapEth: numericStringSchema,
+  budgetEpochValue: numericStringSchema,
+  budgetEpochUnit: z.enum(['hours', 'days', 'weeks']),
+});
+
+// ============================================
 // Full Deployer State Schema
 // ============================================
 
@@ -311,6 +339,7 @@ export const deployerStateSchema = z.object({
   permissions: permissionsSchema,
   voting: votingSchema,
   features: featuresSchema,
+  paymaster: paymasterSchema,
   deployment: z.object({
     status: z.enum(['idle', 'preparing', 'deploying', 'success', 'error']),
     error: z.string().nullable(),
@@ -385,6 +414,46 @@ export function validateVotingStep(voting) {
 }
 
 /**
+ * Validate paymaster configuration with cross-field validation
+ */
+export function validatePaymasterConfig(paymaster, roleCount) {
+  const result = paymasterSchema.safeParse(paymaster);
+  if (!result.success) {
+    return { isValid: false, errors: formatZodErrors(result.error) };
+  }
+
+  const errors = {};
+
+  if (paymaster.enabled) {
+    // Operator role index must be in range
+    if (paymaster.operatorRoleIndex !== null && paymaster.operatorRoleIndex >= roleCount) {
+      errors.operatorRoleIndex = ['Operator role index is out of range'];
+    }
+
+    // Budget cap and epoch must both be set or both be zero
+    const capEth = parseFloat(paymaster.budgetCapEth);
+    const hasCapSet = !isNaN(capEth) && capEth > 0;
+    const epochValue = parseFloat(paymaster.budgetEpochValue) || 0;
+    const unitToSeconds = { hours: 3600, days: 86400, weeks: 604800 };
+    const epochSeconds = Math.round(epochValue * (unitToSeconds[paymaster.budgetEpochUnit] || 86400));
+    const hasEpochSet = epochSeconds > 0;
+
+    if (hasCapSet !== hasEpochSet) {
+      errors.budget = ['Budget cap and epoch length must both be set or both be zero'];
+    }
+    if (hasEpochSet) {
+      if (epochSeconds < 3600) errors.budgetEpochValue = ['Budget epoch must be at least 1 hour'];
+      if (epochSeconds > 31536000) errors.budgetEpochValue = ['Budget epoch must be at most 365 days'];
+    }
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors,
+  };
+}
+
+/**
  * Validate entire deployment state
  */
 export function validateDeployerState(state) {
@@ -443,6 +512,7 @@ export default {
   votingSchema,
   votingClassSchema,
   featuresSchema,
+  paymasterSchema,
   deployerStateSchema,
 
   // Validation functions
@@ -450,6 +520,7 @@ export default {
   validateRolesStep,
   validatePermissionsStep,
   validateVotingStep,
+  validatePaymasterConfig,
   validateDeployerState,
 
   // Helpers
