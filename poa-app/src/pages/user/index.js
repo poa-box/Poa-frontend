@@ -91,9 +91,9 @@ const User = () => {
   }, [roles]);
   const { hasUserVouched, getVouchProgress, refetch: refetchVouches } = useVouches(eligibilityModuleAddress, rolesWithVouching);
 
-  const allRolesRequireVouching = useMemo(() => {
+  const hasVouchGatedRoles = useMemo(() => {
     if (!roles || roles.length === 0) return false;
-    return roles.every(r => r.vouchingEnabled && !r.defaultEligible);
+    return roles.some(r => r.vouchingEnabled);
   }, [roles]);
 
   const [newUsername, setNewUsername] = useState("");
@@ -187,10 +187,10 @@ const User = () => {
 
   // Auto-select when there's only one role
   useEffect(() => {
-    if (allRolesRequireVouching && roles.length === 1) {
-      setSelectedHatId(roles[0].hatId);
+    if (hasVouchGatedRoles && rolesWithVouching.length === 1) {
+      setSelectedHatId(rolesWithVouching[0].hatId);
     }
-  }, [allRolesRequireVouching, roles]);
+  }, [hasVouchGatedRoles, rolesWithVouching]);
 
   const handleJoinWithUser = useCallback(async () => {
     if (!organization) return;
@@ -442,7 +442,7 @@ const User = () => {
                     >
                       {vouchAddress && vouchHatId && hasMemberRole
                         ? `Vouch for ${userDAO}`
-                        : allRolesRequireVouching ? `Apply to Join ${userDAO}` : `Join ${userDAO}`
+                        : hasVouchGatedRoles ? `Apply to Join ${userDAO}` : `Join ${userDAO}`
                       }
                     </Heading>
                     
@@ -484,7 +484,7 @@ const User = () => {
                       <Text color={textColor} fontSize={{ base: "xs", md: "sm" }} fontStyle="italic">
                         {vouchAddress && vouchHatId && hasMemberRole
                           ? "Your vouch helps new members join the community. Each role requires a certain number of vouches before the applicant can claim it."
-                          : allRolesRequireVouching
+                          : hasVouchGatedRoles
                             ? "Applying creates your membership and submits your role application. Existing members will review and vouch for you."
                             : "Joining is a one-time process that creates your membership NFT. This gives you access to all DAO features and benefits."
                         }
@@ -674,7 +674,7 @@ const User = () => {
                       </VStack>
 
                     /* ── Branch 3: Authenticated + vouch-gated → apply-to-join (wallet users) ── */
-                    ) : allRolesRequireVouching ? (
+                    ) : hasVouchGatedRoles ? (
                       <VStack spacing={formSpacing} align="stretch">
                         <Box
                           p={{ base: 3, md: 4 }}
@@ -742,7 +742,7 @@ const User = () => {
 
                         {/* Role application form */}
                         <RoleApplicationForm
-                          roles={roles}
+                          roles={rolesWithVouching}
                           selectedHatId={selectedHatId}
                           onSelectRole={setSelectedHatId}
                           notes={applicationNotes}
@@ -932,7 +932,15 @@ const User = () => {
                       </>
                     )
                   /* ── Branch 5: Not authenticated + vouch-gated → credential creation + vouch link ── */
-                  ) : !isAuthenticated && allRolesRequireVouching ? (
+                  ) : !isAuthenticated && orgStructureLoading ? (
+                    <VStack spacing={6} align="center" py={12}>
+                      <Spinner size="lg" color="teal.400" />
+                      <Text color={subtextColor} fontSize="sm">
+                        Loading organization details...
+                      </Text>
+                    </VStack>
+
+                  ) : !isAuthenticated && hasVouchGatedRoles ? (
                     <VStack spacing={formSpacing} align="stretch">
                       <Box textAlign="center">
                         <MotionBox
