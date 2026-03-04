@@ -9,13 +9,10 @@ import LoginButton from "@/components/LoginButton";
 import { useAuth } from "@/context/AuthContext";
 import { usePOContext } from "@/context/POContext";
 import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
-import SignInModal from "@/components/passkey/SignInModal";
-
 const Navbar = () => {
   const router = useRouter();
   const { userDAO } = router.query;
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
   const { isPasskeyUser, accountAddress, isAuthenticated } = useAuth();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -196,16 +193,17 @@ const Navbar = () => {
             <LoginButton />
           ) : (
             <Button
-              onClick={onSignInOpen}
-              bg="amethyst.500"
+              as={NextLink}
+              href={`/user/?userDAO=${userDAO}`}
+              bg="green.500"
               color="white"
               borderRadius="xl"
               size="sm"
               fontWeight="600"
-              _hover={{ bg: 'amethyst.600', transform: 'translateY(-1px)', boxShadow: 'md' }}
-              _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
+              _hover={{ bg: 'green.600', transform: 'translateY(-1px)', boxShadow: 'md' }}
+              _active={{ bg: 'green.700', transform: 'translateY(0)' }}
             >
-              Sign In
+              Join or Sign In
             </Button>
           )}
         </Flex>
@@ -276,20 +274,19 @@ const Navbar = () => {
               ) : (
                 <VStack spacing={4}>
                   <Button
-                    onClick={() => {
-                      onClose();
-                      onSignInOpen();
-                    }}
+                    as={NextLink}
+                    href={`/user/?userDAO=${userDAO}`}
+                    onClick={onClose}
                     w="100%"
-                    bg="amethyst.500"
+                    bg="green.500"
                     color="white"
                     borderRadius="xl"
                     size="lg"
                     fontWeight="600"
-                    _hover={{ bg: 'amethyst.600' }}
-                    _active={{ bg: 'amethyst.700' }}
+                    _hover={{ bg: 'green.600' }}
+                    _active={{ bg: 'green.700' }}
                   >
-                    Sign In
+                    Join or Sign In
                   </Button>
                 </VStack>
               )}
@@ -301,11 +298,6 @@ const Navbar = () => {
         </DrawerContent>
       </Drawer>
 
-      <SignInModal
-        isOpen={isSignInOpen}
-        onClose={onSignInClose}
-        onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
-      />
     </Box>
   );
 };
