@@ -51,6 +51,7 @@ import {
   PiImage,
   PiSparkle,
   PiInfo,
+  PiGasPump,
 } from 'react-icons/pi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import PasskeyLoginButton from '../../../components/passkey/PasskeyLoginButton';
@@ -1213,6 +1214,49 @@ export function ReviewStep({
             />
           </Flex>
         </ReviewSectionCard>
+
+        {/* Gas Sponsorship Section - only if enabled */}
+        {state.paymaster?.enabled && (
+          <ReviewSectionCard
+            title="Gas Sponsorship"
+            stepIndex={STEPS.GOVERNANCE}
+            icon={PiGasPump}
+            status="valid"
+            description="Gas sponsorship configuration for member transactions"
+            goToStep={goToStep}
+          >
+            <VStack align="start" spacing={2}>
+              <HStack>
+                <Text fontSize="sm" color="warmGray.500">Auto-whitelist contracts:</Text>
+                <Badge colorScheme={state.paymaster.autoWhitelistContracts ? 'green' : 'gray'} fontSize="xs">
+                  {state.paymaster.autoWhitelistContracts ? 'Yes' : 'No'}
+                </Badge>
+              </HStack>
+              <HStack>
+                <Text fontSize="sm" color="warmGray.500">Operator role:</Text>
+                <Text fontSize="sm" fontWeight="500">
+                  {state.paymaster.operatorRoleIndex !== null
+                    ? (state.roles[state.paymaster.operatorRoleIndex]?.name || 'Unknown')
+                    : 'None (top hat only)'}
+                </Text>
+              </HStack>
+              {state.paymaster.fundingAmountEth && parseFloat(state.paymaster.fundingAmountEth) > 0 && (
+                <HStack>
+                  <Text fontSize="sm" color="warmGray.500">Initial funding:</Text>
+                  <Text fontSize="sm" fontWeight="500">{state.paymaster.fundingAmountEth} ETH</Text>
+                </HStack>
+              )}
+              {state.paymaster.budgetCapEth && parseFloat(state.paymaster.budgetCapEth) > 0 && (
+                <HStack>
+                  <Text fontSize="sm" color="warmGray.500">Budget:</Text>
+                  <Text fontSize="sm" fontWeight="500">
+                    {state.paymaster.budgetCapEth} ETH per {state.paymaster.budgetEpochValue} {state.paymaster.budgetEpochUnit}
+                  </Text>
+                </HStack>
+              )}
+            </VStack>
+          </ReviewSectionCard>
+        )}
 
         {/* Deploy Section */}
         <Box

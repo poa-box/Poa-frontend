@@ -159,6 +159,12 @@ export function DeployerProvider({ children }) {
     toggleFeature: (feature, value) =>
       dispatch({ type: ACTION_TYPES.TOGGLE_FEATURE, payload: { feature, value } }),
 
+    // Paymaster
+    togglePaymaster: (value) =>
+      dispatch({ type: ACTION_TYPES.TOGGLE_PAYMASTER, payload: value }),
+    updatePaymaster: (updates) =>
+      dispatch({ type: ACTION_TYPES.UPDATE_PAYMASTER, payload: updates }),
+
     // Validation
     setErrors: (errors) =>
       dispatch({ type: ACTION_TYPES.SET_ERRORS, payload: errors }),
@@ -276,6 +282,13 @@ export function DeployerProvider({ children }) {
         if (hasCycleFrom(i)) return true;
       }
       return false;
+    },
+
+    // Paymaster
+    isPaymasterEnabled: () => state.paymaster.enabled,
+    getPaymasterOperatorRole: () => {
+      const idx = state.paymaster.operatorRoleIndex;
+      return idx !== null && idx < state.roles.length ? state.roles[idx] : null;
     },
 
     // Calculate total slice percentage for voting classes

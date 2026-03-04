@@ -34,6 +34,8 @@ import {
   useDeployer,
   DeployerWizard,
   mapStateToDeploymentParams,
+  mapPaymasterConfig,
+  getPaymasterFundingValue,
 } from "@/features/deployer";
 import { resolveRoleUsernames } from "@/features/deployer/utils/usernameResolver";
 
@@ -360,6 +362,10 @@ function DeployerPageContent() {
       // This ensures mintToDeployer and additionalWearers settings are respected
       const customRoles = hasCustomDistribution ? deployParams.roles : null;
 
+      // Paymaster config
+      const paymasterConfig = mapPaymasterConfig(state.paymaster);
+      const paymasterFundingWei = getPaymasterFundingValue(state.paymaster);
+
       if (isPasskeyDeployer) {
         // === PASSKEY DEPLOYMENT via ERC-4337 UserOp ===
         const { calldata, orgDeployerAddress } = buildDeployCalldata({
@@ -381,13 +387,15 @@ function DeployerPageContent() {
           customRoles,
           infrastructureAddresses,
           regSignatureData,
+          paymasterConfig,
         });
 
         // Wrap in PasskeyAccount.execute(target, value, data)
+        const fundingBigInt = paymasterFundingWei.gt(0) ? BigInt(paymasterFundingWei.toString()) : 0n;
         const accountCallData = encodeFunctionData({
           abi: PasskeyAccountABI,
           functionName: 'execute',
-          args: [orgDeployerAddress, 0n, calldata],
+          args: [orgDeployerAddress, fundingBigInt, calldata],
         });
 
         // Build UserOp (no paymaster — account pays gas directly)
@@ -453,7 +461,10 @@ function DeployerPageContent() {
           signer,
           customRoles,
           infrastructureAddresses,
-          regSignatureData
+          regSignatureData,
+          undefined, // overrideDeployerAddress
+          paymasterConfig,
+          paymasterFundingWei
         );
       }
 

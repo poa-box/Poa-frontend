@@ -66,6 +66,7 @@ import MultiClassWeightBar from '../components/voting/MultiClassWeightBar';
 import QuadraticVotingExplainer from '../components/voting/QuadraticVotingExplainer';
 import AdvancedVotingExample from '../components/voting/AdvancedVotingExample';
 import WeightPresets from '../components/voting/WeightPresets';
+import { PaymasterConfigSection } from '../components/paymaster/PaymasterConfigSection';
 
 /**
  * Simple Mode Governance UI
@@ -203,6 +204,9 @@ function SimpleGovernanceUI({ state, actions }) {
           </Box>
         </VStack>
       </Box>
+
+      {/* Gas Sponsorship */}
+      <PaymasterConfigSection />
     </>
   );
 }
@@ -714,6 +718,9 @@ function AdvancedGovernanceUI({ state, actions }) {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
+
+      {/* Gas Sponsorship */}
+      <PaymasterConfigSection />
     </>
   );
 }

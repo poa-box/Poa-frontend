@@ -251,6 +251,22 @@ export const initialState = {
     electionHubEnabled: false,
   },
 
+  // Paymaster configuration (optional - all zeros = skip)
+  paymaster: {
+    enabled: false,
+    operatorRoleIndex: null,       // null = type(uint256).max (skip), or role index
+    autoWhitelistContracts: true,  // Default true - most users want this
+    fundingAmountEth: '',          // ETH to deposit as msg.value (string for input)
+    maxFeePerGas: '',              // gwei string, '' = 0 = no cap
+    maxPriorityFeePerGas: '',      // gwei string
+    maxCallGas: '',                // gas units string
+    maxVerificationGas: '',
+    maxPreVerificationGas: '',
+    budgetCapEth: '',              // ETH amount string, '' = 0 = no budget
+    budgetEpochValue: '',          // numeric string in chosen unit
+    budgetEpochUnit: 'days',       // 'hours' | 'days' | 'weeks'
+  },
+
   // Deployment state
   deployment: {
     status: 'idle', // 'idle' | 'preparing' | 'deploying' | 'success' | 'error'
@@ -334,6 +350,10 @@ export const ACTION_TYPES = {
 
   // Features
   TOGGLE_FEATURE: 'TOGGLE_FEATURE',
+
+  // Paymaster
+  TOGGLE_PAYMASTER: 'TOGGLE_PAYMASTER',
+  UPDATE_PAYMASTER: 'UPDATE_PAYMASTER',
 
   // Validation
   SET_ERRORS: 'SET_ERRORS',
@@ -805,10 +825,24 @@ export function deployerReducer(state, action) {
       const adjustedRoles = adjustRolesAfterRoleRemoval(newRoles, removeIndex);
       const adjustedPermissions = adjustPermissionsAfterRoleRemoval(state.permissions, removeIndex);
 
+      // Adjust paymaster operator role index
+      let adjustedPaymasterOperatorRole = state.paymaster.operatorRoleIndex;
+      if (adjustedPaymasterOperatorRole !== null) {
+        if (adjustedPaymasterOperatorRole === removeIndex) {
+          adjustedPaymasterOperatorRole = null;
+        } else if (adjustedPaymasterOperatorRole > removeIndex) {
+          adjustedPaymasterOperatorRole = adjustedPaymasterOperatorRole - 1;
+        }
+      }
+
       return {
         ...state,
         roles: adjustedRoles,
         permissions: adjustedPermissions,
+        paymaster: {
+          ...state.paymaster,
+          operatorRoleIndex: adjustedPaymasterOperatorRole,
+        },
       };
     }
 
@@ -1094,6 +1128,22 @@ export function deployerReducer(state, action) {
         },
       };
     }
+
+    // Paymaster
+    case ACTION_TYPES.TOGGLE_PAYMASTER:
+      return {
+        ...state,
+        paymaster: {
+          ...state.paymaster,
+          enabled: action.payload !== undefined ? action.payload : !state.paymaster.enabled,
+        },
+      };
+
+    case ACTION_TYPES.UPDATE_PAYMASTER:
+      return {
+        ...state,
+        paymaster: { ...state.paymaster, ...action.payload },
+      };
 
     // Validation
     case ACTION_TYPES.SET_ERRORS:

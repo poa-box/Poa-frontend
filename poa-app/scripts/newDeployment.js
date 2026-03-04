@@ -97,7 +97,9 @@ export async function main(
     customRoles = null,
     infrastructureAddresses = {},
     regSignatureData = null,
-    overrideDeployerAddress = null
+    overrideDeployerAddress = null,
+    paymasterConfig = null,
+    paymasterFundingWei = null
   ) {
     // Validate infrastructure addresses - these must be fetched from subgraph
     const orgDeployerAddress = infrastructureAddresses.orgDeployerAddress;
@@ -209,6 +211,18 @@ export async function main(
         projects: [],
         tasks: [],
       },
+      // Paymaster configuration (all-zeros = skip)
+      paymasterConfig: paymasterConfig || {
+        operatorRoleIndex: ethers.constants.MaxUint256,
+        autoWhitelistContracts: false,
+        maxFeePerGas: 0,
+        maxPriorityFeePerGas: 0,
+        maxCallGas: 0,
+        maxVerificationGas: 0,
+        maxPreVerificationGas: 0,
+        defaultBudgetCapPerEpoch: 0,
+        defaultBudgetEpochLen: 0,
+      },
     };
 
     console.log("Deploying new DAO with the following parameters:", deploymentParams);
@@ -248,11 +262,18 @@ export async function main(
         console.error("Failed to get hats address:", hatsErr.message);
       }
 
+      // Compute ETH funding value for paymaster
+      const fundingValue = paymasterFundingWei || ethers.BigNumber.from(0);
+      if (fundingValue.gt(0)) {
+        console.log("Paymaster funding:", ethers.utils.formatEther(fundingValue), "ETH");
+      }
+
       // First, try a static call to get the revert reason if it would fail
       console.log("Testing deployment with staticCall...");
       try {
         await orgDeployer.callStatic.deployFullOrg(deploymentParams, {
           gasLimit: 25000000,
+          value: fundingValue,
         });
         console.log("staticCall succeeded - proceeding with actual transaction");
       } catch (staticError) {
@@ -288,7 +309,7 @@ export async function main(
       console.log("Estimating gas...");
       let estimatedGas;
       try {
-        estimatedGas = await orgDeployer.estimateGas.deployFullOrg(deploymentParams);
+        estimatedGas = await orgDeployer.estimateGas.deployFullOrg(deploymentParams, { value: fundingValue });
         console.log("Estimated gas:", estimatedGas.toString());
       } catch (estimateError) {
         console.error("Gas estimation failed:", estimateError);
@@ -305,6 +326,7 @@ export async function main(
       try {
         tx = await orgDeployer.deployFullOrg(deploymentParams, {
           gasLimit: gasLimitWithBuffer,
+          value: fundingValue,
         });
       } catch (txError) {
         console.error("Transaction send failed:", txError);
@@ -498,6 +520,7 @@ export function buildDeployCalldata({
   customRoles = null,
   infrastructureAddresses = {},
   regSignatureData = null,
+  paymasterConfig = null,
 }) {
   const orgDeployerAddress = infrastructureAddresses.orgDeployerAddress;
   const registryAddress = infrastructureAddresses.registryAddress;
@@ -545,6 +568,17 @@ export function buildDeployCalldata({
     passkeyEnabled: false,
     educationHubConfig: { enabled: educationHubEnabled || false },
     bootstrap: { projects: [], tasks: [] },
+    paymasterConfig: paymasterConfig || {
+      operatorRoleIndex: ethers.constants.MaxUint256,
+      autoWhitelistContracts: false,
+      maxFeePerGas: 0,
+      maxPriorityFeePerGas: 0,
+      maxCallGas: 0,
+      maxVerificationGas: 0,
+      maxPreVerificationGas: 0,
+      defaultBudgetCapPerEpoch: 0,
+      defaultBudgetEpochLen: 0,
+    },
   };
 
   const iface = new ethers.utils.Interface(OrgDeployer);
