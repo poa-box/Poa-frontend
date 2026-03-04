@@ -7,6 +7,7 @@
 import { startAuthentication, bufferToBase64URLString } from '@simplewebauthn/browser';
 import { keccak256, encodePacked } from 'viem';
 import { computeCredentialId } from './passkeyUtils';
+import { findPendingCredentialByCredentialId } from './passkeyStorage';
 
 const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
   'https://api.studio.thegraph.com/query/73367/poa-2/version/latest';
@@ -46,16 +47,22 @@ export async function discoverPasskeyCredential() {
 
   // Look up the account address from the subgraph
   const accountAddress = await lookupAccountByCredentialId(credentialId);
-  if (!accountAddress) {
-    throw new Error('No account found for this passkey. You may need to create an account first.');
+  if (accountAddress) {
+    return { credentialId, rawCredentialId, accountAddress, salt };
   }
 
-  return {
-    credentialId,
-    rawCredentialId,
-    accountAddress,
-    salt,
-  };
+  // Fallback: check pending credentials for undeployed accounts (vouch-first flow)
+  const pendingMatch = findPendingCredentialByCredentialId(credentialId);
+  if (pendingMatch) {
+    return {
+      credentialId,
+      rawCredentialId,
+      accountAddress: pendingMatch.accountAddress,
+      salt,
+    };
+  }
+
+  throw new Error('No account found for this passkey. You may need to create an account first.');
 }
 
 /**
