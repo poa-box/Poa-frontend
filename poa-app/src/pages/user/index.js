@@ -414,7 +414,7 @@ const User = () => {
         />
       </Box>
 
-      <Container maxW="container.xl" pt={{ base: 16, md: 8 }}>
+      <Container maxW="container.xl" pt={{ base: 16, md: 8 }} overflowX="hidden">
         {address && !isPasskeyUser ? (
           <Flex justify="flex-end" mb={4}>
             <ConnectButton showBalance={false} chainStatus="icon" />
@@ -504,14 +504,15 @@ const User = () => {
           </GridItem>
 
           {/* Right side: Join form */}
-          <GridItem order={{ base: 1, lg: 2 }} mb={{ base: 4, lg: 0 }}>
+          <GridItem order={{ base: 1, lg: 2 }} mb={{ base: 4, lg: 0 }} overflow="hidden">
             <ScaleFade in={animateForm} initialScale={0.95} delay={0.05} transition={{ enter: { duration: 0.3 } }}>
-              <Card 
+              <Card
                 bg={cardBg}
-                borderRadius="xl" 
+                borderRadius="xl"
                 boxShadow="xl"
                 borderWidth="1px"
                 borderColor="rgba(255,255,255,0.1)"
+                overflow="hidden"
               >
                 <CardBody p={cardPadding}>
                   {/* ── Branch 1: Member + vouch link → VouchLinkHandler ── */}
@@ -563,35 +564,24 @@ const User = () => {
                         </Flex>
                       </Box>
 
-                      {/* Vouch link with copy */}
-                      <Box
-                        p={3}
-                        borderRadius="lg"
-                        bg={infoBg}
-                        borderWidth="1px"
-                        borderColor={infoBorderColor}
+                      {/* Copy vouch link button */}
+                      <Button
+                        width="100%"
+                        size="lg"
+                        colorScheme="blue"
+                        leftIcon={<FaCopy />}
+                        borderRadius="xl"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(vouchFirstHook.vouchLink);
+                            toast({ title: "Vouch link copied!", description: "Share it with existing members to vouch for you.", status: "success", duration: 3000, position: "top" });
+                          } catch {
+                            toast({ title: "Couldn't copy — please copy manually", status: "warning", duration: 3000, position: "top" });
+                          }
+                        }}
                       >
-                        <Flex align="center" justify="space-between">
-                          <Text fontSize="xs" color={infoTextColor} isTruncated flex="1" mr={2}>
-                            {vouchFirstHook.vouchLink}
-                          </Text>
-                          <IconButton
-                            icon={<FaCopy />}
-                            size="sm"
-                            colorScheme="blue"
-                            variant="ghost"
-                            aria-label="Copy vouch link"
-                            onClick={async () => {
-                              try {
-                                await navigator.clipboard.writeText(vouchFirstHook.vouchLink);
-                                toast({ title: "Link copied!", status: "success", duration: 2000, position: "top" });
-                              } catch {
-                                toast({ title: "Couldn't copy — please copy manually", status: "warning", duration: 3000, position: "top" });
-                              }
-                            }}
-                          />
-                        </Flex>
-                      </Box>
+                        Copy Vouch Link
+                      </Button>
 
                       {/* Vouch progress */}
                       {vouchFirstPendingProgress && (
