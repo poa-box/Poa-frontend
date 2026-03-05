@@ -201,7 +201,7 @@ export async function main(
       // Metadata admin: type(uint256).max = skip (topHat fallback in contract)
       metadataAdminRoleIndex: ethers.constants.MaxUint256,
       // Passkey support (boolean - matches deployed contract v1.0.1)
-      passkeyEnabled: false,
+      passkeyEnabled: true,
       // Education hub configuration
       educationHubConfig: {
         enabled: educationHubEnabled || false,
@@ -565,7 +565,7 @@ export function buildDeployCalldata({
     roles,
     roleAssignments,
     metadataAdminRoleIndex: ethers.constants.MaxUint256,
-    passkeyEnabled: false,
+    passkeyEnabled: true,
     educationHubConfig: { enabled: educationHubEnabled || false },
     bootstrap: { projects: [], tasks: [] },
     paymasterConfig: paymasterConfig || {
