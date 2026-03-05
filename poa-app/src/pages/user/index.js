@@ -51,6 +51,7 @@ import SignInModal from '@/components/passkey/SignInModal';
 import { BsFillLightningChargeFill } from 'react-icons/bs';
 import { RoleApplicationForm, VouchLinkHandler, VouchProgressBar } from '@/components/orgStructure';
 import { VouchFirstPhase } from '@/hooks/useVouchFirstOnboarding';
+import { getAllCredentials } from '@/services/web3/passkey/passkeyStorage';
 
 // Animation keyframes
 const gradientAnimation = keyframes`
@@ -254,8 +255,24 @@ const User = () => {
     }
 
     setLoading(true);
+
+    // Get passkey credential for the current account
+    const credential = accountAddress ? getAllCredentials()[accountAddress.toLowerCase()] : null;
+    if (!credential) {
+      toast({
+        title: "Credential not found",
+        description: "Could not find your passkey credential. Please sign in again.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+        position: "top",
+      });
+      setLoading(false);
+      return;
+    }
+
     const result = await executeWithNotification(
-      () => organization.quickJoinNoUser(quickJoinContractAddress, newUsername),
+      () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential),
       {
         pendingMessage: 'Registering username and joining organization...',
         successMessage: 'Account created! Redirecting...',
@@ -267,7 +284,7 @@ const User = () => {
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress]);
 
   const handleApplyAndJoin = useCallback(async () => {
     if (!organization) return;
@@ -313,10 +330,27 @@ const User = () => {
     setLoading(true);
     try {
       // Step 1: Join the organization
+      let joinFn;
+      if (hasExistingUsername) {
+        joinFn = () => organization.quickJoinWithUser(quickJoinContractAddress);
+      } else {
+        const credential = accountAddress ? getAllCredentials()[accountAddress.toLowerCase()] : null;
+        if (!credential) {
+          toast({
+            title: "Credential not found",
+            description: "Could not find your passkey credential. Please sign in again.",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+            position: "top",
+          });
+          return;
+        }
+        joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
+      }
+
       const joinResult = await executeWithNotification(
-        () => hasExistingUsername
-          ? organization.quickJoinWithUser(quickJoinContractAddress)
-          : organization.quickJoinNoUser(quickJoinContractAddress, newUsername),
+        joinFn,
         {
           pendingMessage: 'Joining organization...',
           successMessage: 'Joined! Submitting application...',
@@ -368,7 +402,7 @@ const User = () => {
   }, [
     organization, selectedHatId, applicationNotes, applicationExperience,
     dispaly, graphUsername, newUsername, quickJoinContractAddress,
-    executeWithNotification, applyForRole, router, userDAO, toast,
+    executeWithNotification, applyForRole, router, userDAO, toast, accountAddress,
   ]);
 
   const benefits = [
