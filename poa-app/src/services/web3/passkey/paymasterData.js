@@ -55,14 +55,18 @@ export function encodePaymasterData({ subjectType, subjectId, orgId, ruleId = DE
 
 /**
  * Encode paymaster data for org-based onboarding (account creation within an org).
- * Uses SubjectType.ACCOUNT (0x00) because the contract rejects ONBOARDING (0x03)
- * with non-zero orgId. The ACCOUNT path validates subjectId == sender, which holds
- * since counterfactualAddress == userOp.sender.
+ * Uses SubjectType.HAT (0x01) so the budget is checked against the hat's shared
+ * budget (set by OrgDeployer) rather than a per-account budget (which doesn't exist
+ * for new accounts). The EligibilityModule's isEligible returns true for vouched
+ * accounts and for direct-join members via default rules.
+ *
+ * @param {string} hatId - The hat ID (uint256 hex) the user will claim/wear
+ * @param {string} orgId - bytes32 org ID hex string
  */
-export function encodeOnboardingPaymasterData({ counterfactualAddress, orgId }) {
+export function encodeOnboardingPaymasterData({ hatId, orgId }) {
   return encodePaymasterData({
-    subjectType: SubjectType.ACCOUNT,
-    subjectId: counterfactualAddress,
+    subjectType: SubjectType.HAT,
+    subjectId: toHex(BigInt(hatId), { size: 20 }),
     orgId,
   });
 }
