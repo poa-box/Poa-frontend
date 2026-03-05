@@ -95,3 +95,19 @@ export function encodeAccountPaymasterData({ accountAddress, orgId }) {
     orgId,
   });
 }
+
+/**
+ * Encode paymaster data for a regular transaction using hat-scoped budget.
+ * Uses SubjectType.HAT (0x01) so the budget is checked against the hat's
+ * shared budget (set by OrgDeployer during deployment).
+ *
+ * @param {string} hatId - The hat ID (uint256) the user currently wears
+ * @param {string} orgId - bytes32 org ID hex string
+ */
+export function encodeHatPaymasterData({ hatId, orgId }) {
+  return encodePaymasterData({
+    subjectType: SubjectType.HAT,
+    subjectId: toHex(BigInt(hatId), { size: 32 }),
+    orgId,
+  });
+}

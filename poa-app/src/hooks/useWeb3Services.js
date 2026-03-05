@@ -12,6 +12,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useRefreshEmit } from '../context/RefreshContext';
 import { useIPFScontext } from '../context/ipfsContext';
 import { usePOContext } from '../context/POContext';
+import { useUserContext } from '../context/UserContext';
 import { INFRASTRUCTURE_CONTRACTS, getInfrastructureAddress } from '../config/contracts';
 import { DEFAULT_NETWORK } from '../config/networks';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
@@ -52,6 +53,11 @@ export function useWeb3Services(options = {}) {
   // usePOContext returns undefined when outside POProvider (non-org routes)
   const poContext = usePOContext();
   const orgId = poContext?.orgId || null;
+
+  // Get user's hat ID for hat-scoped paymaster budget
+  // useUserContext returns undefined outside UserProvider (safe with optional chaining)
+  const userContext = useUserContext();
+  const hatId = userContext?.userData?.hatIds?.[0] || null;
 
   // Fetch infrastructure addresses from subgraph
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
@@ -94,12 +100,13 @@ export function useWeb3Services(options = {}) {
         bundlerClient,
         paymasterAddress,
         orgId,
+        hatId,
       });
     }
     // EOA: create standard TransactionManager
     if (!signer) return null;
     return createTransactionManager(signer);
-  }, [signer, isPasskeyUser, passkeyState, publicClient, bundlerClient, paymasterAddress, orgId]);
+  }, [signer, isPasskeyUser, passkeyState, publicClient, bundlerClient, paymasterAddress, orgId, hatId]);
 
   // Create domain services
   const services = useMemo(() => {
