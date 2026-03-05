@@ -3,7 +3,7 @@
  * State machine hook for vouch-first passkey onboarding.
  *
  * Flow: create credential → get counterfactual address → share vouch link →
- * poll for vouches → once quorum met → deploy + join + claim in single UserOp.
+ * poll for vouches → once quorum met → deploy + join in single UserOp.
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
@@ -40,12 +40,10 @@ export const VouchFirstPhase = {
 /**
  * @param {Object} params
  * @param {string} params.orgName - DAO name (userDAO)
- * @param {string} params.eligibilityModuleAddress - EligibilityModule contract address
  * @param {Function} params.refetchVouches - refetch function from useVouches
  */
 export function useVouchFirstOnboarding({
   orgName,
-  eligibilityModuleAddress,
   refetchVouches,
 }) {
   const { publicClient, bundlerClient, activatePasskey } = useAuth();
@@ -153,7 +151,7 @@ export function useVouchFirstOnboarding({
   }, [factoryAddress, publicClient, orgName]);
 
   /**
-   * Step 2: Deploy account + join + claim role in single UserOp.
+   * Step 2: Deploy account + join in single UserOp.
    * Called after vouch quorum is met.
    */
   const completeOnboarding = useCallback(async (username) => {
@@ -179,8 +177,7 @@ export function useVouchFirstOnboarding({
         quickJoinAddress: quickJoinContractAddress,
         paymasterAddress,
         orgId,
-        eligibilityModuleAddress,
-        claimHatId: pendingCredential.selectedHatId,
+        hatId: pendingCredential.selectedHatId,
       });
 
       const credential = {
@@ -235,7 +232,6 @@ export function useVouchFirstOnboarding({
     quickJoinContractAddress,
     paymasterAddress,
     orgId,
-    eligibilityModuleAddress,
     activatePasskey,
   ]);
 

@@ -4,7 +4,7 @@
  * 1. Create WebAuthn credential (biometric prompt)
  * 2. Compute counterfactual smart account address
  * 3. Sign registration challenge (biometric prompt — proves passkey ownership for username registration)
- * 4. Build UserOp with initCode (account deployment) + callData (registerAndQuickJoin + optional claimHat)
+ * 4. Build UserOp with initCode (account deployment) + callData (registerAndQuickJoin)
  * 5. Sign UserOp hash with passkey (biometric prompt)
  * 6. Submit to bundler
  * 7. Wait for receipt
@@ -15,7 +15,6 @@ import PasskeyAccountABI from '../../../../abi/PasskeyAccount.json';
 import PasskeyAccountFactoryABI from '../../../../abi/PasskeyAccountFactory.json';
 import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
 import QuickJoinABI from '../../../../abi/QuickJoinNew.json';
-import EligibilityModuleABI from '../../../../abi/EligibilityModuleNew.json';
 import { createPasskeyCredential } from '../passkey/passkeyCreate';
 import { signUserOpWithPasskey, signRegistrationChallenge, computeRegistrationChallenge } from '../passkey/passkeySign';
 import { buildUserOp, getUserOpHash } from '../passkey/userOpBuilder';
@@ -71,7 +70,7 @@ export class PasskeyOnboardingService {
    * @param {string} [params.orgId] - bytes32 org ID (org mode only)
    * @param {string} [params.mode='org'] - 'org' for org-scoped onboarding, 'solidarity' for protocol-level
    */
-  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId, mode = 'org', eligibilityModuleAddress, claimHatId }) {
+  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId, mode = 'org', hatId }) {
     this.publicClient = publicClient;
     this.bundlerClient = bundlerClient;
     this.factoryAddress = factoryAddress;
@@ -80,8 +79,7 @@ export class PasskeyOnboardingService {
     this.paymasterAddress = paymasterAddress;
     this.orgId = orgId;
     this.mode = mode;
-    this.eligibilityModuleAddress = eligibilityModuleAddress;
-    this.claimHatId = claimHatId;
+    this.hatId = hatId;
   }
 
   /**
@@ -111,7 +109,7 @@ export class PasskeyOnboardingService {
 
   /**
    * Build the callData for org-mode onboarding using registerAndQuickJoinWithPasskey.
-   * Signs the registration challenge (biometric prompt) and encodes the batch call.
+   * Signs the registration challenge (biometric prompt) and encodes the execute call.
    *
    * @param {Object} credential - { credentialId, publicKeyX, publicKeyY, salt, rawCredentialId }
    * @param {string} accountAddress - Counterfactual account address
@@ -153,26 +151,6 @@ export class PasskeyOnboardingService {
       ],
     });
 
-    // Build batch: registerAndQuickJoin + optional claimVouchedHat
-    if (this.claimHatId && this.eligibilityModuleAddress) {
-      const claimCallData = encodeFunctionData({
-        abi: EligibilityModuleABI,
-        functionName: 'claimVouchedHat',
-        args: [BigInt(this.claimHatId)],
-      });
-
-      return encodeFunctionData({
-        abi: PasskeyAccountABI,
-        functionName: 'executeBatch',
-        args: [
-          [this.quickJoinAddress, this.eligibilityModuleAddress],
-          [0n, 0n],
-          [registerAndJoinData, claimCallData],
-        ],
-      });
-    }
-
-    // Single call: registerAndQuickJoin only
     return encodeFunctionData({
       abi: PasskeyAccountABI,
       functionName: 'execute',
@@ -236,12 +214,12 @@ export class PasskeyOnboardingService {
         });
         paymasterData = encodeSolidarityOnboardingPaymasterData();
       } else {
-        // Org mode: registerAndQuickJoinWithPasskey (+ optional claimVouchedHat)
+        // Org mode: registerAndQuickJoinWithPasskey
         // This signs the registration challenge (biometric prompt #2)
         callData = await this._buildOrgModeCallData(credential, accountAddress, username, onStep);
 
         paymasterData = encodeOnboardingPaymasterData({
-          hatId: this.claimHatId,
+          hatId: this.hatId,
           orgId: this.orgId,
         });
       }
@@ -332,12 +310,12 @@ export class PasskeyOnboardingService {
       });
       const initCode = this.factoryAddress + factoryCallData.slice(2);
 
-      // Build callData: registerAndQuickJoinWithPasskey (+ optional claimVouchedHat)
+      // Build callData: registerAndQuickJoinWithPasskey
       // This signs the registration challenge (biometric prompt #1)
       const callData = await this._buildOrgModeCallData(credential, accountAddress, username, onStep);
 
       const paymasterData = encodeOnboardingPaymasterData({
-        hatId: this.claimHatId,
+        hatId: this.hatId,
         orgId: this.orgId,
       });
 
