@@ -119,7 +119,6 @@ const User = () => {
   // Vouch-first passkey onboarding hook
   const vouchFirstHook = useVouchFirstOnboarding({
     orgName: userDAO,
-    eligibilityModuleAddress,
     refetchVouches,
   });
 
