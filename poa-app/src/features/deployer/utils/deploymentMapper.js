@@ -230,8 +230,8 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     // Metadata admin: which role's hat gets metadata-admin privilege.
     // ethers.constants.MaxUint256 = skip (topHat fallback in contract).
     metadataAdminRoleIndex: options.metadataAdminRoleIndex ?? ethers.constants.MaxUint256,
-    // Passkey support (boolean - matches deployed contract v1.0.1)
-    passkeyEnabled: false,
+    // Passkey support - enabled by default for all new orgs
+    passkeyEnabled: true,
     // Education hub configuration
     educationHubConfig: {
       enabled: features.educationHubEnabled || false,
