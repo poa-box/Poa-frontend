@@ -231,6 +231,14 @@ export class SmartAccountTransactionManager {
     // Paymaster requires orgId AND hatId (hat-scoped budget set by OrgDeployer)
     const hasPaymaster = this.paymasterAddress && this.orgId && this.hatId;
 
+    console.log('[SmartAccountTxMgr] Paymaster check:', {
+      hasPaymaster,
+      paymasterAddress: this.paymasterAddress,
+      orgId: this.orgId,
+      hatId: this.hatId,
+      accountAddress: this.accountAddress,
+    });
+
     return buildUserOpWithFallback({
       sender: this.accountAddress,
       callData,
