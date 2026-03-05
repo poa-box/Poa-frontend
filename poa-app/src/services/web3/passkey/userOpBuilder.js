@@ -103,7 +103,8 @@ export async function buildUserOp({
  * @param {Object} params.publicClient - viem public client
  * @param {string} [params.initCode='0x'] - initCode for account deployment
  * @param {string} [params.paymasterAddress] - PaymasterHub address (optional)
- * @param {string} [params.paymasterData] - Paymaster-specific data (optional)
+ * @param {string} [params.paymasterData] - Paymaster-specific data (optional, single entry)
+ * @param {string[]} [params.paymasterDataEntries] - Array of paymaster data to try (tries each before self-pay)
  * @returns {Object} UserOperation ready for signing
  */
 export async function buildUserOpWithFallback({
@@ -114,6 +115,7 @@ export async function buildUserOpWithFallback({
   initCode = '0x',
   paymasterAddress,
   paymasterData,
+  paymasterDataEntries,
 }) {
   const entryPoint = ENTRY_POINT_ADDRESS;
 
@@ -153,32 +155,38 @@ export async function buildUserOpWithFallback({
     signature: DUMMY_SIGNATURE,
   };
 
-  // 2. Try with paymaster if available
-  if (paymasterAddress) {
-    const userOp = {
-      ...baseFields,
-      paymaster: paymasterAddress,
-      paymasterVerificationGasLimit: 200_000n,
-      paymasterPostOpGasLimit: 200_000n,
-      paymasterData,
-    };
+  // Normalize: support both single paymasterData and paymasterDataEntries array
+  const dataEntries = paymasterDataEntries || (paymasterData ? [paymasterData] : []);
 
-    try {
-      await estimateGas(userOp, bundlerClient);
-      console.log('UserOp built with gas sponsorship');
-      return userOp;
-    } catch (e) {
-      const msg = e.message || '';
-      const isPaymasterRejection = msg.includes('AA31') || msg.includes('AA33')
-        || msg.includes('paymaster') || msg.includes('Paymaster')
-        || msg.includes('validatePaymasterUserOp');
+  // 2. Try with paymaster if available — iterate through all entries before giving up
+  if (paymasterAddress && dataEntries.length > 0) {
+    for (let i = 0; i < dataEntries.length; i++) {
+      const userOp = {
+        ...baseFields,
+        paymaster: paymasterAddress,
+        paymasterVerificationGasLimit: 200_000n,
+        paymasterPostOpGasLimit: 200_000n,
+        paymasterData: dataEntries[i],
+      };
 
-      if (isPaymasterRejection) {
-        console.warn('Paymaster rejected, falling back to self-funded:', msg);
-      } else {
-        throw e;
+      try {
+        await estimateGas(userOp, bundlerClient);
+        console.log(`UserOp built with gas sponsorship (entry ${i + 1}/${dataEntries.length})`);
+        return userOp;
+      } catch (e) {
+        const msg = e.message || '';
+        const isPaymasterRejection = msg.includes('AA31') || msg.includes('AA33')
+          || msg.includes('paymaster') || msg.includes('Paymaster')
+          || msg.includes('validatePaymasterUserOp');
+
+        if (isPaymasterRejection) {
+          console.warn(`Paymaster rejected entry ${i + 1}/${dataEntries.length}, trying next:`, msg);
+        } else {
+          throw e;
+        }
       }
     }
+    console.warn('All paymaster entries rejected, falling back to self-funded');
   }
 
   // 3. Self-funded (no paymaster fields)

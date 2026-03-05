@@ -54,10 +54,10 @@ export function useWeb3Services(options = {}) {
   const poContext = usePOContext();
   const orgId = poContext?.orgId || null;
 
-  // Get user's hat ID for hat-scoped paymaster budget
+  // Get user's hat IDs for hat-scoped paymaster budget
   // useUserContext returns undefined outside UserProvider (safe with optional chaining)
   const userContext = useUserContext();
-  const hatId = userContext?.userData?.hatIds?.[0] || null;
+  const hatIds = userContext?.userData?.hatIds || null;
 
   // Fetch infrastructure addresses from subgraph
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
@@ -100,13 +100,13 @@ export function useWeb3Services(options = {}) {
         bundlerClient,
         paymasterAddress,
         orgId,
-        hatId,
+        hatIds,
       });
     }
     // EOA: create standard TransactionManager
     if (!signer) return null;
     return createTransactionManager(signer);
-  }, [signer, isPasskeyUser, passkeyState, publicClient, bundlerClient, paymasterAddress, orgId, hatId]);
+  }, [signer, isPasskeyUser, passkeyState, publicClient, bundlerClient, paymasterAddress, orgId, hatIds]);
 
   // Create domain services
   const services = useMemo(() => {
