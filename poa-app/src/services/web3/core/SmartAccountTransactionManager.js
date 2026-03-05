@@ -40,16 +40,16 @@ export class SmartAccountTransactionManager {
    * @param {Object} params.bundlerClient - Pimlico bundler client
    * @param {string} params.paymasterAddress - PaymasterHub proxy address
    * @param {string} [params.orgId] - Current org ID (bytes32) for paymaster data
-   * @param {string} [params.hatId] - User's current hat ID for hat-scoped paymaster budget
+   * @param {string[]} [params.hatIds] - User's hat IDs for hat-scoped paymaster budget (tries each before self-pay)
    */
-  constructor({ accountAddress, rawCredentialId, publicClient, bundlerClient, paymasterAddress, orgId = null, hatId = null }) {
+  constructor({ accountAddress, rawCredentialId, publicClient, bundlerClient, paymasterAddress, orgId = null, hatIds = null }) {
     this.accountAddress = accountAddress;
     this.rawCredentialId = rawCredentialId;
     this.publicClient = publicClient;
     this.bundlerClient = bundlerClient;
     this.paymasterAddress = paymasterAddress;
     this.orgId = orgId;
-    this.hatId = hatId;
+    this.hatIds = hatIds;
     this.chainId = networkConfig.chainId;
   }
 
@@ -228,16 +228,21 @@ export class SmartAccountTransactionManager {
    * Nonce + gas prices are fetched once; only estimation is retried on paymaster rejection.
    */
   async _buildUserOpWithFallback(callData) {
-    // Paymaster requires orgId AND hatId (hat-scoped budget set by OrgDeployer)
-    const hasPaymaster = this.paymasterAddress && this.orgId && this.hatId;
+    // Paymaster requires orgId AND at least one hatId (hat-scoped budget set by OrgDeployer)
+    const hasPaymaster = this.paymasterAddress && this.orgId && this.hatIds?.length > 0;
 
     console.log('[SmartAccountTxMgr] Paymaster check:', {
       hasPaymaster,
       paymasterAddress: this.paymasterAddress,
       orgId: this.orgId,
-      hatId: this.hatId,
+      hatIds: this.hatIds,
       accountAddress: this.accountAddress,
     });
+
+    // Build paymaster data for each hat ID so the builder can try them all
+    const paymasterDataEntries = hasPaymaster
+      ? this.hatIds.map((hatId) => encodeHatPaymasterData({ hatId, orgId: this.orgId }))
+      : [];
 
     return buildUserOpWithFallback({
       sender: this.accountAddress,
@@ -246,10 +251,7 @@ export class SmartAccountTransactionManager {
       publicClient: this.publicClient,
       ...(hasPaymaster ? {
         paymasterAddress: this.paymasterAddress,
-        paymasterData: encodeHatPaymasterData({
-          hatId: this.hatId,
-          orgId: this.orgId,
-        }),
+        paymasterDataEntries,
       } : {}),
     });
   }
