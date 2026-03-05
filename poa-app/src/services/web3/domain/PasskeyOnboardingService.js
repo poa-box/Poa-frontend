@@ -241,7 +241,7 @@ export class PasskeyOnboardingService {
         callData = await this._buildOrgModeCallData(credential, accountAddress, username, onStep);
 
         paymasterData = encodeOnboardingPaymasterData({
-          counterfactualAddress: accountAddress,
+          hatId: this.claimHatId,
           orgId: this.orgId,
         });
       }
@@ -337,7 +337,7 @@ export class PasskeyOnboardingService {
       const callData = await this._buildOrgModeCallData(credential, accountAddress, username, onStep);
 
       const paymasterData = encodeOnboardingPaymasterData({
-        counterfactualAddress: accountAddress,
+        hatId: this.claimHatId,
         orgId: this.orgId,
       });
 
