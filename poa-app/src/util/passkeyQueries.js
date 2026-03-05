@@ -71,17 +71,16 @@ export const FETCH_SOLIDARITY_FUND_STATUS = gql`
 
 /**
  * Fetch paymaster configuration for an organization.
+ * Entity existence = org is registered. isPaused controls whether sponsorship is active.
  */
 export const FETCH_PAYMASTER_ORG_CONFIG = gql`
   query FetchPaymasterOrgConfig($orgId: Bytes!) {
     paymasterOrgConfigs(where: { orgId: $orgId }) {
       id
       orgId
-      isRegistered
       isPaused
-      deposit
-      totalGasSpent
-      transactionCount
+      depositBalance
+      totalSpent
     }
   }
 `;

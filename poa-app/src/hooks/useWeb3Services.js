@@ -71,8 +71,8 @@ export function useWeb3Services(options = {}) {
     fetchPolicy: 'cache-first',
   });
   const orgPaymaster = pmConfig?.paymasterOrgConfigs?.[0];
-  // Only pass paymaster address when the org is registered and not paused
-  const paymasterAddress = (orgPaymaster?.isRegistered && !orgPaymaster?.isPaused)
+  // Entity existence = registered. Only pass paymaster address when not paused.
+  const paymasterAddress = (orgPaymaster && !orgPaymaster.isPaused)
     ? paymasterHubAddress
     : null;
 
