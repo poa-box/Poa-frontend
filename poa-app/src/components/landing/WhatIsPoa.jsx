@@ -17,7 +17,7 @@ const WhatIsPoa = () => {
     <Box as="section" pt={["16", "20", "28"]} pb={["12", "16", "20"]} px={[4, 6, 8]}>
       <Container maxW="container.xl">
         <Flex
-          direction={["column", "column", "row"]}
+          direction={["column", "column", "row-reverse"]}
           align="center"
           gap={[8, 8, 12]}
         >
