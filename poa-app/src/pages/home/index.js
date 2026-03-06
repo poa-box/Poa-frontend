@@ -396,8 +396,8 @@ const Home = () => {
                   maxW="760px"
                   mx="auto"
                 >
-                  A Perpetual Organization built with Poa. Fully owned and controlled 
-                  by the {userDAO} community itself. Learn more about how to build your 
+                  An organization built with Poa. Fully owned and controlled
+                  by the {userDAO} community itself. Learn more about how to build your
                   own censorship-resistant, fully community-owned organization at
                 </Text>
                 

@@ -25,7 +25,7 @@ const PoaPreview = () => {
       />
       <Text fontSize="lg">This is Poa</Text>
       <Text fontSize="xl" mt="4" fontWeight={"600"}>
-        The Perpetual Organization Architect
+        Community-Owned Organization Builder
       </Text>
 
       <Link href={"/create"} passHref>

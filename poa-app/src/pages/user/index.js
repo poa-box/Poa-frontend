@@ -582,7 +582,7 @@ const User = () => {
                         <Text color={textColor} fontSize={{ base: "xs", md: "sm" }} fontStyle="italic">
                           {hasVouchGatedRoles
                             ? "Applying creates your membership and submits your role application. Existing members will review and vouch for you."
-                            : "Joining is a one-time process that creates your membership NFT. This gives you access to all DAO features and benefits."
+                            : "Joining is a one-time process that creates your membership NFT. This gives you access to all organization features and benefits."
                           }
                         </Text>
                       </Box>

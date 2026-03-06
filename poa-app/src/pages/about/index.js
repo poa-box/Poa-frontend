@@ -128,9 +128,8 @@ const AboutPage = () => {
                 mb={4}
                 lineHeight="1.7"
               >
-                The Perpetual Organization Architect, or Poa, is a friendly chat bot
-                that guides you through a no-code process of building a Perpetual
-                Organization.
+                Poa is a friendly guide that walks you through a no-code process
+                of building a community-owned organization.
               </MotionText>
               
               <MotionHeading
@@ -148,7 +147,7 @@ const AboutPage = () => {
               >
                 What is a{" "}
                 <Text as="span" color={highlightColor}>
-                  Perpetual Organization?
+                  Community-Owned Organization?
                 </Text>
                 <Box 
                   position="absolute" 
@@ -172,7 +171,7 @@ const AboutPage = () => {
                 mb={4}
                 lineHeight="1.7"
               >
-                A Perpetual Organization is fully owned by the community, not investors, 
+                A community-owned organization is fully owned by the people who build it, not investors,
                 making it truly democratic and unstoppable. This ensures the organization
                 remains true to its mission, free from external pressures and resistant to censorship.
               </MotionText>
@@ -235,7 +234,7 @@ const AboutPage = () => {
                     _hover={{ transform: "translateY(-2px)", boxShadow: "md" }}
                     leftIcon={<Icon as={FaPlus} boxSize={5} />}
                   >
-                    Create a PO
+                    Create an Organization
                   </Button>
                 </Link>
               </MotionBox>
@@ -335,7 +334,7 @@ const AboutPage = () => {
             </FeatureCard>
             
             <FeatureCard title="Fully Decentralized" icon={FaGlobeAmericas}>
-              Full decentralization is our priority. We ensure that created Perpetual Organizations can't be stopped or changed by anyone but the community members.
+              Full decentralization is our priority. We ensure that created organizations can't be stopped or changed by anyone but the community members.
             </FeatureCard>
             
             <FeatureCard title="AI-Powered" icon={FaLightbulb}>
@@ -369,7 +368,7 @@ const AboutPage = () => {
               position="relative"
               pb={2}
             >
-              The Perpetual Cycle
+              The Community Cycle
             </Heading>
             
             <Box

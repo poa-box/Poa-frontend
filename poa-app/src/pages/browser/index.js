@@ -158,7 +158,7 @@ const BrowserPage = () => {
               </Box>
               <Heading as="h3" size="md" fontWeight="bold">
                 {selectedOrg?.id}
-                <Badge colorScheme="blue" ml={2} verticalAlign="middle">PO</Badge>
+                <Badge colorScheme="blue" ml={2} verticalAlign="middle">Org</Badge>
               </Heading>
             </Flex>
           </ModalHeader>
@@ -216,7 +216,7 @@ const BrowserPage = () => {
                 mb={{ base: 2, md: 4 }}
                 px={{ base: 2, md: 0 }}
               >
-                Browse and Join a <Box as="span" color={accentColor}>Perpetual Organization</Box>
+                Browse and Join an <Box as="span" color={accentColor}>Organization</Box>
               </MotionHeading>
               <MotionText
                 fontSize={{ base: "sm", md: "xl" }}
@@ -418,7 +418,7 @@ const BrowserPage = () => {
                               </Heading>
                             </Link>
                             <Badge colorScheme="blue" borderRadius="full" px={2}>
-                              PO
+                              Org
                             </Badge>
                           </Flex>
                           
