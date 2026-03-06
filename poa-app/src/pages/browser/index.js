@@ -1,26 +1,25 @@
-import React, { useEffect, useState, useRef } from "react";
-import Layout from "../../components/Layout";
+import React, { useEffect, useState } from "react";
 import { useprofileHubContext } from "../../context/profileHubContext";
-import { useIPFScontext } from "@/context/ipfsContext";
+import { useAuth } from "@/context/AuthContext";
+import { useGlobalAccount } from "@/hooks/useGlobalAccount";
+import { useAccount } from "wagmi";
+import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useRouter } from "next/router";
 import Link from "next/link";
-import { 
-  Flex, 
-  VStack, 
-  Box, 
-  Text, 
-  Image, 
-  Heading, 
-  Grid, 
-  GridItem, 
-  Container, 
-  Button, 
-  useColorModeValue, 
+import {
+  Flex,
+  Box,
+  Text,
+  Heading,
+  Grid,
+  GridItem,
+  Container,
+  Button,
   Icon,
   Badge,
   InputGroup,
   Input,
   InputRightElement,
-  Divider,
   HStack,
   Skeleton,
   Modal,
@@ -31,115 +30,195 @@ import {
   ModalBody,
   ModalCloseButton,
   useDisclosure,
-  IconButton
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
-import { FaSearch, FaUsers, FaArrowRight, FaGlobe, FaInfoCircle } from "react-icons/fa";
+import { FaSearch, FaUsers, FaArrowRight, FaGlobe, FaInfoCircle, FaBuilding, FaUserFriends, FaShieldAlt } from "react-icons/fa";
+import Navbar from "@/components/landing/Navbar";
+import SignInModal from "@/components/passkey/SignInModal";
 
-// Motion components for animations
 const MotionBox = motion(Box);
-const MotionHeading = motion(Heading);
-const MotionText = motion(Text);
-const MotionFlex = motion(Flex);
+
+// Generates a consistent, visually distinct gradient from an org name
+const getOrgGradient = (name) => {
+  // FNV-1a hash for better distribution
+  let hash = 2166136261;
+  for (let i = 0; i < name.length; i++) {
+    hash ^= name.charCodeAt(i);
+    hash = (hash * 16777619) | 0;
+  }
+  const colors = [
+    ["#9055E8", "#E85D85"],  // amethyst → rose
+    ["#E85D85", "#F06543"],  // rose → coral
+    ["#6366F1", "#06B6D4"],  // indigo → cyan
+    ["#F06543", "#FACC15"],  // coral → amber
+    ["#7C3AED", "#3B82F6"],  // purple → blue
+    ["#EC4899", "#F06543"],  // pink → coral
+    ["#06B6D4", "#9055E8"],  // cyan → amethyst
+    ["#3B82F6", "#6366F1"],  // blue → indigo
+  ];
+  const angles = [135, 150, 120, 160, 140, 125, 155, 130];
+  const idx = Math.abs(hash) % colors.length;
+  const angle = angles[Math.abs(hash >> 4) % angles.length];
+  return `linear-gradient(${angle}deg, ${colors[idx][0]} 0%, ${colors[idx][1]} 100%)`;
+};
+
+const OrgAvatar = ({ name, size = "110px" }) => (
+  <Flex
+    w={size}
+    h={size}
+    borderRadius="xl"
+    background={getOrgGradient(name)}
+    align="center"
+    justify="center"
+    flexShrink={0}
+  >
+    <Text
+      fontSize={parseInt(size) > 80 ? "3xl" : "2xl"}
+      fontWeight="700"
+      color="white"
+      textTransform="uppercase"
+      userSelect="none"
+    >
+      {name.charAt(0)}
+    </Text>
+  </Flex>
+);
+
+const OrgBanner = ({ name }) => (
+  <Flex
+    w="100%"
+    h={["120px", "140px"]}
+    background={getOrgGradient(name)}
+    align="center"
+    justify="center"
+    position="relative"
+  >
+    <Text
+      fontSize={["4xl", "5xl"]}
+      fontWeight="800"
+      color="rgba(255, 255, 255, 0.9)"
+      textTransform="uppercase"
+      userSelect="none"
+      letterSpacing="0.05em"
+    >
+      {name.charAt(0)}
+    </Text>
+    {/* Subtle pattern overlay */}
+    <Box
+      position="absolute"
+      inset={0}
+      opacity={0.18}
+      background="radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)"
+      backgroundSize="40px 40px"
+      pointerEvents="none"
+    />
+  </Flex>
+);
 
 const BrowserPage = () => {
+  const router = useRouter();
   const { perpetualOrganizations, setprofileHubLoaded } = useprofileHubContext();
-  const { fetchImageFromIpfs } = useIPFScontext();
-  const [images, setImages] = useState({});
+  const { isConnected } = useAccount();
+  const { openConnectModal } = useConnectModal();
+  const { hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
+  const { isPasskeyUser, isAuthenticated, hasStoredPasskey } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [selectedOrg, setSelectedOrg] = useState(null);
+  const [mounted, setMounted] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
 
-  // Open description modal
+  useEffect(() => { setMounted(true); }, []);
+
+  const getAccountMenuItem = () => {
+    if (mounted && isPasskeyUser) {
+      return { text: "My Account", onClick: () => router.push("/account") };
+    }
+    if (!isConnected) {
+      return { text: "Connect Wallet", onClick: openConnectModal };
+    }
+    if (isAccountLoading) {
+      return { text: "Loading...", onClick: () => {} };
+    }
+    if (hasAccount) {
+      return { text: "My Account", onClick: () => router.push("/account") };
+    }
+    return { text: "Sign Up", onClick: () => {} };
+  };
+
+  const accountMenuItem = getAccountMenuItem();
+
   const openDescriptionModal = (org, e) => {
-    e.preventDefault(); // Prevent navigation
-    e.stopPropagation(); // Prevent event bubbling
+    e.preventDefault();
+    e.stopPropagation();
     setSelectedOrg(org);
     onOpen();
   };
 
-  // Color mode values
-  const cardBg = useColorModeValue("white", "gray.800");
-  const cardHoverBg = useColorModeValue("gray.50", "gray.700");
-  const heroGradient = useColorModeValue(
-    "linear(to-r, blue.50, purple.50)",
-    "linear(to-r, blue.900, purple.900)"
-  );
-  const accentColor = useColorModeValue("blue.500", "blue.300");
-  const borderColor = useColorModeValue("gray.200", "gray.700");
-  const imageBg = useColorModeValue("gray.100", "gray.900");
-  const descriptionColor = useColorModeValue("gray.600", "gray.300");
-  const membersBg = useColorModeValue("blue.50", "blue.900");
-
   useEffect(() => {
-    const loadImages = async () => {
-      if (perpetualOrganizations.length === 0) {
-        setprofileHubLoaded(true);
-      } else {
-        const imagePromises = perpetualOrganizations.map(async (po) => {
-          if (po.logoHash) {
-            const imageUrl = await fetchImageFromIpfs(po.logoHash);
-            return { id: po.id, url: imageUrl };
-          }
-          return { id: po.id, url: null };
-        });
+    if (perpetualOrganizations.length === 0) {
+      setprofileHubLoaded(true);
+    }
+    setIsLoading(false);
+  }, [perpetualOrganizations]);
 
-        const results = await Promise.all(imagePromises);
-        const newImages = results.reduce((acc, { id, url }) => {
-          if (url) acc[id] = url;
-          return acc;
-        }, {});
-
-        setImages(newImages);
-      }
-      setIsLoading(false);
-    };
-
-    loadImages();
-  }, [perpetualOrganizations, fetchImageFromIpfs]);
-
-  // Filter organizations based on search term
-  const filteredOrganizations = perpetualOrganizations.filter(po => 
+  const filteredOrganizations = perpetualOrganizations.filter(po =>
     po.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (po.aboutInfo?.description && po.aboutInfo.description.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  // Animation variants
   const containerVariants = {
     hidden: { opacity: 0 },
     visible: {
       opacity: 1,
       transition: {
-        staggerChildren: 0.1,
+        staggerChildren: 0.08,
       },
     },
   };
 
   const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: { opacity: 1, y: 0 }
+    hidden: { opacity: 0, y: 16 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.6 } }
   };
 
   return (
-    <Layout>
+    <Box minH="100vh" overflowX="hidden">
+      <Navbar
+        mounted={mounted}
+        isPasskeyUser={isPasskeyUser}
+        isConnected={isConnected}
+        isAuthenticated={isAuthenticated}
+        accountMenuItem={accountMenuItem}
+        onSignInOpen={onSignInOpen}
+      />
+      <SignInModal isOpen={isSignInOpen} onClose={onSignInClose} />
+
       {/* Description Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size={{ base: "full", md: "lg" }} isCentered>
         <ModalOverlay
-          bg="blackAlpha.400"
+          bg="blackAlpha.300"
+          backdropFilter="blur(4px)"
         />
-        <ModalContent margin={{ base: 0, md: "auto" }} borderRadius={{ base: 0, md: "md" }}>
+        <ModalContent
+          margin={{ base: 0, md: "auto" }}
+          borderRadius={{ base: 0, md: "xl" }}
+          border={{ base: "none", md: "1px solid" }}
+          borderColor="warmGray.100"
+          boxShadow="0 8px 40px rgba(0, 0, 0, 0.08)"
+        >
           <ModalHeader>
-            <Flex 
-              align="center" 
-              gap={3} 
+            <Flex
+              align="center"
+              gap={3}
               direction={{ base: "column", sm: "row" }}
               textAlign={{ base: "center", sm: "left" }}
             >
-              <Box 
-                width={{ base: "80px", sm: "90px" }} 
-                height={{ base: "80px", sm: "90px" }} 
-                borderRadius="md"
+              <Box
+                width={{ base: "80px", sm: "90px" }}
+                height={{ base: "80px", sm: "90px" }}
+                borderRadius="lg"
                 overflow="hidden"
                 display="flex"
                 alignItems="center"
@@ -148,40 +227,68 @@ const BrowserPage = () => {
                 mb={{ base: 2, sm: 0 }}
                 alignSelf={{ base: "center", sm: "flex-start" }}
               >
-                <Image 
-                  src={selectedOrg && (images[selectedOrg.id] || '/images/poa_logo.png')} 
-                  alt={selectedOrg?.id || "Organization logo"}
-                  objectFit="contain"
-                  width={{ base: "74px", sm: "84px" }}
-                  height={{ base: "74px", sm: "84px" }}
-                />
+                {selectedOrg ? (
+                  <OrgAvatar name={selectedOrg.id} size="84px" />
+                ) : null}
               </Box>
-              <Heading as="h3" size="md" fontWeight="bold">
+              <Heading as="h3" size="md" fontWeight="700" color="warmGray.900">
                 {selectedOrg?.id}
-                <Badge colorScheme="blue" ml={2} verticalAlign="middle">Org</Badge>
+                <Badge
+                  bg="amethyst.50"
+                  color="amethyst.600"
+                  borderRadius="full"
+                  px={2.5}
+                  py={0.5}
+                  fontSize="xs"
+                  fontWeight="600"
+                  ml={2}
+                  verticalAlign="middle"
+                >
+                  Org
+                </Badge>
               </Heading>
             </Flex>
           </ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
             {selectedOrg?.aboutInfo?.description && (
-              <Text fontSize="md" lineHeight="tall">
+              <Text fontSize="md" lineHeight="1.7" color="warmGray.700" fontWeight="500">
                 {selectedOrg.aboutInfo.description}
               </Text>
             )}
             {selectedOrg?.totalMembers && (
-              <Flex align="center" mt={4} bg={membersBg} p={3} borderRadius="md">
-                <Icon as={FaUsers} color={accentColor} mr={2} boxSize="18px" />
-                <Text fontWeight="medium">{selectedOrg.totalMembers} Members</Text>
+              <Flex align="center" mt={4} bg="warmGray.50" p={3} borderRadius="lg">
+                <Icon as={FaUsers} color="amethyst.500" mr={2} boxSize="18px" />
+                <Text fontWeight="500" color="warmGray.700">{selectedOrg.totalMembers} Members</Text>
               </Flex>
             )}
           </ModalBody>
           <ModalFooter flexDirection={{ base: "column", sm: "row" }} gap={{ base: 2, sm: 0 }}>
-            <Button variant="outline" mr={{ base: 0, sm: 3 }} mb={{ base: 2, sm: 0 }} w={{ base: "100%", sm: "auto" }} onClick={onClose}>
+            <Button
+              variant="outline"
+              borderColor="warmGray.200"
+              color="warmGray.700"
+              borderRadius="full"
+              fontWeight="600"
+              _hover={{ bg: "warmGray.50", borderColor: "warmGray.300" }}
+              mr={{ base: 0, sm: 3 }}
+              mb={{ base: 2, sm: 0 }}
+              w={{ base: "100%", sm: "auto" }}
+              onClick={onClose}
+            >
               Close
             </Button>
             <Link href={`/home?userDAO=${selectedOrg?.id}`} passHref style={{ width: "100%" }}>
-              <Button colorScheme="blue" rightIcon={<FaArrowRight />} w={{ base: "100%", sm: "auto" }}>
+              <Button
+                bg="warmGray.900"
+                color="white"
+                borderRadius="full"
+                fontWeight="600"
+                _hover={{ bg: "warmGray.800" }}
+                _active={{ bg: "warmGray.700" }}
+                rightIcon={<FaArrowRight />}
+                w={{ base: "100%", sm: "auto" }}
+              >
                 Visit Organization
               </Button>
             </Link>
@@ -190,51 +297,80 @@ const BrowserPage = () => {
       </Modal>
 
       <Box width="100%" position="relative">
-        {/* Hero Section with Fading Edges */}
+        {/* Hero Section */}
         <Box
-          bgGradient={heroGradient}
-          mt="3"
-          py={{ base: "30px", md: "70px" }}
-          px={{ base: 4, md: 8 }}
-          borderBottomWidth="1px"
-          borderColor={borderColor}
-          mb={{ base: 4, md: 10 }}
+          as="section"
+          pt={["24", "28", "32"]}
+          pb={["16", "20", "24"]}
+          px={[4, 6, 8]}
+          position="relative"
         >
+          {/* Ambient orb - left */}
+          <Box
+            position="absolute"
+            top="-10%"
+            left="-8%"
+            w={["200px", "300px", "400px"]}
+            h={["200px", "300px", "400px"]}
+            bg="#9055E8"
+            opacity={0.12}
+            filter="blur(80px)"
+            pointerEvents="none"
+            borderRadius="50%"
+          />
+          {/* Ambient orb - right */}
+          <Box
+            position="absolute"
+            top="0%"
+            right="-5%"
+            w={["180px", "260px", "350px"]}
+            h={["180px", "260px", "350px"]}
+            bg="#E85D85"
+            opacity={0.1}
+            filter="blur(80px)"
+            pointerEvents="none"
+            borderRadius="50%"
+          />
+
           <Container maxW="container.xl">
-            <MotionFlex
+            <Flex
+              as={motion.div}
               direction="column"
               align="center"
               textAlign="center"
-              initial={{ opacity: 0, y: -20 }}
+              initial={{ opacity: 0, y: -16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
+              transition={{ duration: 0.6 }}
             >
-              <MotionHeading
+              <Heading
                 as="h1"
-                size={{ base: "lg", md: "2xl" }}
-                fontWeight="extrabold"
-                mb={{ base: 2, md: 4 }}
-                px={{ base: 2, md: 0 }}
+                fontSize={["3xl", "4xl", "5xl"]}
+                fontWeight="700"
+                lineHeight="1.15"
+                letterSpacing="-0.02em"
+                color="warmGray.900"
+                mb={[4, 6, 8]}
               >
-                Browse and Join an <Box as="span" color={accentColor}>Organization</Box>
-              </MotionHeading>
-              <MotionText
-                fontSize={{ base: "sm", md: "xl" }}
-                maxW="700px"
-                mb={{ base: 4, md: 8 }}
-                opacity={0.8}
-                px={{ base: 2, md: 0 }}
-                lineHeight={{ base: "1.4", md: "tall" }}
+                Explore Organizations
+              </Heading>
+              <Text
+                fontSize={["lg", "xl"]}
+                color="warmGray.600"
+                maxW="540px"
+                mx="auto"
+                mb={[8, 10]}
+                lineHeight="1.7"
+                fontWeight="500"
               >
-                Discover communities that share your interests and passions. Connect, contribute, and grow with like-minded individuals.
-              </MotionText>
-              
+                Discover communities that share your interests and passions. Connect, contribute, and grow together.
+              </Text>
+
               {/* Search Bar */}
               <InputGroup
-                size={{ base: "md", md: "lg" }}
-                maxW="600px"
-                mb={{ base: 6, md: 8 }}
-                boxShadow="md"
+                size="lg"
+                maxW="520px"
+                mx="auto"
+                mb={[8, 10]}
                 borderRadius="full"
                 width={{ base: "95%", md: "auto" }}
               >
@@ -243,62 +379,65 @@ const BrowserPage = () => {
                   borderRadius="full"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  bg={cardBg}
-                  borderWidth="2px"
-                  borderColor={borderColor}
-                  _focus={{ borderColor: accentColor, boxShadow: `0 0 0 1px ${accentColor}` }}
-                  fontSize={{ base: "sm", md: "md" }}
-                  h={{ base: "48px", md: "56px" }}
-                  pl={{ base: 4, md: 6 }}
+                  bg="white"
+                  border="1px solid"
+                  borderColor="warmGray.200"
+                  fontSize="md"
+                  h="52px"
+                  pl={6}
+                  color="warmGray.900"
+                  _placeholder={{ color: "warmGray.400" }}
+                  _focus={{
+                    borderColor: "amethyst.300",
+                    boxShadow: "0 0 0 3px rgba(144, 85, 232, 0.1)",
+                  }}
+                  transition="border-color 0.2s, box-shadow 0.2s"
                 />
-                <InputRightElement h={{ base: "48px", md: "56px" }} w={{ base: "48px", md: "56px" }} pr={1}>
+                <InputRightElement h="52px" w="52px" pr={1}>
                   <Button
-                    h={{ base: "34px", md: "40px" }}
-                    w={{ base: "34px", md: "40px" }}
+                    h="38px"
+                    w="38px"
                     borderRadius="full"
-                    bg={accentColor}
+                    bg="warmGray.900"
                     color="white"
-                    _hover={{ bg: `${accentColor}.600` }}
+                    _hover={{ bg: "warmGray.800" }}
+                    _active={{ bg: "warmGray.700" }}
+                    minW="unset"
                   >
-                    <Icon as={FaSearch} />
+                    <Icon as={FaSearch} boxSize={3.5} />
                   </Button>
                 </InputRightElement>
               </InputGroup>
-              
-              {/* Stats/Info */}
-              <HStack 
-                spacing={{ base: 2, md: 8 }} 
-                mt={2} 
-                divider={<Box h="40px" w="1px" bg={borderColor} display={{ base: "none", sm: "block" }} />}
-                mb="-6"
-                overflow="auto"
-                width="100%"
+
+              {/* Stats */}
+              <HStack
+                spacing={[4, 8]}
+                mt={4}
                 justifyContent="center"
-                px={{ base: 2, md: 0 }}
-                pb={{ base: 2, md: 0 }}
-                flexWrap={{ base: "wrap", sm: "nowrap" }}
+                flexWrap="wrap"
               >
-                <Box textAlign="center" minWidth={{ base: "80px", md: "auto" }} mb={{ base: 1, sm: 0 }}>
-                  <Text fontWeight="bold" fontSize={{ base: "lg", md: "xl" }}>{perpetualOrganizations.length}</Text>
-                  <Text opacity={0.7} fontSize={{ base: "xs", sm: "sm" }}>Organizations</Text>
-                </Box>
-                <Box textAlign="center" minWidth={{ base: "80px", md: "auto" }} mb={{ base: 1, sm: 0 }}>
-                  <Text fontWeight="bold" fontSize={{ base: "lg", md: "xl" }}>
-                    {perpetualOrganizations.reduce((acc, po) => acc + (parseInt(po.totalMembers) || 0), 0)}
-                  </Text>
-                  <Text opacity={0.7} fontSize={{ base: "xs", sm: "sm" }}>Members</Text>
-                </Box>
-                <Box textAlign="center" minWidth={{ base: "80px", md: "auto" }} mb={{ base: 1, sm: 0 }}>
-                  <Text fontWeight="bold" fontSize={{ base: "lg", md: "xl" }}>100%</Text>
-                  <Text opacity={0.7} fontSize={{ base: "xs", sm: "sm" }}>Community-owned</Text>
-                </Box>
+                {[
+                  { value: perpetualOrganizations.length, label: "Organizations", icon: FaBuilding, color: "amethyst.500" },
+                  { value: perpetualOrganizations.reduce((acc, po) => acc + (parseInt(po.totalMembers) || 0), 0), label: "Members", icon: FaUserFriends, color: "rose.500" },
+                  { value: "100%", label: "Community-owned", icon: FaShieldAlt, color: "coral.500" },
+                ].map((stat, i) => (
+                  <Flex key={i} direction="column" align="center" px={[3, 5]}>
+                    <Icon as={stat.icon} color={stat.color} boxSize={4} mb={1.5} />
+                    <Text fontWeight="700" fontSize={["lg", "xl"]} color="warmGray.900">
+                      {stat.value}
+                    </Text>
+                    <Text fontSize="sm" color="warmGray.400" fontWeight="500">
+                      {stat.label}
+                    </Text>
+                  </Flex>
+                ))}
               </HStack>
-            </MotionFlex>
+            </Flex>
           </Container>
         </Box>
 
         {/* Organizations Grid */}
-        <Container maxW="container.xl" px={{ base: 3, md: 6 }} mb={16}>
+        <Container maxW="container.xl" px={[4, 6, 8]} mb={[16, 20, 24]}>
           <MotionBox
             variants={containerVariants}
             initial="hidden"
@@ -309,47 +448,50 @@ const BrowserPage = () => {
                 templateColumns={{
                   base: "repeat(1, 1fr)",
                   sm: "repeat(2, 1fr)",
-                  md: "repeat(3, 1fr)",
-                  lg: "repeat(4, 1fr)"
+                  lg: "repeat(3, 1fr)"
                 }}
-                gap={{ base: 4, md: 6 }}
+                gap={[5, 6, 8]}
               >
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <GridItem key={i}>
                     <Box
                       borderRadius="xl"
                       overflow="hidden"
-                      boxShadow="md"
-                      bg={cardBg}
-                      borderWidth="1px"
-                      borderColor={borderColor}
+                      border="1px solid"
+                      borderColor="warmGray.100"
+                      bg="white"
                       height="100%"
                     >
-                      <Skeleton height="180px" />
+                      <Skeleton height="140px" startColor="amethyst.50" endColor="amethyst.100" />
                       <Box p={5}>
-                        <Skeleton height="24px" mb={3} />
-                        <Skeleton height="60px" mb={3} />
-                        <Skeleton height="20px" width="120px" />
+                        <Skeleton height="24px" mb={3} startColor="warmGray.50" endColor="warmGray.100" />
+                        <Skeleton height="60px" mb={3} startColor="warmGray.50" endColor="warmGray.100" />
+                        <Skeleton height="20px" width="120px" startColor="warmGray.50" endColor="warmGray.100" />
                       </Box>
                     </Box>
                   </GridItem>
                 ))}
               </Grid>
             ) : filteredOrganizations.length === 0 ? (
-              <Flex direction="column" align="center" justify="center" py={{ base: 10, md: 16 }}>
-                <Icon as={FaGlobe} boxSize={{ base: 8, md: 12 }} color={accentColor} mb={4} />
-                <Heading size={{ base: "md", md: "lg" }} mb={2} textAlign="center">No organizations found</Heading>
-                <Text textAlign="center" maxW="500px" mb={6} px={{ base: 4, md: 0 }}>
-                  {searchTerm ? 
-                    `No organizations matching "${searchTerm}" were found. Try a different search.` : 
+              <Flex direction="column" align="center" justify="center" py={["12", "16", "20"]}>
+                <Icon as={FaGlobe} boxSize={[8, 10]} color="warmGray.300" mb={4} />
+                <Heading size="md" mb={2} textAlign="center" color="warmGray.900" fontWeight="700">
+                  No organizations found
+                </Heading>
+                <Text textAlign="center" maxW="440px" mb={6} color="warmGray.500" fontWeight="500" lineHeight="1.7">
+                  {searchTerm ?
+                    `No organizations matching "${searchTerm}" were found. Try a different search.` :
                     "There are no organizations available at the moment. Check back later."}
                 </Text>
                 {searchTerm && (
-                  <Button 
-                    variant="outline" 
-                    colorScheme="blue" 
+                  <Button
+                    variant="outline"
+                    borderColor="warmGray.200"
+                    color="warmGray.700"
+                    borderRadius="full"
+                    fontWeight="600"
+                    _hover={{ bg: "warmGray.50", borderColor: "warmGray.300" }}
                     onClick={() => setSearchTerm("")}
-                    size={{ base: "sm", md: "md" }}
                   >
                     Clear Search
                   </Button>
@@ -360,10 +502,9 @@ const BrowserPage = () => {
                 templateColumns={{
                   base: "repeat(1, 1fr)",
                   sm: "repeat(2, 1fr)",
-                  md: "repeat(3, 1fr)",
-                  lg: "repeat(4, 1fr)"
+                  lg: "repeat(3, 1fr)"
                 }}
-                gap={{ base: 4, md: 6 }}
+                gap={[5, 6, 8]}
               >
                 {filteredOrganizations.map((po) => (
                   <GridItem key={po.id}>
@@ -374,70 +515,66 @@ const BrowserPage = () => {
                       <Box
                         borderRadius="xl"
                         overflow="hidden"
-                        boxShadow="md"
-                        bg={cardBg}
-                        borderWidth="1px"
-                        borderColor={borderColor}
-                        transition="transform 0.3s, box-shadow 0.3s, background 0.3s, border-color 0.3s"
+                        border="1px solid"
+                        borderColor="warmGray.100"
+                        bg="white"
+                        boxShadow="0 1px 3px rgba(0, 0, 0, 0.04)"
+                        transition="transform 0.3s, box-shadow 0.3s, border-color 0.3s"
                         height="100%"
+                        role="group"
                         _hover={{
-                          transform: { base: "none", md: "translateY(-8px)" },
-                          boxShadow: { base: "md", md: "xl" },
-                          borderColor: accentColor,
+                          transform: { base: "none", md: "translateY(-3px)" },
+                          boxShadow: "0 8px 30px rgba(144, 85, 232, 0.12)",
+                          borderColor: "amethyst.200",
                         }}
                       >
                         <Link href={`/home?userDAO=${po.id}`} passHref>
-                          <Box
-                            as="a"
-                            bg={imageBg}
-                            p={{ base: 4, md: 6 }}
-                            display="flex"
-                            justifyContent="center"
-                            alignItems="center"
-                          >
-                            <Image
-                              src={images[po.id] || '/images/poa_logo.png'}
-                              alt={po.id}
-                              borderRadius="lg"
-                              boxSize={{ base: "100px", md: "120px" }}
-                              objectFit="contain"
-                            />
+                          <Box as="a">
+                            <OrgBanner name={po.id} />
                           </Box>
                         </Link>
-                        
-                        <Box p={{ base: 4, md: 5 }}>
+
+                        <Box p={[4, 5]}>
                           <Flex justify="space-between" align="center" mb={3}>
                             <Link href={`/home?userDAO=${po.id}`} passHref>
                               <Heading
                                 as="a"
-                                fontSize={{ base: "lg", md: "xl" }}
-                                fontWeight="bold"
+                                fontSize={["lg", "xl"]}
+                                fontWeight="700"
+                                color="warmGray.900"
                                 noOfLines={1}
                               >
                                 {po.id}
                               </Heading>
                             </Link>
-                            <Badge colorScheme="blue" borderRadius="full" px={2}>
+                            <Badge
+                              bg="amethyst.50"
+                              color="amethyst.600"
+                              borderRadius="full"
+                              px={2.5}
+                              py={0.5}
+                              fontSize="xs"
+                              fontWeight="600"
+                            >
                               Org
                             </Badge>
                           </Flex>
-                          
+
                           {po.aboutInfo?.description && (
-                            <Box 
-                              mb={3} 
-                              position="relative" 
-                              minH={{ base: "60px", md: "80px" }} 
-                              display="flex" 
-                              flexDirection="column" 
+                            <Box
+                              mb={3}
+                              position="relative"
+                              minH={["60px", "80px"]}
+                              display="flex"
+                              flexDirection="column"
                               justifyContent="center"
                             >
                               <Text
-                                fontSize={{ base: "sm", md: po.aboutInfo.description.length < 50 ? "lg" : "md" }}
-                                lineHeight={po.aboutInfo.description.length < 50 ? "1.5" : "normal"}
-                                fontWeight={po.aboutInfo.description.length < 50 ? "medium" : "normal"}
-                                color={descriptionColor}
-                                noOfLines={{ base: 2, md: 3 }}
-                                position="relative"
+                                fontSize="md"
+                                lineHeight="1.7"
+                                fontWeight="500"
+                                color="warmGray.600"
+                                noOfLines={3}
                                 pr="5px"
                               >
                                 {po.aboutInfo.description}
@@ -449,7 +586,8 @@ const BrowserPage = () => {
                                 bottom="0"
                                 size="sm"
                                 variant="ghost"
-                                colorScheme="blue"
+                                color="warmGray.400"
+                                _hover={{ color: "amethyst.500" }}
                                 width="24px"
                                 height="24px"
                                 minWidth="0"
@@ -460,28 +598,37 @@ const BrowserPage = () => {
                               </Button>
                             </Box>
                           )}
-                          
-                          <Divider my={3} />
-                          
-                          <Flex 
-                            justify="space-between" 
+
+                          <Box h="1px" bg="warmGray.100" my={3} />
+
+                          <Flex
+                            justify="space-between"
                             align="center"
                             flexDirection={{ base: "column", sm: "row" }}
                             gap={{ base: 2, sm: 0 }}
                           >
                             <HStack>
-                              <Icon as={FaUsers} color={accentColor} />
-                              <Text fontSize="sm" fontWeight="medium">
+                              <Icon
+                                as={FaUsers}
+                                color="warmGray.400"
+                                _groupHover={{ color: "amethyst.500" }}
+                                transition="color 0.3s"
+                              />
+                              <Text fontSize="sm" fontWeight="500" color="warmGray.500">
                                 {po.totalMembers || "0"} Members
                               </Text>
                             </HStack>
                             <Link href={`/home?userDAO=${po.id}`} passHref>
-                              <Button 
-                                as="a" 
-                                size="sm" 
-                                colorScheme="blue" 
-                                variant={{ base: "solid", sm: "ghost" }}
-                                rightIcon={<FaArrowRight />}
+                              <Button
+                                as="a"
+                                size="sm"
+                                bg="warmGray.900"
+                                color="white"
+                                borderRadius="full"
+                                fontWeight="600"
+                                _hover={{ bg: "warmGray.800" }}
+                                _active={{ bg: "warmGray.700" }}
+                                rightIcon={<FaArrowRight size={12} />}
                                 width={{ base: "100%", sm: "auto" }}
                               >
                                 Visit
@@ -498,7 +645,7 @@ const BrowserPage = () => {
           </MotionBox>
         </Container>
       </Box>
-    </Layout>
+    </Box>
   );
 };
 
