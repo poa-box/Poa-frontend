@@ -149,13 +149,6 @@
   },
   {
     "type": "function",
-    "name": "quickJoinNoUser",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "quickJoinNoUserMasterDeploy",
     "inputs": [
       {
@@ -165,47 +158,6 @@
       }
     ],
     "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "quickJoinWithPasskey",
-    "inputs": [
-      {
-        "name": "passkey",
-        "type": "tuple",
-        "internalType": "struct QuickJoin.PasskeyEnrollment",
-        "components": [
-          {
-            "name": "credentialId",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "publicKeyX",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "publicKeyY",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "salt",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
-      }
-    ],
-    "outputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
     "stateMutability": "nonpayable"
   },
   {
@@ -680,31 +632,6 @@
         "type": "address",
         "indexed": true,
         "internalType": "address"
-      },
-      {
-        "name": "hatIds",
-        "type": "uint256[]",
-        "indexed": false,
-        "internalType": "uint256[]"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "QuickJoinedWithPasskey",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "credentialId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
       },
       {
         "name": "hatIds",

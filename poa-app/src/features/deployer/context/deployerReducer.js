@@ -253,18 +253,18 @@ export const initialState = {
 
   // Paymaster configuration (optional - all zeros = skip)
   paymaster: {
-    enabled: false,
+    enabled: true,
     operatorRoleIndex: null,       // null = type(uint256).max (skip), or role index
     autoWhitelistContracts: true,  // Default true - most users want this
-    fundingAmountEth: '',          // ETH to deposit as msg.value (string for input)
+    fundingAmountEth: '0.05',      // ETH to deposit as msg.value (default org budget)
     maxFeePerGas: '',              // gwei string, '' = 0 = no cap
     maxPriorityFeePerGas: '',      // gwei string
     maxCallGas: '',                // gas units string
     maxVerificationGas: '',
     maxPreVerificationGas: '',
-    budgetCapEth: '',              // ETH amount string, '' = 0 = no budget
-    budgetEpochValue: '',          // numeric string in chosen unit
-    budgetEpochUnit: 'days',       // 'hours' | 'days' | 'weeks'
+    budgetCapEth: '0.05',          // ETH amount per epoch per hat (generous default)
+    budgetEpochValue: '1',         // 1 week epoch
+    budgetEpochUnit: 'weeks',      // 'hours' | 'days' | 'weeks'
   },
 
   // Deployment state

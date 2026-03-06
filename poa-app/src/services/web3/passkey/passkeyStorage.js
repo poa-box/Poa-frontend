@@ -100,6 +100,23 @@ export function getPendingCredentialForOrg(orgName) {
 }
 
 /**
+ * Find a pending credential by its credentialId (for sign-in with undeployed accounts).
+ * @param {string} credentialId - bytes32 hex
+ * @returns {Object|null}
+ */
+export function findPendingCredentialByCredentialId(credentialId) {
+  if (!credentialId) return null;
+  const all = getAllPendingCredentials();
+  const lowered = credentialId.toLowerCase();
+  for (const entry of Object.values(all)) {
+    if (entry.credentialId?.toLowerCase() === lowered) {
+      return entry;
+    }
+  }
+  return null;
+}
+
+/**
  * Remove a pending credential after successful deployment.
  * @param {string} accountAddress
  */

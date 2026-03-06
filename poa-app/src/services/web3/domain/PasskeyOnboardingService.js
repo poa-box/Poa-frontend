@@ -3,10 +3,11 @@
  * Orchestrates the full passkey onboarding flow:
  * 1. Create WebAuthn credential (biometric prompt)
  * 2. Compute counterfactual smart account address
- * 3. Build UserOp with initCode (account deployment) + callData (register + join)
- * 4. Sign UserOp hash with passkey (biometric prompt)
- * 5. Submit to bundler
- * 6. Wait for receipt
+ * 3. Sign registration challenge (biometric prompt — proves passkey ownership for username registration)
+ * 4. Build UserOp with initCode (account deployment) + callData (registerAndQuickJoin)
+ * 5. Sign UserOp hash with passkey (biometric prompt)
+ * 6. Submit to bundler
+ * 7. Wait for receipt
  */
 
 import { encodeFunctionData } from 'viem';
@@ -14,15 +15,17 @@ import PasskeyAccountABI from '../../../../abi/PasskeyAccount.json';
 import PasskeyAccountFactoryABI from '../../../../abi/PasskeyAccountFactory.json';
 import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
 import QuickJoinABI from '../../../../abi/QuickJoinNew.json';
-import EligibilityModuleABI from '../../../../abi/EligibilityModuleNew.json';
 import { createPasskeyCredential } from '../passkey/passkeyCreate';
-import { signUserOpWithPasskey } from '../passkey/passkeySign';
+import { signUserOpWithPasskey, signRegistrationChallenge, computeRegistrationChallenge } from '../passkey/passkeySign';
 import { buildUserOp, getUserOpHash } from '../passkey/userOpBuilder';
 import { encodeOnboardingPaymasterData, encodeSolidarityOnboardingPaymasterData } from '../passkey/paymasterData';
 import { ENTRY_POINT_ADDRESS } from '../../../config/passkey';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
 const networkConfig = NETWORKS[DEFAULT_NETWORK];
+
+// Registration deadline: 5 minutes from now
+const REGISTRATION_DEADLINE_SECONDS = 300;
 
 /**
  * Onboarding step identifiers for progress tracking
@@ -32,6 +35,7 @@ export const OnboardingStep = {
   CREATING_CREDENTIAL: 'creating_credential',
   COMPUTING_ADDRESS: 'computing_address',
   BUILDING_TRANSACTION: 'building_transaction',
+  SIGNING_REGISTRATION: 'signing_registration',
   SIGNING: 'signing',
   SUBMITTING: 'submitting',
   CONFIRMING: 'confirming',
@@ -46,6 +50,7 @@ export const STEP_MESSAGES = {
   [OnboardingStep.CREATING_CREDENTIAL]: 'Creating your passkey...',
   [OnboardingStep.COMPUTING_ADDRESS]: 'Computing your account address...',
   [OnboardingStep.BUILDING_TRANSACTION]: 'Preparing your transaction...',
+  [OnboardingStep.SIGNING_REGISTRATION]: 'Sign with your passkey to register your username...',
   [OnboardingStep.SIGNING]: 'Sign with your passkey to confirm...',
   [OnboardingStep.SUBMITTING]: 'Submitting to the network...',
   [OnboardingStep.CONFIRMING]: 'Confirming on blockchain...',
@@ -65,7 +70,7 @@ export class PasskeyOnboardingService {
    * @param {string} [params.orgId] - bytes32 org ID (org mode only)
    * @param {string} [params.mode='org'] - 'org' for org-scoped onboarding, 'solidarity' for protocol-level
    */
-  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId, mode = 'org', eligibilityModuleAddress, claimHatId }) {
+  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId, mode = 'org', hatId }) {
     this.publicClient = publicClient;
     this.bundlerClient = bundlerClient;
     this.factoryAddress = factoryAddress;
@@ -74,8 +79,7 @@ export class PasskeyOnboardingService {
     this.paymasterAddress = paymasterAddress;
     this.orgId = orgId;
     this.mode = mode;
-    this.eligibilityModuleAddress = eligibilityModuleAddress;
-    this.claimHatId = claimHatId;
+    this.hatId = hatId;
   }
 
   /**
@@ -87,6 +91,70 @@ export class PasskeyOnboardingService {
       abi: PasskeyAccountFactoryABI,
       functionName: 'getAddress',
       args: [credential.credentialId, credential.publicKeyX, credential.publicKeyY, credential.salt],
+    });
+  }
+
+  /**
+   * Query the registry nonce for an account address.
+   * For new (undeployed) accounts this returns 0n.
+   */
+  async _getRegistryNonce(accountAddress) {
+    return this.publicClient.readContract({
+      address: this.registryAddress,
+      abi: UniversalAccountRegistryABI,
+      functionName: 'nonces',
+      args: [accountAddress],
+    });
+  }
+
+  /**
+   * Build the callData for org-mode onboarding using registerAndQuickJoinWithPasskey.
+   * Signs the registration challenge (biometric prompt) and encodes the execute call.
+   *
+   * @param {Object} credential - { credentialId, publicKeyX, publicKeyY, salt, rawCredentialId }
+   * @param {string} accountAddress - Counterfactual account address
+   * @param {string} username - Username to register
+   * @param {Function} onStep - Progress callback
+   * @returns {string} Encoded callData for the UserOp
+   */
+  async _buildOrgModeCallData(credential, accountAddress, username, onStep) {
+    const { credentialId, publicKeyX, publicKeyY, salt, rawCredentialId } = credential;
+
+    // Query registry nonce (0 for new accounts)
+    const nonce = await this._getRegistryNonce(accountAddress);
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + REGISTRATION_DEADLINE_SECONDS);
+
+    // Compute the EIP-712 registration challenge
+    const challengeHash = computeRegistrationChallenge({
+      accountAddress,
+      username,
+      nonce,
+      deadline,
+      chainId: networkConfig.chainId,
+      registryAddress: this.registryAddress,
+    });
+
+    // Sign registration challenge with passkey (biometric prompt)
+    onStep(OnboardingStep.SIGNING_REGISTRATION);
+    const auth = await signRegistrationChallenge(challengeHash, rawCredentialId);
+
+    // Encode registerAndQuickJoinWithPasskey call on QuickJoin
+    const registerAndJoinData = encodeFunctionData({
+      abi: QuickJoinABI,
+      functionName: 'registerAndQuickJoinWithPasskey',
+      args: [
+        { credentialId, publicKeyX, publicKeyY, salt },
+        username,
+        deadline,
+        nonce,
+        auth,
+      ],
+    });
+
+    return encodeFunctionData({
+      abi: PasskeyAccountABI,
+      functionName: 'execute',
+      args: [this.quickJoinAddress, 0n, registerAndJoinData],
     });
   }
 
@@ -146,41 +214,12 @@ export class PasskeyOnboardingService {
         });
         paymasterData = encodeSolidarityOnboardingPaymasterData();
       } else {
-        // Org mode: deploy + register + quickJoin (+ optional claimVouchedHat) in one tx
-        const registerCallData = encodeFunctionData({
-          abi: UniversalAccountRegistryABI,
-          functionName: 'registerAccount',
-          args: [username],
-        });
-        const joinCallData = encodeFunctionData({
-          abi: QuickJoinABI,
-          functionName: 'quickJoinNoUser',
-          args: [],
-        });
-
-        const targets = [this.registryAddress, this.quickJoinAddress];
-        const values = [0n, 0n];
-        const datas = [registerCallData, joinCallData];
-
-        if (this.claimHatId && this.eligibilityModuleAddress) {
-          const claimCallData = encodeFunctionData({
-            abi: EligibilityModuleABI,
-            functionName: 'claimVouchedHat',
-            args: [BigInt(this.claimHatId)],
-          });
-          targets.push(this.eligibilityModuleAddress);
-          values.push(0n);
-          datas.push(claimCallData);
-        }
-
-        callData = encodeFunctionData({
-          abi: PasskeyAccountABI,
-          functionName: 'executeBatch',
-          args: [targets, values, datas],
-        });
+        // Org mode: registerAndQuickJoinWithPasskey
+        // This signs the registration challenge (biometric prompt #2)
+        callData = await this._buildOrgModeCallData(credential, accountAddress, username, onStep);
 
         paymasterData = encodeOnboardingPaymasterData({
-          counterfactualAddress: accountAddress,
+          hatId: this.hatId,
           orgId: this.orgId,
         });
       }
@@ -195,7 +234,7 @@ export class PasskeyOnboardingService {
         paymasterData,
       });
 
-      // Step 4: Sign UserOp hash with passkey (biometric prompt #2)
+      // Step 4: Sign UserOp hash with passkey (biometric prompt #3 for org, #2 for solidarity)
       onStep(OnboardingStep.SIGNING);
       const userOpHash = getUserOpHash(
         userOp,
@@ -271,41 +310,12 @@ export class PasskeyOnboardingService {
       });
       const initCode = this.factoryAddress + factoryCallData.slice(2);
 
-      // Build callData (always org mode for vouch-first)
-      const registerCallData = encodeFunctionData({
-        abi: UniversalAccountRegistryABI,
-        functionName: 'registerAccount',
-        args: [username],
-      });
-      const joinCallData = encodeFunctionData({
-        abi: QuickJoinABI,
-        functionName: 'quickJoinNoUser',
-        args: [],
-      });
-
-      const targets = [this.registryAddress, this.quickJoinAddress];
-      const values = [0n, 0n];
-      const datas = [registerCallData, joinCallData];
-
-      if (this.claimHatId && this.eligibilityModuleAddress) {
-        const claimCallData = encodeFunctionData({
-          abi: EligibilityModuleABI,
-          functionName: 'claimVouchedHat',
-          args: [BigInt(this.claimHatId)],
-        });
-        targets.push(this.eligibilityModuleAddress);
-        values.push(0n);
-        datas.push(claimCallData);
-      }
-
-      const callData = encodeFunctionData({
-        abi: PasskeyAccountABI,
-        functionName: 'executeBatch',
-        args: [targets, values, datas],
-      });
+      // Build callData: registerAndQuickJoinWithPasskey
+      // This signs the registration challenge (biometric prompt #1)
+      const callData = await this._buildOrgModeCallData(credential, accountAddress, username, onStep);
 
       const paymasterData = encodeOnboardingPaymasterData({
-        counterfactualAddress: accountAddress,
+        hatId: this.hatId,
         orgId: this.orgId,
       });
 
@@ -319,7 +329,7 @@ export class PasskeyOnboardingService {
         paymasterData,
       });
 
-      // Sign UserOp hash with passkey (biometric prompt)
+      // Sign UserOp hash with passkey (biometric prompt #2)
       onStep(OnboardingStep.SIGNING);
       const userOpHash = getUserOpHash(
         userOp,

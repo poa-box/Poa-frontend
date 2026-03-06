@@ -32,6 +32,8 @@ import {
   Flex,
   Image,
   Portal,
+  useDisclosure,
+  Divider,
 } from '@chakra-ui/react';
 import {
   EditIcon,
@@ -53,8 +55,8 @@ import {
   PiInfo,
   PiGasPump,
 } from 'react-icons/pi';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import PasskeyLoginButton from '../../../components/passkey/PasskeyLoginButton';
+import SignInModal from '../../../components/passkey/SignInModal';
+import PasskeyOnboardingModal from '../../../components/passkey/PasskeyOnboardingModal';
 import { useDeployer, PERMISSION_KEYS, PERMISSION_DESCRIPTIONS, VOTING_STRATEGY, STEPS } from '../context/DeployerContext';
 import { validateDeployerState } from '../validation/schemas';
 import { validateDeploymentConfig } from '../utils/deploymentMapper';
@@ -727,6 +729,10 @@ export function ReviewStep({
   const { state, actions, selectors } = useDeployer();
   const toast = useToast();
 
+  // Auth modal state
+  const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
+  const { isOpen: isCreateOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure();
+
   // Username state - managed by DeployerUsernameSection component
   const [deployerUsername, setDeployerUsername] = useState('');
   const [isUsernameReady, setIsUsernameReady] = useState(false);
@@ -1308,30 +1314,49 @@ export function ReviewStep({
                   <Text color="warmGray.500" fontSize="sm" mb={5}>
                     You need an account to deploy your organization
                   </Text>
-                  <PasskeyLoginButton
-                    variant="full"
-                    size="lg"
+                  <Button
+                    onClick={onCreateOpen}
                     w="100%"
+                    size="lg"
+                    h="48px"
                     fontSize="md"
                     fontWeight="600"
-                    h="48px"
-                  />
-                  <Text color="warmGray.400" fontSize="xs" mt={4} mb={2}>or</Text>
-                  <ConnectButton.Custom>
-                    {({ openConnectModal }) => (
-                      <Button
-                        variant="ghost"
-                        color="warmGray.500"
-                        fontSize="sm"
-                        fontWeight="400"
-                        onClick={openConnectModal}
-                        _hover={{ color: 'warmGray.700', textDecoration: 'underline' }}
-                      >
-                        Sign in with wallet
-                      </Button>
-                    )}
-                  </ConnectButton.Custom>
+                    bg="amethyst.400"
+                    color="white"
+                    borderRadius="xl"
+                    _hover={{ bg: 'amethyst.500', transform: 'translateY(-1px)', boxShadow: 'md' }}
+                    _active={{ bg: 'amethyst.600', transform: 'translateY(0)' }}
+                  >
+                    Create Account
+                  </Button>
+                  <HStack width="100%" align="center" mt={4} mb={2}>
+                    <Divider borderColor="warmGray.200" />
+                    <Text fontSize="xs" color="warmGray.400" whiteSpace="nowrap" px={2}>
+                      or
+                    </Text>
+                    <Divider borderColor="warmGray.200" />
+                  </HStack>
+                  <Button
+                    onClick={onSignInOpen}
+                    variant="ghost"
+                    color="warmGray.500"
+                    fontSize="sm"
+                    fontWeight="400"
+                    _hover={{ color: 'warmGray.700', textDecoration: 'underline' }}
+                  >
+                    Sign in with Passkey or Wallet
+                  </Button>
                 </Box>
+                <PasskeyOnboardingModal
+                  isOpen={isCreateOpen}
+                  onClose={onCreateClose}
+                  showWalletOption
+                />
+                <SignInModal
+                  isOpen={isSignInOpen}
+                  onClose={onSignInClose}
+                  onCreateAccount={onCreateOpen}
+                />
               </VStack>
             ) : (
               <VStack spacing={4} w="100%" align="center">

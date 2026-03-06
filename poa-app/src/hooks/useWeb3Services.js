@@ -12,6 +12,7 @@ import { useNotification } from '../context/NotificationContext';
 import { useRefreshEmit } from '../context/RefreshContext';
 import { useIPFScontext } from '../context/ipfsContext';
 import { usePOContext } from '../context/POContext';
+import { useUserContext } from '../context/UserContext';
 import { INFRASTRUCTURE_CONTRACTS, getInfrastructureAddress } from '../config/contracts';
 import { DEFAULT_NETWORK } from '../config/networks';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
@@ -53,6 +54,11 @@ export function useWeb3Services(options = {}) {
   const poContext = usePOContext();
   const orgId = poContext?.orgId || null;
 
+  // Get user's hat IDs for hat-scoped paymaster budget
+  // useUserContext returns undefined outside UserProvider (safe with optional chaining)
+  const userContext = useUserContext();
+  const hatIds = userContext?.userData?.hatIds || null;
+
   // Fetch infrastructure addresses from subgraph
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
@@ -65,8 +71,8 @@ export function useWeb3Services(options = {}) {
     fetchPolicy: 'cache-first',
   });
   const orgPaymaster = pmConfig?.paymasterOrgConfigs?.[0];
-  // Only pass paymaster address when the org is registered and not paused
-  const paymasterAddress = (orgPaymaster?.isRegistered && !orgPaymaster?.isPaused)
+  // Entity existence = registered. Only pass paymaster address when not paused.
+  const paymasterAddress = (orgPaymaster && !orgPaymaster.isPaused)
     ? paymasterHubAddress
     : null;
 
@@ -94,12 +100,13 @@ export function useWeb3Services(options = {}) {
         bundlerClient,
         paymasterAddress,
         orgId,
+        hatIds,
       });
     }
     // EOA: create standard TransactionManager
     if (!signer) return null;
     return createTransactionManager(signer);
-  }, [signer, isPasskeyUser, passkeyState, publicClient, bundlerClient, paymasterAddress, orgId]);
+  }, [signer, isPasskeyUser, passkeyState, publicClient, bundlerClient, paymasterAddress, orgId, hatIds]);
 
   // Create domain services
   const services = useMemo(() => {

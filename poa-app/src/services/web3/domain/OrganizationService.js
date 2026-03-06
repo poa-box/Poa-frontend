@@ -6,6 +6,13 @@
 import QuickJoinABI from '../../../../abi/QuickJoinNew.json';
 import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
 import { requireAddress, requireValidUsername } from '../utils/validation';
+import { signRegistrationChallenge, computeRegistrationChallenge } from '../passkey/passkeySign';
+import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
+
+const networkConfig = NETWORKS[DEFAULT_NETWORK];
+
+// Registration deadline: 5 minutes
+const REGISTRATION_DEADLINE_SECONDS = 300;
 
 /**
  * OrganizationService - Organization membership management
@@ -23,14 +30,20 @@ export class OrganizationService {
   }
 
   /**
-   * Join an organization without an existing account (creates account + joins)
-   * Two-step process: first registers username, then joins the org.
+   * Register a username and join an organization via registerAndQuickJoinWithPasskey.
+   * Combines registration + org join into a single atomic contract call.
+   *
+   * Requires two biometric prompts:
+   *   1. Sign the registration challenge (proves passkey ownership for username)
+   *   2. Sign the UserOp (handled by SmartAccountTransactionManager)
+   *
    * @param {string} contractAddress - QuickJoin contract address
    * @param {string} username - Username for new account
+   * @param {Object} credential - Passkey credential { credentialId, publicKeyX, publicKeyY, salt, rawCredentialId }
    * @param {Object} [options={}] - Transaction options
    * @returns {Promise<TransactionResult>}
    */
-  async quickJoinNoUser(contractAddress, username, options = {}) {
+  async registerAndJoinNewUser(contractAddress, username, credential, options = {}) {
     requireAddress(contractAddress, 'QuickJoin contract address');
     requireValidUsername(username);
 
@@ -38,29 +51,44 @@ export class OrganizationService {
       throw new Error('Registry address is required for new user registration');
     }
 
-    // Step 1: Register the username via UniversalAccountRegistry
-    const registryContract = this.factory.createWritable(
-      this.registryAddress,
-      UniversalAccountRegistryABI
-    );
+    const { credentialId, publicKeyX, publicKeyY, salt, rawCredentialId } = credential;
+    const accountAddress = this.txManager.accountAddress;
 
-    console.log("Step 1: Registering username:", username);
-    const registerResult = await this.txManager.execute(
-      registryContract,
-      'registerAccount',
-      [username],
-      options
-    );
+    // Query registry nonce for this account (0 for accounts that haven't registered)
+    const registryContract = this.factory.createReadOnly(this.registryAddress, UniversalAccountRegistryABI);
+    const nonce = BigInt(await registryContract.nonces(accountAddress));
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + REGISTRATION_DEADLINE_SECONDS);
 
-    if (!registerResult.success) {
-      return registerResult;
-    }
+    // Compute and sign the registration challenge (biometric prompt #1)
+    const challengeHash = computeRegistrationChallenge({
+      accountAddress,
+      username,
+      nonce,
+      deadline,
+      chainId: networkConfig.chainId,
+      registryAddress: this.registryAddress,
+    });
 
-    // Step 2: Join the organization (no username needed)
-    console.log("Step 2: Joining organization at:", contractAddress);
+    console.log('[OrganizationService] Signing registration challenge...');
+    const auth = await signRegistrationChallenge(challengeHash, rawCredentialId);
+
+    // Call registerAndQuickJoinWithPasskey on QuickJoin
+    // SmartAccountTransactionManager wraps this in execute() and signs the UserOp (biometric prompt #2)
+    console.log('[OrganizationService] Calling registerAndQuickJoinWithPasskey...');
     const quickJoinContract = this.factory.createWritable(contractAddress, QuickJoinABI);
 
-    return this.txManager.execute(quickJoinContract, 'quickJoinNoUser', [], options);
+    return this.txManager.execute(
+      quickJoinContract,
+      'registerAndQuickJoinWithPasskey',
+      [
+        [credentialId, publicKeyX, publicKeyY, BigInt(salt)],
+        username,
+        deadline,
+        nonce,
+        [auth.authenticatorData, auth.clientDataJSON, auth.challengeIndex, auth.typeIndex, auth.r, auth.s],
+      ],
+      options
+    );
   }
 
   /**

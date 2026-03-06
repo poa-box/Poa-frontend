@@ -15,7 +15,7 @@ import {
   parseAbiParameters,
 } from 'viem';
 import { entryPoint07Abi } from 'viem/account-abstraction';
-import { ENTRY_POINT_ADDRESS, GAS_BUFFER_PERCENT } from '../../../config/passkey';
+import { ENTRY_POINT_ADDRESS, GAS_BUFFER_PERCENT, MAX_USEROP_GAS } from '../../../config/passkey';
 
 /**
  * Build a complete UserOp ready for signing.
@@ -103,7 +103,8 @@ export async function buildUserOp({
  * @param {Object} params.publicClient - viem public client
  * @param {string} [params.initCode='0x'] - initCode for account deployment
  * @param {string} [params.paymasterAddress] - PaymasterHub address (optional)
- * @param {string} [params.paymasterData] - Paymaster-specific data (optional)
+ * @param {string} [params.paymasterData] - Paymaster-specific data (optional, single entry)
+ * @param {string[]} [params.paymasterDataEntries] - Array of paymaster data to try (tries each before self-pay)
  * @returns {Object} UserOperation ready for signing
  */
 export async function buildUserOpWithFallback({
@@ -114,6 +115,7 @@ export async function buildUserOpWithFallback({
   initCode = '0x',
   paymasterAddress,
   paymasterData,
+  paymasterDataEntries,
 }) {
   const entryPoint = ENTRY_POINT_ADDRESS;
 
@@ -153,32 +155,38 @@ export async function buildUserOpWithFallback({
     signature: DUMMY_SIGNATURE,
   };
 
-  // 2. Try with paymaster if available
-  if (paymasterAddress) {
-    const userOp = {
-      ...baseFields,
-      paymaster: paymasterAddress,
-      paymasterVerificationGasLimit: 200_000n,
-      paymasterPostOpGasLimit: 200_000n,
-      paymasterData,
-    };
+  // Normalize: support both single paymasterData and paymasterDataEntries array
+  const dataEntries = paymasterDataEntries || (paymasterData ? [paymasterData] : []);
 
-    try {
-      await estimateGas(userOp, bundlerClient);
-      console.log('UserOp built with gas sponsorship');
-      return userOp;
-    } catch (e) {
-      const msg = e.message || '';
-      const isPaymasterRejection = msg.includes('AA31') || msg.includes('AA33')
-        || msg.includes('paymaster') || msg.includes('Paymaster')
-        || msg.includes('validatePaymasterUserOp');
+  // 2. Try with paymaster if available — iterate through all entries before giving up
+  if (paymasterAddress && dataEntries.length > 0) {
+    for (let i = 0; i < dataEntries.length; i++) {
+      const userOp = {
+        ...baseFields,
+        paymaster: paymasterAddress,
+        paymasterVerificationGasLimit: 200_000n,
+        paymasterPostOpGasLimit: 200_000n,
+        paymasterData: dataEntries[i],
+      };
 
-      if (isPaymasterRejection) {
-        console.warn('Paymaster rejected, falling back to self-funded:', msg);
-      } else {
-        throw e;
+      try {
+        await estimateGas(userOp, bundlerClient);
+        console.log(`UserOp built with gas sponsorship (entry ${i + 1}/${dataEntries.length})`);
+        return userOp;
+      } catch (e) {
+        const msg = e.message || '';
+        const isPaymasterRejection = msg.includes('AA31') || msg.includes('AA33')
+          || msg.includes('paymaster') || msg.includes('Paymaster')
+          || msg.includes('validatePaymasterUserOp');
+
+        if (isPaymasterRejection) {
+          console.warn(`Paymaster rejected entry ${i + 1}/${dataEntries.length}, trying next:`, msg);
+        } else {
+          throw e;
+        }
       }
     }
+    console.warn('All paymaster entries rejected, falling back to self-funded');
   }
 
   // 3. Self-funded (no paymaster fields)
@@ -217,6 +225,25 @@ async function estimateGas(userOp, bundlerClient) {
     }
     if (gasEstimate.paymasterPostOpGasLimit) {
       userOp.paymasterPostOpGasLimit = applyBuffer(gasEstimate.paymasterPostOpGasLimit);
+    }
+
+    // Ensure total gas stays under bundler's per-UserOp limit.
+    // If the total exceeds MAX_USEROP_GAS, reduce callGasLimit since the
+    // bundler's execution trace gives accurate estimates and it needs less
+    // buffer than verification gas (which is underestimated due to dummy sig).
+    const totalGas = userOp.callGasLimit + userOp.verificationGasLimit
+      + userOp.preVerificationGas
+      + (userOp.paymasterVerificationGasLimit || 0n)
+      + (userOp.paymasterPostOpGasLimit || 0n);
+
+    if (totalGas > MAX_USEROP_GAS) {
+      const excess = totalGas - MAX_USEROP_GAS;
+      const reduced = userOp.callGasLimit - excess;
+      console.warn(
+        `[UserOp] Total gas ${totalGas} exceeds max ${MAX_USEROP_GAS}. ` +
+        `Reducing callGasLimit from ${userOp.callGasLimit} to ${reduced}`
+      );
+      userOp.callGasLimit = reduced;
     }
   } catch (e) {
     // Re-throw paymaster rejections so callers can fall back to self-funded.
