@@ -54,8 +54,8 @@ import {
           {/* Bio */}
           <VStack spacing={4} p="6" align="start">
           <Text color="gray.700" fontSize="md" textAlign="justify">
-            Hudson is a Protocol Engineer passionate about decentralization, worker ownership, and governance design. 
-            He has been involved with developing many DAOs with various models and is currently developing Poa, a no-code DAO builder geared towards organizations that are fully owned by the community and not by capital. 
+            Hudson is a Protocol Engineer passionate about decentralization, worker ownership, and governance design.
+            He has been involved with developing many community-owned organizations with various governance models and is currently developing Poa, a no-code organization builder geared towards organizations that are fully owned by the community and not by capital.
             Hudson hopes to build a space for founders interested in community ownership to experiment and innovate quickly with new governance models.
             <br /><br />
             Hudson is also a non-resident fellow at the IDI, where he contributes to governance research, design, and implementation.

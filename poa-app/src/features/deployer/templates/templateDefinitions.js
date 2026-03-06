@@ -400,7 +400,7 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
  */
 const COMMUNITY_DAO_TEMPLATE = {
   id: TEMPLATE_IDS.COMMUNITY_DAO,
-  name: 'Community DAO',
+  name: 'Community Organization',
   tagline: 'Neighbors governing together',
   description: 'For neighborhoods, local communities, and interest groups. Balanced governance with elected representatives and direct community input.',
   bestFor: [
@@ -510,7 +510,7 @@ const COMMUNITY_DAO_TEMPLATE = {
       identity: 'Name your community and describe what brings you together.',
       team: 'Neighbors are community members. Delegates are elected to help coordinate.',
       governance: 'Your 50/50 split balances participation with direct democracy.',
-      review: 'Your community DAO is ready! Neighbors and delegates will govern together.',
+      review: 'Your community organization is ready! Neighbors and delegates will govern together.',
     },
   },
 };

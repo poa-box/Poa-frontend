@@ -493,7 +493,7 @@ const User = () => {
                           ? "Your vouch helps new members join the community. Each role requires a certain number of vouches before the applicant can claim it."
                           : hasVouchGatedRoles
                             ? "Applying creates your membership and submits your role application. Existing members will review and vouch for you."
-                            : "Joining is a one-time process that creates your membership NFT. This gives you access to all DAO features and benefits."
+                            : "Joining is a one-time process that creates your membership NFT. This gives you access to all organization features and benefits."
                         }
                       </Text>
                     </Box>

@@ -384,7 +384,7 @@ There's no "right" answer—only what fits your organization's values and goals.
         short: 'Define what "engagement" means for your organization',
         detailed: `Participation tokens track engagement—but you decide what counts.
 For some orgs, it's completing tasks. For others, it's voting or meeting
-attendance. For DAOs, it might be on-chain activity. Define clearly what earns
+attendance. For decentralized organizations, it might be on-chain activity. Define clearly what earns
 tokens in your context, and communicate it to members.`,
         whenToUse: 'Be explicit about what earns tokens. Ambiguity creates frustration and gaming.',
       },

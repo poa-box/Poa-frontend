@@ -20,7 +20,7 @@ const AboutPreview = () => {
         itself - not investors, buisnesses, or even Poa.
       </Text>
       <Text fontSize="lg" pl="5" pr="5" mb={2} textAlign={"center"}>
-        Once you deploy your Perpetual Organization, the only thing that can
+        Once you deploy your organization, the only thing that can
         stop or change it is a community vote.
       </Text>{" "}
       <Link href="/about" passHref>

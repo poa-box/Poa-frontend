@@ -7,7 +7,7 @@
 
 export const communityDaoTemplate = {
   id: 'community-dao',
-  name: 'Community DAO',
+  name: 'Community Organization',
   tagline: 'Self-governance for communities that share a common purpose',
   icon: '🏘️',
   color: 'green',
@@ -97,15 +97,15 @@ additional influence. The 50/50 split between democracy and participation
 reflects this balance.`,
 
     historicalContext: `From town halls to online forums, communities have always
-found ways to make collective decisions. The DAO adds transparency and programmable
-rules to ancient practices of community governance. Successful DAOs like GitcoinDAO
+found ways to make collective decisions. Blockchain adds transparency and programmable
+rules to ancient practices of community governance. Successful organizations like GitcoinDAO
 and Bankless prove that decentralized communities can coordinate at scale.`,
 
-    whatHybridVotingMeans: `With a 50/50 hybrid in your community DAO:
+    whatHybridVotingMeans: `With a 50/50 hybrid in your community organization:
 - 50% of voting power comes from membership (one person, one vote)
 - 50% comes from participation tokens (earned through engagement)
 
-**Example:** Voting on a community grant program in a 100-member DAO:
+**Example:** Voting on a community grant program in a 100-member organization:
 - Every member has at least 0.5% voting power just from membership
 - A highly engaged member who attends meetings and contributes might have 2-3%
 - A casual member who rarely participates might have 0.6%
@@ -233,7 +233,7 @@ do show up. Low quorum prevents paralysis. This rewards engagement while
 keeping the door open for all members.`,
     },
     'neighborhood': {
-      name: 'Neighborhood DAO',
+      name: 'Neighborhood Organization',
       matchConditions: { community_type: 'geographic' },
       settings: {
         democracyWeight: 60,

@@ -82,7 +82,7 @@ const SideBar = () => {
                       color: 'white'
                     }}
                   >
-                    What is a Perpetual Organization
+                    What is a Community-Owned Organization
                   </ChakraLink>
                 </Link>
                 

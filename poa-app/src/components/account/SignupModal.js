@@ -151,7 +151,7 @@ const SignupModal = ({ isOpen, onClose }) => {
           ) : (
             <VStack spacing={4} align="stretch">
               <Text color="gray.600" fontSize="sm">
-                Choose a username for your account. This will be your identity across all Perpetual Organizations.
+                Choose a username for your account. This will be your identity across all organizations.
               </Text>
 
               <FormControl isInvalid={inputState === 'error'}>

@@ -55,9 +55,9 @@ export default function Home({ allPostsData }) {
 
   // Custom title mapping
   const customTitles = {
-    'create': 'Creating a PO',
-    'join': 'Joining a PO',
-    'perpetualOrganization': 'What is a Perpetual Organization?',
+    'create': 'Creating an Organization',
+    'join': 'Joining an Organization',
+    'perpetualOrganization': 'What is a Community-Owned Organization?',
     'hybridVoting': 'Hybrid Voting',
     'contributionVoting': 'Contribution Based Voting',
     'directDemocracy': 'Direct Democracy',
@@ -297,7 +297,7 @@ export default function Home({ allPostsData }) {
                   fontWeight="extrabold"
                   letterSpacing="tight"
                 >
-                  Perpetual Organizations Documentation
+                  Poa Documentation
                 </Heading>
                 <Text 
                   fontSize="xl" 
@@ -305,7 +305,7 @@ export default function Home({ allPostsData }) {
                   color="gray.300"
                   mb={6}
                 >
-                  Everything you need to know about creating, joining, and participating in Perpetual Organizations
+                  Everything you need to know about creating, joining, and participating in community-owned organizations
                 </Text>
                 <Flex gap={4} wrap="wrap" justify="center">
                   <Link href="/docs/create" passHref>
