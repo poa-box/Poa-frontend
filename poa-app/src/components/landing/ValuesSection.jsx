@@ -147,7 +147,7 @@ const ValuesSection = () => {
                     lineHeight="1.8"
                     fontWeight="500"
                   >
-                    Organizations should serve the people who build them. Every contribution earns real ownership — more influence and more upside. The value your community creates stays with the people who created it.
+                    Organizations should serve the people who build them. Every contribution earns real ownership: more influence and more upside. The value your community creates stays with the people who created it.
                   </Text>
                   <Link href="/about" style={{ textDecoration: "none" }}>
                     <Text
