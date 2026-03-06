@@ -507,25 +507,50 @@ function DeployerPageContent() {
 
   return (
     <Box height="100vh" overflow="hidden" position="relative">
-      {/* Beta Badge */}
+      {/* Ambient morphing orbs - matching landing page */}
       <Box
         position="absolute"
-        top="14px"
-        left="14px"
-        display={["none", "none", "block"]}
-        bg="coral.500"
-        color="white"
-        fontSize="12px"
-        w="120px"
-        px={3}
-        py={2}
-        borderRadius="md"
-        fontWeight="500"
-        zIndex={2}
-        textAlign="center"
-      >
-        Beta on Hoodi
-      </Box>
+        top="-8%"
+        left="-6%"
+        w={["250px", "350px", "450px"]}
+        h={["250px", "350px", "450px"]}
+        bg="#7DD3FC"
+        opacity={0.15}
+        filter="blur(80px)"
+        pointerEvents="none"
+        zIndex={0}
+        sx={{
+          animation: "createOrb1 20s ease-in-out infinite",
+          "@keyframes createOrb1": {
+            "0%": { borderRadius: "40% 60% 60% 40% / 60% 40% 60% 40%", transform: "translate(0, 0) rotate(0deg)" },
+            "33%": { borderRadius: "60% 40% 50% 50% / 40% 60% 40% 60%", transform: "translate(25px, 15px) rotate(60deg)" },
+            "66%": { borderRadius: "50% 50% 40% 60% / 50% 40% 60% 50%", transform: "translate(-10px, 30px) rotate(120deg)" },
+            "100%": { borderRadius: "40% 60% 60% 40% / 60% 40% 60% 40%", transform: "translate(0, 0) rotate(0deg)" },
+          },
+        }}
+      />
+      <Box
+        position="absolute"
+        bottom="-5%"
+        right="-4%"
+        w={["200px", "300px", "400px"]}
+        h={["200px", "300px", "400px"]}
+        bg="#67E8F9"
+        opacity={0.12}
+        filter="blur(80px)"
+        pointerEvents="none"
+        zIndex={0}
+        sx={{
+          animation: "createOrb2 24s ease-in-out infinite",
+          "@keyframes createOrb2": {
+            "0%": { borderRadius: "60% 40% 50% 50% / 50% 60% 40% 50%", transform: "translate(0, 0) rotate(0deg)" },
+            "33%": { borderRadius: "40% 60% 60% 40% / 60% 40% 60% 40%", transform: "translate(-20px, 25px) rotate(-60deg)" },
+            "66%": { borderRadius: "50% 40% 50% 60% / 40% 60% 50% 40%", transform: "translate(15px, -10px) rotate(-120deg)" },
+            "100%": { borderRadius: "60% 40% 50% 50% / 50% 60% 40% 50%", transform: "translate(0, 0) rotate(0deg)" },
+          },
+        }}
+      />
+
 
       {/* Exit Button */}
       <Box position="absolute" top={exitButtonTop} right={exitButtonRight} zIndex={10}>

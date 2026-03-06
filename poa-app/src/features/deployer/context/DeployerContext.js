@@ -321,6 +321,9 @@ export function DeployerProvider({ children }) {
         case STEPS.VOTING:
           return selectors.isVotingClassesValid();
 
+        case STEPS.SETTINGS:
+          return true; // Settings are always valid (all optional)
+
         case STEPS.REVIEW:
           return true;
 
@@ -357,6 +360,8 @@ export function DeployerProvider({ children }) {
           return {
             isValid: state.voting.classes.reduce((sum, cls) => sum + (cls.slicePct || 0), 0) === 100
           };
+        case STEPS.SETTINGS:
+          return { isValid: true }; // Settings are always valid (all optional)
         case STEPS.LAUNCH:
         case STEPS.REVIEW:
           return { isValid: true }; // Review step is always "valid" - it just displays status

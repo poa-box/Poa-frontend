@@ -333,7 +333,7 @@ export const paymasterSchema = z.object({
 // ============================================
 
 export const deployerStateSchema = z.object({
-  currentStep: z.number().int().min(0).max(4),
+  currentStep: z.number().int().min(0).max(5),
   organization: organizationSchema,
   roles: rolesArraySchema,
   permissions: permissionsSchema,

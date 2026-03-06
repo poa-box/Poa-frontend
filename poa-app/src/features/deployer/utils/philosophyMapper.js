@@ -42,7 +42,7 @@ export function getPhilosophyInfo(sliderValue) {
         shortDescription: 'Active contributors have more say',
         description: 'Members who contribute more have more say. Ideal for recognizing active participation and rewarding engagement.',
         icon: '⚡',
-        color: 'coral',
+        color: 'amethyst',
       };
     case 'hybrid':
       return {

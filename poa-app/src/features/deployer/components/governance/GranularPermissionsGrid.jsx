@@ -32,7 +32,7 @@ const PERMISSION_GROUPS = [
   {
     name: 'Joining & Tokens',
     icon: PiUserPlus,
-    color: 'coral',
+    color: 'purple',
     permissions: [
       { key: 'quickJoinRoles', label: 'Quick Join', desc: 'Role is given when joining without vouching' },
       { key: 'tokenMemberRoles', label: 'Hold Tokens', desc: 'Can receive and hold participation tokens' },
@@ -76,9 +76,9 @@ function PermissionToggle({ isActive, onClick, roleIndex, roleName }) {
         w="32px"
         h="32px"
         borderRadius="md"
-        bg={isActive ? 'coral.100' : 'warmGray.100'}
+        bg={isActive ? 'amethyst.100' : 'warmGray.100'}
         border="2px solid"
-        borderColor={isActive ? 'coral.400' : 'warmGray.200'}
+        borderColor={isActive ? 'amethyst.400' : 'warmGray.200'}
         display="flex"
         alignItems="center"
         justifyContent="center"
@@ -86,15 +86,15 @@ function PermissionToggle({ isActive, onClick, roleIndex, roleName }) {
         cursor="pointer"
         transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
         _hover={{
-          borderColor: isActive ? 'coral.500' : 'coral.300',
-          bg: isActive ? 'coral.200' : 'coral.50',
+          borderColor: isActive ? 'amethyst.500' : 'amethyst.300',
+          bg: isActive ? 'amethyst.200' : 'amethyst.50',
           transform: 'scale(1.05)',
         }}
         _active={{
           transform: 'scale(0.95)',
         }}
       >
-        {isActive && <Icon as={PiCheck} color="coral.600" boxSize={4} />}
+        {isActive && <Icon as={PiCheck} color="amethyst.600" boxSize={4} />}
       </Box>
     </Tooltip>
   );
@@ -232,14 +232,14 @@ export function GranularPermissionsGrid({ roles, permissions, onToggle }) {
               w="20px"
               h="20px"
               borderRadius="sm"
-              bg="coral.100"
+              bg="amethyst.100"
               border="2px solid"
-              borderColor="coral.400"
+              borderColor="amethyst.400"
               display="flex"
               alignItems="center"
               justifyContent="center"
             >
-              <Icon as={PiCheck} color="coral.600" boxSize={3} />
+              <Icon as={PiCheck} color="amethyst.600" boxSize={3} />
             </Box>
             <Text fontSize="xs" color="warmGray.600">
               Permission granted

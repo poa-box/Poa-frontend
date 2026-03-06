@@ -1,6 +1,6 @@
 /**
  * ModeToggle - Switch between Simple and Advanced modes
- * Uses gear icon and coral color scheme
+ * Uses gear icon and amethyst color scheme
  */
 
 import React from 'react';
@@ -29,14 +29,14 @@ export function ModeToggle() {
       <Icon
         as={PiGear}
         boxSize={4}
-        color={isAdvanced ? 'coral.500' : 'warmGray.400'}
+        color={isAdvanced ? 'amethyst.500' : 'warmGray.400'}
         mr={2}
       />
       <FormLabel
         htmlFor="advanced-mode"
         mb={0}
         fontSize="sm"
-        color={isAdvanced ? 'coral.600' : 'warmGray.500'}
+        color={isAdvanced ? 'amethyst.600' : 'warmGray.500'}
         fontWeight="500"
         cursor="pointer"
         userSelect="none"
@@ -48,7 +48,7 @@ export function ModeToggle() {
         size="sm"
         isChecked={isAdvanced}
         onChange={handleToggle}
-        colorScheme="coral"
+        colorScheme="purple"
       />
     </FormControl>
   );

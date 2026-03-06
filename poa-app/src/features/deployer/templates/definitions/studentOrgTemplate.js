@@ -23,7 +23,7 @@ export const studentOrgTemplate = {
       iconName: 'UsersThree',
       title: 'Decide Together',
       subtitle: 'Democratic governance',
-      expandedContent: `Events, budget, policies, new initiatives—members decide democratically. With 85% democracy weight, everyone has strong voice. Learning to vote and debate is as important as the outcomes.`,
+      expandedContent: `Events, budget, policies, new initiatives: members decide democratically. With 70% democracy weight, every voice carries real power. Learning to vote and debate is as important as the outcomes.`,
     },
     {
       iconName: 'Kanban',
@@ -52,7 +52,7 @@ export const studentOrgTemplate = {
     features: [
       {
         name: 'Vote on Everything Together',
-        description: 'Events, budget, policies, new initiatives—members decide democratically. Learning to vote is as important as the outcomes.',
+        description: 'Events, budget, policies, new initiatives: members decide democratically. Learning to vote is as important as the outcomes.',
         icon: '🗳️',
       },
       {
@@ -86,13 +86,13 @@ to practice the skills of collective decision-making, leadership, and accountabi
 Making mistakes here is valuable—it's much better to learn governance lessons as a
 student than as an adult with real consequences.
 
-**The 50/50 hybrid voting system** teaches both democratic equality and the value of
-engagement: half your voting power is automatic (everyone matters), half is earned
-through participation (showing up matters too). It's real governance practice.`,
+**The 70/30 hybrid voting system** prioritizes democratic equality while still rewarding
+engagement: most of your voting power is automatic (everyone matters), and active
+participants earn additional influence (showing up matters too). It's real governance practice.`,
 
-    keyPrinciple: `Balance learning with doing. The 50/50 split between democracy
-and participation creates space for everyone to learn while rewarding those who
-step up. Elections for executives teach both leadership and accountability.
+    keyPrinciple: `Prioritize equal voice while rewarding engagement. The 70/30 split
+gives every member strong democratic power while recognizing those who step up.
+Elections for executives teach both leadership and accountability.
 Education hub is essential—good governance requires understanding.`,
 
     historicalContext: `Student government has existed as long as universities have.
@@ -100,15 +100,15 @@ Organizations like student unions, fraternities, and clubs have always served as
 laboratories for democracy. The best student organizations produce future leaders
 who understand how to build consensus, manage conflict, and serve communities.`,
 
-    whatHybridVotingMeans: `With 50/50 hybrid voting in your student org:
-- 50% of voting power comes from membership (every member equal)
-- 50% comes from participation tokens (earned through engagement)
+    whatHybridVotingMeans: `With 70/30 hybrid voting in your student org:
+- 70% of voting power comes from membership (every member equal)
+- 30% comes from contribution tokens (earned through engagement)
 
 **Example:** Voting on next semester's budget in a 50-member club:
-- Every member has at least 1% voting power just from being a member
-- An exec who attends every meeting and runs events might have 3-4%
-- A member who just joined has 1.2%
-- Active members matter more, but every voice counts—exactly what governance should teach`,
+- Every member has at least 1.4% voting power just from being a member
+- An exec who attends every meeting and runs events might have 2.5-3%
+- A member who just joined has 1.5%
+- Everyone has strong voice, but active contributors earn additional influence`,
   },
 
   // Discovery Questions - Adapt settings to context
@@ -205,13 +205,13 @@ to prevent chaos and ensure everyone has voice.`,
     default: {
       name: 'Standard Student Org',
       settings: {
-        democracyWeight: 50,
-        participationWeight: 50,
+        democracyWeight: 70,
+        participationWeight: 30,
         quorum: 35,
       },
-      reasoning: `The 50/50 split balances equal voice with rewarding engagement.
-This creates incentives to participate while ensuring every member matters.
-Elections for executives provide accountability and leadership experience.`,
+      reasoning: `The 70/30 split gives every member strong democratic voice while still
+rewarding engagement. Active contributors earn additional influence, but no one is
+marginalized. Elections for executives provide accountability and leadership experience.`,
     },
     'social-club': {
       name: 'Social Club',
@@ -287,8 +287,8 @@ role structures. Consider working groups or committees for specific areas.`,
         timeframe: '0-1 semester',
         description: 'Establishing your organization',
         recommendedSettings: {
-          democracyWeight: 50,
-          participationWeight: 50,
+          democracyWeight: 70,
+          participationWeight: 30,
         },
         milestones: [
           'Constitution or charter written',
@@ -307,8 +307,8 @@ role structures. Consider working groups or committees for specific areas.`,
         timeframe: '1-3 semesters',
         description: 'Building sustainable practices',
         recommendedSettings: {
-          democracyWeight: 50,
-          participationWeight: 50,
+          democracyWeight: 70,
+          participationWeight: 30,
         },
         milestones: [
           'First leadership transition completed',
@@ -326,8 +326,8 @@ role structures. Consider working groups or committees for specific areas.`,
         timeframe: '3+ semesters',
         description: 'Sustainable student organization',
         recommendedSettings: {
-          democracyWeight: 50,
-          participationWeight: 50,
+          democracyWeight: 70,
+          participationWeight: 30,
         },
         milestones: [
           'Multiple leadership generations',
@@ -443,12 +443,11 @@ destroy what you've built.`,
       'hybrid-voting': {
         title: 'Learning Balanced Governance',
         short: 'Equal membership plus earned influence—real-world governance practice',
-        detailed: `The 50/50 hybrid teaches both democratic principles and the
-value of engagement. Half your voting power is automatic (everyone matters
-equally as members), half is earned through participation (showing up and
-contributing matters too). It's how real organizations balance fairness with
-rewarding effort.`,
-        whenToUse: 'Keep 50/50 for most student orgs. It teaches both democratic ideals and engagement value.',
+        detailed: `The 70/30 hybrid prioritizes democratic equality while rewarding
+engagement. Most of your voting power is automatic (everyone matters equally
+as members), and active contributors earn additional influence through participation
+(showing up and contributing matters too). It balances fairness with recognizing effort.`,
+        whenToUse: 'Keep 70/30 for most student orgs. It ensures strong democratic voice while encouraging engagement.',
       },
       'participation-tokens': {
         title: 'Activity & Engagement Tracking',
@@ -537,8 +536,8 @@ Consider term limits and regular election schedules.`,
     },
     voting: {
       mode: 'HYBRID',
-      democracyWeight: 50,
-      participationWeight: 50,
+      democracyWeight: 70,
+      participationWeight: 30,
     },
     features: {
       educationHubEnabled: true,
@@ -552,7 +551,7 @@ Consider term limits and regular election schedules.`,
       default: 'Most student organizations have Executives (elected leaders) and Members. Executives coordinate; members participate and elect.',
       small: 'Small organizations can be informal—everyone might share executive duties.',
       large: 'Larger organizations benefit from committees or working groups under the executive board.',
-      governance: 'The 50/50 split teaches both democratic participation and active engagement. Elections make executives accountable to members.',
+      governance: 'The 70/30 split prioritizes equal voice while rewarding active engagement. Elections make executives accountable to members.',
       identity: 'Choose a name that reflects your mission and will attract the right members.',
     },
   },

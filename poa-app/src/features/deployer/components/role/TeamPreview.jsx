@@ -73,7 +73,7 @@ function PreviewNode({ role, roleIndex, depth, isLast, parentLines = [], isYou }
         <Icon
           as={isTopLevel ? PiCrown : PiUser}
           boxSize={3}
-          color={isTopLevel ? 'coral.500' : 'warmGray.400'}
+          color={isTopLevel ? 'amethyst.500' : 'warmGray.400'}
         />
         <Text fontSize="sm" fontWeight={isTopLevel ? '600' : '500'} color="warmGray.700" noOfLines={1}>
           {role.name}
@@ -92,8 +92,8 @@ function PreviewNode({ role, roleIndex, depth, isLast, parentLines = [], isYou }
         {isTopLevel && !isYou && (
           <Badge
             fontSize="9px"
-            bg="coral.50"
-            color="coral.600"
+            bg="amethyst.50"
+            color="amethyst.600"
             px={1.5}
             borderRadius="full"
           >
@@ -172,17 +172,18 @@ export function TeamPreview({ roles = [] }) {
     <Box
       position="sticky"
       top="100px"
-      bg="white"
+      bg="rgba(255, 255, 255, 0.8)"
       borderRadius="2xl"
       p={6}
-      boxShadow="0 2px 12px rgba(0, 0, 0, 0.04)"
+      boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+      backdropFilter="blur(16px)"
       border="1px solid"
       borderColor="warmGray.100"
     >
       {/* Header */}
       <Text
         fontSize="xs"
-        color="coral.500"
+        color="amethyst.500"
         textTransform="uppercase"
         fontWeight="600"
         letterSpacing="wider"
@@ -216,8 +217,8 @@ export function TeamPreview({ roles = [] }) {
           flexWrap="wrap"
         >
           <Badge
-            bg="coral.50"
-            color="coral.600"
+            bg="amethyst.50"
+            color="amethyst.600"
             px={2}
             py={1}
             borderRadius="full"
