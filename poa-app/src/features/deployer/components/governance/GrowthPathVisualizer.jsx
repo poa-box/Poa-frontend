@@ -55,12 +55,12 @@ import {
 function GrowthStageCard({ stage, index, isActive, totalStages }) {
   const [isExpanded, setIsExpanded] = useState(isActive);
 
-  const cardBg = useColorModeValue('white', 'gray.800');
+  const cardBg = useColorModeValue('white', 'warmGray.800');
   const activeBg = useColorModeValue('blue.50', 'blue.900');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
   const activeBorderColor = useColorModeValue('blue.500', 'blue.400');
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
-  const milestoneBg = useColorModeValue('gray.50', 'gray.700');
+  const helperColor = useColorModeValue('warmGray.600', 'warmGray.400');
+  const milestoneBg = useColorModeValue('warmGray.50', 'warmGray.700');
 
   return (
     <Card
@@ -168,9 +168,9 @@ function GrowthStageCard({ stage, index, isActive, totalStages }) {
  * Evolution principles section
  */
 function EvolutionPrinciples({ principles }) {
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
+  const cardBg = useColorModeValue('white', 'warmGray.800');
+  const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
+  const helperColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   if (!principles || principles.length === 0) return null;
 
@@ -213,9 +213,9 @@ function PitfallCard({ pitfall }) {
     low: 'yellow',
   };
 
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
+  const cardBg = useColorModeValue('white', 'warmGray.800');
+  const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
+  const helperColor = useColorModeValue('warmGray.600', 'warmGray.400');
   const warningBg = useColorModeValue(`${severityColors[pitfall.severity]}.50`, `${severityColors[pitfall.severity]}.900`);
 
   return (
@@ -301,7 +301,7 @@ function PitfallCard({ pitfall }) {
  * Main GrowthPathVisualizer component
  */
 export function GrowthPathVisualizer({ template }) {
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
+  const helperColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   const growthPath = template?.growthPath;
   const pitfalls = template?.pitfalls;

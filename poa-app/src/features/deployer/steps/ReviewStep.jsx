@@ -67,8 +67,8 @@ import { DeployerUsernameSection } from '../components/review/DeployerUsernameSe
 
 // Animations
 const pulseGlow = keyframes`
-  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 101, 67, 0.3); }
-  50% { box-shadow: 0 0 0 15px rgba(240, 101, 67, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.3); }
+  50% { box-shadow: 0 0 0 15px rgba(139, 92, 246, 0); }
 `;
 
 const fadeIn = keyframes`
@@ -125,7 +125,7 @@ function ReviewSectionCard({
       _hover={{ boxShadow: '0 4px 20px rgba(0, 0, 0, 0.06)' }}
     >
       {/* Status indicator bar at top */}
-      <Box h="3px" bg={status === 'valid' ? 'green.400' : 'coral.400'} />
+      <Box h="3px" bg={status === 'valid' ? 'green.400' : 'orange.400'} />
 
       {/* Header */}
       <HStack p={4} justify="space-between" borderBottom="1px" borderColor="warmGray.100">
@@ -134,11 +134,11 @@ function ReviewSectionCard({
             <Box
               p={2}
               borderRadius="lg"
-              bg={status === 'valid' ? 'green.50' : 'coral.50'}
+              bg={status === 'valid' ? 'green.50' : 'orange.50'}
             >
               <Icon
                 as={icon}
-                color={status === 'valid' ? 'green.500' : 'coral.500'}
+                color={status === 'valid' ? 'green.500' : 'orange.500'}
                 boxSize={5}
               />
             </Box>
@@ -164,8 +164,8 @@ function ReviewSectionCard({
           size="sm"
           leftIcon={<EditIcon />}
           variant="ghost"
-          color="coral.600"
-          _hover={{ bg: 'coral.50', transform: 'translateY(-1px)' }}
+          color="amethyst.600"
+          _hover={{ bg: 'amethyst.50', transform: 'translateY(-1px)' }}
           transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
           onClick={() => goToStep(stepIndex)}
         >
@@ -250,7 +250,7 @@ function OrganizationHero({ organization, templateName, goToStep }) {
       borderRadius="2xl"
       p={6}
       borderLeft="4px solid"
-      borderLeftColor="coral.400"
+      borderLeftColor="amethyst.400"
       boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
       mb={6}
     >
@@ -260,9 +260,9 @@ function OrganizationHero({ organization, templateName, goToStep }) {
           w="72px"
           h="72px"
           borderRadius="xl"
-          bg="coral.50"
+          bg="amethyst.50"
           border="2px solid"
-          borderColor="coral.200"
+          borderColor="amethyst.200"
           overflow="hidden"
           display="flex"
           alignItems="center"
@@ -278,7 +278,7 @@ function OrganizationHero({ organization, templateName, goToStep }) {
               objectFit="cover"
             />
           ) : (
-            <Icon as={PiImage} boxSize={8} color="coral.300" />
+            <Icon as={PiImage} boxSize={8} color="amethyst.300" />
           )}
         </Box>
 
@@ -291,7 +291,7 @@ function OrganizationHero({ organization, templateName, goToStep }) {
           </Text>
           <HStack spacing={2} flexWrap="wrap">
             {templateName && (
-              <Badge bg="coral.100" color="coral.700" borderRadius="full" px={3} py={1}>
+              <Badge bg="amethyst.100" color="amethyst.700" borderRadius="full" px={3} py={1}>
                 {templateName}
               </Badge>
             )}
@@ -311,9 +311,9 @@ function OrganizationHero({ organization, templateName, goToStep }) {
           size="sm"
           leftIcon={<EditIcon />}
           variant="outline"
-          borderColor="coral.300"
-          color="coral.600"
-          _hover={{ bg: 'coral.50' }}
+          borderColor="amethyst.300"
+          color="amethyst.600"
+          _hover={{ bg: 'amethyst.50' }}
           onClick={() => goToStep(STEPS.IDENTITY)}
         >
           Edit
@@ -339,11 +339,11 @@ function RoleCard({ role, index, roles }) {
       border="1px solid"
       borderColor="warmGray.200"
       transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
-      _hover={{ borderColor: 'coral.300', boxShadow: 'sm' }}
+      _hover={{ borderColor: 'amethyst.300', boxShadow: 'sm' }}
     >
       <HStack justify="space-between" mb={3}>
         <HStack spacing={3}>
-          <Avatar size="sm" name={role.name} bg="coral.500" color="white" />
+          <Avatar size="sm" name={role.name} bg="amethyst.500" color="white" />
           <Text fontWeight="600" color="warmGray.800">{role.name}</Text>
         </HStack>
         {parentRole === null && (
@@ -360,7 +360,7 @@ function RoleCard({ role, index, roles }) {
           </Badge>
         )}
         {role.vouching.enabled && (
-          <Badge bg="coral.100" color="coral.700" borderRadius="full" fontSize="xs" px={2}>
+          <Badge bg="amethyst.100" color="amethyst.700" borderRadius="full" fontSize="xs" px={2}>
             {role.vouching.quorum} vouches
           </Badge>
         )}
@@ -574,13 +574,13 @@ function DeploymentOverlay({ orgName, isVisible }) {
             mx="auto"
             mb={5}
             borderRadius="full"
-            bg="coral.50"
+            bg="amethyst.50"
             display="flex"
             alignItems="center"
             justifyContent="center"
             animation={`${pulseGlow} 2s ease-in-out infinite`}
           >
-            <Icon as={PiRocketLaunch} boxSize={{ base: 10, md: 12 }} color="coral.500" />
+            <Icon as={PiRocketLaunch} boxSize={{ base: 10, md: 12 }} color="amethyst.500" />
           </Box>
 
           <Heading size={{ base: "md", md: "lg" }} mb={2} color="warmGray.800">
@@ -616,7 +616,7 @@ function DeploymentOverlay({ orgName, isVisible }) {
           <Box h="4px" bg="warmGray.100" borderRadius="full" overflow="hidden" mb={4}>
             <Box
               h="100%"
-              bg="coral.500"
+              bg="amethyst.500"
               borderRadius="full"
               animation={`${subtlePulse} 1.5s ease-in-out infinite`}
               w={`${Math.min(20 + (currentStatusIndex * 20), 90)}%`}
@@ -677,11 +677,11 @@ function SuccessCelebration({ orgName, onContinue, isVisible }) {
 
           <VStack spacing={3}>
             <HStack spacing={2} flexWrap="wrap" justify="center">
-              <Icon as={PiSparkle} color="coral.500" boxSize={{ base: 5, md: 6 }} />
+              <Icon as={PiSparkle} color="amethyst.500" boxSize={{ base: 5, md: 6 }} />
               <Heading size={{ base: "lg", md: "xl" }} color="warmGray.800">
                 {orgName} is Live
               </Heading>
-              <Icon as={PiSparkle} color="coral.500" boxSize={{ base: 5, md: 6 }} />
+              <Icon as={PiSparkle} color="amethyst.500" boxSize={{ base: 5, md: 6 }} />
             </HStack>
             <Text color="warmGray.600" fontSize={{ base: "md", md: "lg" }} maxW="400px">
               You've just created a piece of community-owned infrastructure
@@ -888,7 +888,7 @@ export function ReviewStep({
       {/* Header */}
       <VStack spacing={2} mb={8} textAlign="center">
         <HStack spacing={2}>
-          <Icon as={PiRocketLaunch} color="coral.500" boxSize={6} />
+          <Icon as={PiRocketLaunch} color="amethyst.500" boxSize={6} />
           <Heading size="lg" color="warmGray.800">Ready to Launch</Heading>
         </HStack>
         <Text color="warmGray.500" maxW="500px">
@@ -1116,7 +1116,7 @@ export function ReviewStep({
                     key: 'admin',
                     label: 'Admin',
                     has: hasAdmin,
-                    color: 'coral',
+                    color: 'amethyst',
                     desc: 'Can approve rewards, create tasks and bounties, set up learning content, and run polls',
                   },
                   {
@@ -1148,7 +1148,7 @@ export function ReviewStep({
                   >
                     <HStack justify="space-between" mb={3}>
                       <HStack spacing={3}>
-                        <Avatar size="sm" name={role.name} bg="coral.500" color="white" />
+                        <Avatar size="sm" name={role.name} bg="amethyst.500" color="white" />
                         <Text fontWeight="600" color="warmGray.800">{role.name}</Text>
                       </HStack>
                     </HStack>
@@ -1200,7 +1200,7 @@ export function ReviewStep({
         {/* Features Section */}
         <ReviewSectionCard
           title="Optional Features"
-          stepIndex={STEPS.TEMPLATE}
+          stepIndex={STEPS.SETTINGS}
           icon={PiGear}
           status="valid"
           goToStep={goToStep}
@@ -1225,7 +1225,7 @@ export function ReviewStep({
         {state.paymaster?.enabled && (
           <ReviewSectionCard
             title="Gas Sponsorship"
-            stepIndex={STEPS.GOVERNANCE}
+            stepIndex={STEPS.SETTINGS}
             icon={PiGasPump}
             status="valid"
             description="Gas sponsorship configuration for member transactions"
@@ -1278,7 +1278,7 @@ export function ReviewStep({
             {/* Summary stats */}
             <HStack spacing={8} flexWrap="wrap" justify="center">
               <VStack spacing={0}>
-                <Text fontSize="2xl" fontWeight="700" color="coral.500">{summaryStats.roles}</Text>
+                <Text fontSize="2xl" fontWeight="700" color="amethyst.500">{summaryStats.roles}</Text>
                 <Text fontSize="xs" color="warmGray.500">Roles</Text>
               </VStack>
               <VStack spacing={0}>
@@ -1365,14 +1365,14 @@ export function ReviewStep({
 
                 {/* Deploy Button */}
                 <Button
-                  bg="coral.500"
+                  bg="warmGray.900"
                   color="white"
                   _hover={{
-                    bg: 'coral.600',
+                    bg: 'warmGray.800',
                     transform: 'translateY(-2px)',
-                    boxShadow: '0 8px 25px rgba(240, 101, 67, 0.35)',
+                    boxShadow: '0 8px 25px rgba(0, 0, 0, 0.25)',
                   }}
-                  _active={{ bg: 'coral.700', transform: 'translateY(0)' }}
+                  _active={{ bg: 'warmGray.700', transform: 'translateY(0)' }}
                   size="lg"
                   w="100%"
                   maxW="400px"

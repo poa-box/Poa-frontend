@@ -245,7 +245,7 @@ export function VotingStep() {
             <HStack>
               <Text>Quorum Requirements</Text>
               <Tooltip label="Minimum percentage of votes required for a proposal to pass">
-                <Icon as={InfoIcon} color="gray.400" />
+                <Icon as={InfoIcon} color="warmGray.400" />
               </Tooltip>
             </HStack>
           </Heading>
@@ -344,7 +344,7 @@ export function VotingStep() {
           <HStack justify="space-between" mb={4}>
             <VStack align="start" spacing={0}>
               <Heading size="md">Voting Classes ({voting.classes.length})</Heading>
-              <Text fontSize="sm" color="gray.500">
+              <Text fontSize="sm" color="warmGray.500">
                 Define how votes are counted and weighted
               </Text>
             </VStack>
@@ -399,10 +399,10 @@ export function VotingStep() {
               textAlign="center"
               borderWidth="2px"
               borderStyle="dashed"
-              borderColor="gray.200"
+              borderColor="warmGray.200"
               borderRadius="lg"
             >
-              <Text color="gray.500" mb={4}>
+              <Text color="warmGray.500" mb={4}>
                 No voting classes defined. Add your first voting class.
               </Text>
               <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleAddClass}>

@@ -145,7 +145,7 @@ export function VotingClassForm({
             <HStack>
               <Text>Voting Weight</Text>
               <Tooltip label="Percentage of total voting power this class controls">
-                <Icon as={InfoIcon} color="gray.400" />
+                <Icon as={InfoIcon} color="warmGray.400" />
               </Tooltip>
             </HStack>
           </FormLabel>
@@ -246,17 +246,17 @@ export function VotingClassForm({
             {/* Quadratic Voting - Only for ERC20_BAL */}
             <Box
               p={4}
-              bg={formData.quadratic ? 'orange.50' : 'gray.50'}
+              bg={formData.quadratic ? 'orange.50' : 'warmGray.50'}
               borderRadius="lg"
               borderWidth="1px"
-              borderColor={formData.quadratic ? 'orange.200' : 'gray.200'}
+              borderColor={formData.quadratic ? 'orange.200' : 'warmGray.200'}
               transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
             >
               <FormControl display="flex" alignItems="center" mb={3}>
                 <HStack flex={1}>
                   <Icon
                     as={PiLightning}
-                    color={formData.quadratic ? 'orange.500' : 'gray.400'}
+                    color={formData.quadratic ? 'orange.500' : 'warmGray.400'}
                     boxSize={5}
                   />
                   <FormLabel mb={0} fontWeight="semibold">
@@ -271,21 +271,21 @@ export function VotingClassForm({
                 />
               </FormControl>
 
-              <Text fontSize="sm" color="gray.600" mb={3}>
+              <Text fontSize="sm" color="warmGray.600" mb={3}>
                 Reduces the influence of large token holders by using the square root of their balance as voting power.
               </Text>
 
               {/* Quadratic voting explanation */}
               <Box
                 p={3}
-                bg={formData.quadratic ? 'white' : 'gray.100'}
+                bg={formData.quadratic ? 'white' : 'warmGray.100'}
                 borderRadius="md"
                 fontSize="xs"
               >
-                <Text fontWeight="semibold" color={formData.quadratic ? 'orange.700' : 'gray.600'} mb={2}>
+                <Text fontWeight="semibold" color={formData.quadratic ? 'orange.700' : 'warmGray.600'} mb={2}>
                   How it works:
                 </Text>
-                <VStack align="stretch" spacing={1} color="gray.600">
+                <VStack align="stretch" spacing={1} color="warmGray.600">
                   <HStack justify="space-between">
                     <Text>100 tokens</Text>
                     <Text fontWeight="bold">→ {formData.quadratic ? '10 votes' : '100 votes'}</Text>

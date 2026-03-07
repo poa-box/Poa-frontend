@@ -189,7 +189,7 @@ export function AdvancedVotingExample({ votingClasses = [], roles = [] }) {
   const mutedColor = useColorModeValue('warmGray.500', 'warmGray.400');
   const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
   const voterCardBg = useColorModeValue('white', 'warmGray.700');
-  const classBoxBg = useColorModeValue('gray.50', 'gray.700');
+  const classBoxBg = useColorModeValue('warmGray.50', 'warmGray.700');
 
   // Skip if no voting classes
   if (!votingClasses || votingClasses.length === 0) {
@@ -334,9 +334,9 @@ export function AdvancedVotingExample({ votingClasses = [], roles = [] }) {
                           w="8px"
                           h="8px"
                           borderRadius="full"
-                          bg={classTotal === 0 ? 'gray.300' : `${color}.400`}
+                          bg={classTotal === 0 ? 'warmGray.300' : `${color}.400`}
                         />
-                        <Text color={classTotal === 0 ? 'gray.400' : mutedColor} fontWeight="500">
+                        <Text color={classTotal === 0 ? 'warmGray.400' : mutedColor} fontWeight="500">
                           {classTotal === 0 ? (
                             '—'
                           ) : power > 0 ? (

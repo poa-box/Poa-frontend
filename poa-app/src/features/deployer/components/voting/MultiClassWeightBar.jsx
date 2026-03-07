@@ -5,7 +5,7 @@
  * Color coding:
  * - blue.400 for DIRECT classes (role-based)
  * - amethyst.500 for ERC20_BAL classes (token-based)
- * - coral.400 for ERC20_BAL + Quadratic enabled
+ * - orange.400 for ERC20_BAL + Quadratic enabled
  */
 
 import React from 'react';
@@ -29,8 +29,8 @@ function getClassColor(votingClass) {
   if (votingClass.strategy === VOTING_STRATEGY.DIRECT) {
     return 'blue';
   }
-  // ERC20_BAL with quadratic gets coral, otherwise amethyst
-  return votingClass.quadratic ? 'coral' : 'amethyst';
+  // ERC20_BAL with quadratic gets orange, otherwise amethyst
+  return votingClass.quadratic ? 'orange' : 'amethyst';
 }
 
 /**

@@ -7,6 +7,7 @@ export { TemplateStep } from './TemplateStep';
 export { IdentityStep } from './IdentityStep';
 export { TeamStep } from './TeamStep';
 export { GovernanceStep } from './GovernanceStep';
+export { SettingsStep } from './SettingsStep';
 
 // Legacy Advanced mode steps
 export { OrganizationStep } from './OrganizationStep';
@@ -21,6 +22,7 @@ export default {
   IdentityStep: require('./IdentityStep').default,
   TeamStep: require('./TeamStep').default,
   GovernanceStep: require('./GovernanceStep').default,
+  SettingsStep: require('./SettingsStep').default,
   // Legacy steps
   OrganizationStep: require('./OrganizationStep').default,
   RolesStep: require('./RolesStep').default,

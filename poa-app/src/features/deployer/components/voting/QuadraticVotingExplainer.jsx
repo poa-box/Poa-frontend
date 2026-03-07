@@ -85,8 +85,8 @@ export function QuadraticVotingExplainer({ isEnabled = false }) {
           borderColor={borderColor}
         >
           <HStack mb={3}>
-            <Icon as={PiChartBar} color="gray.500" />
-            <Text fontWeight="600" color="gray.600">
+            <Icon as={PiChartBar} color="warmGray.500" />
+            <Text fontWeight="600" color="warmGray.600">
               Without Quadratic
             </Text>
           </HStack>
@@ -100,16 +100,16 @@ export function QuadraticVotingExplainer({ isEnabled = false }) {
                   <HStack>
                     <Text>{user.emoji}</Text>
                     <Text color={textColor}>{user.name}</Text>
-                    <Text color="gray.400">({user.tokens} tokens)</Text>
+                    <Text color="warmGray.400">({user.tokens} tokens)</Text>
                   </HStack>
                   <HStack>
                     <Box
                       w={`${Math.max(power / 2, 8)}px`}
                       h="8px"
-                      bg="gray.400"
+                      bg="warmGray.400"
                       borderRadius="full"
                     />
-                    <Text fontWeight="bold" color="gray.600" minW="60px" textAlign="right">
+                    <Text fontWeight="bold" color="warmGray.600" minW="60px" textAlign="right">
                       {power} votes ({pct}%)
                     </Text>
                   </HStack>
@@ -119,7 +119,7 @@ export function QuadraticVotingExplainer({ isEnabled = false }) {
           </VStack>
 
           <Box mt={4} pt={3} borderTopWidth="1px" borderColor={borderColor}>
-            <Text fontSize="xs" color="gray.500">
+            <Text fontSize="xs" color="warmGray.500">
               Alice has <Text as="span" fontWeight="bold">4x</Text> Bob's power and{' '}
               <Text as="span" fontWeight="bold">25x</Text> Carol's power
             </Text>
@@ -155,7 +155,7 @@ export function QuadraticVotingExplainer({ isEnabled = false }) {
                   <HStack>
                     <Text>{user.emoji}</Text>
                     <Text color={textColor}>{user.name}</Text>
-                    <Text color="gray.400">({user.tokens} tokens)</Text>
+                    <Text color="warmGray.400">({user.tokens} tokens)</Text>
                   </HStack>
                   <HStack>
                     <Box

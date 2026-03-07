@@ -6,7 +6,7 @@
  * - Advanced mode: Multiple voting classes, quadratic voting, granular control
  *
  * Note: Role powers are configured on the Team step, not here.
- * Note: Optional features (Education Hub, Election Hub) are configured on the next step.
+ * Note: Optional features (Education Hub, Election Hub) and gas sponsorship are on the Settings step.
  */
 
 import React, { useState } from 'react';
@@ -40,7 +40,6 @@ import {
   SliderThumb,
   Alert,
   AlertIcon,
-  Divider,
   Progress,
   AlertDialog,
   AlertDialogOverlay,
@@ -66,15 +65,15 @@ import MultiClassWeightBar from '../components/voting/MultiClassWeightBar';
 import QuadraticVotingExplainer from '../components/voting/QuadraticVotingExplainer';
 import AdvancedVotingExample from '../components/voting/AdvancedVotingExample';
 import WeightPresets from '../components/voting/WeightPresets';
-import { PaymasterConfigSection } from '../components/paymaster/PaymasterConfigSection';
+
 
 /**
  * Simple Mode Governance UI
  */
 function SimpleGovernanceUI({ state, actions }) {
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
+  const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(51, 48, 44, 0.8)');
+  const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
+  const helperColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   const { philosophy, roles, permissions } = state;
 
@@ -101,8 +100,10 @@ function SimpleGovernanceUI({ state, actions }) {
         bg={cardBg}
         p={6}
         borderRadius="xl"
-        borderWidth="1px"
+        border="1px solid"
         borderColor={borderColor}
+        backdropFilter="blur(16px)"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
       >
         <VStack spacing={4} align="stretch">
           <Heading size="sm">Who Participates in Governance?</Heading>
@@ -119,7 +120,7 @@ function SimpleGovernanceUI({ state, actions }) {
             borderColor="warmGray.100"
           >
             <HStack spacing={3} mb={3}>
-              <Icon as={PiChatDots} color="coral.500" boxSize={5} />
+              <Icon as={PiChatDots} color="amethyst.500" boxSize={5} />
               <Text fontWeight="600" fontSize="sm">
                 Who can vote in polls?
               </Text>
@@ -134,16 +135,16 @@ function SimpleGovernanceUI({ state, actions }) {
                     py={1}
                     borderRadius="full"
                     cursor="pointer"
-                    bg={canVote ? 'coral.100' : 'warmGray.100'}
-                    color={canVote ? 'coral.700' : 'warmGray.500'}
+                    bg={canVote ? 'amethyst.100' : 'warmGray.100'}
+                    color={canVote ? 'amethyst.700' : 'warmGray.500'}
                     border="1px solid"
-                    borderColor={canVote ? 'coral.300' : 'warmGray.200'}
+                    borderColor={canVote ? 'amethyst.300' : 'warmGray.200'}
                     onClick={() =>
                       handleToggleVotingPermission('ddVotingRoles', idx)
                     }
                     _hover={{
-                      borderColor: canVote ? 'coral.400' : 'coral.300',
-                      bg: canVote ? 'coral.200' : 'coral.50',
+                      borderColor: canVote ? 'amethyst.400' : 'amethyst.300',
+                      bg: canVote ? 'amethyst.200' : 'amethyst.50',
                     }}
                     transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
                   >
@@ -204,9 +205,6 @@ function SimpleGovernanceUI({ state, actions }) {
           </Box>
         </VStack>
       </Box>
-
-      {/* Gas Sponsorship */}
-      <PaymasterConfigSection />
     </>
   );
 }
@@ -445,13 +443,158 @@ function AdvancedGovernanceUI({ state, actions }) {
 
   return (
     <>
-      {/* Quorum Settings */}
-      <Box p={4} borderWidth="1px" borderRadius="lg" bg="white">
+      {/* Voting Classes */}
+      <Box>
+        <HStack justify="space-between" mb={4}>
+          <VStack align="start" spacing={0}>
+            <Heading size="md">Voting Classes ({voting.classes.length})</Heading>
+            <Text fontSize="sm" color="warmGray.500">
+              Define how votes are counted and weighted
+            </Text>
+          </VStack>
+          <Button
+            leftIcon={<AddIcon />}
+            bg="warmGray.900"
+            color="white"
+            borderRadius="full"
+            _hover={{ bg: 'warmGray.800' }}
+            _active={{ bg: 'warmGray.700' }}
+            onClick={handleAddClass}
+            isDisabled={voting.classes.length >= 8}
+          >
+            Add Class
+          </Button>
+        </HStack>
+
+        {/* Visual weight distribution bar */}
+        {voting.classes.length > 0 && (
+          <Box mb={4}>
+            <MultiClassWeightBar classes={voting.classes} roles={roles} showLabels={true} />
+          </Box>
+        )}
+
+        {/* Weight presets */}
+        {voting.classes.length >= 2 && (
+          <Box mb={4}>
+            <WeightPresets
+              onApplyPreset={handleApplyPreset}
+              classCount={voting.classes.length}
+            />
+          </Box>
+        )}
+
+        {/* Total weight indicator */}
+        <Box mb={4} p={3} bg={isSliceValid ? 'green.50' : 'orange.50'} borderRadius="md">
+          <HStack justify="space-between" mb={2}>
+            <Text fontSize="sm" fontWeight="medium">
+              Total Voting Weight
+            </Text>
+            <Text
+              fontSize="sm"
+              fontWeight="bold"
+              color={isSliceValid ? 'green.600' : 'orange.600'}
+            >
+              {totalSlice}% / 100%
+            </Text>
+          </HStack>
+          <Progress
+            value={totalSlice}
+            colorScheme={isSliceValid ? 'green' : 'orange'}
+            size="sm"
+            borderRadius="full"
+          />
+          {!isSliceValid && (
+            <Text fontSize="xs" color="orange.600" mt={2}>
+              Weights must sum to exactly 100%
+            </Text>
+          )}
+        </Box>
+
+        {/* Class list */}
+        {voting.classes.length === 0 ? (
+          <Box
+            p={8}
+            textAlign="center"
+            borderWidth="2px"
+            borderStyle="dashed"
+            borderColor="warmGray.200"
+            borderRadius="lg"
+          >
+            <Text color="warmGray.500" mb={4}>
+              No voting classes defined. Add your first voting class.
+            </Text>
+            <Button
+              leftIcon={<AddIcon />}
+              bg="warmGray.900"
+              color="white"
+              borderRadius="full"
+              _hover={{ bg: 'warmGray.800' }}
+              _active={{ bg: 'warmGray.700' }}
+              onClick={handleAddClass}
+            >
+              Add First Class
+            </Button>
+          </Box>
+        ) : (
+          <VStack spacing={3} align="stretch">
+            {voting.classes.map((cls, index) => (
+              <VotingClassCard
+                key={index}
+                votingClass={cls}
+                index={index}
+                onEdit={handleEditClass}
+                onDelete={handleDeleteClick}
+                onWeightChange={handleWeightChange}
+                onToggleLock={handleToggleLock}
+                totalClasses={voting.classes.length}
+              />
+            ))}
+          </VStack>
+        )}
+      </Box>
+
+      {/* Tips */}
+      <Alert status="info" borderRadius="md">
+        <AlertIcon />
+        <Box>
+          <Text fontWeight="medium">Voting Class Tips</Text>
+          <Text fontSize="sm">
+            • Drag sliders to adjust weights - other classes redistribute automatically
+            <br />
+            • Use multiple Direct classes to give different roles separate voting weights
+            <br />
+            • Participation Token: Voting power based on participation token balance
+            <br />
+            • Enable Quadratic on token classes to reduce whale influence
+          </Text>
+        </Box>
+      </Alert>
+
+      {/* Quadratic Voting Explainer - shown when quadratic is enabled */}
+      {hasQuadraticEnabled && (
+        <QuadraticVotingExplainer isEnabled={true} />
+      )}
+
+      {/* Advanced Voting Example - shows how votes work across classes */}
+      {voting.classes.length > 0 && (
+        <AdvancedVotingExample votingClasses={voting.classes} roles={roles} />
+      )}
+
+      {/* Quorum Settings - after classes so users understand what they're setting thresholds for */}
+      <Box
+        p={5}
+        border="1px solid"
+        borderColor="warmGray.200"
+        borderRadius="2xl"
+        bg="rgba(255, 255, 255, 0.8)"
+        backdropFilter="blur(16px)"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+      >
         <Heading size="sm" mb={4}>
           <HStack>
             <Text>Quorum Requirements</Text>
             <Tooltip label="Minimum percentage of votes required for a proposal to pass">
-              <Icon as={InfoIcon} color="gray.400" />
+              <Icon as={InfoIcon} color="warmGray.400" />
             </Tooltip>
           </HStack>
         </Heading>
@@ -543,133 +686,6 @@ function AdvancedGovernanceUI({ state, actions }) {
         </VStack>
       </Box>
 
-      <Divider />
-
-      {/* Voting Classes */}
-      <Box>
-        <HStack justify="space-between" mb={4}>
-          <VStack align="start" spacing={0}>
-            <Heading size="md">Voting Classes ({voting.classes.length})</Heading>
-            <Text fontSize="sm" color="gray.500">
-              Define how votes are counted and weighted
-            </Text>
-          </VStack>
-          <Button
-            leftIcon={<AddIcon />}
-            colorScheme="blue"
-            onClick={handleAddClass}
-            isDisabled={voting.classes.length >= 8}
-          >
-            Add Class
-          </Button>
-        </HStack>
-
-        {/* Visual weight distribution bar */}
-        {voting.classes.length > 0 && (
-          <Box mb={4}>
-            <MultiClassWeightBar classes={voting.classes} roles={roles} showLabels={true} />
-          </Box>
-        )}
-
-        {/* Weight presets */}
-        {voting.classes.length >= 2 && (
-          <Box mb={4}>
-            <WeightPresets
-              onApplyPreset={handleApplyPreset}
-              classCount={voting.classes.length}
-            />
-          </Box>
-        )}
-
-        {/* Total weight indicator */}
-        <Box mb={4} p={3} bg={isSliceValid ? 'green.50' : 'orange.50'} borderRadius="md">
-          <HStack justify="space-between" mb={2}>
-            <Text fontSize="sm" fontWeight="medium">
-              Total Voting Weight
-            </Text>
-            <Text
-              fontSize="sm"
-              fontWeight="bold"
-              color={isSliceValid ? 'green.600' : 'orange.600'}
-            >
-              {totalSlice}% / 100%
-            </Text>
-          </HStack>
-          <Progress
-            value={totalSlice}
-            colorScheme={isSliceValid ? 'green' : 'orange'}
-            size="sm"
-            borderRadius="full"
-          />
-          {!isSliceValid && (
-            <Text fontSize="xs" color="orange.600" mt={2}>
-              Weights must sum to exactly 100%
-            </Text>
-          )}
-        </Box>
-
-        {/* Class list */}
-        {voting.classes.length === 0 ? (
-          <Box
-            p={8}
-            textAlign="center"
-            borderWidth="2px"
-            borderStyle="dashed"
-            borderColor="gray.200"
-            borderRadius="lg"
-          >
-            <Text color="gray.500" mb={4}>
-              No voting classes defined. Add your first voting class.
-            </Text>
-            <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleAddClass}>
-              Add First Class
-            </Button>
-          </Box>
-        ) : (
-          <VStack spacing={3} align="stretch">
-            {voting.classes.map((cls, index) => (
-              <VotingClassCard
-                key={index}
-                votingClass={cls}
-                index={index}
-                onEdit={handleEditClass}
-                onDelete={handleDeleteClick}
-                onWeightChange={handleWeightChange}
-                onToggleLock={handleToggleLock}
-                totalClasses={voting.classes.length}
-              />
-            ))}
-          </VStack>
-        )}
-      </Box>
-
-      {/* Tips */}
-      <Alert status="info" borderRadius="md">
-        <AlertIcon />
-        <Box>
-          <Text fontWeight="medium">Voting Class Tips</Text>
-          <Text fontSize="sm">
-            • Drag sliders to adjust weights - other classes redistribute automatically
-            <br />
-            • Use multiple Direct classes to give different roles separate voting weights
-            <br />
-            • Participation Token: Voting power based on participation token balance
-            <br />
-            • Enable Quadratic on token classes to reduce whale influence
-          </Text>
-        </Box>
-      </Alert>
-
-      {/* Quadratic Voting Explainer - shown when quadratic is enabled */}
-      {hasQuadraticEnabled && (
-        <QuadraticVotingExplainer isEnabled={true} />
-      )}
-
-      {/* Advanced Voting Example - shows how votes work across classes */}
-      {voting.classes.length > 0 && (
-        <AdvancedVotingExample votingClasses={voting.classes} roles={roles} />
-      )}
-
       {/* Add/Edit Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
         <ModalOverlay />
@@ -718,9 +734,6 @@ function AdvancedGovernanceUI({ state, actions }) {
           </AlertDialogContent>
         </AlertDialogOverlay>
       </AlertDialog>
-
-      {/* Gas Sponsorship */}
-      <PaymasterConfigSection />
     </>
   );
 }
@@ -728,8 +741,8 @@ function AdvancedGovernanceUI({ state, actions }) {
 export function GovernanceStep() {
   const { state, actions } = useDeployer();
 
-  const sectionBg = useColorModeValue('gray.50', 'gray.900');
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
+  const sectionBg = useColorModeValue('warmGray.50', 'warmGray.900');
+  const helperColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   const { philosophy, roles, permissions, ui, voting } = state;
   const isAdvancedMode = ui.mode === UI_MODES.ADVANCED;
@@ -800,7 +813,7 @@ export function GovernanceStep() {
         <NavigationButtons
           onBack={handleBack}
           onNext={handleNext}
-          nextLabel="Review & Launch"
+          nextLabel="Settings"
         />
       </VStack>
     </>

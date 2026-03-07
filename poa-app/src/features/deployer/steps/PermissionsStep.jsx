@@ -63,8 +63,8 @@ export function PermissionsStep() {
               {totalAssignments} permission{totalAssignments !== 1 ? 's' : ''} assigned
             </Text>
           </Box>
-          <Box px={3} py={1} bg="gray.50" borderRadius="md">
-            <Text fontSize="sm" color="gray.600">
+          <Box px={3} py={1} bg="warmGray.50" borderRadius="md">
+            <Text fontSize="sm" color="warmGray.600">
               {state.roles.length} role{state.roles.length !== 1 ? 's' : ''} ×{' '}
               {PERMISSION_KEYS.length} permissions
             </Text>
@@ -98,11 +98,11 @@ export function PermissionsStep() {
                 {PERMISSION_KEYS.map((key) => {
                   const desc = PERMISSION_DESCRIPTIONS[key];
                   return (
-                    <Box key={key} p={3} bg="gray.50" borderRadius="md">
+                    <Box key={key} p={3} bg="warmGray.50" borderRadius="md">
                       <Text fontWeight="medium" fontSize="sm">
                         {desc.label}
                       </Text>
-                      <Text fontSize="sm" color="gray.600">
+                      <Text fontSize="sm" color="warmGray.600">
                         {desc.description}
                       </Text>
                     </Box>

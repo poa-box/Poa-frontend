@@ -98,7 +98,7 @@ export function RoleList({ showHierarchy = false }) {
       <HStack justify="space-between" mb={4}>
         <VStack align="start" spacing={0}>
           <Heading size="md">Roles ({roles.length})</Heading>
-          <Text fontSize="sm" color="gray.500">
+          <Text fontSize="sm" color="warmGray.500">
             Define the roles in your organization
           </Text>
         </VStack>
@@ -126,10 +126,10 @@ export function RoleList({ showHierarchy = false }) {
           textAlign="center"
           borderWidth="2px"
           borderStyle="dashed"
-          borderColor="gray.200"
+          borderColor="warmGray.200"
           borderRadius="lg"
         >
-          <Text color="gray.500" mb={4}>
+          <Text color="warmGray.500" mb={4}>
             No roles defined yet. Add your first role to get started.
           </Text>
           <Button

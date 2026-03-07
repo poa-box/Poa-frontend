@@ -2,13 +2,13 @@
  * Deployer Reducer - Manages the complete state for the DAO deployment wizard
  *
  * This reducer handles all state transitions for the deployment process.
- * Supports both Simple mode (4 steps + template) and Advanced mode (5 steps).
+ * Supports both Simple mode (5 steps + template) and Advanced mode (6 steps).
  *
  * Simple Mode Flow:
- * Template → Identity → Team → Governance → Launch
+ * Template → Identity → Team → Governance → Settings → Launch
  *
  * Advanced Mode Flow:
- * Organization → Roles → Permissions → Voting → Review
+ * Organization → Roles → Permissions → Voting → Settings → Review
  */
 
 import { v4 as uuidv4 } from 'uuid';
@@ -19,14 +19,15 @@ export const STEPS = {
   IDENTITY: 1,        // Organization details (replaces ORGANIZATION)
   TEAM: 2,            // Roles (simplified in Simple mode)
   GOVERNANCE: 3,      // Philosophy + Powers (replaces Permissions + Voting)
-  LAUNCH: 4,          // Review & Deploy
+  SETTINGS: 4,        // Optional features & services (gas, education, etc.)
+  LAUNCH: 5,          // Review & Deploy
 
   // Legacy step aliases for Advanced mode compatibility
   ORGANIZATION: 1,
   ROLES: 2,
   PERMISSIONS: 3,
   VOTING: 3,
-  REVIEW: 4,
+  REVIEW: 5,
 };
 
 export const STEP_NAMES = [
@@ -34,6 +35,7 @@ export const STEP_NAMES = [
   'Identity',
   'Team',
   'Governance',
+  'Settings',
   'Launch',
 ];
 
@@ -43,6 +45,7 @@ export const ADVANCED_STEP_NAMES = [
   'Organization Details',
   'Roles & Hierarchy',
   'Permissions & Voting',
+  'Settings & Features',
   'Review & Deploy',
 ];
 

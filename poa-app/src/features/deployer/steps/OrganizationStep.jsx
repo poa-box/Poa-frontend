@@ -143,7 +143,7 @@ export function OrganizationStep() {
         spacing={formSpacing}
         p={formPadding}
         border="1px solid"
-        borderColor="gray.200"
+        borderColor="warmGray.200"
         borderRadius="md"
         boxShadow="md"
       >
@@ -219,7 +219,7 @@ export function OrganizationStep() {
               label="When enabled, your organization's contracts will automatically upgrade when new versions are released."
               fontSize="md"
             >
-              <InfoIcon ml={2} color="gray.400" />
+              <InfoIcon ml={2} color="warmGray.400" />
             </Tooltip>
           </FormLabel>
           <Checkbox
@@ -240,7 +240,7 @@ export function OrganizationStep() {
               label="Your username that will be registered with this organization."
               fontSize="md"
             >
-              <InfoIcon ml={2} color="gray.400" />
+              <InfoIcon ml={2} color="warmGray.400" />
             </Tooltip>
           </FormLabel>
           <Input

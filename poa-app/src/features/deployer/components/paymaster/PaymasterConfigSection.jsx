@@ -41,10 +41,10 @@ export function PaymasterConfigSection() {
   const [showBudget, setShowBudget] = useState(false);
   const [showGasLimits, setShowGasLimits] = useState(false);
 
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const helperColor = useColorModeValue('gray.500', 'gray.400');
-  const sectionBg = useColorModeValue('warmGray.50', 'gray.700');
+  const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(51, 48, 44, 0.8)');
+  const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
+  const helperColor = useColorModeValue('warmGray.500', 'warmGray.400');
+  const sectionBg = useColorModeValue('warmGray.50', 'warmGray.700');
 
   const handleToggle = (checked) => {
     actions.togglePaymaster(checked);
@@ -64,13 +64,15 @@ export function PaymasterConfigSection() {
       bg={cardBg}
       p={6}
       borderRadius="xl"
-      borderWidth="1px"
+      border="1px solid"
       borderColor={borderColor}
+      backdropFilter="blur(16px)"
+      boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
     >
       {/* Header with toggle */}
       <HStack justify="space-between" mb={paymaster.enabled ? 5 : 0}>
         <HStack spacing={3}>
-          <Icon as={PiGasPump} boxSize={5} color="coral.500" />
+          <Icon as={PiGasPump} boxSize={5} color="amethyst.500" />
           <VStack align="start" spacing={0}>
             <Heading size="sm">Gas Sponsorship</Heading>
             <Text fontSize="xs" color={helperColor}>
@@ -89,7 +91,7 @@ export function PaymasterConfigSection() {
           <Switch
             isChecked={paymaster.enabled}
             onChange={(e) => handleToggle(e.target.checked)}
-            colorScheme="coral"
+            colorScheme="purple"
             size="md"
           />
         </HStack>
