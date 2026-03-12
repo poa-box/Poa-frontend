@@ -30,7 +30,7 @@ const PendingRequestsPanel = () => {
   const toast = useToast();
   const { address } = useAccount();
   const { tokenRequest, executeWithNotification } = useWeb3();
-  const { participationTokenAddress } = usePOContext();
+  const { participationTokenAddress, subgraphUrl } = usePOContext();
   const { fetchFromIpfs } = useIPFScontext();
 
   const [loadingRequestId, setLoadingRequestId] = useState(null);
@@ -41,6 +41,7 @@ const PendingRequestsPanel = () => {
     variables: { tokenAddress: participationTokenAddress },
     skip: !participationTokenAddress,
     fetchPolicy: 'cache-first',
+    context: { subgraphUrl },
   });
 
   // Subscribe to refresh events

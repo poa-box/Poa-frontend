@@ -36,11 +36,11 @@ export const TaskBoardProvider = ({
     ipfsService: { addToIpfs },
   });
 
-  // Optimistic lock: prevents @live polling from overwriting local optimistic state.
+  // Optimistic lock: prevents poll-interval from overwriting local optimistic state.
   // After an optimistic update, server data is suppressed until it catches up or
   // the grace period expires (safety valve).
   const optimisticLockRef = useRef(null);
-  const OPTIMISTIC_GRACE_PERIOD = 12000; // 12s — covers 2+ @live polling cycles
+  const OPTIMISTIC_GRACE_PERIOD = 12000; // 12s — covers 2+ poll-interval cycles
 
   useEffect(() => {
     if (optimisticLockRef.current) {
@@ -105,7 +105,7 @@ export const TaskBoardProvider = ({
     // Save previous state to revert in case of error
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
 
-    // Lock to prevent @live polling from overwriting this optimistic update
+    // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
     // Optimistically update the UI
@@ -237,7 +237,7 @@ export const TaskBoardProvider = ({
     // Save previous state
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
 
-    // Lock to prevent @live polling from overwriting this optimistic update
+    // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
     // Optimistically update the UI
@@ -325,7 +325,7 @@ export const TaskBoardProvider = ({
     // Save previous state
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
 
-    // Lock to prevent @live polling from overwriting this optimistic update
+    // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
     // Optimistically update the UI
@@ -398,7 +398,7 @@ export const TaskBoardProvider = ({
     // Save previous state
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
 
-    // Lock to prevent @live polling from overwriting this optimistic update
+    // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
     // Optimistically update the UI
@@ -558,7 +558,7 @@ export const TaskBoardProvider = ({
     // Save previous state for rollback
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
 
-    // Lock to prevent @live polling from overwriting this optimistic update
+    // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
     // Optimistically move task from inReview to inProgress

@@ -23,17 +23,18 @@ export const ProjectProvider = ({ children }) => {
     const [taskCount, setTaskCount] = useState(0);
     const [recommendedTasks, setRecommendedTasks] = useState([]);
     const { address } = useAccount();
-    const { orgId } = usePOContext();
+    const { orgId, subgraphUrl } = usePOContext();
 
     const router = useRouter();
 
-    // @live directive on FETCH_PROJECTS_DATA_NEW enables automatic polling via
-    // graph-client's pollingLive plugin (5s interval). cache-and-network shows
-    // cached data instantly while @live keeps it fresh in the background.
+    // pollInterval replaces graph-client's @live directive — polls every 5s
+    // to keep task data fresh. cache-and-network shows cached data instantly.
     const { data, loading, error } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-and-network',
+        pollInterval: 5000,
+        context: { subgraphUrl },
     });
 
     useEffect(() => {

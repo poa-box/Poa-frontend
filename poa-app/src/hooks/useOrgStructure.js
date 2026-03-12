@@ -236,7 +236,7 @@ function groupMembersByRole(users, roles) {
  * @returns {Object} Org structure data and utilities
  */
 export function useOrgStructure() {
-  const { orgId, roleHatIds, topHatId } = usePOContext();
+  const { orgId, roleHatIds, topHatId, subgraphUrl } = usePOContext();
   const { safeFetchFromIpfs, safeFetchImageFromIpfs } = useIPFScontext();
 
   // State for IPFS metadata
@@ -254,6 +254,7 @@ export function useOrgStructure() {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
+    context: { subgraphUrl },
   });
 
   const org = data?.organization;

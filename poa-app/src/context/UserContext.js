@@ -17,7 +17,7 @@ export const UserProvider = ({ children }) => {
     const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
     const { userDAO } = router.query;
-    const { orgId, roleHatIds, participationTokenAddress } = usePOContext();
+    const { orgId, roleHatIds, participationTokenAddress, subgraphUrl } = usePOContext();
 
     const [userData, setUserData] = useState({});
     const [graphUsername, setGraphUsername] = useState('');
@@ -50,6 +50,7 @@ export const UserProvider = ({ children }) => {
         },
         skip: !orgUserID || !account,
         fetchPolicy: 'cache-first',
+        context: { subgraphUrl },
     });
 
     // Query approver hats for the participation token
@@ -57,6 +58,7 @@ export const UserProvider = ({ children }) => {
         variables: { tokenAddress: participationTokenAddress },
         skip: !participationTokenAddress,
         fetchPolicy: 'cache-first',
+        context: { subgraphUrl },
     });
 
     // Subscribe to role:claimed event to refetch user data

@@ -5,49 +5,12 @@ import { gql } from '@apollo/client';
 // Schema: https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest
 // ============================================
 
-// Fetch all organizations for browsing
-export const FETCH_ALL_ORGS = gql`
-  query FetchAllOrgs {
-    organizations(first: 100, orderBy: deployedAt, orderDirection: desc) {
-      id
-      name
-      _sourceName
-      metadataHash
-      deployedAt
-      topHatId
-      participationToken {
-        id
-        totalSupply
-      }
-      quickJoin {
-        id
-      }
-      hybridVoting {
-        id
-      }
-      directDemocracyVoting {
-        id
-      }
-      taskManager {
-        id
-      }
-      educationHub {
-        id
-      }
-      users {
-        id
-      }
-    }
-  }
-`;
-
 // Fetch single organization by orgId (bytes)
 export const FETCH_ORG_BY_ID = gql`
   query FetchOrgById($id: Bytes!) {
     organization(id: $id) {
       id
       name
-      _sourceName
       metadataHash
       deployedAt
       topHatId
@@ -152,7 +115,6 @@ export const FETCH_USER_ORGANIZATIONS = gql`
       organization {
         id
         name
-        _sourceName
         metadataHash
         participationToken {
           symbol
@@ -168,7 +130,6 @@ export const GET_ORG_BY_NAME = gql`
     organizations(where: { name: $name }, first: 1) {
       id
       name
-      _sourceName
     }
   }
 `;
@@ -179,7 +140,6 @@ export const FETCH_ORG_FULL_DATA = gql`
     organization(id: $orgId) {
       id
       name
-      _sourceName
       metadataHash
       metadataAdminHatId
       metadata {
@@ -354,7 +314,7 @@ export const FETCH_VOTING_DATA_NEW = gql`
 
 // Fetch projects and tasks data
 export const FETCH_PROJECTS_DATA_NEW = gql`
-  query FetchProjectsDataNew($orgId: Bytes!) @live {
+  query FetchProjectsDataNew($orgId: Bytes!) {
     organization(id: $orgId) {
       id
       taskManager {
@@ -636,7 +596,6 @@ export const FETCH_INFRASTRUCTURE_ADDRESSES = gql`
   query FetchInfrastructureAddresses {
     universalAccountRegistries(first: 1) {
       id
-      _sourceName
       totalAccounts
     }
     poaManagerContracts(first: 1) {

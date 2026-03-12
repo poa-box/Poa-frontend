@@ -49,10 +49,11 @@ export function useWeb3Services(options = {}) {
   const ipfsContext = useIPFScontext();
   const ipfsService = providedIpfs || ipfsContext;
 
-  // Get org ID from POContext for paymaster data
+  // Get org ID and subgraph URL from POContext for paymaster data
   // usePOContext returns undefined when outside POProvider (non-org routes)
   const poContext = usePOContext();
   const orgId = poContext?.orgId || null;
+  const subgraphUrl = poContext?.subgraphUrl || null;
 
   // Get user's hat IDs for hat-scoped paymaster budget
   // useUserContext returns undefined outside UserProvider (safe with optional chaining)
@@ -69,6 +70,7 @@ export function useWeb3Services(options = {}) {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
+    context: { subgraphUrl },
   });
   const orgPaymaster = pmConfig?.paymasterOrgConfigs?.[0];
   // Entity existence = registered. Only pass paymaster address when not paused.

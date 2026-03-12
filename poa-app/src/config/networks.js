@@ -11,7 +11,7 @@ export const NETWORKS = {
     rpcUrl: 'https://rpc.sepolia.org',
     blockExplorer: 'https://sepolia.etherscan.io',
     isTestnet: true,
-    graphClientSource: 'poa-sepolia',
+    subgraphUrl: process.env.NEXT_PUBLIC_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest',
   },
   baseSepolia: {
     chainId: 84532,
@@ -20,7 +20,7 @@ export const NETWORKS = {
     rpcUrl: 'https://sepolia.base.org',
     blockExplorer: 'https://sepolia.basescan.org',
     isTestnet: true,
-    graphClientSource: 'poa-base-sepolia',
+    subgraphUrl: process.env.NEXT_PUBLIC_BASE_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-base-sepolia/version/latest',
   },
 };
 
@@ -55,10 +55,20 @@ export function isNetworkSupported(chainId) {
   return !!getNetworkByChainId(chainId);
 }
 
+export const DEFAULT_SUBGRAPH_URL = NETWORKS[DEFAULT_NETWORK].subgraphUrl;
+
 /**
- * Map graph-client _sourceName to network config.
- * Used by POContext and profileHubContext to determine an org's chain.
+ * Get subgraph URL for a given chain ID.
+ * Falls back to the default network's subgraph.
  */
-export const SOURCE_TO_NETWORK = Object.fromEntries(
-  Object.values(NETWORKS).map(config => [config.graphClientSource, config])
-);
+export function getSubgraphUrl(chainId) {
+  return getNetworkByChainId(chainId)?.subgraphUrl || DEFAULT_SUBGRAPH_URL;
+}
+
+/**
+ * Get all subgraph endpoints for cross-chain queries.
+ * Used by browse page and org discovery to query all chains in parallel.
+ */
+export function getAllSubgraphUrls() {
+  return Object.values(NETWORKS).map(n => ({ chainId: n.chainId, url: n.subgraphUrl, name: n.name }));
+}

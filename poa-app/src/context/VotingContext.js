@@ -120,12 +120,13 @@ export const VotingProvider = ({ children }) => {
 
     const { address } = useAccount();
     const router = useRouter();
-    const { orgId } = usePOContext();
+    const { orgId, subgraphUrl } = usePOContext();
 
     const { data, loading, error, refetch } = useQuery(FETCH_VOTING_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-first',
+        context: { subgraphUrl },
     });
 
     // Memoize refetch handler for stable reference
