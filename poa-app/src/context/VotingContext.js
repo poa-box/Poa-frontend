@@ -156,7 +156,7 @@ export const VotingProvider = ({ children }) => {
 
             // Process Hybrid Voting proposals and classes
             if (org.hybridVoting) {
-                const hybridQuorum = org.hybridVoting.quorum || 0;
+                const hybridQuorum = org.hybridVoting.thresholdPct || 0;
                 hybridProposals = (org.hybridVoting.proposals || []).map(p =>
                     transformProposal(p, org.hybridVoting.id, 'Hybrid', hybridQuorum)
                 );
@@ -185,7 +185,7 @@ export const VotingProvider = ({ children }) => {
 
             // Process Direct Democracy Voting proposals
             if (org.directDemocracyVoting) {
-                const ddQuorum = org.directDemocracyVoting.quorumPercentage || 0;
+                const ddQuorum = org.directDemocracyVoting.thresholdPct || 0;
                 ddProposals = (org.directDemocracyVoting.ddvProposals || []).map(p =>
                     transformProposal(p, org.directDemocracyVoting.id, 'Direct Democracy', ddQuorum)
                 );

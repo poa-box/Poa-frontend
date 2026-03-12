@@ -346,11 +346,11 @@ export function useOrgStructure() {
     return {
       hybridVoting: org?.hybridVoting ? {
         id: org.hybridVoting.id,
-        quorum: org.hybridVoting.quorum,
+        quorum: org.hybridVoting.thresholdPct,
       } : null,
       directDemocracyVoting: org?.directDemocracyVoting ? {
         id: org.directDemocracyVoting.id,
-        quorumPercentage: org.directDemocracyVoting.quorumPercentage,
+        quorumPercentage: org.directDemocracyVoting.thresholdPct,
       } : null,
     };
   }, [org?.hybridVoting, org?.directDemocracyVoting]);

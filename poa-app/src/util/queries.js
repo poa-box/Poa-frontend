@@ -1,8 +1,8 @@
 import { gql } from '@apollo/client';
 
 // ============================================
-// POP SUBGRAPH QUERIES (Hoodi testnet)
-// Schema: https://api.studio.thegraph.com/query/73367/poa-2/version/latest
+// POP SUBGRAPH QUERIES (Sepolia + Base Sepolia)
+// Schema: https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest
 // ============================================
 
 // Fetch all organizations for browsing
@@ -11,6 +11,7 @@ export const FETCH_ALL_ORGS = gql`
     organizations(first: 100, orderBy: deployedAt, orderDirection: desc) {
       id
       name
+      _sourceName
       metadataHash
       deployedAt
       topHatId
@@ -33,6 +34,9 @@ export const FETCH_ALL_ORGS = gql`
       educationHub {
         id
       }
+      users {
+        id
+      }
     }
   }
 `;
@@ -43,6 +47,7 @@ export const FETCH_ORG_BY_ID = gql`
     organization(id: $id) {
       id
       name
+      _sourceName
       metadataHash
       deployedAt
       topHatId
@@ -58,11 +63,13 @@ export const FETCH_ORG_BY_ID = gql`
       }
       hybridVoting {
         id
+        thresholdPct
         quorum
       }
       directDemocracyVoting {
         id
-        quorumPercentage
+        thresholdPct
+        quorum
       }
       taskManager {
         id
@@ -145,6 +152,7 @@ export const FETCH_USER_ORGANIZATIONS = gql`
       organization {
         id
         name
+        _sourceName
         metadataHash
         participationToken {
           symbol
@@ -160,6 +168,7 @@ export const GET_ORG_BY_NAME = gql`
     organizations(where: { name: $name }, first: 1) {
       id
       name
+      _sourceName
     }
   }
 `;
@@ -170,6 +179,7 @@ export const FETCH_ORG_FULL_DATA = gql`
     organization(id: $orgId) {
       id
       name
+      _sourceName
       metadataHash
       metadataAdminHatId
       metadata {
@@ -196,11 +206,13 @@ export const FETCH_ORG_FULL_DATA = gql`
       }
       hybridVoting {
         id
+        thresholdPct
         quorum
       }
       directDemocracyVoting {
         id
-        quorumPercentage
+        thresholdPct
+        quorum
       }
       taskManager {
         id
@@ -265,6 +277,7 @@ export const FETCH_VOTING_DATA_NEW = gql`
       id
       hybridVoting {
         id
+        thresholdPct
         quorum
         votingClasses(where: { isActive: true }, orderBy: classIndex, orderDirection: asc) {
           id
@@ -308,7 +321,8 @@ export const FETCH_VOTING_DATA_NEW = gql`
       }
       directDemocracyVoting {
         id
-        quorumPercentage
+        thresholdPct
+        quorum
         ddvProposals(orderBy: startTimestamp, orderDirection: desc, first: 50) {
           id
           proposalId
@@ -340,7 +354,7 @@ export const FETCH_VOTING_DATA_NEW = gql`
 
 // Fetch projects and tasks data
 export const FETCH_PROJECTS_DATA_NEW = gql`
-  query FetchProjectsDataNew($orgId: Bytes!) {
+  query FetchProjectsDataNew($orgId: Bytes!) @live {
     organization(id: $orgId) {
       id
       taskManager {
@@ -553,12 +567,14 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
 
       hybridVoting {
         id
+        thresholdPct
         quorum
       }
 
       directDemocracyVoting {
         id
-        quorumPercentage
+        thresholdPct
+        quorum
       }
 
       hatPermissions {
@@ -620,6 +636,7 @@ export const FETCH_INFRASTRUCTURE_ADDRESSES = gql`
   query FetchInfrastructureAddresses {
     universalAccountRegistries(first: 1) {
       id
+      _sourceName
       totalAccounts
     }
     poaManagerContracts(first: 1) {

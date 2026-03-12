@@ -1,115 +1,49 @@
 //profileHubContext
 
-import React, { createContext, useReducer, useContext, useState, useEffect, useMemo } from 'react';
-
+import React, { createContext, useContext, useMemo } from 'react';
+import { useQuery } from '@apollo/client';
+import { FETCH_ALL_ORGS } from '../util/queries';
+import { NETWORKS, SOURCE_TO_NETWORK } from '../config/networks';
 
 const ProfileHubContext = createContext();
 
 export const useprofileHubContext = () => {
     return useContext(ProfileHubContext);
-    }
-
+};
 
 export const ProfileHubProvider = ({ children }) => {
-    
-    const [profileHubLoaded, setprofileHubLoaded] = useState(false);
-    const [perpetualOrganizations, setPerpetualOrganizations] = useState([]);
+    const { data, loading } = useQuery(FETCH_ALL_ORGS, {
+        fetchPolicy: 'cache-first',
+    });
 
-    useEffect(() => {
-        if (profileHubLoaded) {
-            fetchPOs().then((data) => {
-                setPerpetualOrganizations(data);
-            });
-        }
-    }, [profileHubLoaded]);
-
-
-
-    // POP subgraph on Hoodi testnet
-    const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-        'https://api.studio.thegraph.com/query/73367/poa-2/version/latest';
-
-    async function querySubgraph(query) {
-        try {
-            const response = await fetch(SUBGRAPH_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ query }),
-            });
-
-            if (!response.ok) {
-                console.error('Subgraph request failed:', response.status, response.statusText);
-                return null;
-            }
-
-            const data = await response.json();
-
-            if (data.errors) {
-                console.error('Subgraph query errors:', data.errors);
-                return null;
-            }
-
-            return data.data;
-        } catch (error) {
-            console.error('Error querying subgraph:', error);
-            return null;
-        }
-    }
-
-    async function fetchPOs() {
-        // Updated for POP subgraph schema (Hoodi testnet)
-        const query = `
-        {
-          organizations(first: 100, orderBy: deployedAt, orderDirection: desc) {
-            id
-            name
-            metadataHash
-            deployedAt
-            participationToken {
-              id
-              totalSupply
-            }
-            quickJoin {
-              id
-            }
-            users {
-              id
-            }
-          }
-        }`;
-
-        const data = await querySubgraph(query);
-
-        // Transform to match old structure expected by browser page
+    const perpetualOrganizations = useMemo(() => {
         const orgs = data?.organizations || [];
-        return orgs.map(org => ({
-            id: org.name || org.id, // Use name as display ID, fallback to bytes ID
-            orgId: org.id, // Keep original bytes ID for navigation
-            logoHash: org.metadataHash, // Will need IPFS fetch to get actual logo
-            totalMembers: org.users?.length || 0,
-            aboutInfo: null, // Not available in new schema - would need IPFS fetch
-            deployedAt: org.deployedAt,
-            quickJoinContract: org.quickJoin?.id,
-            participationToken: org.participationToken
-        }));
-    }
-
-
+        return orgs.map(org => {
+            const network = SOURCE_TO_NETWORK[org._sourceName] || Object.values(NETWORKS)[0];
+            return {
+                id: org.name || org.id,
+                orgId: org.id,
+                logoHash: org.metadataHash,
+                totalMembers: org.users?.length || 0,
+                aboutInfo: null,
+                deployedAt: org.deployedAt,
+                quickJoinContract: org.quickJoin?.id,
+                participationToken: org.participationToken,
+                chainId: network.chainId,
+                networkName: network.name,
+                sourceName: org._sourceName,
+            };
+        });
+    }, [data]);
 
     const contextValue = useMemo(() => ({
         perpetualOrganizations,
-        setprofileHubLoaded,
-    }), [perpetualOrganizations, setprofileHubLoaded]);
+        isLoading: loading,
+    }), [perpetualOrganizations, loading]);
 
     return (
         <ProfileHubContext.Provider value={contextValue}>
-        {children}
+            {children}
         </ProfileHubContext.Provider>
     );
-}
-
-
-
-
+};

@@ -244,25 +244,25 @@ export class VotingService {
   }
 
   /**
-   * Get quorum percentage for Hybrid Voting
+   * Get threshold percentage for Hybrid Voting (support % to pass)
    * @param {string} contractAddress - HybridVoting contract address
-   * @returns {Promise<number>} Quorum percentage (1-100)
+   * @returns {Promise<number>} Threshold percentage (1-100)
    */
   async getHybridQuorum(contractAddress) {
     requireAddress(contractAddress, 'HybridVoting contract address');
     const contract = this.factory.createReadable(contractAddress, HybridVotingABI);
-    return contract.quorumPct();
+    return contract.thresholdPct();
   }
 
   /**
-   * Get quorum percentage for Direct Democracy Voting
+   * Get threshold percentage for Direct Democracy Voting (support % to pass)
    * @param {string} contractAddress - DirectDemocracyVoting contract address
-   * @returns {Promise<number>} Quorum percentage (1-100)
+   * @returns {Promise<number>} Threshold percentage (1-100)
    */
   async getDDQuorum(contractAddress) {
     requireAddress(contractAddress, 'DirectDemocracyVoting contract address');
     const contract = this.factory.createReadable(contractAddress, DirectDemocracyVotingABI);
-    return contract.quorumPercentage();
+    return contract.thresholdPct();
   }
 
   // ============================================

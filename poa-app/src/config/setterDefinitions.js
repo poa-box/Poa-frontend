@@ -68,54 +68,104 @@ export const CONTRACT_MAP = {
 export const SETTER_TEMPLATES = [
   // ===== VOTING RULES =====
   {
+    id: 'change-threshold-hybrid',
+    category: 'voting',
+    name: 'Change Hybrid Voting Threshold',
+    description: 'Set the minimum support percentage required for hybrid votes to pass',
+    contract: 'hybridVoting',
+    functionName: 'setConfig',
+    inputs: [
+      {
+        name: 'threshold',
+        label: 'Threshold Percentage',
+        type: 'number',
+        min: 1,
+        max: 100,
+        placeholder: 'e.g. 51',
+        helpText: 'Percentage of support required to pass (1-100)'
+      }
+    ],
+    encode: (values) => {
+      const configKey = 0; // ConfigKey.THRESHOLD
+      const encodedValue = utils.hexZeroPad(utils.hexlify(Number(values.threshold)), 32);
+      return [configKey, encodedValue];
+    },
+    preview: (values) => `Change hybrid voting threshold to ${values.threshold}%`
+  },
+  {
+    id: 'change-threshold-dd',
+    category: 'voting',
+    name: 'Change Direct Democracy Threshold',
+    description: 'Set the minimum support percentage required for direct democracy votes to pass',
+    contract: 'directDemocracyVoting',
+    functionName: 'setConfig',
+    inputs: [
+      {
+        name: 'threshold',
+        label: 'Threshold Percentage',
+        type: 'number',
+        min: 1,
+        max: 100,
+        placeholder: 'e.g. 51',
+        helpText: 'Percentage of support required to pass (1-100)'
+      }
+    ],
+    encode: (values) => {
+      const configKey = 0; // ConfigKey.THRESHOLD
+      const encodedValue = utils.hexZeroPad(utils.hexlify(Number(values.threshold)), 32);
+      return [configKey, encodedValue];
+    },
+    preview: (values) => `Change direct democracy threshold to ${values.threshold}%`
+  },
+  {
     id: 'change-quorum-hybrid',
     category: 'voting',
     name: 'Change Hybrid Voting Quorum',
-    description: 'Set the minimum participation percentage required for hybrid votes to be valid',
+    description: 'Set the minimum number of voters required for hybrid votes to be valid',
     contract: 'hybridVoting',
     functionName: 'setConfig',
     inputs: [
       {
         name: 'quorum',
-        label: 'Quorum Percentage',
+        label: 'Minimum Voters',
         type: 'number',
-        min: 1,
-        max: 100,
-        placeholder: 'e.g. 51',
-        helpText: 'Percentage of voting power that must participate (1-100)'
+        min: 0,
+        max: 1000000,
+        placeholder: 'e.g. 5',
+        helpText: 'Minimum number of voters required (0 = no minimum)'
       }
     ],
     encode: (values) => {
-      const configKey = 0; // ConfigKey.QUORUM
+      const configKey = 3; // ConfigKey.QUORUM
       const encodedValue = utils.hexZeroPad(utils.hexlify(Number(values.quorum)), 32);
       return [configKey, encodedValue];
     },
-    preview: (values) => `Change hybrid voting quorum to ${values.quorum}%`
+    preview: (values) => `Change hybrid voting quorum to ${values.quorum} voters`
   },
   {
     id: 'change-quorum-dd',
     category: 'voting',
     name: 'Change Direct Democracy Quorum',
-    description: 'Set the minimum participation percentage required for direct democracy votes to be valid',
+    description: 'Set the minimum number of voters required for direct democracy votes to be valid',
     contract: 'directDemocracyVoting',
     functionName: 'setConfig',
     inputs: [
       {
         name: 'quorum',
-        label: 'Quorum Percentage',
+        label: 'Minimum Voters',
         type: 'number',
-        min: 1,
-        max: 100,
-        placeholder: 'e.g. 51',
-        helpText: 'Percentage of members that must vote (1-100)'
+        min: 0,
+        max: 1000000,
+        placeholder: 'e.g. 5',
+        helpText: 'Minimum number of voters required (0 = no minimum)'
       }
     ],
     encode: (values) => {
-      const configKey = 0; // ConfigKey.QUORUM
+      const configKey = 4; // ConfigKey.QUORUM
       const encodedValue = utils.hexZeroPad(utils.hexlify(Number(values.quorum)), 32);
       return [configKey, encodedValue];
     },
-    preview: (values) => `Change direct democracy quorum to ${values.quorum}%`
+    preview: (values) => `Change direct democracy quorum to ${values.quorum} voters`
   },
 
   // ===== PERMISSIONS =====

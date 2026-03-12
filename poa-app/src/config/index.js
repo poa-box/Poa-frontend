@@ -11,7 +11,7 @@ export {
   getNetworkByChainId,
   getNetworkNameByChainId,
   isNetworkSupported,
-  getSupportedChainIds,
+  SOURCE_TO_NETWORK,
 } from './networks';
 
 // Contract addresses

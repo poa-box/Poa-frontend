@@ -8,6 +8,7 @@ import { formatTokenAmount } from '../util/formatToken';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
 import { useIPFScontext } from './ipfsContext';
+import { NETWORKS, SOURCE_TO_NETWORK } from '../config/networks';
 
 const POContext = createContext();
 
@@ -71,6 +72,7 @@ function transformEducationModules(modules) {
 const initialState = {
     // Organization info
     orgId: null,
+    orgChainId: null,
     poDescription: 'No description provided or IPFS content still being indexed',
     poLinks: {},
     logoHash: '',
@@ -141,7 +143,12 @@ export const POProvider = ({ children }) => {
         fetchPolicy: 'cache-first',
         onCompleted: (data) => {
             if (data?.organizations?.[0]) {
-                dispatch({ type: 'SET_ORG_DATA', payload: { orgId: data.organizations[0].id } });
+                const org = data.organizations[0];
+                const network = SOURCE_TO_NETWORK[org._sourceName] || Object.values(NETWORKS)[0];
+                dispatch({
+                    type: 'SET_ORG_DATA',
+                    payload: { orgId: org.id, orgChainId: network.chainId },
+                });
             }
         },
     });
@@ -261,15 +268,15 @@ export const POProvider = ({ children }) => {
                     rules: {
                         HybridVoting: org.hybridVoting ? {
                             id: org.hybridVoting.id,
-                            quorum: org.hybridVoting.quorum,
+                            quorum: org.hybridVoting.thresholdPct,
                         } : null,
                         DirectDemocracyVoting: org.directDemocracyVoting ? {
                             id: org.directDemocracyVoting.id,
-                            quorum: org.directDemocracyVoting.quorumPercentage,
+                            quorum: org.directDemocracyVoting.thresholdPct,
                         } : null,
                         ParticipationVoting: org.hybridVoting ? {
                             id: org.hybridVoting.id,
-                            quorum: org.hybridVoting.quorum,
+                            quorum: org.hybridVoting.thresholdPct,
                         } : null,
                         NFTMembership: null,
                         Treasury: org.executorContract ? {
@@ -320,6 +327,7 @@ export const POProvider = ({ children }) => {
     const contextValue = useMemo(() => ({
         // Organization info
         orgId: state.orgId,
+        orgChainId: state.orgChainId,
         poDescription: state.poDescription,
         poLinks: state.poLinks,
         logoHash: state.logoHash,

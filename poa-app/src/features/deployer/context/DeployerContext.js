@@ -21,6 +21,7 @@ import {
   VOTING_STRATEGY,
 } from './deployerReducer';
 import { getTemplateById, getTemplateDefaults, TEMPLATE_LIST } from '../templates';
+import { DEFAULT_CHAIN_ID } from '../../../config/networks';
 
 // Create the context
 const DeployerContext = createContext(null);
@@ -165,6 +166,10 @@ export function DeployerProvider({ children }) {
     updatePaymaster: (updates) =>
       dispatch({ type: ACTION_TYPES.UPDATE_PAYMASTER, payload: updates }),
 
+    // Chain selection
+    setSelectedChainId: (chainId) =>
+      dispatch({ type: ACTION_TYPES.SET_SELECTED_CHAIN_ID, payload: chainId }),
+
     // Validation
     setErrors: (errors) =>
       dispatch({ type: ACTION_TYPES.SET_ERRORS, payload: errors }),
@@ -283,6 +288,9 @@ export function DeployerProvider({ children }) {
       }
       return false;
     },
+
+    // Chain
+    getSelectedChainId: () => state.selectedChainId || DEFAULT_CHAIN_ID,
 
     // Paymaster
     isPaymasterEnabled: () => state.paymaster.enabled,

@@ -127,12 +127,12 @@
             "internalType": "bool"
           },
           {
-            "name": "hybridQuorumPct",
+            "name": "hybridThresholdPct",
             "type": "uint8",
             "internalType": "uint8"
           },
           {
-            "name": "ddQuorumPct",
+            "name": "ddThresholdPct",
             "type": "uint8",
             "internalType": "uint8"
           },
@@ -563,6 +563,11 @@
           },
           {
             "name": "paymentManager",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "eligibilityModule",
             "type": "address",
             "internalType": "address"
           }

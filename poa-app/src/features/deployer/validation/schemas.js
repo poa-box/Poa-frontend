@@ -285,6 +285,8 @@ export const votingSchema = z.object({
   mode: z.enum(['DIRECT', 'HYBRID']),
   hybridQuorum: z.number().int().min(1).max(100),
   ddQuorum: z.number().int().min(1).max(100),
+  hybridVoterQuorum: z.number().int().min(0).max(4294967295), // uint32 voter count
+  ddVoterQuorum: z.number().int().min(0).max(4294967295),     // uint32 voter count
   quadraticEnabled: z.boolean(),
   democracyWeight: z.number().int().min(0).max(100),
   participationWeight: z.number().int().min(0).max(100),

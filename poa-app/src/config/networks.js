@@ -4,19 +4,27 @@
  */
 
 export const NETWORKS = {
-  hoodi: {
-    chainId: 560048,
-    name: 'Hoodi',
+  sepolia: {
+    chainId: 11155111,
+    name: 'Sepolia',
     nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrl: 'https://0xrpc.io/hoodi',
-    blockExplorer: 'https://explorer.hoodi.ethpandaops.io',
+    rpcUrl: 'https://rpc.sepolia.org',
+    blockExplorer: 'https://sepolia.etherscan.io',
     isTestnet: true,
+    graphClientSource: 'poa-sepolia',
   },
-  // Future networks can be added here
-  // mainnet: { chainId: 1, name: 'Ethereum Mainnet', ... },
+  baseSepolia: {
+    chainId: 84532,
+    name: 'Base Sepolia',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrl: 'https://sepolia.base.org',
+    blockExplorer: 'https://sepolia.basescan.org',
+    isTestnet: true,
+    graphClientSource: 'poa-base-sepolia',
+  },
 };
 
-export const DEFAULT_NETWORK = 'hoodi';
+export const DEFAULT_NETWORK = 'sepolia';
 export const DEFAULT_CHAIN_ID = NETWORKS[DEFAULT_NETWORK].chainId;
 
 /**
@@ -48,9 +56,9 @@ export function isNetworkSupported(chainId) {
 }
 
 /**
- * Get all supported chain IDs
- * @returns {number[]} Array of supported chain IDs
+ * Map graph-client _sourceName to network config.
+ * Used by POContext and profileHubContext to determine an org's chain.
  */
-export function getSupportedChainIds() {
-  return Object.values(NETWORKS).map(n => n.chainId);
-}
+export const SOURCE_TO_NETWORK = Object.fromEntries(
+  Object.values(NETWORKS).map(config => [config.graphClientSource, config])
+);

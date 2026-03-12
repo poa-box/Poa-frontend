@@ -1,0 +1,26 @@
+sources:
+  - name: poa-sepolia
+    handler:
+      graphql:
+        endpoint: ${NEXT_PUBLIC_SEPOLIA_SUBGRAPH_URL:https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest}
+    transforms:
+      - autoPagination:
+          validateSchema: true
+      - addSourceName: {}
+      - blockTracking:
+          validateSchema: true
+
+  - name: poa-base-sepolia
+    handler:
+      graphql:
+        endpoint: ${NEXT_PUBLIC_BASE_SEPOLIA_SUBGRAPH_URL:https://api.studio.thegraph.com/query/73367/poa-base-sepolia/version/latest}
+    transforms:
+      - autoPagination:
+          validateSchema: true
+      - addSourceName: {}
+      - blockTracking:
+          validateSchema: true
+
+plugins:
+  - pollingLive:
+      defaultInterval: 5000

@@ -117,13 +117,13 @@ const OrgBanner = ({ name }) => (
 
 const BrowserPage = () => {
   const router = useRouter();
-  const { perpetualOrganizations, setprofileHubLoaded } = useprofileHubContext();
+  const { perpetualOrganizations, isLoading: isOrgsLoading } = useprofileHubContext();
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
   const { isPasskeyUser, isAuthenticated, hasStoredPasskey } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [networkFilter, setNetworkFilter] = useState("all");
   const [selectedOrg, setSelectedOrg] = useState(null);
   const [mounted, setMounted] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -156,17 +156,15 @@ const BrowserPage = () => {
     onOpen();
   };
 
-  useEffect(() => {
-    if (perpetualOrganizations.length === 0) {
-      setprofileHubLoaded(true);
-    }
-    setIsLoading(false);
-  }, [perpetualOrganizations]);
+  const filteredOrganizations = perpetualOrganizations.filter(po => {
+    const matchesSearch = po.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (po.aboutInfo?.description && po.aboutInfo.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesNetwork = networkFilter === "all" || po.networkName === networkFilter;
+    return matchesSearch && matchesNetwork;
+  });
 
-  const filteredOrganizations = perpetualOrganizations.filter(po =>
-    po.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (po.aboutInfo?.description && po.aboutInfo.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  // Get unique network names for filter chips
+  const availableNetworks = [...new Set(perpetualOrganizations.map(po => po.networkName).filter(Boolean))];
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -409,6 +407,38 @@ const BrowserPage = () => {
                 </InputRightElement>
               </InputGroup>
 
+              {/* Network Filter Chips */}
+              {availableNetworks.length > 1 && (
+                <HStack spacing={2} mb={[4, 6]} flexWrap="wrap" justifyContent="center">
+                  <Badge
+                    px={3} py={1.5} borderRadius="full" cursor="pointer" fontSize="sm" fontWeight="600"
+                    bg={networkFilter === "all" ? "warmGray.900" : "white"}
+                    color={networkFilter === "all" ? "white" : "warmGray.600"}
+                    border="1px solid"
+                    borderColor={networkFilter === "all" ? "warmGray.900" : "warmGray.200"}
+                    onClick={() => setNetworkFilter("all")}
+                    _hover={{ borderColor: "warmGray.400" }}
+                    transition="all 0.2s"
+                  >
+                    All Networks
+                  </Badge>
+                  {availableNetworks.map(name => (
+                    <Badge
+                      key={name} px={3} py={1.5} borderRadius="full" cursor="pointer" fontSize="sm" fontWeight="600"
+                      bg={networkFilter === name ? "warmGray.900" : "white"}
+                      color={networkFilter === name ? "white" : "warmGray.600"}
+                      border="1px solid"
+                      borderColor={networkFilter === name ? "warmGray.900" : "warmGray.200"}
+                      onClick={() => setNetworkFilter(name)}
+                      _hover={{ borderColor: "warmGray.400" }}
+                      transition="all 0.2s"
+                    >
+                      {name}
+                    </Badge>
+                  ))}
+                </HStack>
+              )}
+
               {/* Stats */}
               <HStack
                 spacing={[4, 8]}
@@ -443,7 +473,7 @@ const BrowserPage = () => {
             initial="hidden"
             animate="visible"
           >
-            {isLoading ? (
+            {isOrgsLoading ? (
               <Grid
                 templateColumns={{
                   base: "repeat(1, 1fr)",
@@ -548,15 +578,15 @@ const BrowserPage = () => {
                               </Heading>
                             </Link>
                             <Badge
-                              bg="amethyst.50"
-                              color="amethyst.600"
+                              bg={po.networkName === 'Sepolia' ? 'blue.50' : po.networkName === 'Base Sepolia' ? 'green.50' : 'amethyst.50'}
+                              color={po.networkName === 'Sepolia' ? 'blue.600' : po.networkName === 'Base Sepolia' ? 'green.600' : 'amethyst.600'}
                               borderRadius="full"
                               px={2.5}
                               py={0.5}
                               fontSize="xs"
                               fontWeight="600"
                             >
-                              Org
+                              {po.networkName || 'Org'}
                             </Badge>
                           </Flex>
 

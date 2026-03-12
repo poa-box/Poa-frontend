@@ -37,10 +37,8 @@ const glassLayerStyle = {
   border: '1px solid rgba(148, 115, 220, 0.2)',
 };
 
-/**
- * Block explorer URL for Hoodi testnet
- */
-const BLOCK_EXPLORER_URL = 'https://hoodi.cloud.blockscout.com/address';
+import { getNetworkByChainId } from '../../config/networks';
+import { usePOContext } from '../../context/POContext';
 
 /**
  * Contract labels for display
@@ -58,7 +56,7 @@ const CONTRACT_LABELS = {
 /**
  * Single contract address row
  */
-function ContractRow({ label, address }) {
+function ContractRow({ label, address, explorerUrl }) {
   const { hasCopied, onCopy } = useClipboard(address || '');
 
   if (!address) return null;
@@ -103,7 +101,7 @@ function ContractRow({ label, address }) {
           <Tooltip label="View on block explorer">
             <IconButton
               as={Link}
-              href={`${BLOCK_EXPLORER_URL}/${address}`}
+              href={`${explorerUrl}/${address}`}
               isExternal
               icon={<FiExternalLink />}
               size="sm"
@@ -120,6 +118,8 @@ function ContractRow({ label, address }) {
 
 export function DeveloperInfoSection({ contracts = {} }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { orgChainId } = usePOContext();
+  const blockExplorerUrl = `${getNetworkByChainId(orgChainId)?.blockExplorer || 'https://sepolia.etherscan.io'}/address`;
 
   const hasContracts = Object.values(contracts).some(Boolean);
 
@@ -193,7 +193,7 @@ export function DeveloperInfoSection({ contracts = {} }) {
                 if (!address) return null;
                 return (
                   <GridItem key={key}>
-                    <ContractRow label={label} address={address} />
+                    <ContractRow label={label} address={address} explorerUrl={blockExplorerUrl} />
                   </GridItem>
                 );
               })}
