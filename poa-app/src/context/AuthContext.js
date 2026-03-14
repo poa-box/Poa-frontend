@@ -40,7 +40,7 @@ export const useAuth = () => {
 
 // Build a viem chain object from our network config
 const networkConfig = NETWORKS[DEFAULT_NETWORK];
-const hoodiChain = defineChain({
+const defaultChain = defineChain({
   id: networkConfig.chainId,
   name: networkConfig.name,
   nativeCurrency: networkConfig.nativeCurrency,
@@ -77,7 +77,7 @@ export const AuthProvider = ({ children }) => {
 
   // Create viem public client (shared, stateless)
   const publicClient = useMemo(() => createPublicClient({
-    chain: hoodiChain,
+    chain: defaultChain,
     transport: http(networkConfig.rpcUrl),
   }), []);
 
@@ -85,7 +85,7 @@ export const AuthProvider = ({ children }) => {
   const bundlerClient = useMemo(() => {
     const bundlerUrl = getBundlerUrl(networkConfig.chainId);
     return createPimlicoClient({
-      chain: hoodiChain,
+      chain: defaultChain,
       transport: http(bundlerUrl),
       entryPoint: {
         address: ENTRY_POINT_ADDRESS,

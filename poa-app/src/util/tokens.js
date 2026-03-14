@@ -3,7 +3,7 @@
  * These are the supported ERC-20 tokens for task bounties on the POP protocol
  */
 
-// Hoodi testnet token addresses
+// Testnet token addresses
 // TODO: Replace with mainnet addresses when deploying to production
 export const BOUNTY_TOKENS = {
     // Native participation token payout (address zero means PT payout)
@@ -14,7 +14,7 @@ export const BOUNTY_TOKENS = {
         decimals: 18,
         isDefault: true,
     },
-    // BREAD token - Hoodi testnet
+    // BREAD token
     BREAD: {
         address: '0x0000000000000000000000000000000000000001', // TODO: Add actual BREAD address
         symbol: 'BREAD',

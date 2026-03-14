@@ -18,7 +18,7 @@ import { CloseIcon } from "@chakra-ui/icons";
 import { useQuery } from "@apollo/client";
 import LogoDropzoneModal from "@/components/Architect/LogoDropzoneModal";
 import LinksModal from "@/components/Architect/LinksModal";
-import { useAccount, useDisconnect } from "wagmi";
+import { useAccount, useDisconnect, useSwitchChain } from "wagmi";
 import { useEthersSigner } from "@/components/ProviderConverter";
 import { useAuth } from "@/context/AuthContext";
 import { useIPFScontext } from "@/context/ipfsContext";
@@ -40,19 +40,21 @@ import {
 import { resolveRoleUsernames } from "@/features/deployer/utils/usernameResolver";
 
 // Passkey deployment via ERC-4337 UserOp
-import { encodeFunctionData } from "viem";
+import { encodeFunctionData, createPublicClient, http, defineChain } from "viem";
+import { createPimlicoClient } from "permissionless/clients/pimlico";
 import PasskeyAccountABI from "../../../abi/PasskeyAccount.json";
 import { buildUserOp, getUserOpHash } from "@/services/web3/passkey/userOpBuilder";
 import { signUserOpWithPasskey } from "@/services/web3/passkey/passkeySign";
-import { ENTRY_POINT_ADDRESS } from "@/config/passkey";
-import { NETWORKS, DEFAULT_NETWORK } from "@/config/networks";
+import { getBundlerUrl, ENTRY_POINT_ADDRESS } from "@/config/passkey";
+import { DEFAULT_CHAIN_ID, getNetworkByChainId } from "@/config/networks";
 
 /**
  * Inner component that has access to DeployerContext
  */
 function DeployerPageContent() {
-  const { address, status } = useAccount();
-  const { passkeyState, publicClient, bundlerClient } = useAuth();
+  const { address, status, chainId: connectedChainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
+  const { passkeyState } = useAuth();
   const signer = useEthersSigner();
 
   const { disconnect } = useDisconnect();
@@ -79,7 +81,7 @@ function DeployerPageContent() {
   const { state, actions } = useDeployer();
 
   // Fetch infrastructure addresses from subgraph
-  const { data: infraData, loading: infraLoading, error: infraError } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
+  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
     fetchPolicy: 'network-only',
   });
 
@@ -99,45 +101,14 @@ function DeployerPageContent() {
     const poaManagerAddress = poaManager?.id || null;
     const orgRegistryAddress = orgRegistryProxy;
 
-    // Helper to find beacon by type name (beacons are for org-level contract implementations)
-    const findBeacon = (typeName) => {
-      const beacon = infraData?.beacons?.find(b => b.typeName === typeName);
-      return beacon?.beaconAddress || null;
-    };
-
-    // Extract beacon addresses (for reference - not typically called directly)
-    const taskManagerBeacon = findBeacon('TaskManager');
-    const hybridVotingBeacon = findBeacon('HybridVoting');
-    const directDemocracyVotingBeacon = findBeacon('DirectDemocracyVoting');
-    const educationHubBeacon = findBeacon('EducationHub');
-    const participationTokenBeacon = findBeacon('ParticipationToken');
-    const quickJoinBeacon = findBeacon('QuickJoin');
-    const executorBeacon = findBeacon('Executor');
-    const paymentManagerBeacon = findBeacon('PaymentManager');
-    const eligibilityModuleBeacon = findBeacon('EligibilityModule');
-    const toggleModuleBeacon = findBeacon('ToggleModule');
-
     return {
-      // Core contracts
       registryAddress,
       poaManagerAddress,
       orgRegistryAddress,
-      // Infrastructure proxies (the actual contracts to interact with)
       orgDeployerAddress,
       orgRegistryProxy,
       paymasterHubProxy,
       globalAccountRegistryProxy,
-      // Beacons (for reference)
-      taskManagerBeacon,
-      hybridVotingBeacon,
-      directDemocracyVotingBeacon,
-      educationHubBeacon,
-      participationTokenBeacon,
-      quickJoinBeacon,
-      executorBeacon,
-      paymentManagerBeacon,
-      eligibilityModuleBeacon,
-      toggleModuleBeacon,
     };
   }, [infraData]);
 
@@ -168,6 +139,25 @@ function DeployerPageContent() {
   // Handle deployment from DeployerWizard
   const handleDeployStart = async (config) => {
     setIsDeploying(true);
+
+    // Switch to the selected chain before deploying
+    const targetChainId = state.selectedChainId || DEFAULT_CHAIN_ID;
+    if (connectedChainId && connectedChainId !== targetChainId) {
+      try {
+        await switchChainAsync({ chainId: targetChainId });
+      } catch (e) {
+        const networkName = getNetworkByChainId(targetChainId)?.name || 'the correct network';
+        toast({
+          title: 'Chain switch required',
+          description: `Please switch to ${networkName} to deploy.`,
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        setIsDeploying(false);
+        return;
+      }
+    }
 
     // Extract deployer username from config (validated by ReviewStep)
     const deployerUsername = config?.deployerUsername || state.organization.username || '';
@@ -252,7 +242,6 @@ function DeployerPageContent() {
       const deployParams = mapStateToDeploymentParams(stateWithResolvedRoles, address, infrastructureAddresses);
 
       console.log('Deployment params:', deployParams);
-      console.log('Deploying with params:', deployParams);
 
       // Check if any role has custom distribution settings (additionalWearers or mintToDeployer)
       const hasCustomDistribution = deployParams.roles.some(
@@ -398,12 +387,32 @@ function DeployerPageContent() {
           args: [orgDeployerAddress, fundingBigInt, calldata],
         });
 
+        // Create chain-specific clients for deployment target.
+        // AuthContext clients are pinned to Sepolia for login/reconnect flows.
+        const targetNetwork = getNetworkByChainId(targetChainId);
+        const targetChain = defineChain({
+          id: targetNetwork.chainId,
+          name: targetNetwork.name,
+          nativeCurrency: targetNetwork.nativeCurrency,
+          rpcUrls: { default: { http: [targetNetwork.rpcUrl] } },
+          blockExplorers: { default: { name: 'Explorer', url: targetNetwork.blockExplorer } },
+        });
+        const deployPublicClient = createPublicClient({
+          chain: targetChain,
+          transport: http(targetNetwork.rpcUrl),
+        });
+        const deployBundlerClient = createPimlicoClient({
+          chain: targetChain,
+          transport: http(getBundlerUrl(targetChainId)),
+          entryPoint: { address: ENTRY_POINT_ADDRESS, version: '0.7' },
+        });
+
         // Build UserOp (no paymaster — account pays gas directly)
         const userOp = await buildUserOp({
           sender: passkeyState.accountAddress,
           callData: accountCallData,
-          bundlerClient,
-          publicClient,
+          bundlerClient: deployBundlerClient,
+          publicClient: deployPublicClient,
         });
 
         // Sign with passkey (triggers biometric prompt)
@@ -415,21 +424,20 @@ function DeployerPageContent() {
           isClosable: true,
         });
 
-        const chainId = NETWORKS[DEFAULT_NETWORK].chainId;
-        const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, chainId);
+        const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, targetChainId);
         const signature = await signUserOpWithPasskey(userOpHash, passkeyState.rawCredentialId);
         userOp.signature = signature;
 
-        // Submit to bundler
-        const opHash = await bundlerClient.sendUserOperation({
+        // Submit to target-chain bundler
+        const opHash = await deployBundlerClient.sendUserOperation({
           ...userOp,
           entryPointAddress: ENTRY_POINT_ADDRESS,
         });
 
         console.log('[DEPLOY] UserOp submitted:', opHash);
 
-        // Wait for confirmation
-        const receipt = await bundlerClient.waitForUserOperationReceipt({
+        // Wait for confirmation on target chain
+        const receipt = await deployBundlerClient.waitForUserOperationReceipt({
           hash: opHash,
           timeout: 120_000,
         });

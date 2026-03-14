@@ -4,19 +4,27 @@
  */
 
 export const NETWORKS = {
-  hoodi: {
-    chainId: 560048,
-    name: 'Hoodi',
+  sepolia: {
+    chainId: 11155111,
+    name: 'Sepolia',
     nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrl: 'https://0xrpc.io/hoodi',
-    blockExplorer: 'https://explorer.hoodi.ethpandaops.io',
+    rpcUrl: 'https://rpc.sepolia.org',
+    blockExplorer: 'https://sepolia.etherscan.io',
     isTestnet: true,
+    subgraphUrl: process.env.NEXT_PUBLIC_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest',
   },
-  // Future networks can be added here
-  // mainnet: { chainId: 1, name: 'Ethereum Mainnet', ... },
+  baseSepolia: {
+    chainId: 84532,
+    name: 'Base Sepolia',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrl: 'https://sepolia.base.org',
+    blockExplorer: 'https://sepolia.basescan.org',
+    isTestnet: true,
+    subgraphUrl: process.env.NEXT_PUBLIC_BASE_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-base-sepolia/version/latest',
+  },
 };
 
-export const DEFAULT_NETWORK = 'hoodi';
+export const DEFAULT_NETWORK = 'sepolia';
 export const DEFAULT_CHAIN_ID = NETWORKS[DEFAULT_NETWORK].chainId;
 
 /**
@@ -47,10 +55,20 @@ export function isNetworkSupported(chainId) {
   return !!getNetworkByChainId(chainId);
 }
 
+export const DEFAULT_SUBGRAPH_URL = NETWORKS[DEFAULT_NETWORK].subgraphUrl;
+
 /**
- * Get all supported chain IDs
- * @returns {number[]} Array of supported chain IDs
+ * Get subgraph URL for a given chain ID.
+ * Falls back to the default network's subgraph.
  */
-export function getSupportedChainIds() {
-  return Object.values(NETWORKS).map(n => n.chainId);
+export function getSubgraphUrl(chainId) {
+  return getNetworkByChainId(chainId)?.subgraphUrl || DEFAULT_SUBGRAPH_URL;
+}
+
+/**
+ * Get all subgraph endpoints for cross-chain queries.
+ * Used by browse page and org discovery to query all chains in parallel.
+ */
+export function getAllSubgraphUrls() {
+  return Object.values(NETWORKS).map(n => ({ chainId: n.chainId, url: n.subgraphUrl, name: n.name }));
 }

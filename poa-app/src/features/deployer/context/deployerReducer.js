@@ -239,6 +239,8 @@ export const initialState = {
     mode: 'DIRECT', // 'DIRECT' or 'HYBRID'
     hybridQuorum: 50,
     ddQuorum: 50,
+    hybridVoterQuorum: 0,  // Minimum voter count for hybrid proposals (0 = no minimum)
+    ddVoterQuorum: 0,      // Minimum voter count for DD proposals (0 = no minimum)
     quadraticEnabled: false,
     democracyWeight: 50,
     participationWeight: 50,
@@ -269,6 +271,9 @@ export const initialState = {
     budgetEpochValue: '1',         // 1 week epoch
     budgetEpochUnit: 'weeks',      // 'hours' | 'days' | 'weeks'
   },
+
+  // Chain selection (advanced mode only; null = use DEFAULT_CHAIN_ID)
+  selectedChainId: null,
 
   // Deployment state
   deployment: {
@@ -336,7 +341,6 @@ export const ACTION_TYPES = {
 
   // Permissions
   TOGGLE_PERMISSION: 'TOGGLE_PERMISSION',
-  SET_PERMISSION: 'SET_PERMISSION',
   SET_PERMISSION_ROLES: 'SET_PERMISSION_ROLES',
   SET_ALL_PERMISSIONS_FOR_ROLE: 'SET_ALL_PERMISSIONS_FOR_ROLE',
   CLEAR_ALL_PERMISSIONS_FOR_ROLE: 'CLEAR_ALL_PERMISSIONS_FOR_ROLE',
@@ -357,6 +361,9 @@ export const ACTION_TYPES = {
   // Paymaster
   TOGGLE_PAYMASTER: 'TOGGLE_PAYMASTER',
   UPDATE_PAYMASTER: 'UPDATE_PAYMASTER',
+
+  // Chain
+  SET_SELECTED_CHAIN_ID: 'SET_SELECTED_CHAIN_ID',
 
   // Validation
   SET_ERRORS: 'SET_ERRORS',
@@ -920,21 +927,6 @@ export function deployerReducer(state, action) {
       };
     }
 
-    case ACTION_TYPES.SET_PERMISSION: {
-      const { permissionKey, roleIndex, value } = action.payload;
-      const currentRoles = state.permissions[permissionKey] || [];
-
-      return {
-        ...state,
-        permissions: {
-          ...state.permissions,
-          [permissionKey]: value
-            ? [...new Set([...currentRoles, roleIndex])]
-            : currentRoles.filter(idx => idx !== roleIndex),
-        },
-      };
-    }
-
     case ACTION_TYPES.SET_PERMISSION_ROLES: {
       const { permissionKey, roleIndices } = action.payload;
 
@@ -1147,6 +1139,10 @@ export function deployerReducer(state, action) {
         ...state,
         paymaster: { ...state.paymaster, ...action.payload },
       };
+
+    // Chain
+    case ACTION_TYPES.SET_SELECTED_CHAIN_ID:
+      return { ...state, selectedChainId: action.payload };
 
     // Validation
     case ACTION_TYPES.SET_ERRORS:

@@ -243,8 +243,8 @@ export function VotingStep() {
         <Box p={4} borderWidth="1px" borderRadius="lg" bg="white">
           <Heading size="sm" mb={4}>
             <HStack>
-              <Text>Quorum Requirements</Text>
-              <Tooltip label="Minimum percentage of votes required for a proposal to pass">
+              <Text>Threshold Requirements</Text>
+              <Tooltip label="Minimum support percentage required for a proposal to pass">
                 <Icon as={InfoIcon} color="warmGray.400" />
               </Tooltip>
             </HStack>
@@ -253,7 +253,7 @@ export function VotingStep() {
           <VStack spacing={4} align="stretch">
             {/* Hybrid Quorum */}
             <FormControl>
-              <FormLabel fontSize="sm">Hybrid Proposal Quorum</FormLabel>
+              <FormLabel fontSize="sm">Hybrid Proposal Threshold</FormLabel>
               <HStack spacing={4}>
                 <Slider
                   value={voting.hybridQuorum}
@@ -295,7 +295,7 @@ export function VotingStep() {
 
             {/* DD Quorum */}
             <FormControl>
-              <FormLabel fontSize="sm">Direct Democracy Quorum</FormLabel>
+              <FormLabel fontSize="sm">Direct Democracy Threshold</FormLabel>
               <HStack spacing={4}>
                 <Slider
                   value={voting.ddQuorum}
@@ -334,6 +334,62 @@ export function VotingStep() {
               </HStack>
               <FormHelperText>For direct democracy proposals</FormHelperText>
             </FormControl>
+
+            {/* Voter Count Quorum (optional) */}
+            <Box mt={4} pt={4} borderTop="1px solid" borderColor="warmGray.100">
+              <Heading size="xs" mb={3}>
+                <HStack>
+                  <Text>Minimum Voter Count (Optional)</Text>
+                  <Tooltip label="Minimum number of voters required for a proposal to be valid. Set to 0 for no minimum. Configured via governance after deployment.">
+                    <Icon as={InfoIcon} color="warmGray.400" />
+                  </Tooltip>
+                </HStack>
+              </Heading>
+
+              <HStack spacing={6}>
+                <FormControl>
+                  <FormLabel fontSize="sm">Hybrid Proposals</FormLabel>
+                  <NumberInput
+                    value={voting.hybridVoterQuorum}
+                    onChange={(_, val) => {
+                      if (!isNaN(val)) actions.updateVoting({ hybridVoterQuorum: val });
+                    }}
+                    min={0}
+                    max={10000}
+                    w="120px"
+                    size="sm"
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                  <FormHelperText>0 = no minimum</FormHelperText>
+                </FormControl>
+
+                <FormControl>
+                  <FormLabel fontSize="sm">Direct Democracy</FormLabel>
+                  <NumberInput
+                    value={voting.ddVoterQuorum}
+                    onChange={(_, val) => {
+                      if (!isNaN(val)) actions.updateVoting({ ddVoterQuorum: val });
+                    }}
+                    min={0}
+                    max={10000}
+                    w="120px"
+                    size="sm"
+                  >
+                    <NumberInputField />
+                    <NumberInputStepper>
+                      <NumberIncrementStepper />
+                      <NumberDecrementStepper />
+                    </NumberInputStepper>
+                  </NumberInput>
+                  <FormHelperText>0 = no minimum</FormHelperText>
+                </FormControl>
+              </HStack>
+            </Box>
           </VStack>
         </Box>
 

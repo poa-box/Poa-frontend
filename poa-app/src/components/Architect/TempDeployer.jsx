@@ -71,7 +71,7 @@ function Deployer({ isOpen, onClose, deploymentDetails, signer }) {
 
         toast({
           title: "Deployment successful!",
-          description: "Your organization has been created on the Hoodi network.",
+          description: "Your organization has been created successfully.",
           status: "success",
           duration: 9000,
           isClosable: true,
@@ -124,7 +124,7 @@ function Deployer({ isOpen, onClose, deploymentDetails, signer }) {
             <>
               <Spinner size="xl" />
               <Text mt={4}>
-                Deploying your organization to Hoodi testnet...
+                Deploying your organization...
               </Text>
               <Text fontSize="sm" color="gray.500" mt={2}>
                 This may take a few minutes. Please do not close this window.

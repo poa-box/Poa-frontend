@@ -8,6 +8,7 @@ import { useQuery } from '@apollo/client';
 import { useWeb3Services, useTransactionWithNotification } from './useWeb3Services';
 import { useAccount } from 'wagmi';
 import { useIPFScontext } from '../context/ipfsContext';
+import { usePOContext } from '../context/POContext';
 import { FETCH_USER_ROLE_APPLICATIONS } from '../util/queries';
 
 /**
@@ -20,6 +21,7 @@ export function useClaimRole(eligibilityModuleAddress) {
   const { executeWithNotification } = useTransactionWithNotification();
   const { address: userAddress } = useAccount();
   const { addToIpfs, ipfsCidToBytes32 } = useIPFScontext();
+  const { subgraphUrl } = usePOContext();
 
   const [claimingHatId, setClaimingHatId] = useState(null);
   const [vouchingFor, setVouchingFor] = useState(null);
@@ -36,6 +38,7 @@ export function useClaimRole(eligibilityModuleAddress) {
       },
       skip: !eligibilityModuleAddress || !userAddress,
       fetchPolicy: 'cache-first',
+      context: { subgraphUrl },
     }
   );
 

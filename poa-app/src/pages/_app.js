@@ -21,19 +21,17 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
 import { defineChain } from 'viem';
+import { NETWORKS, DEFAULT_NETWORK } from '../config/networks';
 
-// Define Hoodi testnet chain
-const hoodi = defineChain({
-  id: 560048,
-  name: 'Hoodi',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: {
-    default: { http: ['https://0xrpc.io/hoodi'] },
-  },
-  blockExplorers: {
-    default: { name: 'Hoodi Explorer', url: 'https://explorer.hoodi.ethpandaops.io' },
-  },
-});
+// Build viem chains for ALL supported networks (needed for useSwitchChain)
+const allChains = Object.values(NETWORKS).map(cfg => defineChain({
+  id: cfg.chainId,
+  name: cfg.name,
+  nativeCurrency: cfg.nativeCurrency,
+  rpcUrls: { default: { http: [cfg.rpcUrl] } },
+  blockExplorers: { default: { name: 'Explorer', url: cfg.blockExplorer } },
+}));
+const defaultChain = allChains.find(c => c.id === NETWORKS[DEFAULT_NETWORK].chainId);
 import {
   QueryClientProvider,
   QueryClient,
@@ -50,7 +48,7 @@ const queryClient = new QueryClient();
 const config = getDefaultConfig({
   appName: 'Poa',
   projectId: '7dc7409d6ef96f46e91e9d5797e4deac',
-  chains: [hoodi],
+  chains: allChains,
   ssr: false,
 });
 
@@ -199,7 +197,7 @@ function MyApp({ Component, pageProps }) {
         <AuthProvider>
         <ApolloProvider client={client}>
           <QueryClientProvider client={queryClient}>
-            <RainbowKitProvider initialChain={hoodi}>
+            <RainbowKitProvider initialChain={defaultChain}>
               <RefreshProvider>
               <IPFSprovider>
                 <ProfileHubProvider>

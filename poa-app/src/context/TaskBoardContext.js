@@ -4,7 +4,7 @@
  * Uses the new service layer for blockchain interactions.
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDataBaseContext } from './dataBaseContext';
 import { usePOContext } from './POContext';
 import { useIPFScontext } from './ipfsContext';
@@ -22,9 +22,7 @@ export const useTaskBoard = () => {
 export const TaskBoardProvider = ({
   children,
   initialColumns,
-  onColumnChange,
   onUpdateColumns,
-  account,
 }) => {
   const [taskColumns, setTaskColumns] = useState(initialColumns);
   const { selectedProject } = useDataBaseContext();
@@ -38,7 +36,37 @@ export const TaskBoardProvider = ({
     ipfsService: { addToIpfs },
   });
 
+  // Optimistic lock: prevents poll-interval from overwriting local optimistic state.
+  // After an optimistic update, server data is suppressed until it catches up or
+  // the grace period expires (safety valve).
+  const optimisticLockRef = useRef(null);
+  const OPTIMISTIC_GRACE_PERIOD = 12000; // 12s — covers 2+ poll-interval cycles
+
   useEffect(() => {
+    if (optimisticLockRef.current) {
+      const elapsed = Date.now() - optimisticLockRef.current;
+      if (elapsed < OPTIMISTIC_GRACE_PERIOD) {
+        // Compare task-to-column mappings to detect if server has caught up
+        const serverMap = {};
+        initialColumns.forEach(col => col.tasks.forEach(t => { serverMap[t.id] = col.id; }));
+        const localMap = {};
+        taskColumns.forEach(col => col.tasks.forEach(t => { localMap[t.id] = col.id; }));
+
+        // Tasks added locally but not yet on server
+        const hasLocalOnly = Object.keys(localMap).some(id => !serverMap[id]);
+        // Tasks deleted locally but still on server
+        const hasServerOnly = Object.keys(serverMap).some(id => !localMap[id]);
+        // Tasks moved between columns
+        const hasColumnMismatch = Object.entries(localMap).some(([id, colId]) => {
+          return serverMap[id] && serverMap[id] !== colId;
+        });
+        const isStale = hasLocalOnly || hasServerOnly || hasColumnMismatch;
+
+        if (isStale) return; // Server hasn't caught up — keep optimistic state
+      }
+      // Grace period expired or server caught up — clear lock and accept server data
+      optimisticLockRef.current = null;
+    }
     setTaskColumns(initialColumns);
   }, [initialColumns]);
 
@@ -76,6 +104,9 @@ export const TaskBoardProvider = ({
 
     // Save previous state to revert in case of error
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+
+    // Lock to prevent poll-interval from overwriting this optimistic update
+    optimisticLockRef.current = Date.now();
 
     // Optimistically update the UI
     const newTaskColumns = [...taskColumns];
@@ -177,6 +208,7 @@ export const TaskBoardProvider = ({
       } else {
         addNotification(error.message || 'Error moving task', 'error');
       }
+      optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
     }
   }, [
@@ -204,6 +236,9 @@ export const TaskBoardProvider = ({
 
     // Save previous state
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+
+    // Lock to prevent poll-interval from overwriting this optimistic update
+    optimisticLockRef.current = Date.now();
 
     // Optimistically update the UI
     const newTaskColumns = [...taskColumns];
@@ -263,6 +298,7 @@ export const TaskBoardProvider = ({
     } catch (error) {
       console.error('Error adding task:', error);
       updateNotification(notifId, error.message || 'Error creating task', 'error');
+      optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
     }
   }, [
@@ -288,6 +324,9 @@ export const TaskBoardProvider = ({
 
     // Save previous state
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+
+    // Lock to prevent poll-interval from overwriting this optimistic update
+    optimisticLockRef.current = Date.now();
 
     // Optimistically update the UI
     const newTaskColumns = [...taskColumns];
@@ -333,6 +372,7 @@ export const TaskBoardProvider = ({
     } catch (error) {
       console.error('Error editing task:', error);
       updateNotification(notifId, error.message || 'Error updating task', 'error');
+      optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
     }
   }, [
@@ -357,6 +397,9 @@ export const TaskBoardProvider = ({
 
     // Save previous state
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+
+    // Lock to prevent poll-interval from overwriting this optimistic update
+    optimisticLockRef.current = Date.now();
 
     // Optimistically update the UI
     const newTaskColumns = [...taskColumns];
@@ -388,6 +431,7 @@ export const TaskBoardProvider = ({
     } catch (error) {
       console.error('Error deleting task:', error);
       updateNotification(notifId, error.message || 'Error deleting task', 'error');
+      optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
     }
   }, [
@@ -514,6 +558,9 @@ export const TaskBoardProvider = ({
     // Save previous state for rollback
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
 
+    // Lock to prevent poll-interval from overwriting this optimistic update
+    optimisticLockRef.current = Date.now();
+
     // Optimistically move task from inReview to inProgress
     const newTaskColumns = [...taskColumns];
     const sourceColumn = newTaskColumns.find(col => col.id === 'inReview');
@@ -560,6 +607,7 @@ export const TaskBoardProvider = ({
     } catch (error) {
       console.error('Error rejecting task:', error);
       updateNotification(notifId, error.message || 'Error rejecting task', 'error');
+      optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }

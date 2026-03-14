@@ -1,17 +1,22 @@
 // apolloClient.js
-import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
-
-// New POP subgraph on Hoodi testnet
-const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-  'https://api.studio.thegraph.com/query/73367/poa-2/version/latest';
+import { ApolloClient, InMemoryCache } from '@apollo/client';
+import { HttpLink } from '@apollo/client/link/http';
+import { DEFAULT_SUBGRAPH_URL } from '../config/networks';
 
 // Increment this when subgraph schema changes significantly to clear stale cache
-const CACHE_VERSION = 'v4';
+const CACHE_VERSION = 'v9';
+
+/**
+ * Chain-routed Apollo HttpLink.
+ * Each query passes `context: { subgraphUrl }` to target the correct chain's subgraph.
+ * Queries without an explicit subgraphUrl hit the default network (Sepolia).
+ */
+const link = new HttpLink({
+  uri: (operation) => operation.getContext().subgraphUrl || DEFAULT_SUBGRAPH_URL,
+});
 
 const client = new ApolloClient({
-  link: new HttpLink({
-    uri: SUBGRAPH_URL,
-  }),
+  link,
   cache: new InMemoryCache(),
 });
 

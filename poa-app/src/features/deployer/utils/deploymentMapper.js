@@ -221,8 +221,8 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     regNonce: options.regSignatureData?.regNonce ?? 0,
     regSignature: options.regSignatureData?.regSignature ?? '0x',
     autoUpgrade: organization.autoUpgrade,
-    hybridQuorumPct: voting.hybridQuorum,
-    ddQuorumPct: voting.ddQuorum,
+    hybridThresholdPct: voting.hybridQuorum,
+    ddThresholdPct: voting.ddQuorum,
     hybridClasses,
     ddInitialTargets: [], // Empty for now
     roles: contractRoles,
@@ -278,6 +278,8 @@ export function createDeploymentConfig(state, deployerAddress, options = {}) {
       hasVouching: state.roles.some(r => r.vouching.enabled),
       paymasterEnabled: state.paymaster?.enabled || false,
       paymasterFundingEth: state.paymaster?.fundingAmountEth || '0',
+      hybridVoterQuorum: state.voting.hybridVoterQuorum || 0,
+      ddVoterQuorum: state.voting.ddVoterQuorum || 0,
     },
   };
 }
@@ -402,8 +404,8 @@ export function logDeploymentParams(params) {
   console.log('Reg Nonce:', params.regNonce?.toString?.() ?? '0');
   console.log('Reg Signature:', params.regSignature === '0x' ? '(skip)' : params.regSignature?.slice(0, 20) + '...');
   console.log('Auto Upgrade:', params.autoUpgrade);
-  console.log('Hybrid Quorum:', params.hybridQuorumPct);
-  console.log('DD Quorum:', params.ddQuorumPct);
+  console.log('Hybrid Threshold:', params.hybridThresholdPct);
+  console.log('DD Threshold:', params.ddThresholdPct);
   console.log('Roles:', params.roles.length);
   params.roles.forEach((r, i) => {
     console.log(`  [${i}] ${r.name}`, {

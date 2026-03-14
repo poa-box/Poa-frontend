@@ -14,10 +14,12 @@ import {
   HStack,
   Text,
   Switch,
+  Select,
   Icon,
   useColorModeValue,
 } from '@chakra-ui/react';
-import { PiGraduationCap, PiHandshake } from 'react-icons/pi';
+import { PiGraduationCap, PiHandshake, PiGlobe } from 'react-icons/pi';
+import { NETWORKS, DEFAULT_CHAIN_ID } from '../../../config/networks';
 import { useDeployer } from '../context/DeployerContext';
 import { StepHeader, NavigationButtons } from '../components/common';
 import { PaymasterConfigSection } from '../components/paymaster/PaymasterConfigSection';
@@ -52,7 +54,7 @@ function FeatureToggle({ icon, name, description, isEnabled, onChange }) {
 }
 
 export function SettingsStep() {
-  const { state, actions } = useDeployer();
+  const { state, actions, selectors } = useDeployer();
 
   const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(51, 48, 44, 0.8)');
   const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
@@ -108,6 +110,44 @@ export function SettingsStep() {
             />
           </VStack>
         </Box>
+
+        {/* Deployment Network (advanced mode only) */}
+        {selectors.isAdvancedMode() && (
+          <Box
+            bg={cardBg}
+            p={6}
+            borderRadius="2xl"
+            border="1px solid"
+            borderColor={borderColor}
+            backdropFilter="blur(16px)"
+            boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+          >
+            <HStack spacing={3} mb={4}>
+              <Icon as={PiGlobe} boxSize={5} color="amethyst.500" />
+              <Box>
+                <Text fontWeight="600" fontSize="md">
+                  Deployment Network
+                </Text>
+                <Text fontSize="xs" color="warmGray.500">
+                  Choose which blockchain to deploy your organization on
+                </Text>
+              </Box>
+            </HStack>
+            <Select
+              value={state.selectedChainId || DEFAULT_CHAIN_ID}
+              onChange={(e) => actions.setSelectedChainId(Number(e.target.value))}
+              bg="white"
+              borderColor={borderColor}
+              borderRadius="lg"
+            >
+              {Object.entries(NETWORKS).map(([key, network]) => (
+                <option key={network.chainId} value={network.chainId}>
+                  {network.name}
+                </option>
+              ))}
+            </Select>
+          </Box>
+        )}
 
         {/* Gas Sponsorship */}
         <PaymasterConfigSection />

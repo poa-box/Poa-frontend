@@ -1,11 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { FETCH_PROJECTS_DATA_NEW } from '../util/queries';
 import { useRouter } from 'next/router';
 import { useAccount } from 'wagmi';
 import { usePOContext } from './POContext';
 import { formatTokenAmount } from '../util/formatToken';
-import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 
 const ProjectContext = createContext();
 
@@ -24,42 +23,19 @@ export const ProjectProvider = ({ children }) => {
     const [taskCount, setTaskCount] = useState(0);
     const [recommendedTasks, setRecommendedTasks] = useState([]);
     const { address } = useAccount();
-    const { orgId } = usePOContext();
+    const { orgId, subgraphUrl } = usePOContext();
 
     const router = useRouter();
 
-    const { data, loading, error, refetch } = useQuery(FETCH_PROJECTS_DATA_NEW, {
+    // pollInterval replaces graph-client's @live directive — polls every 5s
+    // to keep task data fresh. cache-and-network shows cached data instantly.
+    const { data, loading, error } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
-        fetchPolicy: 'cache-first',
+        fetchPolicy: 'cache-and-network',
+        pollInterval: 5000,
+        context: { subgraphUrl },
     });
-
-    // Handle refresh events from Web3 transactions
-    const handleRefresh = useCallback(() => {
-        if (orgId && refetch) {
-            // Small delay to allow subgraph to index the new data
-            setTimeout(() => {
-                refetch();
-            }, 2000);
-        }
-    }, [orgId, refetch]);
-
-    // Subscribe to project and task events
-    useRefreshSubscription(
-        [
-            RefreshEvent.PROJECT_CREATED,
-            RefreshEvent.PROJECT_DELETED,
-            RefreshEvent.TASK_CREATED,
-            RefreshEvent.TASK_CLAIMED,
-            RefreshEvent.TASK_SUBMITTED,
-            RefreshEvent.TASK_COMPLETED,
-            RefreshEvent.TASK_UPDATED,
-            RefreshEvent.TASK_CANCELLED,
-            RefreshEvent.TASK_REJECTED,
-        ],
-        handleRefresh,
-        [handleRefresh]
-    );
 
     useEffect(() => {
         if (data?.organization?.taskManager) {

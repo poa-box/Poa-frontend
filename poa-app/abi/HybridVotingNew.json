@@ -308,7 +308,7 @@
         "internalType": "address[]"
       },
       {
-        "name": "quorum_",
+        "name": "thresholdPct_",
         "type": "uint8",
         "internalType": "uint8"
       },
@@ -450,13 +450,13 @@
   },
   {
     "type": "function",
-    "name": "quorumPct",
+    "name": "quorum",
     "inputs": [],
     "outputs": [
       {
         "name": "",
-        "type": "uint8",
-        "internalType": "uint8"
+        "type": "uint32",
+        "internalType": "uint32"
       }
     ],
     "stateMutability": "view"
@@ -541,6 +541,19 @@
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "thresholdPct",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint8",
+        "internalType": "uint8"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -647,10 +660,10 @@
     "name": "QuorumSet",
     "inputs": [
       {
-        "name": "pct",
-        "type": "uint8",
+        "name": "quorum",
+        "type": "uint32",
         "indexed": false,
-        "internalType": "uint8"
+        "internalType": "uint32"
       }
     ],
     "anonymous": false
@@ -675,6 +688,19 @@
     "anonymous": false
   },
   {
+    "type": "event",
+    "name": "ThresholdPctSet",
+    "inputs": [
+      {
+        "name": "pct",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "uint8"
+      }
+    ],
+    "anonymous": false
+  },
+  {
     "type": "error",
     "name": "InvalidInitialization",
     "inputs": []
@@ -686,7 +712,7 @@
   },
   {
     "type": "error",
-    "name": "InvalidQuorum",
+    "name": "InvalidThreshold",
     "inputs": []
   },
   {

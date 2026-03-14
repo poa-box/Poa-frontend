@@ -11,7 +11,9 @@ export {
   getNetworkByChainId,
   getNetworkNameByChainId,
   isNetworkSupported,
-  getSupportedChainIds,
+  DEFAULT_SUBGRAPH_URL,
+  getSubgraphUrl,
+  getAllSubgraphUrls,
 } from './networks';
 
 // Contract addresses

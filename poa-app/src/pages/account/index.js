@@ -31,11 +31,10 @@ import {
 import { SettingsIcon, CopyIcon, CheckIcon, ExternalLinkIcon } from '@chakra-ui/icons';
 import { useRouter } from 'next/router';
 import { useAccount } from 'wagmi';
-import { useQuery } from '@apollo/client';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobalAccount } from '@/hooks/useGlobalAccount';
-import { FETCH_USER_ORGANIZATIONS } from '@/util/queries';
+import { getAllSubgraphUrls } from '@/config/networks';
 import { formatTokenAmount } from '@/util/formatToken';
 import GlobalAccountSettingsModal from '@/components/account/GlobalAccountSettingsModal';
 import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
@@ -53,13 +52,59 @@ const AccountPage = () => {
   const [isSSR, setIsSSR] = useState(true);
   const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
+  const [organizations, setOrganizations] = useState([]);
+  const [orgsLoading, setOrgsLoading] = useState(true);
 
-  // Query user's organizations using unified accountAddress
-  const { data: orgsData, loading: orgsLoading } = useQuery(FETCH_USER_ORGANIZATIONS, {
-    variables: { userAddress: accountAddress?.toLowerCase() },
-    skip: !accountAddress || !hasAccount,
-    fetchPolicy: 'cache-first',
-  });
+  // Fetch user's organizations across all chains via parallel fetch
+  useEffect(() => {
+    if (!accountAddress || !hasAccount) {
+      setOrgsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setOrgsLoading(true);
+
+    async function fetchOrgs() {
+      const sources = getAllSubgraphUrls();
+      const query = `
+        query FetchUserOrgs($userAddress: Bytes!) {
+          users(where: { address: $userAddress, membershipStatus: Active }) {
+            id
+            membershipStatus
+            participationTokenBalance
+            totalTasksCompleted
+            totalVotes
+            organization {
+              id
+              name
+              metadataHash
+              participationToken { symbol }
+            }
+          }
+        }
+      `;
+      const results = await Promise.all(sources.map(async (source) => {
+        try {
+          const res = await fetch(source.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, variables: { userAddress: accountAddress.toLowerCase() } }),
+          });
+          const json = await res.json();
+          return json?.data?.users || [];
+        } catch {
+          return [];
+        }
+      }));
+      if (!cancelled) {
+        setOrganizations(results.flat());
+        setOrgsLoading(false);
+      }
+    }
+
+    fetchOrgs();
+    return () => { cancelled = true; };
+  }, [accountAddress, hasAccount]);
 
   // Colors
   const bgGradient = useColorModeValue(
@@ -177,8 +222,6 @@ const AccountPage = () => {
       </Box>
     );
   }
-
-  const organizations = orgsData?.users || [];
 
   return (
     <Box minH="100vh" bgGradient={bgGradient} pb={8}>

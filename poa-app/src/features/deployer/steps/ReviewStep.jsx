@@ -64,6 +64,7 @@ import { validateHierarchy } from '../utils/hierarchyUtils';
 import NavigationButtons from '../components/common/NavigationButtons';
 import { roleHasBundle } from '../utils/powerBundles';
 import { DeployerUsernameSection } from '../components/review/DeployerUsernameSection';
+import { getNetworkByChainId } from '../../../config/networks';
 
 // Animations
 const pulseGlow = keyframes`
@@ -815,23 +816,29 @@ export function ReviewStep({
       isComplete: Object.values(state.permissions).some(arr => arr.length > 0),
     },
     {
+      key: 'network',
+      label: getNetworkByChainId(selectors.getSelectedChainId())?.name || 'Network',
+      stepIndex: STEPS.SETTINGS,
+      isComplete: true,
+    },
+    {
       key: 'username',
       label: 'Your Username',
       stepIndex: STEPS.LAUNCH,
       isComplete: isUsernameReady,
     },
-  ], [state.organization, state.roles, state.voting, state.permissions, isUsernameReady]);
+  ], [state.organization, state.roles, state.voting, state.permissions, isUsernameReady, selectors]);
 
   // Smart warnings
   const warnings = useMemo(() => {
     const result = [];
 
-    // High democracy + low quorum warning
+    // High democracy + low threshold warning
     const directClass = state.voting.classes.find(c => c.strategy === VOTING_STRATEGY.DIRECT);
     if (directClass && directClass.slicePct >= 90 && state.voting.hybridQuorum <= 40) {
       result.push({
-        key: 'high-democracy-low-quorum',
-        message: 'With high democracy weight and low quorum, a small group could pass decisions. Consider increasing quorum for important votes.',
+        key: 'high-democracy-low-threshold',
+        message: 'With high democracy weight and low threshold, a small group could pass decisions. Consider increasing the threshold for important votes.',
       });
     }
 
@@ -987,21 +994,21 @@ export function ReviewStep({
           stepIndex={STEPS.GOVERNANCE}
           icon={PiScales}
           status="valid"
-          description={`Decisions require ${state.voting.hybridQuorum}% participation to pass.`}
+          description={`Decisions require ${state.voting.hybridQuorum}% support to pass.`}
           goToStep={goToStep}
         >
-          {/* Quorum display */}
+          {/* Threshold display */}
           <HStack spacing={6} mb={4} flexWrap="wrap">
             <Box bg="white" p={3} borderRadius="lg" border="1px solid" borderColor="warmGray.200">
-              <Text fontSize="xs" color="warmGray.500">Proposal Quorum</Text>
+              <Text fontSize="xs" color="warmGray.500">Proposal Threshold</Text>
               <Text fontWeight="bold" fontSize="xl" color="warmGray.800">{state.voting.hybridQuorum}%</Text>
             </Box>
             <Box bg="white" p={3} borderRadius="lg" border="1px solid" borderColor="warmGray.200">
-              <Text fontSize="xs" color="warmGray.500">Poll Quorum</Text>
+              <Text fontSize="xs" color="warmGray.500">Poll Threshold</Text>
               <Text fontWeight="bold" fontSize="xl" color="warmGray.800">{state.voting.ddQuorum}%</Text>
             </Box>
             <Tooltip
-              label="Quorum ensures enough people participate for decisions to be legitimate"
+              label="Threshold ensures enough support for decisions to be legitimate"
               placement="top"
               hasArrow
             >
@@ -1010,6 +1017,33 @@ export function ReviewStep({
               </Box>
             </Tooltip>
           </HStack>
+
+          {/* Voter Count Quorum - only show if non-zero */}
+          {(state.voting.hybridVoterQuorum > 0 || state.voting.ddVoterQuorum > 0) && (
+            <HStack spacing={6} mb={4} flexWrap="wrap">
+              {state.voting.hybridVoterQuorum > 0 && (
+                <Box bg="white" p={3} borderRadius="lg" border="1px solid" borderColor="warmGray.200">
+                  <Text fontSize="xs" color="warmGray.500">Min Voters (Proposals)</Text>
+                  <Text fontWeight="bold" fontSize="xl" color="warmGray.800">{state.voting.hybridVoterQuorum}</Text>
+                </Box>
+              )}
+              {state.voting.ddVoterQuorum > 0 && (
+                <Box bg="white" p={3} borderRadius="lg" border="1px solid" borderColor="warmGray.200">
+                  <Text fontSize="xs" color="warmGray.500">Min Voters (Polls)</Text>
+                  <Text fontWeight="bold" fontSize="xl" color="warmGray.800">{state.voting.ddVoterQuorum}</Text>
+                </Box>
+              )}
+              <Tooltip
+                label="Voter count quorum will be configured via governance after deployment"
+                placement="top"
+                hasArrow
+              >
+                <Box cursor="help">
+                  <Icon as={PiInfo} color="warmGray.400" boxSize={4} />
+                </Box>
+              </Tooltip>
+            </HStack>
+          )}
 
           {/* Voting Classes */}
           <Text fontWeight="500" fontSize="sm" color="warmGray.700" mb={3}>
@@ -1022,8 +1056,8 @@ export function ReviewStep({
           </SimpleGrid>
 
           {/* Smart warning for voting */}
-          {warnings.find(w => w.key === 'high-democracy-low-quorum') && (
-            <SmartWarning message={warnings.find(w => w.key === 'high-democracy-low-quorum').message} />
+          {warnings.find(w => w.key === 'high-democracy-low-threshold') && (
+            <SmartWarning message={warnings.find(w => w.key === 'high-democracy-low-threshold').message} />
           )}
         </ReviewSectionCard>
 
