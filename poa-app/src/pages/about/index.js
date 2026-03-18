@@ -45,19 +45,19 @@ const PRINCIPLES = [
     icon: HiShieldCheck,
     title: "Unstoppable Infrastructure",
     description:
-      "Once deployed, no one \u2014 not even us \u2014 can shut down or alter your organization. It belongs to your community.",
+      "Once deployed, no one can shut down or alter your organization. Not even us. It belongs entirely to your community.",
   },
   {
     icon: HiSparkles,
     title: "Guided Creation",
     description:
-      "Our AI assistant walks you through governance design, treasury setup, and role configuration. No expertise required.",
+      "Poa guides you through governance design, treasury setup, and role configuration step by step. No technical background needed.",
   },
   {
     icon: HiLightningBolt,
     title: "Radical Transparency",
     description:
-      "Every vote, every transaction, every decision lives on-chain. Trust isn\u2019t a promise \u2014 it\u2019s built into the system.",
+      "Every vote, every transaction, every decision lives on-chain. Trust isn't something we promise. It's baked into the system.",
   },
 ];
 
@@ -66,19 +66,19 @@ const STEPS = [
     number: "1",
     title: "Describe your community",
     description:
-      "Tell Poa what you\u2019re building. Our AI recommends the governance model, voting system, and structure that fits your goals.",
+      "Tell Poa about your community and what you want to accomplish. You'll pick the governance model, voting system, and structure that fit your goals, with Poa guiding you through each choice.",
   },
   {
     number: "2",
     title: "Deploy automatically",
     description:
-      "Smart contracts, infrastructure, and your organization dashboard \u2014 all deployed in minutes with zero code.",
+      "Smart contracts, infrastructure, and your organization dashboard get deployed in minutes. No code, no devops, nothing technical on your end.",
   },
   {
     number: "3",
     title: "Govern together",
     description:
-      "Manage projects, vote on proposals, track contributions, and grow your treasury. Everything owned by the people who built it.",
+      "Create projects, vote on proposals, track contributions, and manage your treasury. Everything your community needs, all in one place.",
   },
 ];
 
@@ -88,7 +88,7 @@ const AboutPage = () => {
   return (
     <>
       <Head>
-        <title>About Poa — Community-Owned Organization Builder</title>
+        <title>About Poa - Community-Owned Organization Builder</title>
         <meta
           name="description"
           content="Learn how Poa enables communities to build democratic, decentralized organizations where voting power is earned through contribution."
@@ -109,7 +109,7 @@ const AboutPage = () => {
           position="relative"
           overflow="hidden"
         >
-          {/* Subtle gradient wash — NOT orbs */}
+          {/* Subtle gradient wash */}
           <Box
             position="absolute"
             bottom="-20%"
@@ -147,17 +147,18 @@ const AboutPage = () => {
                 maxW="800px"
                 mb={[6, 8]}
               >
-                Organizations should belong to the people who build them.
+                Every community deserves infrastructure it truly owns.
               </Heading>
               <Text
                 fontSize={["lg", "xl", "2xl"]}
                 color="warmGray.300"
-                maxW="600px"
+                maxW="620px"
                 lineHeight="1.7"
                 fontWeight="500"
               >
-                Poa is a no-code platform for creating community-owned organizations —
-                democratic, decentralized, and built to last.
+                Poa makes it possible to create, manage, and govern organizations where
+                every contributor has a real stake. No investors, no middlemen, just
+                people building together.
               </Text>
             </MotionBox>
           </Container>
@@ -269,7 +270,7 @@ const AboutPage = () => {
                   lineHeight="1.8"
                   fontWeight="500"
                 >
-                  It&apos;s exactly what it sounds like — an organization fully owned by the people who
+                  It&apos;s exactly what it sounds like: an organization fully owned by the people who
                   build it. No shareholders extracting value. No central authority making decisions.
                   Just a community governing itself.
                 </Text>
@@ -286,7 +287,7 @@ const AboutPage = () => {
                     { label: "Voting power is earned", detail: "Through contribution, not purchased with capital" },
                     { label: "Governance is democratic", detail: "Every member has a real voice in decisions" },
                     { label: "Value stays with creators", detail: "The community captures what the community creates" },
-                    { label: "Infrastructure is permanent", detail: "No one can shut it down — not even us" },
+                    { label: "Infrastructure is permanent", detail: "No one can shut it down, not even us" },
                   ].map((item, i) => (
                     <Box
                       key={i}
@@ -342,7 +343,7 @@ const AboutPage = () => {
                 fontWeight="700"
                 letterSpacing="-0.02em"
               >
-                From idea to organization in minutes
+                Three steps. Zero code. Fully yours.
               </Heading>
             </MotionBox>
 
@@ -500,7 +501,7 @@ const AboutPage = () => {
                 letterSpacing="-0.02em"
                 mb={[5, 6]}
               >
-                Built by community, for communities
+                We&apos;re building Poa the same way we think all organizations should be built
               </Heading>
               <Box
                 borderLeft="3px solid"
@@ -525,7 +526,7 @@ const AboutPage = () => {
                     fontWeight="500"
                   >
                     It&apos;s a virtuous cycle: the more communities that join, the stronger the
-                    platform becomes. We&apos;re not building a product to sell — we&apos;re building
+                    platform becomes. We&apos;re not building a product to sell. We&apos;re building
                     infrastructure for a future where organizations serve their members, not their
                     investors.
                   </Text>
@@ -589,14 +590,14 @@ const AboutPage = () => {
                   fontWeight="700"
                   letterSpacing="-0.02em"
                 >
-                  Ready to build?
+                  See it for yourself
                 </Heading>
                 <Text
                   fontSize={["lg", "xl"]}
                   color="warmGray.600"
                   maxW="480px"
                 >
-                  Start your community-owned organization in minutes.
+                  Create your first community-owned organization or explore what others have already built.
                 </Text>
                 <Flex
                   gap={[3, 4]}
@@ -618,7 +619,7 @@ const AboutPage = () => {
                       _active={{ bg: "warmGray.700" }}
                       transition="background 0.2s"
                     >
-                      Create an Organization
+                      Get Started
                     </Button>
                   </Link>
                   <Link href="/browser" style={{ textDecoration: "none" }}>
@@ -639,7 +640,7 @@ const AboutPage = () => {
                       _active={{ bg: "warmGray.100" }}
                       transition="background 0.2s, border-color 0.2s"
                     >
-                      Explore Organizations
+                      Browse Organizations
                     </Button>
                   </Link>
                 </Flex>
