@@ -183,9 +183,9 @@ const AboutPage = () => {
                 lineHeight="1.5"
                 maxW="900px"
               >
-                Running a group is hard. Coordinating decisions, tracking who did what, managing
-                money, keeping things fair. Most tools either don&apos;t solve these problems or
-                put someone else in control.{" "}
+                Running a group is hard. Most tools for coordinating decisions, tracking
+                contributions, and managing money either fall short or put someone else in
+                control.{" "}
                 <Text
                   as="span"
                   sx={{
@@ -195,7 +195,7 @@ const AboutPage = () => {
                     backgroundClip: "text",
                   }}
                 >
-                  Poa gives that control to the community itself.
+                  Poa puts your community in charge.
                 </Text>
               </Text>
             </MotionBox>
