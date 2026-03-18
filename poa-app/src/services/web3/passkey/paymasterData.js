@@ -26,6 +26,7 @@ export const SubjectType = {
   ACCOUNT: 0x00,
   HAT: 0x01,
   ONBOARDING: 0x03,
+  ORG_DEPLOY: 0x04,
 };
 
 /**
@@ -79,6 +80,20 @@ export function encodeOnboardingPaymasterData({ hatId, orgId }) {
 export function encodeSolidarityOnboardingPaymasterData() {
   return encodePaymasterData({
     subjectType: SubjectType.ONBOARDING,
+    subjectId: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    orgId: '0x0000000000000000000000000000000000000000000000000000000000000000',
+  });
+}
+
+/**
+ * Encode paymaster data for org deployment sponsorship.
+ * Uses SubjectType.ORG_DEPLOY (0x04) with zero orgId and subjectId.
+ * Contract requirement: orgId must be bytes32(0), subjectId must be bytes32(0).
+ * Paid from the solidarity fund. Rate-limited per-account and daily.
+ */
+export function encodeOrgDeployPaymasterData() {
+  return encodePaymasterData({
+    subjectType: SubjectType.ORG_DEPLOY,
     subjectId: '0x0000000000000000000000000000000000000000000000000000000000000000',
     orgId: '0x0000000000000000000000000000000000000000000000000000000000000000',
   });

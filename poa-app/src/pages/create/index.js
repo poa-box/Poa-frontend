@@ -45,6 +45,7 @@ import { createPimlicoClient } from "permissionless/clients/pimlico";
 import PasskeyAccountABI from "../../../abi/PasskeyAccount.json";
 import { buildUserOp, getUserOpHash } from "@/services/web3/passkey/userOpBuilder";
 import { signUserOpWithPasskey } from "@/services/web3/passkey/passkeySign";
+import { encodeOrgDeployPaymasterData } from "@/services/web3/passkey/paymasterData";
 import { getBundlerUrl, ENTRY_POINT_ADDRESS } from "@/config/passkey";
 import { DEFAULT_CHAIN_ID, getNetworkByChainId } from "@/config/networks";
 
@@ -379,13 +380,7 @@ function DeployerPageContent() {
           paymasterConfig,
         });
 
-        // Wrap in PasskeyAccount.execute(target, value, data)
         const fundingBigInt = paymasterFundingWei.gt(0) ? BigInt(paymasterFundingWei.toString()) : 0n;
-        const accountCallData = encodeFunctionData({
-          abi: PasskeyAccountABI,
-          functionName: 'execute',
-          args: [orgDeployerAddress, fundingBigInt, calldata],
-        });
 
         // Create chain-specific clients for deployment target.
         // AuthContext clients are pinned to Sepolia for login/reconnect flows.
@@ -407,13 +402,62 @@ function DeployerPageContent() {
           entryPoint: { address: ENTRY_POINT_ADDRESS, version: '0.7' },
         });
 
-        // Build UserOp (no paymaster — account pays gas directly)
-        const userOp = await buildUserOp({
-          sender: passkeyState.accountAddress,
-          callData: accountCallData,
-          bundlerClient: deployBundlerClient,
-          publicClient: deployPublicClient,
-        });
+        // Try sponsored deployment first (solidarity fund pays gas via PaymasterHub),
+        // then fall back to self-funded if sponsorship is unavailable.
+        // Sponsored path requires execute(orgDeployer, 0, ...) per PaymasterHub contract.
+        let userOp;
+        const paymasterHubAddress = infrastructureAddresses.paymasterHubProxy;
+
+        if (paymasterHubAddress) {
+          try {
+            const sponsoredCallData = encodeFunctionData({
+              abi: PasskeyAccountABI,
+              functionName: 'execute',
+              args: [orgDeployerAddress, 0n, calldata],
+            });
+
+            userOp = await buildUserOp({
+              sender: passkeyState.accountAddress,
+              callData: sponsoredCallData,
+              bundlerClient: deployBundlerClient,
+              publicClient: deployPublicClient,
+              paymasterAddress: paymasterHubAddress,
+              paymasterData: encodeOrgDeployPaymasterData(),
+            });
+
+            console.log('[DEPLOY] UserOp built with gas sponsorship (solidarity fund)');
+          } catch (e) {
+            const msg = e.message || e.shortMessage || e.details || '';
+            const isPaymasterRejection = msg.includes('AA31') || msg.includes('AA32') || msg.includes('AA33')
+              || msg.includes('paymaster') || msg.includes('Paymaster')
+              || msg.includes('validatePaymasterUserOp');
+
+            if (isPaymasterRejection) {
+              console.warn('[DEPLOY] Gas sponsorship unavailable, falling back to self-funded:', msg);
+              userOp = null;
+            } else {
+              throw e;
+            }
+          }
+        }
+
+        if (!userOp) {
+          // Self-funded: account pays gas, can include ETH for org paymaster funding
+          const selfFundedCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'execute',
+            args: [orgDeployerAddress, fundingBigInt, calldata],
+          });
+
+          userOp = await buildUserOp({
+            sender: passkeyState.accountAddress,
+            callData: selfFundedCallData,
+            bundlerClient: deployBundlerClient,
+            publicClient: deployPublicClient,
+          });
+
+          console.log('[DEPLOY] UserOp built self-funded (account pays gas)');
+        }
 
         // Sign with passkey (triggers biometric prompt)
         toast({
