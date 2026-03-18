@@ -6,7 +6,6 @@ import {
   Flex,
   Button,
   VStack,
-  HStack,
   Text,
   Container,
   Heading,
@@ -118,7 +117,7 @@ const AboutPage = () => {
             transform="translateX(-50%)"
             w={["600px", "900px", "1200px"]}
             h={["300px", "450px", "600px"]}
-            bgGradient="radial(circle, rgba(144, 85, 232, 0.15) 0%, rgba(232, 93, 133, 0.08) 40%, transparent 70%)"
+            bgGradient="radial(circle, rgba(144, 85, 232, 0.22) 0%, rgba(232, 93, 133, 0.1) 40%, transparent 70%)"
             pointerEvents="none"
           />
 
@@ -152,7 +151,7 @@ const AboutPage = () => {
               </Heading>
               <Text
                 fontSize={["lg", "xl", "2xl"]}
-                color="warmGray.400"
+                color="warmGray.300"
                 maxW="600px"
                 lineHeight="1.7"
                 fontWeight="500"
@@ -172,7 +171,7 @@ const AboutPage = () => {
           px={[4, 6, 8]}
         >
           <Container maxW="container.lg">
-            <SimpleGrid columns={[1, 3]} spacing={[6, 8]}>
+            <SimpleGrid columns={3} spacing={[4, 8]}>
               {STATS.map((stat) => (
                 <Box key={stat.label} textAlign="center">
                   <Text
@@ -201,7 +200,7 @@ const AboutPage = () => {
         </Box>
 
         {/* ── Manifesto ────────────────────────────────────── */}
-        <Box as="section" py={["20", "28", "36"]} px={[4, 6, 8]}>
+        <Box as="section" py={["16", "24", "32"]} px={[4, 6, 8]}>
           <Container maxW="container.lg">
             <MotionBox
               initial={{ opacity: 0 }}
@@ -296,6 +295,11 @@ const AboutPage = () => {
                       borderRadius="lg"
                       border="1px solid"
                       borderColor="warmGray.100"
+                      transition="box-shadow 0.3s, border-color 0.3s"
+                      _hover={{
+                        boxShadow: "0 2px 12px rgba(0, 0, 0, 0.04)",
+                        borderColor: "warmGray.200",
+                      }}
                     >
                       <Text fontWeight="700" color="warmGray.900" fontSize="md" mb={1}>
                         {item.label}
@@ -498,29 +502,35 @@ const AboutPage = () => {
               >
                 Built by community, for communities
               </Heading>
-              <VStack spacing={[4, 5]} align="stretch">
-                <Text
-                  fontSize={["lg", "xl"]}
-                  color="warmGray.600"
-                  lineHeight="1.8"
-                  fontWeight="500"
-                >
-                  Poa itself is a community-owned organization. Our community builds Poa so
-                  that Poa can help others build their own communities. Every improvement we
-                  make benefits every organization on the platform.
-                </Text>
-                <Text
-                  fontSize={["lg", "xl"]}
-                  color="warmGray.600"
-                  lineHeight="1.8"
-                  fontWeight="500"
-                >
-                  It&apos;s a virtuous cycle: the more communities that join, the stronger the
-                  platform becomes. We&apos;re not building a product to sell — we&apos;re building
-                  infrastructure for a future where organizations serve their members, not their
-                  investors.
-                </Text>
-              </VStack>
+              <Box
+                borderLeft="3px solid"
+                borderImage="linear-gradient(to bottom, #9055E8, #E85D85) 1"
+                pl={[5, 6]}
+              >
+                <VStack spacing={[4, 5]} align="stretch">
+                  <Text
+                    fontSize={["lg", "xl"]}
+                    color="warmGray.600"
+                    lineHeight="1.8"
+                    fontWeight="500"
+                  >
+                    Poa itself is a community-owned organization. Our community builds Poa so
+                    that Poa can help others build their own communities. Every improvement we
+                    make benefits every organization on the platform.
+                  </Text>
+                  <Text
+                    fontSize={["lg", "xl"]}
+                    color="warmGray.600"
+                    lineHeight="1.8"
+                    fontWeight="500"
+                  >
+                    It&apos;s a virtuous cycle: the more communities that join, the stronger the
+                    platform becomes. We&apos;re not building a product to sell — we&apos;re building
+                    infrastructure for a future where organizations serve their members, not their
+                    investors.
+                  </Text>
+                </VStack>
+              </Box>
             </MotionBox>
           </Container>
         </Box>
@@ -588,10 +598,12 @@ const AboutPage = () => {
                 >
                   Start your community-owned organization in minutes.
                 </Text>
-                <HStack
-                  spacing={[3, 4]}
+                <Flex
+                  gap={[3, 4]}
                   justify="center"
-                  flexWrap="wrap"
+                  direction={["column", "row"]}
+                  align="center"
+                  w="100%"
                 >
                   <Link href="/create" style={{ textDecoration: "none" }}>
                     <Button
@@ -630,7 +642,7 @@ const AboutPage = () => {
                       Explore Organizations
                     </Button>
                   </Link>
-                </HStack>
+                </Flex>
               </VStack>
             </MotionBox>
           </Container>
