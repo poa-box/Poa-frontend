@@ -202,96 +202,76 @@ const AboutPage = () => {
           </Container>
         </Box>
 
-        {/* ── What is a Community-Owned Organization? ───────── */}
+        {/* ── What you get ──────────────────────────────────── */}
         <Box as="section" bg="warmGray.50" py={["16", "20", "28"]} px={[4, 6, 8]}>
           <Container maxW="container.lg">
-            <SimpleGrid columns={[1, 1, 2]} spacing={[8, 10, 16]} alignItems="center">
-              <MotionBox
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.7 }}
+            <MotionBox
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.7 }}
+              mb={[8, 10, 14]}
+            >
+              <Text
+                fontSize="sm"
+                fontWeight="600"
+                color="warmGray.400"
+                letterSpacing="0.08em"
+                textTransform="uppercase"
+                mb={[3, 4]}
               >
-                <Text
-                  fontSize="sm"
-                  fontWeight="600"
-                  color="warmGray.400"
-                  letterSpacing="0.08em"
-                  textTransform="uppercase"
-                  mb={[3, 4]}
-                >
-                  The core idea
-                </Text>
-                <Heading
-                  as="h2"
-                  fontSize={["2xl", "3xl", "4xl"]}
-                  fontWeight="700"
-                  letterSpacing="-0.02em"
-                  color="warmGray.900"
-                  mb={[4, 5]}
-                >
-                  What is a community-owned organization?
-                </Heading>
-                <VStack spacing={[3, 4]} align="stretch">
-                  <Text
-                    fontSize={["lg", "xl"]}
-                    color="warmGray.600"
-                    lineHeight="1.8"
-                    fontWeight="500"
-                  >
-                    An organization where the people who contribute are the people who govern.
-                    Voting power, treasury access, and decision-making authority are all earned
-                    through participation, not purchased with capital.
-                  </Text>
-                  <Text
-                    fontSize={["lg", "xl"]}
-                    color="warmGray.600"
-                    lineHeight="1.8"
-                    fontWeight="500"
-                  >
-                    This isn&apos;t just a promise. It&apos;s enforced by smart contracts on the blockchain.
-                    Your organization&apos;s rules, treasury, and governance all live on-chain where
-                    they can&apos;t be overridden by anyone except the community itself.
-                  </Text>
-                </VStack>
-              </MotionBox>
+                What you get
+              </Text>
+              <Heading
+                as="h2"
+                fontSize={["2xl", "3xl", "4xl"]}
+                fontWeight="700"
+                letterSpacing="-0.02em"
+                color="warmGray.900"
+                maxW="600px"
+              >
+                Everything your group needs to run itself
+              </Heading>
+            </MotionBox>
 
-              <MotionBox
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.7, delay: 0.15 }}
-              >
-                <VStack spacing={4} align="stretch">
-                  {[
-                    { label: "Voting power is earned", detail: "Through contribution, not purchased with capital" },
-                    { label: "Rules are enforced by code", detail: "Smart contracts, not trust or goodwill" },
-                    { label: "Value stays with creators", detail: "The community captures what the community creates" },
-                    { label: "Infrastructure is permanent", detail: "No one can shut it down, not even us" },
-                  ].map((item, i) => (
-                    <Box
-                      key={i}
-                      p={[4, 5]}
-                      bg="white"
-                      borderRadius="lg"
-                      border="1px solid"
-                      borderColor="warmGray.100"
-                      transition="box-shadow 0.3s, border-color 0.3s"
-                      _hover={{
-                        boxShadow: "0 2px 12px rgba(0, 0, 0, 0.04)",
-                        borderColor: "warmGray.200",
-                      }}
-                    >
-                      <Text fontWeight="700" color="warmGray.900" fontSize="md" mb={1}>
-                        {item.label}
-                      </Text>
-                      <Text color="warmGray.500" fontSize="sm" fontWeight="500">
-                        {item.detail}
-                      </Text>
-                    </Box>
-                  ))}
-                </VStack>
-              </MotionBox>
+            <SimpleGrid columns={[1, 2, 3]} spacing={[5, 6, 8]}>
+              {[
+                { label: "Governance and voting", detail: "Create proposals, vote on decisions, and set the rules for how your group makes choices." },
+                { label: "Task and project management", detail: "Post tasks, assign work, and track progress. Contributions are recorded and visible to everyone." },
+                { label: "Shared treasury", detail: "Pool and manage funds together. Every transaction is transparent and governed by your community." },
+                { label: "Roles and permissions", detail: "Define who can do what. Set up trust levels, vouching, and role-based access for your members." },
+                { label: "Contribution tracking", detail: "Members earn influence based on what they actually do. The more someone contributes, the more say they have." },
+                { label: "On-chain and permanent", detail: "Everything runs on smart contracts. Your org can't be shut down or changed by anyone outside your community." },
+              ].map((item, i) => (
+                <MotionBox
+                  key={i}
+                  initial={{ opacity: 0, y: 12 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  transition={{ duration: 0.5, delay: i * 0.06 }}
+                >
+                  <Box
+                    p={[4, 5]}
+                    bg="white"
+                    borderRadius="lg"
+                    border="1px solid"
+                    borderColor="warmGray.100"
+                    h="100%"
+                    transition="box-shadow 0.3s, border-color 0.3s"
+                    _hover={{
+                      boxShadow: "0 2px 12px rgba(0, 0, 0, 0.04)",
+                      borderColor: "warmGray.200",
+                    }}
+                  >
+                    <Text fontWeight="700" color="warmGray.900" fontSize="md" mb={2}>
+                      {item.label}
+                    </Text>
+                    <Text color="warmGray.500" fontSize="sm" lineHeight="1.6" fontWeight="500">
+                      {item.detail}
+                    </Text>
+                  </Box>
+                </MotionBox>
+              ))}
             </SimpleGrid>
           </Container>
         </Box>
