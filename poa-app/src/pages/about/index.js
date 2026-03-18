@@ -28,12 +28,6 @@ const MotionBox = chakra(motion.div);
 
 /* ── Data ────────────────────────────────────────────────────── */
 
-const STATS = [
-  { value: "100%", label: "Community Owned" },
-  { value: "0", label: "Investors" },
-  { value: "\u221E", label: "Possibilities" },
-];
-
 const PRINCIPLES = [
   {
     icon: HiUserGroup,
@@ -66,19 +60,19 @@ const STEPS = [
     number: "1",
     title: "Describe your community",
     description:
-      "Tell Poa about your community and what you want to accomplish. You'll pick the governance model, voting system, and structure that fit your goals, with Poa guiding you through each choice.",
+      "Tell Poa what you're building. You'll choose from governance models like direct democracy, contribution-weighted voting, or a hybrid, with Poa walking you through what each one means for your community.",
   },
   {
     number: "2",
-    title: "Deploy automatically",
+    title: "Deploy on-chain",
     description:
-      "Smart contracts, infrastructure, and your organization dashboard get deployed in minutes. No code, no devops, nothing technical on your end.",
+      "Poa deploys your governance contracts, treasury, and organization dashboard to the blockchain. Everything is live and verifiable in minutes. Nothing to install, nothing to host.",
   },
   {
     number: "3",
-    title: "Govern together",
+    title: "Run your organization",
     description:
-      "Create projects, vote on proposals, track contributions, and manage your treasury. Everything your community needs, all in one place.",
+      "Create tasks and projects, submit and vote on proposals, manage your treasury, and onboard new members. It's a full operating system for your community, not just a voting tool.",
   },
 ];
 
@@ -109,7 +103,6 @@ const AboutPage = () => {
           position="relative"
           overflow="hidden"
         >
-          {/* Subtle gradient wash */}
           <Box
             position="absolute"
             bottom="-20%"
@@ -164,43 +157,7 @@ const AboutPage = () => {
           </Container>
         </Box>
 
-        {/* ── Stats Strip ──────────────────────────────────── */}
-        <Box
-          as="section"
-          bgGradient="linear(135deg, #9055E8, #E85D85)"
-          py={[8, 10]}
-          px={[4, 6, 8]}
-        >
-          <Container maxW="container.lg">
-            <SimpleGrid columns={3} spacing={[4, 8]}>
-              {STATS.map((stat) => (
-                <Box key={stat.label} textAlign="center">
-                  <Text
-                    fontSize={["4xl", "5xl"]}
-                    fontWeight="800"
-                    color="white"
-                    letterSpacing="-0.02em"
-                    lineHeight="1"
-                  >
-                    {stat.value}
-                  </Text>
-                  <Text
-                    fontSize="sm"
-                    fontWeight="600"
-                    color="whiteAlpha.800"
-                    letterSpacing="0.06em"
-                    textTransform="uppercase"
-                    mt={2}
-                  >
-                    {stat.label}
-                  </Text>
-                </Box>
-              ))}
-            </SimpleGrid>
-          </Container>
-        </Box>
-
-        {/* ── Manifesto ────────────────────────────────────── */}
+        {/* ── The Problem ──────────────────────────────────── */}
         <Box as="section" py={["16", "24", "32"]} px={[4, 6, 8]}>
           <Container maxW="container.lg">
             <MotionBox
@@ -210,14 +167,25 @@ const AboutPage = () => {
               transition={{ duration: 1 }}
             >
               <Text
+                fontSize="sm"
+                fontWeight="600"
+                color="warmGray.400"
+                letterSpacing="0.08em"
+                textTransform="uppercase"
+                mb={[4, 5]}
+              >
+                The problem
+              </Text>
+              <Text
                 fontSize={["2xl", "3xl", "4xl"]}
                 fontWeight="600"
                 color="warmGray.800"
                 lineHeight="1.5"
                 maxW="900px"
               >
-                We believe the people who contribute to an organization should own it.
-                Not investors. Not a board. Not a platform.{" "}
+                Most organizations are controlled by whoever put up the money. The people
+                who actually do the work have little say in how things run, where the money
+                goes, or what happens next.{" "}
                 <Text
                   as="span"
                   sx={{
@@ -227,7 +195,7 @@ const AboutPage = () => {
                     backgroundClip: "text",
                   }}
                 >
-                  The community.
+                  We think that&apos;s backwards.
                 </Text>
               </Text>
             </MotionBox>
@@ -264,16 +232,28 @@ const AboutPage = () => {
                 >
                   What is a community-owned organization?
                 </Heading>
-                <Text
-                  fontSize={["lg", "xl"]}
-                  color="warmGray.600"
-                  lineHeight="1.8"
-                  fontWeight="500"
-                >
-                  It&apos;s exactly what it sounds like: an organization fully owned by the people who
-                  build it. No shareholders extracting value. No central authority making decisions.
-                  Just a community governing itself.
-                </Text>
+                <VStack spacing={[3, 4]} align="stretch">
+                  <Text
+                    fontSize={["lg", "xl"]}
+                    color="warmGray.600"
+                    lineHeight="1.8"
+                    fontWeight="500"
+                  >
+                    An organization where the people who contribute are the people who govern.
+                    Voting power, treasury access, and decision-making authority are all earned
+                    through participation, not purchased with capital.
+                  </Text>
+                  <Text
+                    fontSize={["lg", "xl"]}
+                    color="warmGray.600"
+                    lineHeight="1.8"
+                    fontWeight="500"
+                  >
+                    This isn&apos;t just a promise. It&apos;s enforced by smart contracts on the blockchain.
+                    Your organization&apos;s rules, treasury, and governance all live on-chain where
+                    they can&apos;t be overridden by anyone except the community itself.
+                  </Text>
+                </VStack>
               </MotionBox>
 
               <MotionBox
@@ -285,7 +265,7 @@ const AboutPage = () => {
                 <VStack spacing={4} align="stretch">
                   {[
                     { label: "Voting power is earned", detail: "Through contribution, not purchased with capital" },
-                    { label: "Governance is democratic", detail: "Every member has a real voice in decisions" },
+                    { label: "Rules are enforced by code", detail: "Smart contracts, not trust or goodwill" },
                     { label: "Value stays with creators", detail: "The community captures what the community creates" },
                     { label: "Infrastructure is permanent", detail: "No one can shut it down, not even us" },
                   ].map((item, i) => (
@@ -347,9 +327,7 @@ const AboutPage = () => {
               </Heading>
             </MotionBox>
 
-            {/* Vertical timeline */}
             <VStack spacing={0} align="stretch" position="relative">
-              {/* Vertical line */}
               <Box
                 position="absolute"
                 left={["20px", "24px"]}
@@ -475,7 +453,7 @@ const AboutPage = () => {
           </Container>
         </Box>
 
-        {/* ── The Story ────────────────────────────────────── */}
+        {/* ── Poa is community-owned too ───────────────────── */}
         <Box as="section" py={["16", "20", "28"]} px={[4, 6, 8]}>
           <Container maxW="container.md">
             <MotionBox
@@ -492,7 +470,7 @@ const AboutPage = () => {
                 textTransform="uppercase"
                 mb={[3, 4]}
               >
-                Our story
+                Eating our own cooking
               </Text>
               <Heading
                 as="h2"
@@ -501,7 +479,7 @@ const AboutPage = () => {
                 letterSpacing="-0.02em"
                 mb={[5, 6]}
               >
-                We&apos;re building Poa the same way we think all organizations should be built
+                Poa is built on Poa
               </Heading>
               <Box
                 borderLeft="3px solid"
@@ -515,9 +493,9 @@ const AboutPage = () => {
                     lineHeight="1.8"
                     fontWeight="500"
                   >
-                    Poa itself is a community-owned organization. Our community builds Poa so
-                    that Poa can help others build their own communities. Every improvement we
-                    make benefits every organization on the platform.
+                    We didn&apos;t just build a tool for community-owned organizations. We are one.
+                    Poa itself runs as a community-owned organization on its own platform. Our
+                    contributors earn governance power and shape what gets built next.
                   </Text>
                   <Text
                     fontSize={["lg", "xl"]}
@@ -525,10 +503,9 @@ const AboutPage = () => {
                     lineHeight="1.8"
                     fontWeight="500"
                   >
-                    It&apos;s a virtuous cycle: the more communities that join, the stronger the
-                    platform becomes. We&apos;re not building a product to sell. We&apos;re building
-                    infrastructure for a future where organizations serve their members, not their
-                    investors.
+                    That means every improvement to Poa is decided by the people who use it and
+                    build it. If the platform doesn&apos;t work for real communities, we&apos;re the first
+                    to feel it. It keeps us honest.
                   </Text>
                 </VStack>
               </Box>
@@ -536,40 +513,63 @@ const AboutPage = () => {
           </Container>
         </Box>
 
-        {/* ── Pull Quote ───────────────────────────────────── */}
+        {/* ── Where we are ─────────────────────────────────── */}
         <Box as="section" bg="warmGray.50" py={["16", "20", "24"]} px={[4, 6, 8]}>
-          <Container maxW="container.md" textAlign="center">
+          <Container maxW="container.lg">
             <MotionBox
-              initial={{ opacity: 0 }}
-              whileInView={{ opacity: 1 }}
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 1 }}
+              transition={{ duration: 0.7 }}
             >
-              <Box
-                h="2px"
-                w="40px"
-                mx="auto"
-                mb={[8, 10]}
-                bgGradient="linear(to-r, #9055E8, #E85D85)"
-                borderRadius="full"
-              />
               <Text
-                fontSize={["xl", "2xl", "3xl"]}
+                fontSize="sm"
                 fontWeight="600"
-                color="warmGray.700"
-                lineHeight="1.5"
-                fontStyle="italic"
+                color="warmGray.400"
+                letterSpacing="0.08em"
+                textTransform="uppercase"
+                mb={[3, 4]}
               >
-                &ldquo;Building a future owned by people, not capital.&rdquo;
+                Where we are
               </Text>
-              <Box
-                h="2px"
-                w="40px"
-                mx="auto"
-                mt={[8, 10]}
-                bgGradient="linear(to-r, #9055E8, #E85D85)"
-                borderRadius="full"
-              />
+              <Heading
+                as="h2"
+                fontSize={["2xl", "3xl", "4xl"]}
+                fontWeight="700"
+                letterSpacing="-0.02em"
+                mb={[5, 6]}
+              >
+                Live and growing
+              </Heading>
+              <SimpleGrid columns={[1, 1, 3]} spacing={[5, 6, 10]}>
+                <Box>
+                  <Text fontWeight="700" color="warmGray.900" fontSize="lg" mb={2}>
+                    Open source
+                  </Text>
+                  <Text color="warmGray.600" fontSize={["md", "lg"]} lineHeight="1.7" fontWeight="500">
+                    Every line of Poa&apos;s code is public. The smart contracts, the frontend, the
+                    subgraph. Anyone can audit it, fork it, or contribute to it.
+                  </Text>
+                </Box>
+                <Box>
+                  <Text fontWeight="700" color="warmGray.900" fontSize="lg" mb={2}>
+                    Multi-chain
+                  </Text>
+                  <Text color="warmGray.600" fontSize={["md", "lg"]} lineHeight="1.7" fontWeight="500">
+                    Deploy your organization on the network that makes sense for your community.
+                    Poa supports multiple EVM-compatible chains and is expanding to more.
+                  </Text>
+                </Box>
+                <Box>
+                  <Text fontWeight="700" color="warmGray.900" fontSize="lg" mb={2}>
+                    Early and active
+                  </Text>
+                  <Text color="warmGray.600" fontSize={["md", "lg"]} lineHeight="1.7" fontWeight="500">
+                    Poa is live today and being used by real communities. We&apos;re still early,
+                    which means you can shape what the platform becomes.
+                  </Text>
+                </Box>
+              </SimpleGrid>
             </MotionBox>
           </Container>
         </Box>
