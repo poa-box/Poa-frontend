@@ -174,8 +174,8 @@ export async function buildUserOpWithFallback({
         console.log(`UserOp built with gas sponsorship (entry ${i + 1}/${dataEntries.length})`);
         return userOp;
       } catch (e) {
-        const msg = e.message || '';
-        const isPaymasterRejection = msg.includes('AA31') || msg.includes('AA33')
+        const msg = e.message || e.shortMessage || e.details || '';
+        const isPaymasterRejection = msg.includes('AA31') || msg.includes('AA32') || msg.includes('AA33')
           || msg.includes('paymaster') || msg.includes('Paymaster')
           || msg.includes('validatePaymasterUserOp');
 
@@ -247,8 +247,9 @@ async function estimateGas(userOp, bundlerClient) {
     }
   } catch (e) {
     // Re-throw paymaster rejections so callers can fall back to self-funded.
-    const msg = e.message || '';
-    if (msg.includes('AA31') || msg.includes('AA33')
+    // AA31=validation failed, AA32=deposit too low, AA33=time range expired
+    const msg = e.message || e.shortMessage || e.details || '';
+    if (msg.includes('AA31') || msg.includes('AA32') || msg.includes('AA33')
         || msg.includes('paymaster') || msg.includes('Paymaster')
         || msg.includes('validatePaymasterUserOp')) {
       throw e;
