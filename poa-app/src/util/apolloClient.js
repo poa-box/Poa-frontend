@@ -4,7 +4,7 @@ import { HttpLink } from '@apollo/client/link/http';
 import { DEFAULT_SUBGRAPH_URL } from '../config/networks';
 
 // Increment this when subgraph schema changes significantly to clear stale cache
-const CACHE_VERSION = 'v9';
+const CACHE_VERSION = 'v10';
 
 /**
  * Chain-routed Apollo HttpLink.

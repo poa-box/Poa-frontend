@@ -38,25 +38,6 @@ export const FETCH_PASSKEY_ACCOUNT = gql`
 `;
 
 /**
- * Fetch org-level passkey configuration (whether passkey onboarding is enabled).
- */
-export const FETCH_PASSKEY_ORG_CONFIG = gql`
-  query FetchPasskeyOrgConfig($orgId: Bytes!) {
-    passkeyOrgConfigs(where: { organization: $orgId }) {
-      id
-      factory {
-        id
-      }
-      organization {
-        id
-        name
-      }
-      enabled
-    }
-  }
-`;
-
-/**
  * Fetch the PaymasterHub solidarity fund status.
  * Used on the homepage to determine if solidarity-funded account creation is available.
  */
