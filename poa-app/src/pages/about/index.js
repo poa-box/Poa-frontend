@@ -174,7 +174,7 @@ const AboutPage = () => {
                 textTransform="uppercase"
                 mb={[4, 5]}
               >
-                The problem
+                Why Poa exists
               </Text>
               <Text
                 fontSize={["2xl", "3xl", "4xl"]}
@@ -183,9 +183,9 @@ const AboutPage = () => {
                 lineHeight="1.5"
                 maxW="900px"
               >
-                Most organizations are controlled by whoever put up the money. The people
-                who actually do the work have little say in how things run, where the money
-                goes, or what happens next.{" "}
+                Running a group is hard. Coordinating decisions, tracking who did what, managing
+                money, keeping things fair. Most tools either don&apos;t solve these problems or
+                put someone else in control.{" "}
                 <Text
                   as="span"
                   sx={{
@@ -195,7 +195,7 @@ const AboutPage = () => {
                     backgroundClip: "text",
                   }}
                 >
-                  We think that&apos;s backwards.
+                  Poa gives that control to the community itself.
                 </Text>
               </Text>
             </MotionBox>
