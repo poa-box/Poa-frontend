@@ -76,11 +76,11 @@ export const AuthProvider = ({ children }) => {
   const isAuthenticated = authType !== null;
 
   // Create viem public client (shared, stateless)
-  // Route through Pimlico — it supports standard eth_* methods alongside bundler ops,
-  // avoiding reliance on unreliable free public RPCs.
+  // Uses a standard RPC endpoint for eth_call, eth_getCode, etc.
+  // (Pimlico bundler only supports ERC-4337 methods, not standard JSON-RPC.)
   const publicClient = useMemo(() => createPublicClient({
     chain: defaultChain,
-    transport: http(getBundlerUrl(networkConfig.chainId)),
+    transport: http(networkConfig.rpcUrl),
   }), []);
 
   // Create Pimlico bundler client
