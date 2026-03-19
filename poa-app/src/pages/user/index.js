@@ -487,8 +487,8 @@ const User = () => {
           align="center"
           justify="center"
         >
-          {/* Left side: Organization info or benefits */}
-          <GridItem order={{ base: 2, lg: 1 }}>
+          {/* Why Join? benefits (secondary, right side) */}
+          <GridItem order={{ base: 2, lg: 2 }}>
             <ScaleFade in={true} initialScale={0.95} transition={{ enter: { duration: 0.3 } }}>
               <Card 
                 bg={cardBg}
@@ -542,16 +542,6 @@ const User = () => {
                     </VStack>
                   ) : (
                     <VStack spacing={mainSpacing} align="flex-start">
-                      <Heading
-                        as="h1"
-                        fontSize={{ base: "2xl", md: headingSize }}
-                        color={textColor}
-                        bgGradient="linear(to-r, teal.400, blue.500)"
-                        bgClip="text"
-                      >
-                        {hasVouchGatedRoles ? `Apply to Join ${userDAO}` : `Join ${userDAO}`}
-                      </Heading>
-
                       <HStack spacing={4}>
                         <Icon as={FaRegLightbulb} color="yellow.400" boxSize={benefitIconSize} />
                         <Heading as="h2" fontSize={{ base: "xl", md: "2xl" }} color={textColor}>Why Join?</Heading>
@@ -584,16 +574,6 @@ const User = () => {
                         ))}
                       </VStack>
 
-                      <Divider />
-
-                      <Box>
-                        <Text color={textColor} fontSize={{ base: "xs", md: "sm" }} fontStyle="italic">
-                          {hasVouchGatedRoles
-                            ? "Applying creates your membership and submits your role application. Existing members will review and vouch for you."
-                            : "Joining is a one-time process that creates your membership NFT. This gives you access to all organization features and benefits."
-                          }
-                        </Text>
-                      </Box>
                     </VStack>
                   )}
                 </CardBody>
@@ -601,8 +581,8 @@ const User = () => {
             </ScaleFade>
           </GridItem>
 
-          {/* Right side: Join form */}
-          <GridItem order={{ base: 1, lg: 2 }} mb={{ base: 4, lg: 0 }} overflow="hidden">
+          {/* Join form (primary, left side) */}
+          <GridItem order={{ base: 1, lg: 1 }} mb={{ base: 4, lg: 0 }} overflow="hidden">
             <ScaleFade in={animateForm} initialScale={0.95} delay={0.05} transition={{ enter: { duration: 0.3 } }}>
               <Card
                 bg={cardBg}
