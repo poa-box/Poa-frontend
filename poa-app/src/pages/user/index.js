@@ -116,8 +116,15 @@ const User = () => {
   const [applicationNotes, setApplicationNotes] = useState('');
   const [applicationExperience, setApplicationExperience] = useState('');
 
-  // Tracks when authenticated user has submitted application and is waiting for vouches
-  const [pendingVouchApplication, setPendingVouchApplication] = useState(null);
+  // Tracks when authenticated user has submitted application and is waiting for vouches.
+  // Persisted to sessionStorage so a page refresh doesn't lose the vouch link.
+  const [pendingVouchApplication, setPendingVouchApplication] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = sessionStorage.getItem(`pendingVouchApp:${userDAO}`);
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
 
   // Vouch-first passkey onboarding hook
   const vouchFirstHook = useVouchFirstOnboarding({
@@ -213,15 +220,27 @@ const User = () => {
     }
   }, [vouchFirstHook.phase]);
 
-  // Poll for vouches while authenticated user has a pending application
+  // Sync pendingVouchApplication to sessionStorage
   useEffect(() => {
-    if (pendingVouchApplication && refetchVouches) {
+    if (!userDAO) return;
+    try {
+      if (pendingVouchApplication) {
+        sessionStorage.setItem(`pendingVouchApp:${userDAO}`, JSON.stringify(pendingVouchApplication));
+      } else {
+        sessionStorage.removeItem(`pendingVouchApp:${userDAO}`);
+      }
+    } catch { /* SSR or storage full */ }
+  }, [pendingVouchApplication, userDAO]);
+
+  // Poll for vouches while authenticated user has a pending application (pause during join)
+  useEffect(() => {
+    if (pendingVouchApplication && refetchVouches && !loading) {
       const interval = setInterval(() => {
         refetchVouches();
       }, 15000);
       return () => clearInterval(interval);
     }
-  }, [pendingVouchApplication, refetchVouches]);
+  }, [pendingVouchApplication, refetchVouches, loading]);
 
   // Auto-select when there's only one role
   useEffect(() => {
@@ -251,6 +270,7 @@ const User = () => {
     );
 
     if (result.success) {
+      setPendingVouchApplication(null);
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
@@ -318,6 +338,7 @@ const User = () => {
     );
 
     if (result.success) {
+      setPendingVouchApplication(null);
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
@@ -770,8 +791,8 @@ const User = () => {
 
                     /* ── Branch 3: Authenticated + vouch-gated ── */
                     ) : hasVouchGatedRoles ? (
-                      authenticatedUserVouchProgress ? (
-                        /* ── Branch 3a: Vouches complete → simplified Complete Join ── */
+                      pendingVouchApplication ? (
+                        /* ── Branch 3a: Application submitted, waiting for vouches (persisted across refresh) ── */
                         <VStack spacing={formSpacing} align="stretch">
                           <Box
                             p={{ base: 3, md: 4 }}
@@ -792,99 +813,36 @@ const User = () => {
                           </Box>
 
                           <Box textAlign="center">
-                            <Icon as={FaCheck} color="green.400" boxSize={{ base: 10, md: 12 }} mb={4} />
-                            <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
-                              Vouches Complete!
-                            </Heading>
-                            <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
-                              You have been vouched for the <b>{authenticatedUserVouchProgress.roleName}</b> role.
-                              Enter a username to complete your membership.
-                            </Text>
-                          </Box>
-
-                          <Box px={2}>
-                            <VouchProgressBar
-                              current={authenticatedUserVouchProgress.current}
-                              quorum={authenticatedUserVouchProgress.quorum}
-                              size="md"
-                            />
-                          </Box>
-
-                          {dispaly && graphUsername ? (
-                            <Text textAlign="center" fontSize={{ base: "sm", md: "md" }} color={hintColor}>
-                              Joining as: <b>{graphUsername}</b>
-                            </Text>
-                          ) : (
-                            <InputGroup size={isMobile ? "md" : "lg"}>
-                              <Input
-                                placeholder="Choose a username"
-                                value={newUsername}
-                                onChange={(e) => setNewUsername(e.target.value)}
-                                bg={inputBg}
-                                borderColor={inputBorderColor}
-                                _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
-                                ref={usernameInputRef}
-                              />
-                              <InputRightElement width="4.5rem">
-                                <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
-                              </InputRightElement>
-                            </InputGroup>
-                          )}
-
-                          <Button
-                            colorScheme="teal"
-                            size="lg"
-                            width="100%"
-                            height={buttonHeight}
-                            fontSize={{ base: "md", md: "lg" }}
-                            isLoading={loading}
-                            loadingText="Completing..."
-                            onClick={dispaly && graphUsername ? handleJoinWithUser : handleJoinNewUser}
-                            isDisabled={!graphUsername && !newUsername.trim()}
-                            leftIcon={<FaCheck />}
-                            _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
-                            animation={(newUsername || graphUsername) ? `${pulse} 2s infinite` : undefined}
-                          >
-                            Complete Join
-                          </Button>
-                        </VStack>
-                      ) : pendingVouchApplication ? (
-                        /* ── Branch 3b-pending: Application submitted, waiting for vouches ── */
-                        <VStack spacing={formSpacing} align="stretch">
-                          <Box
-                            p={{ base: 3, md: 4 }}
-                            borderRadius="lg"
-                            bg={successBg}
-                            borderWidth="1px"
-                            borderColor={successBorderColor}
-                          >
-                            <Flex align="center" flexWrap="wrap">
-                              <Icon as={isPasskeyUser ? FaFingerprint : FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
-                              <Text color={textColor} fontWeight="medium" fontSize={{ base: "sm", md: "md" }}>
-                                {isPasskeyUser
-                                  ? `Passkey Account: ${accountAddress?.substring(0, 6)}...${accountAddress?.substring(accountAddress.length - 4)}`
-                                  : `Wallet Connected: ${address?.substring(0, 6)}...${address?.substring(address?.length - 4)}`
-                                }
-                              </Text>
-                            </Flex>
-                          </Box>
-
-                          <Box textAlign="center">
-                            <MotionBox
-                              animate={{ scale: [1, 1.1, 1] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                              display="inline-block"
-                              mb={4}
-                            >
-                              <Icon as={FaHandshake} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                            </MotionBox>
-                            <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
-                              Application Submitted!
-                            </Heading>
-                            <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
-                              Share this link with existing members of <b>{userDAO}</b> so they can vouch for you
-                              for the <b>{pendingVouchApplication.roleName}</b> role.
-                            </Text>
+                            {pendingApplicationProgress?.isComplete ? (
+                              <>
+                                <Icon as={FaCheck} color="green.400" boxSize={{ base: 10, md: 12 }} mb={4} />
+                                <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
+                                  Vouches Complete!
+                                </Heading>
+                                <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
+                                  You've been vouched for the <b>{pendingVouchApplication.roleName}</b> role.
+                                  {dispaly && graphUsername ? '' : ' Enter a username to complete your membership.'}
+                                </Text>
+                              </>
+                            ) : (
+                              <>
+                                <MotionBox
+                                  animate={{ scale: [1, 1.1, 1] }}
+                                  transition={{ duration: 2, repeat: Infinity }}
+                                  display="inline-block"
+                                  mb={4}
+                                >
+                                  <Icon as={FaHandshake} color={accentColor} boxSize={{ base: 10, md: 12 }} />
+                                </MotionBox>
+                                <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
+                                  Application Submitted!
+                                </Heading>
+                                <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
+                                  Share this link with existing members of <b>{userDAO}</b> so they can vouch for you
+                                  for the <b>{pendingVouchApplication.roleName}</b> role.
+                                </Text>
+                              </>
+                            )}
                           </Box>
 
                           {/* Vouch link copy section */}
@@ -964,6 +922,7 @@ const User = () => {
                                 isDisabled={!graphUsername && !newUsername.trim()}
                                 leftIcon={<FaCheck />}
                                 _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
+                                animation={(newUsername || graphUsername) ? `${pulse} 2s infinite` : undefined}
                               >
                                 Complete Join
                               </Button>
@@ -973,9 +932,98 @@ const User = () => {
                               Waiting for members to vouch for you...
                             </Text>
                           )}
+
+                          {/* Allow starting over */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setPendingVouchApplication(null)}
+                            leftIcon={<FaRedo />}
+                            color={hintColor}
+                          >
+                            Start Over
+                          </Button>
+                        </VStack>
+                      ) : authenticatedUserVouchProgress ? (
+                        /* ── Branch 3b: Vouches already complete (user returns after being vouched) ── */
+                        <VStack spacing={formSpacing} align="stretch">
+                          <Box
+                            p={{ base: 3, md: 4 }}
+                            borderRadius="lg"
+                            bg={successBg}
+                            borderWidth="1px"
+                            borderColor={successBorderColor}
+                          >
+                            <Flex align="center" flexWrap="wrap">
+                              <Icon as={isPasskeyUser ? FaFingerprint : FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
+                              <Text color={textColor} fontWeight="medium" fontSize={{ base: "sm", md: "md" }}>
+                                {isPasskeyUser
+                                  ? `Passkey Account: ${accountAddress?.substring(0, 6)}...${accountAddress?.substring(accountAddress.length - 4)}`
+                                  : `Wallet Connected: ${address?.substring(0, 6)}...${address?.substring(address?.length - 4)}`
+                                }
+                              </Text>
+                            </Flex>
+                          </Box>
+
+                          <Box textAlign="center">
+                            <Icon as={FaCheck} color="green.400" boxSize={{ base: 10, md: 12 }} mb={4} />
+                            <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
+                              Vouches Complete!
+                            </Heading>
+                            <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
+                              You have been vouched for the <b>{authenticatedUserVouchProgress.roleName}</b> role.
+                              Enter a username to complete your membership.
+                            </Text>
+                          </Box>
+
+                          <Box px={2}>
+                            <VouchProgressBar
+                              current={authenticatedUserVouchProgress.current}
+                              quorum={authenticatedUserVouchProgress.quorum}
+                              size="md"
+                            />
+                          </Box>
+
+                          {dispaly && graphUsername ? (
+                            <Text textAlign="center" fontSize={{ base: "sm", md: "md" }} color={hintColor}>
+                              Joining as: <b>{graphUsername}</b>
+                            </Text>
+                          ) : (
+                            <InputGroup size={isMobile ? "md" : "lg"}>
+                              <Input
+                                placeholder="Choose a username"
+                                value={newUsername}
+                                onChange={(e) => setNewUsername(e.target.value)}
+                                bg={inputBg}
+                                borderColor={inputBorderColor}
+                                _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
+                                ref={usernameInputRef}
+                              />
+                              <InputRightElement width="4.5rem">
+                                <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
+                              </InputRightElement>
+                            </InputGroup>
+                          )}
+
+                          <Button
+                            colorScheme="teal"
+                            size="lg"
+                            width="100%"
+                            height={buttonHeight}
+                            fontSize={{ base: "md", md: "lg" }}
+                            isLoading={loading}
+                            loadingText="Completing..."
+                            onClick={dispaly && graphUsername ? handleJoinWithUser : handleJoinNewUser}
+                            isDisabled={!graphUsername && !newUsername.trim()}
+                            leftIcon={<FaCheck />}
+                            _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
+                            animation={(newUsername || graphUsername) ? `${pulse} 2s infinite` : undefined}
+                          >
+                            Complete Join
+                          </Button>
                         </VStack>
                       ) : (
-                        /* ── Branch 3c: No vouches yet → apply-to-join form ── */
+                        /* ── Branch 3c: No application yet → apply-to-join form ── */
                         <VStack spacing={formSpacing} align="stretch">
                           <Box
                             p={{ base: 3, md: 4 }}
