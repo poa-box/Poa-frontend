@@ -8,9 +8,9 @@ import { startAuthentication, bufferToBase64URLString } from '@simplewebauthn/br
 import { keccak256, encodePacked } from 'viem';
 import { computeCredentialId } from './passkeyUtils';
 import { findPendingCredentialByCredentialId } from './passkeyStorage';
+import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
-const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-  'https://api.studio.thegraph.com/query/73367/poa-2/version/latest';
+const SUBGRAPH_URL = NETWORKS[DEFAULT_NETWORK].subgraphUrl;
 
 /**
  * Trigger WebAuthn discoverable authentication and look up the account from the subgraph.
