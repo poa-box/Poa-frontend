@@ -1,560 +1,638 @@
-// src/pages/about/index.js
 import React from "react";
+import Link from "next/link";
+import Head from "next/head";
 import {
   Box,
   Flex,
   Button,
   VStack,
-  HStack,
   Text,
-  Image,
   Container,
   Heading,
   SimpleGrid,
   Icon,
-  Divider,
-  useColorModeValue,
-  Badge,
   chakra,
 } from "@chakra-ui/react";
-import Layout from "../../components/Layout";
-import Link from "next/link";
 import { motion } from "framer-motion";
-import { FaRocket, FaUsers, FaLightbulb, FaGlobeAmericas, FaBook, FaPlus, FaDiscord, FaGithub, FaTwitter } from "react-icons/fa";
+import {
+  HiUserGroup,
+  HiShieldCheck,
+  HiSparkles,
+  HiLightningBolt,
+} from "react-icons/hi";
 
-// Motion components
+import Navbar from "@/components/landing/Navbar";
+import Footer from "@/components/landing/Footer";
+
 const MotionBox = chakra(motion.div);
-const MotionHeading = chakra(motion.h2);
-const MotionText = chakra(motion.p);
 
-const FeatureCard = ({ title, icon, children }) => {
-  const bg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.700');
-  const iconBg = useColorModeValue('blue.50', 'blue.900');
-  const iconColor = useColorModeValue('blue.600', 'blue.300');
-  
-  return (
-    <MotionBox
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.5 }}
-      bg={bg}
-      p={{ base: 5, md: 6 }}
-      borderRadius="lg"
-      boxShadow="md"
-      borderWidth="1px"
-      borderColor={borderColor}
-      height="100%"
-      _hover={{ transform: "translateY(-5px)", boxShadow: "lg" }}
-      transition="transform 0.3s ease, box-shadow 0.3s ease"
-    >
-      <Flex direction="column" height="100%">
-        <Flex mb={4} align="center">
-          <Box
-            p={2}
-            borderRadius="md"
-            bg={iconBg}
-            color={iconColor}
-            mr={3}
-          >
-            <Icon as={icon} boxSize={{ base: 5, md: 6 }} />
-          </Box>
-          <Heading as="h3" fontSize={{ base: "lg", md: "xl" }} fontWeight="bold">
-            {title}
-          </Heading>
-        </Flex>
-        <Text flex="1" fontSize={{ base: "sm", md: "md" }} lineHeight="tall">{children}</Text>
-      </Flex>
-    </MotionBox>
-  );
-};
+/* ── Data ────────────────────────────────────────────────────── */
+
+const PRINCIPLES = [
+  {
+    icon: HiUserGroup,
+    title: "Earned Governance",
+    description:
+      "Voting power comes from contribution, not capital. The people doing the work shape the direction.",
+  },
+  {
+    icon: HiShieldCheck,
+    title: "Unstoppable Infrastructure",
+    description:
+      "Once deployed, no one can shut down or alter your organization. Not even us. It belongs entirely to your community.",
+  },
+  {
+    icon: HiSparkles,
+    title: "Guided Creation",
+    description:
+      "Poa guides you through governance design, treasury setup, and role configuration step by step. No technical background needed.",
+  },
+  {
+    icon: HiLightningBolt,
+    title: "Radical Transparency",
+    description:
+      "Every vote, every transaction, every decision lives on-chain. Trust isn't something we promise. It's baked into the system.",
+  },
+];
+
+const STEPS = [
+  {
+    number: "1",
+    title: "Describe your community",
+    description:
+      "Tell Poa what you're building. You'll choose from governance models like direct democracy, contribution-weighted voting, or a hybrid, with Poa walking you through what each one means for your community.",
+  },
+  {
+    number: "2",
+    title: "Deploy on-chain",
+    description:
+      "Poa deploys your governance contracts, treasury, and organization dashboard to the blockchain. Everything is live and verifiable in minutes. Nothing to install, nothing to host.",
+  },
+  {
+    number: "3",
+    title: "Run your organization",
+    description:
+      "Create tasks and projects, submit and vote on proposals, manage your treasury, and onboard new members. It's a full operating system for your community, not just a voting tool.",
+  },
+];
+
+/* ── Page ────────────────────────────────────────────────────── */
 
 const AboutPage = () => {
-  const gradientBg = useColorModeValue(
-    'linear(to-r, orange.100, pink.100)',
-    'linear(to-r, gray.900, blue.900)'
-  );
-  const textColor = useColorModeValue('gray.700', 'gray.100');
-  const highlightColor = useColorModeValue('blue.500', 'blue.300');
-  const dividerColor = useColorModeValue('gray.200', 'gray.700');
-
   return (
-    <Layout>
-      {/* Hero Section */}
-      <Box
-        mt="3"
-        bgGradient={gradientBg}
-        pt={{ base: 10, md: 20 }}
-        pb={{ base: 8, md: 14 }}
-      >
-        <Container maxW="container.xl">
-          <Flex direction={{ base: "column", md: "row" }} align="center" justify="space-between">
-            <Box maxW={{ base: "100%", md: "50%" }} mb={{ base: 8, md: 0 }}>
-              <MotionHeading
-                initial={{ opacity: 0, y: -20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                as="h1"
-                fontSize={{ base: "3xl", md: "4xl", lg: "5xl" }}
-                fontWeight="bold"
-                lineHeight="shorter"
-                mb={{ base: 4, md: 6 }}
-                position="relative"
-                display="inline-block"
-              >
-                What is{" "}
-                <Text as="span" color={highlightColor}>
-                  Poa?
-                </Text>
-                <Box 
-                  position="absolute" 
-                  bottom="-2px" 
-                  left="0" 
-                  width="60px" 
-                  height="3px" 
-                  bg={highlightColor} 
-                  borderRadius="full" 
-                  opacity="0.7"
-                />
-              </MotionHeading>
-              
-              <MotionText
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.2 }}
-                fontSize={{ base: "lg", md: "xl" }}
-                color={textColor}
-                maxW="600px"
-                mb={4}
-                lineHeight="1.7"
-              >
-                Poa is a friendly guide that walks you through a no-code process
-                of building a community-owned organization.
-              </MotionText>
-              
-              <MotionHeading
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.3 }}
-                as="h2"
-                fontSize={{ base: "xl", md: "2xl" }}
-                fontWeight="bold"
-                lineHeight="shorter"
-                mb={2}
-                mt={{ base: 4, md: 6 }}
-                position="relative"
-                display="inline-block"
-              >
-                What is a{" "}
-                <Text as="span" color={highlightColor}>
-                  Community-Owned Organization?
-                </Text>
-                <Box 
-                  position="absolute" 
-                  bottom="-2px" 
-                  left="0" 
-                  width="60px" 
-                  height="3px" 
-                  bg={highlightColor} 
-                  borderRadius="full" 
-                  opacity="0.7"
-                />
-              </MotionHeading>
-              
-              <MotionText
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.4 }}
-                fontSize={{ base: "lg", md: "xl" }}
-                color={textColor}
-                maxW="600px"
-                mb={4}
-                lineHeight="1.7"
-              >
-                A community-owned organization is fully owned by the people who build it, not investors,
-                making it truly democratic and unstoppable. This ensures the organization
-                remains true to its mission, free from external pressures and resistant to censorship.
-              </MotionText>
-              
-              <MotionBox
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.5 }}
-                p={4}
-                mt={2}
-                mb={6}
-                borderLeft="4px solid"
-                borderColor={highlightColor}
-                bg={useColorModeValue("blue.50", "blue.900")}
-                borderRadius="md"
-                boxShadow="sm"
-                maxW="600px"
-                display={{ base: "block", md: "none" }}
-              >
-                <Text 
-                  fontWeight="bold" 
-                  fontSize={{ base: "md", md: "xl" }}
-                  fontStyle="italic"
-                  pl={2}
-                >
-                  Building a future owned by People, not capital.
-                </Text>
-              </MotionBox>
-              
-              <MotionBox
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5, delay: 0.6 }}
-                display="flex"
-                gap={4}
-                flexWrap={{ base: "wrap", md: "nowrap" }}
-              >
-                <Link href="/docs" passHref>
-                  <Button 
-                    as="a" 
-                    colorScheme="blue" 
-                    size={{ base: "md", md: "lg" }}
-                    width={{ base: "full", md: "auto" }}
-                    rounded="full"
-                    shadow="md"
-                    _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
-                    leftIcon={<Icon as={FaBook} boxSize={5} />}
-                  >
-                    Explore our documentation
-                  </Button>
-                </Link>
-                <Link href="/create" passHref>
-                  <Button
-                    as="a"
-                    variant="outline"
-                    colorScheme="blue"
-                    size={{ base: "md", md: "lg" }}
-                    width={{ base: "full", md: "auto" }}
-                    rounded="full"
-                    _hover={{ transform: "translateY(-2px)", boxShadow: "md" }}
-                    leftIcon={<Icon as={FaPlus} boxSize={5} />}
-                  >
-                    Create an Organization
-                  </Button>
-                </Link>
-              </MotionBox>
-            </Box>
-            
-            <MotionBox
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5, delay: 0.4 }}
-              maxW={{ base: "70%", md: "40%" }}
-              shadow="2xl"
-              borderRadius="2xl"
-              overflow="hidden"
-              transform={{ md: "rotate(1deg)" }}
-              _hover={{ 
-                transform: { md: "rotate(0deg)" },
-                transition: "transform 0.3s ease"
-              }}
-              display={{ base: "none", md: "block" }}
-            >
-              <Box
-                p={4}
-                borderLeft="4px solid"
-                borderColor={highlightColor}
-                bg={useColorModeValue("blue.50", "blue.900")}
-                borderRadius="md"
-                boxShadow="sm"
-                mb={4}
-              >
-                <Text 
-                  fontWeight="bold" 
-                  fontSize={{ base: "md", md: "xl" }}
-                  fontStyle="italic"
-                  pl={2}
-                >
-                  Building a future owned by People, not capital.
-                </Text>
-              </Box>
-              
-              <Image 
-                src="/images/high_res_poa.png" 
-                alt="Poa character"
-              />
-            </MotionBox>
-          </Flex>
-        </Container>
-      </Box>
-      
-      {/* Purpose Section */}
-      <Box py={{ base: 8, md: 20 }}>
-        <Container maxW="container.xl" px={{ base: 4, md: 6 }}>
-          <VStack spacing={{ base: 6, md: 8 }} align="center" mb={{ base: 10, md: 16 }}>
-            <Badge colorScheme="blue" px={3} py={1} rounded="full" fontSize={{ base: "sm", md: "md" }}>Our Mission</Badge>
-            <Heading 
-              as="h2" 
-              fontSize={{ base: "2xl", md: "3xl", lg: "4xl" }} 
-              textAlign="center"
-              maxW="800px"
-              px={{ base: 2, md: 0 }}
-            >
-              Simplifying Community-Driven Organizations
-            </Heading>
-            
-            <Divider maxW="100px" borderWidth="2px" borderColor={dividerColor} />
-            
-            <Text 
-              fontSize={{ base: "md", md: "lg", lg: "xl" }} 
-              textAlign="center" 
-              maxW="800px"
-              color={textColor}
-              px={{ base: 2, md: 0 }}
-              lineHeight={{ base: 1.6, md: 1.7 }}
-            >
-              Poa aims to simplify the{" "}
-              <Text as="span" fontWeight="bold" color={highlightColor}>
-                Creation
-              </Text>{" "}
-              of and{" "}
-              <Text as="span" fontWeight="bold" color={highlightColor}>
-                Participation
-              </Text>{" "}
-              in fully Community-owned organizations by leveraging{" "}
-              <Text as="span" fontWeight="bold" color={highlightColor}>
-                AI
-              </Text>{" "}
-              for onboarding and{" "}
-              <Text as="span" fontWeight="bold" color={highlightColor}>
-                Decentralized technologies
-              </Text>{" "}
-              for the infrastructure.
-            </Text>
-          </VStack>
-          
-          <SimpleGrid columns={{ base: 1, md: 2, lg: 4 }} spacing={{ base: 6, md: 8 }} mb={{ base: 10, md: 16 }}>
-            <FeatureCard title="Community Owned" icon={FaUsers}>
-              We believe that votes should not be purchased but rather earned through participation or granted through Direct Democracy.
-            </FeatureCard>
-            
-            <FeatureCard title="Fully Decentralized" icon={FaGlobeAmericas}>
-              Full decentralization is our priority. We ensure that created organizations can't be stopped or changed by anyone but the community members.
-            </FeatureCard>
-            
-            <FeatureCard title="AI-Powered" icon={FaLightbulb}>
-              Leveraging AI to guide users through the creation process, making decentralized organization building accessible to everyone.
-            </FeatureCard>
-            
-            <FeatureCard title="Ready for Growth" icon={FaRocket}>
-              Currently in live Alpha stage deployed on Sepolia testnet, with continuous improvements on the way.
-            </FeatureCard>
-          </SimpleGrid>
-        </Container>
-      </Box>
-      
-      {/* Community Flow Section */}
-      <Container maxW="container.md" py={{ base: 1, md: 2}} display={{ base: "none", md: "block" }}>
-        <Box 
-          bg={useColorModeValue('gray.50', 'gray.900')} 
-          py={{ base: 10, md: 16 }}
-          px={{ base: 6, md: 10 }}
-          borderRadius="xl"
-          boxShadow="sm"
-          mx="auto"
-          borderWidth="1px"
-          borderColor={useColorModeValue('gray.100', 'gray.700')}
+    <>
+      <Head>
+        <title>About Poa - Community-Owned Organization Builder</title>
+        <meta
+          name="description"
+          content="Learn how Poa enables communities to build democratic, decentralized organizations where voting power is earned through contribution."
+        />
+        <link rel="canonical" href="https://poa.community/about" />
+      </Head>
+
+      <Box minH="100vh" overflowX="hidden" bg="white">
+        <Navbar />
+
+        {/* ── Dark Hero ────────────────────────────────────── */}
+        <Box
+          as="section"
+          bg="warmGray.900"
+          pt={["32", "40", "48"]}
+          pb={["20", "28", "36"]}
+          px={[4, 6, 8]}
+          position="relative"
+          overflow="hidden"
         >
-          <VStack spacing={8}>
-            <Heading 
-              as="h2" 
-              fontSize={{ base: "2xl", md: "3xl" }} 
+          <Box
+            position="absolute"
+            bottom="-20%"
+            left="50%"
+            transform="translateX(-50%)"
+            w={["600px", "900px", "1200px"]}
+            h={["300px", "450px", "600px"]}
+            bgGradient="radial(circle, rgba(144, 85, 232, 0.22) 0%, rgba(232, 93, 133, 0.1) 40%, transparent 70%)"
+            pointerEvents="none"
+          />
+
+          <Container maxW="container.lg" position="relative" zIndex={1}>
+            <MotionBox
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              <Text
+                fontSize="sm"
+                fontWeight="600"
+                color="warmGray.500"
+                letterSpacing="0.1em"
+                textTransform="uppercase"
+                mb={[5, 6]}
+              >
+                About Poa
+              </Text>
+              <Heading
+                as="h1"
+                fontSize={["4xl", "5xl", "6xl", "7xl"]}
+                fontWeight="700"
+                color="white"
+                lineHeight="1.1"
+                letterSpacing="-0.03em"
+                maxW="800px"
+                mb={[6, 8]}
+              >
+                Every community deserves infrastructure it truly owns.
+              </Heading>
+              <Text
+                fontSize={["lg", "xl", "2xl"]}
+                color="warmGray.300"
+                maxW="620px"
+                lineHeight="1.7"
+                fontWeight="500"
+              >
+                Poa makes it possible to create, manage, and govern organizations where
+                every contributor has a real stake. No investors, no middlemen, just
+                people building together.
+              </Text>
+            </MotionBox>
+          </Container>
+        </Box>
+
+        {/* ── The Problem ──────────────────────────────────── */}
+        <Box as="section" py={["16", "24", "32"]} px={[4, 6, 8]}>
+          <Container maxW="container.lg">
+            <MotionBox
+              initial={{ opacity: 0 }}
+              whileInView={{ opacity: 1 }}
+              viewport={{ once: true, margin: "-80px" }}
+              transition={{ duration: 1 }}
+            >
+              <Text
+                fontSize="sm"
+                fontWeight="600"
+                color="warmGray.400"
+                letterSpacing="0.08em"
+                textTransform="uppercase"
+                mb={[4, 5]}
+              >
+                Why Poa exists
+              </Text>
+              <Text
+                fontSize={["2xl", "3xl", "4xl"]}
+                fontWeight="600"
+                color="warmGray.800"
+                lineHeight="1.5"
+                maxW="900px"
+              >
+                Running a group is hard. Most tools for coordinating decisions, tracking
+                contributions, and managing money either fall short or put someone else in
+                control.{" "}
+                <Text
+                  as="span"
+                  sx={{
+                    background: "linear-gradient(135deg, #9055E8, #E85D85)",
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                  }}
+                >
+                  Poa puts your community in charge.
+                </Text>
+              </Text>
+            </MotionBox>
+          </Container>
+        </Box>
+
+        {/* ── What you get ──────────────────────────────────── */}
+        <Box as="section" bg="warmGray.50" py={["16", "20", "28"]} px={[4, 6, 8]}>
+          <Container maxW="container.lg">
+            <MotionBox
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.7 }}
+              mb={[8, 10, 14]}
+            >
+              <Text
+                fontSize="sm"
+                fontWeight="600"
+                color="warmGray.400"
+                letterSpacing="0.08em"
+                textTransform="uppercase"
+                mb={[3, 4]}
+              >
+                What you get
+              </Text>
+              <Heading
+                as="h2"
+                fontSize={["2xl", "3xl", "4xl"]}
+                fontWeight="700"
+                letterSpacing="-0.02em"
+                color="warmGray.900"
+                maxW="600px"
+              >
+                Everything your group needs to run itself
+              </Heading>
+            </MotionBox>
+
+            <SimpleGrid columns={[1, 2, 3]} spacing={[5, 6, 8]}>
+              {[
+                { label: "Governance and voting", detail: "Create proposals, vote on decisions, and set the rules for how your group makes choices." },
+                { label: "Task and project management", detail: "Post tasks, assign work, and track progress. Contributions are recorded and visible to everyone." },
+                { label: "Shared treasury", detail: "Pool and manage funds together. Every transaction is transparent and governed by your community." },
+                { label: "Roles and permissions", detail: "Define who can do what. Set up trust levels, vouching, and role-based access for your members." },
+                { label: "Contribution tracking", detail: "Members earn influence based on what they actually do. The more someone contributes, the more say they have." },
+                { label: "On-chain and permanent", detail: "Everything runs on smart contracts. Your org can't be shut down or changed by anyone outside your community." },
+              ].map((item, i) => (
+                <MotionBox
+                  key={i}
+                  initial={{ opacity: 0, y: 12 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  transition={{ duration: 0.5, delay: i * 0.06 }}
+                >
+                  <Box
+                    p={[4, 5]}
+                    bg="white"
+                    borderRadius="lg"
+                    border="1px solid"
+                    borderColor="warmGray.100"
+                    h="100%"
+                    transition="box-shadow 0.3s, border-color 0.3s"
+                    _hover={{
+                      boxShadow: "0 2px 12px rgba(0, 0, 0, 0.04)",
+                      borderColor: "warmGray.200",
+                    }}
+                  >
+                    <Text fontWeight="700" color="warmGray.900" fontSize="md" mb={2}>
+                      {item.label}
+                    </Text>
+                    <Text color="warmGray.500" fontSize="sm" lineHeight="1.6" fontWeight="500">
+                      {item.detail}
+                    </Text>
+                  </Box>
+                </MotionBox>
+              ))}
+            </SimpleGrid>
+          </Container>
+        </Box>
+
+        {/* ── How It Works ─────────────────────────────────── */}
+        <Box as="section" py={["16", "20", "28"]} px={[4, 6, 8]}>
+          <Container maxW="container.md">
+            <MotionBox
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.7 }}
               textAlign="center"
-              position="relative"
-              pb={2}
+              mb={[12, 16]}
             >
-              The Community Cycle
-            </Heading>
-            
-            <Box
-              maxW={{ base: "95%", md: "90%", lg: "85%" }}
-              mx="auto"
-              p={{ base: 8, md: 10 }}
-              borderRadius="2xl"
-              bg={useColorModeValue('white', 'gray.800')}
-              shadow="xl"
-              borderWidth="1px"
-              borderColor={useColorModeValue('gray.100', 'gray.700')}
+              <Text
+                fontSize="sm"
+                fontWeight="600"
+                color="warmGray.400"
+                letterSpacing="0.08em"
+                textTransform="uppercase"
+                mb={[3, 4]}
+              >
+                How it works
+              </Text>
+              <Heading
+                as="h2"
+                fontSize={["2xl", "3xl", "4xl"]}
+                fontWeight="700"
+                letterSpacing="-0.02em"
+              >
+                Three steps. Zero code. Fully yours.
+              </Heading>
+            </MotionBox>
+
+            <VStack spacing={0} align="stretch" position="relative">
+              <Box
+                position="absolute"
+                left={["20px", "24px"]}
+                top="0"
+                bottom="0"
+                w="1px"
+                bgGradient="linear(to-b, warmGray.200, warmGray.100)"
+                display={["none", "block"]}
+              />
+
+              {STEPS.map((step, index) => (
+                <MotionBox
+                  key={step.number}
+                  initial={{ opacity: 0, x: -12 }}
+                  whileInView={{ opacity: 1, x: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  transition={{ duration: 0.6, delay: index * 0.1 }}
+                  pb={index < STEPS.length - 1 ? [8, 12] : 0}
+                >
+                  <Flex align="flex-start" gap={[4, 6]}>
+                    <Flex
+                      flexShrink={0}
+                      w={["40px", "48px"]}
+                      h={["40px", "48px"]}
+                      borderRadius="full"
+                      bg="warmGray.900"
+                      color="white"
+                      align="center"
+                      justify="center"
+                      fontWeight="700"
+                      fontSize={["sm", "md"]}
+                      position="relative"
+                      zIndex={1}
+                    >
+                      {step.number}
+                    </Flex>
+                    <Box pt={[1, 2]}>
+                      <Heading as="h3" fontSize={["lg", "xl"]} fontWeight="700" mb={2}>
+                        {step.title}
+                      </Heading>
+                      <Text fontSize={["md", "lg"]} color="warmGray.600" lineHeight="1.7" fontWeight="500">
+                        {step.description}
+                      </Text>
+                    </Box>
+                  </Flex>
+                </MotionBox>
+              ))}
+            </VStack>
+          </Container>
+        </Box>
+
+        {/* ── Principles (dark section) ────────────────────── */}
+        <Box as="section" bg="warmGray.900" py={["16", "20", "28"]} px={[4, 6, 8]}>
+          <Container maxW="container.xl">
+            <MotionBox
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.7 }}
+              mb={[10, 12, 16]}
+              textAlign={["center", "center", "left"]}
             >
-              <VStack spacing={{ base: 1, md: 6 }}>
-                <Flex 
-                  width="100%"
-                  justify="center"
-                  align="center"
-                  direction={{ base: "column", md: "row" }}
-                  gap={{ base: 2, md: 4 }}
+              <Heading
+                as="h2"
+                fontSize={["2xl", "3xl", "4xl"]}
+                fontWeight="700"
+                letterSpacing="-0.02em"
+                color="white"
+                mb={[3, 4]}
+              >
+                What We Believe
+              </Heading>
+              <Text
+                fontSize={["lg", "xl"]}
+                color="warmGray.400"
+                lineHeight="1.7"
+                fontWeight="500"
+                maxW="500px"
+                mx={["auto", "auto", 0]}
+              >
+                Every decision in Poa is guided by these principles.
+              </Text>
+            </MotionBox>
+
+            <SimpleGrid columns={[1, 2, 4]} spacing={[6, 8]}>
+              {PRINCIPLES.map((principle, index) => (
+                <MotionBox
+                  key={principle.title}
+                  initial={{ opacity: 0, y: 16 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  transition={{ duration: 0.6, delay: index * 0.08 }}
                 >
-                  <Text 
-                    fontSize={{ base: "xl", md: "2xl", lg: "3xl" }} 
-                    fontWeight="bold" 
-                    color="navy.800"
+                  <Box
+                    p={[5, 6]}
+                    borderRadius="xl"
+                    bg="whiteAlpha.50"
+                    border="1px solid"
+                    borderColor="whiteAlpha.100"
+                    h="100%"
+                    transition="background 0.3s, border-color 0.3s"
+                    _hover={{
+                      bg: "whiteAlpha.100",
+                      borderColor: "whiteAlpha.200",
+                    }}
                   >
-                    Our Community
-                  </Text>
-                  
-                  <Flex 
-                    align="center" 
-                    direction="column" 
-                    px={{ base: 2, md: 4 }}
-                    position="relative"
-                    minW={{ base: "100px", md: "140px" }}
-                  >
-                    <Text 
-                      color={highlightColor}
-                      fontSize={{ base: "lg", md: "xl" }}
-                      mb={-1}
-                    >
-                      ――――――▶
+                    <Icon
+                      as={principle.icon}
+                      boxSize={5}
+                      color="amethyst.400"
+                      mb={4}
+                    />
+                    <Heading as="h3" fontSize="lg" fontWeight="700" color="white" mb={3}>
+                      {principle.title}
+                    </Heading>
+                    <Text fontSize="md" color="warmGray.400" lineHeight="1.7" fontWeight="500">
+                      {principle.description}
                     </Text>
-                    <Text 
-                      fontSize={{ base: "xs", md: "sm" }} 
-                      color="blue.500"
-                      mt={-1}
-                    >
-                      is building
-                    </Text>
-                  </Flex>
-                  
-                  <Text 
-                    fontSize={{ base: "xl", md: "2xl", lg: "3xl" }} 
-                    fontWeight="bold"
-                    color={highlightColor}
+                  </Box>
+                </MotionBox>
+              ))}
+            </SimpleGrid>
+          </Container>
+        </Box>
+
+        {/* ── Poa is community-owned too ───────────────────── */}
+        <Box as="section" py={["16", "20", "28"]} px={[4, 6, 8]}>
+          <Container maxW="container.md">
+            <MotionBox
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.7 }}
+            >
+              <Text
+                fontSize="sm"
+                fontWeight="600"
+                color="warmGray.400"
+                letterSpacing="0.08em"
+                textTransform="uppercase"
+                mb={[3, 4]}
+              >
+                Eating our own cooking
+              </Text>
+              <Heading
+                as="h2"
+                fontSize={["2xl", "3xl", "4xl"]}
+                fontWeight="700"
+                letterSpacing="-0.02em"
+                mb={[5, 6]}
+              >
+                Poa is built on Poa
+              </Heading>
+              <Box
+                borderLeft="3px solid"
+                borderImage="linear-gradient(to bottom, #9055E8, #E85D85) 1"
+                pl={[5, 6]}
+              >
+                <VStack spacing={[4, 5]} align="stretch">
+                  <Text
+                    fontSize={["lg", "xl"]}
+                    color="warmGray.600"
+                    lineHeight="1.8"
+                    fontWeight="500"
                   >
-                    Poa
+                    We didn&apos;t just build a tool for community-owned organizations. We are one.
+                    Poa itself runs as a community-owned organization on its own platform. Our
+                    contributors earn governance power and shape what gets built next.
                   </Text>
-                </Flex>
-                
-                <Text fontSize="md" color="gray.500" textAlign="center" mb={-2}>so that</Text>
-                
-                <Flex 
-                  width="100%"
-                  justify="center"
-                  align="center"
-                  direction={{ base: "column", md: "row" }}
+                  <Text
+                    fontSize={["lg", "xl"]}
+                    color="warmGray.600"
+                    lineHeight="1.8"
+                    fontWeight="500"
+                  >
+                    That means every improvement to Poa is decided by the people who use it and
+                    build it. If the platform doesn&apos;t work for real communities, we&apos;re the first
+                    to feel it. It keeps us honest.
+                  </Text>
+                </VStack>
+              </Box>
+            </MotionBox>
+          </Container>
+        </Box>
+
+        {/* ── Where we are ─────────────────────────────────── */}
+        <Box as="section" bg="warmGray.50" py={["16", "20", "24"]} px={[4, 6, 8]}>
+          <Container maxW="container.lg">
+            <MotionBox
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.7 }}
+            >
+              <Text
+                fontSize="sm"
+                fontWeight="600"
+                color="warmGray.400"
+                letterSpacing="0.08em"
+                textTransform="uppercase"
+                mb={[3, 4]}
+              >
+                Where we are
+              </Text>
+              <Heading
+                as="h2"
+                fontSize={["2xl", "3xl", "4xl"]}
+                fontWeight="700"
+                letterSpacing="-0.02em"
+                mb={[5, 6]}
+              >
+                Live and growing
+              </Heading>
+              <SimpleGrid columns={[1, 1, 3]} spacing={[5, 6, 10]}>
+                <Box>
+                  <Text fontWeight="700" color="warmGray.900" fontSize="lg" mb={2}>
+                    Open source
+                  </Text>
+                  <Text color="warmGray.600" fontSize={["md", "lg"]} lineHeight="1.7" fontWeight="500">
+                    Every line of Poa&apos;s code is public. The smart contracts, the frontend, the
+                    subgraph. Anyone can audit it, fork it, or contribute to it.
+                  </Text>
+                </Box>
+                <Box>
+                  <Text fontWeight="700" color="warmGray.900" fontSize="lg" mb={2}>
+                    Multi-chain
+                  </Text>
+                  <Text color="warmGray.600" fontSize={["md", "lg"]} lineHeight="1.7" fontWeight="500">
+                    Deploy your organization on the network that makes sense for your community.
+                    Poa supports multiple EVM-compatible chains and is expanding to more.
+                  </Text>
+                </Box>
+                <Box>
+                  <Text fontWeight="700" color="warmGray.900" fontSize="lg" mb={2}>
+                    Early and active
+                  </Text>
+                  <Text color="warmGray.600" fontSize={["md", "lg"]} lineHeight="1.7" fontWeight="500">
+                    Poa is live today and being used by real communities. We&apos;re still early,
+                    which means you can shape what the platform becomes.
+                  </Text>
+                </Box>
+              </SimpleGrid>
+            </MotionBox>
+          </Container>
+        </Box>
+
+        {/* ── CTA ──────────────────────────────────────────── */}
+        <Box as="section" py={["16", "20", "24"]} px={[4, 6, 8]}>
+          <Container maxW="container.md" textAlign="center">
+            <MotionBox
+              initial={{ opacity: 0, y: 12 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-50px" }}
+              transition={{ duration: 0.7 }}
+            >
+              <VStack spacing={[5, 6]}>
+                <Heading
+                  as="h2"
+                  fontSize={["2xl", "3xl", "4xl"]}
+                  fontWeight="700"
+                  letterSpacing="-0.02em"
                 >
-                  <Text 
-                    fontSize={{ base: "xl", md: "2xl", lg: "3xl" }} 
-                    fontWeight="bold"
-                    color={highlightColor}
-                  >
-                    Poa
-                  </Text>
-                  
-                  <Flex 
-                    align="center" 
-                    direction="column" 
-                    px={{ base: 2, md: 4 }}
-                    position="relative"
-                    minW={{ base: "100px", md: "140px" }}
-                  >
-                    <Text 
-                      color={highlightColor}
-                      fontSize={{ base: "lg", md: "xl" }}
-                      mb={-1}
+                  See it for yourself
+                </Heading>
+                <Text
+                  fontSize={["lg", "xl"]}
+                  color="warmGray.600"
+                  maxW="480px"
+                >
+                  Create your first community-owned organization or explore what others have already built.
+                </Text>
+                <Flex
+                  gap={[3, 4]}
+                  justify="center"
+                  direction={["column", "row"]}
+                  align="center"
+                  w="100%"
+                >
+                  <Link href="/create" style={{ textDecoration: "none" }}>
+                    <Button
+                      size="lg"
+                      bg="warmGray.900"
+                      color="white"
+                      borderRadius="full"
+                      px={[6, 8]}
+                      fontSize="md"
+                      fontWeight="600"
+                      _hover={{ bg: "warmGray.800" }}
+                      _active={{ bg: "warmGray.700" }}
+                      transition="background 0.2s"
                     >
-                      ――――――▶
-                    </Text>
-                    <Text 
-                      fontSize={{ base: "xs", md: "sm" }} 
-                      color="blue.500"
-                      mt={-1}
+                      Get Started
+                    </Button>
+                  </Link>
+                  <Link href="/browser" style={{ textDecoration: "none" }}>
+                    <Button
+                      size="lg"
+                      variant="outline"
+                      borderColor="warmGray.200"
+                      color="warmGray.700"
+                      borderRadius="full"
+                      px={[6, 8]}
+                      fontSize="md"
+                      fontWeight="600"
+                      bg="white"
+                      _hover={{
+                        borderColor: "warmGray.400",
+                        bg: "warmGray.50",
+                      }}
+                      _active={{ bg: "warmGray.100" }}
+                      transition="background 0.2s, border-color 0.2s"
                     >
-                      can build
-                    </Text>
-                  </Flex>
-                  
-                  <Text 
-                    fontSize={{ base: "xl", md: "2xl", lg: "3xl" }} 
-                    fontWeight="bold"
-                    color="navy.800"
-                  >
-                    Communities
-                  </Text>
+                      Browse Organizations
+                    </Button>
+                  </Link>
                 </Flex>
               </VStack>
-            </Box>
-          </VStack>
+            </MotionBox>
+          </Container>
         </Box>
-      </Container>
-      
-      {/* CTA Section */}
-      <Box py={{ base: 10, md: 16 }} px={{ base: 4, md: 0 }}>
-        <Container maxW="container.md" textAlign="center">
-          <VStack spacing={{ base: 6, md: 8 }}>
-            <Heading 
-              as="h2" 
-              fontSize={{ base: "xl", md: "3xl" }} 
-            >
-              Join Our Community
-            </Heading>
-            
-            <Text
-              fontSize={{ base: "md", md: "lg" }}
-              maxW="600px"
-              mb={{ base: 4, md: 6 }}
-              color={textColor}
-            >
-              Become part of a growing ecosystem of community-driven organizations. Connect with us to stay updated on the latest developments and opportunities.
-            </Text>
-            
-            <HStack spacing={6} justify="center">
-              <Link href="https://discord.gg/kKDKgetdNx" passHref>
-                <Box 
-                  as="a" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  transition="transform 0.3s"
-                  _hover={{ transform: "scale(1.1)" }}
-                >
-                  <Image 
-                    src="/images/discord.png" 
-                    alt="Discord" 
-                    boxSize={{ base: "50px", md: "60px" }}
-                  />
-                </Box>
-              </Link>
-              
-              <Link href="https://twitter.com/PoaPerpetual" passHref>
-                <Box 
-                  as="a" 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  transition="transform 0.3s"
-                  _hover={{ transform: "scale(1.1)" }}
-                >
-                  <Image 
-                    src="/images/x.png" 
-                    alt="X (Twitter)" 
-                    boxSize={{ base: "50px", md: "60px" }}
-                  />
-                </Box>
-              </Link>
-            </HStack>
-          </VStack>
-        </Container>
+
+        <Footer />
       </Box>
-    </Layout>
+    </>
   );
 };
 
 export default AboutPage;
-
-// The Perpetual Organization Architect also known as Poa will be a
-//           friendly chat bot that guides you through the process of building a no
-//           code perpetual organization. It will explain what a perpetual
-//           organization is, give a few examples, and expand on that info if you
-//           request. Next, Poa will ask you what your idea for your organization
-//           is and based off your response will walk you through and give specific
-//           suggestion for picking a UI template, voting system, reward system,
-//           and other features. At the end, it will display your selected features
-//           and then deploy all necessary smart contracts and subgraph
-//           information. There will eventually be a site to browse all the
-//           perpetual organizations and open tasks so you can do work for an
-//           organization without being a member. The last component is the
-//           Perpetual Fund which will be a community run startup fund for
-//           Perpetual Organizations.
