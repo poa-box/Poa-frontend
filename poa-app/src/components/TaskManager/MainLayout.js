@@ -35,7 +35,7 @@ const MainLayout = () => {
 
   const { address: account } = useAccount();
   const { task: taskService, executeWithNotification } = useWeb3();
-  const { taskManagerContractAddress, roleHatIds } = usePOContext();
+  const { taskManagerContractAddress, roleHatIds, roleNames, creatorHatIds } = usePOContext();
   const { addToIpfs } = useIPFScontext();
   const router = useRouter();
 
@@ -110,28 +110,34 @@ const MainLayout = () => {
       }
     }
 
-    // Get hat IDs for default permissions from org's roleHatIds
-    // roleHatIds[0] = Member, roleHatIds[1] = Executive, etc.
-    // Members can claim tasks, non-members (executives+) can create/review/assign
-    const nonMemberHatIds = roleHatIds?.slice(1) || [];
+    // Build default permissions using creatorHatIds (roles trusted to manage tasks)
+    // For the simple-create path (quick project creation without the modal)
+    if (!roleHatIds || roleHatIds.length === 0) {
+      console.error('Cannot create project: roleHatIds not loaded yet');
+      throw new Error('Organization roles are still loading. Please wait a moment and try again.');
+    }
 
-    // For simple creates, assign default permissions based on org roles
-    // All roles (member + non-member) can claim tasks
-    // Non-member roles (executive+) can create, review, and assign
-    const defaultClaimHats = roleHatIds || [];
-    const defaultCreateHats = nonMemberHatIds;
-    const defaultReviewHats = nonMemberHatIds;
-    const defaultAssignHats = nonMemberHatIds;
+    const creatorSet = new Set((creatorHatIds || []).map(String));
+    const adminRoles = creatorSet.size > 0
+      ? roleHatIds.filter(id => creatorSet.has(String(id)))
+      : roleHatIds.slice(1);
+    // If no admin roles resolved, give all roles full permissions
+    const effectiveAdminRoles = adminRoles.length > 0 ? adminRoles : roleHatIds;
+
+    const defaultCreateHats = effectiveAdminRoles;
+    const defaultClaimHats = roleHatIds; // all roles can claim
+    const defaultReviewHats = effectiveAdminRoles;
+    const defaultAssignHats = effectiveAdminRoles;
 
     const createProjectData = {
       name: projectName,
       metadataHash,
       cap: isSimpleCreate ? 0 : (projectData.cap || 0),
       managers: isSimpleCreate ? [] : (projectData.managers || []),
-      createHats: isSimpleCreate ? defaultCreateHats : (projectData.createHats || []),
-      claimHats: isSimpleCreate ? defaultClaimHats : (projectData.claimHats || []),
-      reviewHats: isSimpleCreate ? defaultReviewHats : (projectData.reviewHats || []),
-      assignHats: isSimpleCreate ? defaultAssignHats : (projectData.assignHats || []),
+      createHats: isSimpleCreate ? defaultCreateHats : (projectData.createHats?.length > 0 ? projectData.createHats : defaultCreateHats),
+      claimHats: isSimpleCreate ? defaultClaimHats : (projectData.claimHats?.length > 0 ? projectData.claimHats : defaultClaimHats),
+      reviewHats: isSimpleCreate ? defaultReviewHats : (projectData.reviewHats?.length > 0 ? projectData.reviewHats : defaultReviewHats),
+      assignHats: isSimpleCreate ? defaultAssignHats : (projectData.assignHats?.length > 0 ? projectData.assignHats : defaultAssignHats),
     };
 
     console.log('Final createProjectData:', createProjectData);
@@ -146,7 +152,7 @@ const MainLayout = () => {
         refreshEvent: 'project:created',
       }
     );
-  }, [taskService, executeWithNotification, taskManagerContractAddress, addToIpfs, roleHatIds]);
+  }, [taskService, executeWithNotification, taskManagerContractAddress, addToIpfs, roleHatIds, creatorHatIds]);
 
   const handleCreateNewProject = () => {
     if (newProjectName.trim()) {
@@ -448,6 +454,9 @@ const MainLayout = () => {
         isOpen={isProjectModalOpen}
         onClose={onProjectModalClose}
         onCreateProject={handleCreateProject}
+        roleHatIds={roleHatIds || []}
+        roleNames={roleNames || {}}
+        creatorHatIds={creatorHatIds || []}
       />
     </DndProvider>
   );

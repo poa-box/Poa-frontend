@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Button,
   FormControl,
@@ -35,13 +35,23 @@ import {
   AccordionPanel,
   AccordionIcon,
   Switch,
+  Checkbox,
   useToast,
 } from '@chakra-ui/react';
 import { AddIcon, InfoIcon } from '@chakra-ui/icons';
 import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 
-const CreateProjectModal = ({ isOpen, onClose, onCreateProject, availableHats = [] }) => {
+/**
+ * @param {Object} props
+ * @param {boolean} props.isOpen
+ * @param {Function} props.onClose
+ * @param {Function} props.onCreateProject
+ * @param {string[]} props.roleHatIds - All org role hat IDs
+ * @param {Object} props.roleNames - Map of hatId -> role name
+ * @param {string[]} props.creatorHatIds - Hat IDs that can create projects
+ */
+const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [] }) => {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
 
@@ -58,17 +68,59 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, availableHats = 
   const [newManager, setNewManager] = useState('');
   const [isAddingManager, setIsAddingManager] = useState(false);
 
-  // Hat permissions
-  const [createHats, setCreateHats] = useState([]);
-  const [claimHats, setClaimHats] = useState([]);
-  const [reviewHats, setReviewHats] = useState([]);
-  const [assignHats, setAssignHats] = useState([]);
+  // Role-based permissions: sets of hatIds that have each permission
+  const [createRoles, setCreateRoles] = useState(new Set());
+  const [claimRoles, setClaimRoles] = useState(new Set());
+  const [reviewRoles, setReviewRoles] = useState(new Set());
+  const [assignRoles, setAssignRoles] = useState(new Set());
 
-  // Hat input fields
-  const [newCreateHat, setNewCreateHat] = useState('');
-  const [newClaimHat, setNewClaimHat] = useState('');
-  const [newReviewHat, setNewReviewHat] = useState('');
-  const [newAssignHat, setNewAssignHat] = useState('');
+  // Compute smart defaults when modal opens
+  useEffect(() => {
+    if (isOpen && roleHatIds.length > 0) {
+      const creatorSet = new Set(creatorHatIds.map(String));
+
+      // CREATE: roles in creatorHatIds (they can create projects, so they should create tasks)
+      // If no creatorHatIds, fall back to non-member roles (index 1+)
+      let defaultCreate;
+      if (creatorSet.size > 0) {
+        defaultCreate = new Set(roleHatIds.filter(id => creatorSet.has(String(id))));
+      } else {
+        defaultCreate = new Set(roleHatIds.slice(1));
+      }
+      // If still empty, give all roles create permission
+      if (defaultCreate.size === 0) defaultCreate = new Set(roleHatIds);
+
+      // CLAIM: all roles
+      const defaultClaim = new Set(roleHatIds);
+
+      // REVIEW: same as create (trusted roles review work)
+      const defaultReview = new Set(defaultCreate);
+
+      // ASSIGN: same as create
+      const defaultAssign = new Set(defaultCreate);
+
+      setCreateRoles(defaultCreate);
+      setClaimRoles(defaultClaim);
+      setReviewRoles(defaultReview);
+      setAssignRoles(defaultAssign);
+    }
+  }, [isOpen, roleHatIds, creatorHatIds]);
+
+  const getRoleName = (hatId) => {
+    return roleNames[hatId] || roleNames[String(hatId)] || `Role ${hatId.toString().slice(-6)}`;
+  };
+
+  const toggleRole = (hatId, setter) => {
+    setter(prev => {
+      const next = new Set(prev);
+      if (next.has(hatId)) {
+        next.delete(hatId);
+      } else {
+        next.add(hatId);
+      }
+      return next;
+    });
+  };
 
   // Supports both usernames and addresses
   const handleAddManager = async () => {
@@ -134,39 +186,6 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, availableHats = 
     setManagers(managers.filter(m => m.address !== address));
   };
 
-  const handleAddHat = (hatId, setter, currentList, inputSetter) => {
-    const id = hatId.trim();
-    if (!id) return;
-
-    // Validate it's a number
-    if (!/^\d+$/.test(id)) {
-      toast({
-        title: 'Invalid Hat ID',
-        description: 'Hat ID must be a number',
-        status: 'error',
-        duration: 3000,
-      });
-      return;
-    }
-
-    if (currentList.includes(id)) {
-      toast({
-        title: 'Duplicate',
-        description: 'This hat ID is already added',
-        status: 'warning',
-        duration: 3000,
-      });
-      return;
-    }
-
-    setter([...currentList, id]);
-    inputSetter('');
-  };
-
-  const handleRemoveHat = (hatId, setter, currentList) => {
-    setter(currentList.filter(h => h !== hatId));
-  };
-
   const resetForm = () => {
     setName('');
     setDescription('');
@@ -174,14 +193,12 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, availableHats = 
     setCap('');
     setManagers([]);
     setNewManager('');
-    setCreateHats([]);
-    setClaimHats([]);
-    setReviewHats([]);
-    setAssignHats([]);
-    setNewCreateHat('');
-    setNewClaimHat('');
-    setNewReviewHat('');
-    setNewAssignHat('');
+    // Permission sets are re-populated by useEffect on next open
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
   };
 
   const handleSubmit = async () => {
@@ -208,15 +225,14 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, availableHats = 
         name: name.trim(),
         description: description.trim(),
         cap: capWei,
-        managers: managers.map(m => m.address), // Extract just the addresses
-        createHats: createHats.map(h => parseInt(h, 10)),
-        claimHats: claimHats.map(h => parseInt(h, 10)),
-        reviewHats: reviewHats.map(h => parseInt(h, 10)),
-        assignHats: assignHats.map(h => parseInt(h, 10)),
+        managers: managers.map(m => m.address),
+        createHats: Array.from(createRoles).map(String),
+        claimHats: Array.from(claimRoles).map(String),
+        reviewHats: Array.from(reviewRoles).map(String),
+        assignHats: Array.from(assignRoles).map(String),
       });
 
-      resetForm();
-      onClose();
+      handleClose();
     } catch (error) {
       console.error('Error creating project:', error);
       toast({
@@ -230,12 +246,15 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, availableHats = 
     }
   };
 
-  const formatAddress = (address) => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
+  const permissionConfig = [
+    { label: 'Create Tasks', description: 'Create and manage tasks in this project', set: createRoles, setter: setCreateRoles, color: 'green' },
+    { label: 'Claim Tasks', description: 'Pick up and work on tasks', set: claimRoles, setter: setClaimRoles, color: 'blue' },
+    { label: 'Review Tasks', description: 'Approve or reject submitted work', set: reviewRoles, setter: setReviewRoles, color: 'orange' },
+    { label: 'Assign Tasks', description: 'Assign tasks to specific members', set: assignRoles, setter: setAssignRoles, color: 'purple' },
+  ];
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="lg" scrollBehavior="inside">
+    <Modal isOpen={isOpen} onClose={handleClose} size="lg" scrollBehavior="inside">
       <ModalOverlay />
       <ModalContent>
         <ModalHeader>Create Project</ModalHeader>
@@ -320,7 +339,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, availableHats = 
                     <FormControl>
                       <HStack spacing={1} mb={2}>
                         <FormLabel mb={0}>Additional Managers</FormLabel>
-                        <Tooltip label="Add other users that can manage this project. Enter a username or wallet address." placement="top">
+                        <Tooltip label="Add other users that can manage this project. Managers bypass all role permission checks." placement="top">
                           <InfoIcon color="gray.400" boxSize={3} />
                         </Tooltip>
                       </HStack>
@@ -359,142 +378,43 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, availableHats = 
 
                     <Divider />
 
-                    {/* Hat Permissions */}
+                    {/* Role Permissions */}
                     <Box>
                       <HStack spacing={1} mb={3}>
-                        <Text fontWeight="medium">Hat Permissions</Text>
-                        <Tooltip label="Assign permissions to specific hats for fine-grained access control" placement="top">
+                        <Text fontWeight="medium">Role Permissions</Text>
+                        <Tooltip label="Choose which roles can perform each action in this project. Defaults are based on your org's configuration." placement="top">
                           <InfoIcon color="gray.400" boxSize={3} />
                         </Tooltip>
                       </HStack>
 
-                      {/* Create Hats */}
-                      <FormControl mb={3}>
-                        <FormLabel fontSize="sm">Hats that can CREATE tasks</FormLabel>
-                        <HStack>
-                          <Input
-                            placeholder="Hat ID"
-                            value={newCreateHat}
-                            onChange={(e) => setNewCreateHat(e.target.value)}
-                            size="sm"
-                          />
-                          <IconButton
-                            aria-label="Add hat"
-                            icon={<AddIcon />}
-                            size="sm"
-                            colorScheme="green"
-                            onClick={() => handleAddHat(newCreateHat, setCreateHats, createHats, setNewCreateHat)}
-                          />
-                        </HStack>
-                        {createHats.length > 0 && (
-                          <Wrap mt={2}>
-                            {createHats.map((hatId) => (
-                              <WrapItem key={hatId}>
-                                <Tag size="sm" colorScheme="green" borderRadius="full">
-                                  <TagLabel>Hat #{hatId}</TagLabel>
-                                  <TagCloseButton onClick={() => handleRemoveHat(hatId, setCreateHats, createHats)} />
-                                </Tag>
-                              </WrapItem>
-                            ))}
-                          </Wrap>
-                        )}
-                      </FormControl>
-
-                      {/* Claim Hats */}
-                      <FormControl mb={3}>
-                        <FormLabel fontSize="sm">Hats that can CLAIM tasks</FormLabel>
-                        <HStack>
-                          <Input
-                            placeholder="Hat ID"
-                            value={newClaimHat}
-                            onChange={(e) => setNewClaimHat(e.target.value)}
-                            size="sm"
-                          />
-                          <IconButton
-                            aria-label="Add hat"
-                            icon={<AddIcon />}
-                            size="sm"
-                            colorScheme="blue"
-                            onClick={() => handleAddHat(newClaimHat, setClaimHats, claimHats, setNewClaimHat)}
-                          />
-                        </HStack>
-                        {claimHats.length > 0 && (
-                          <Wrap mt={2}>
-                            {claimHats.map((hatId) => (
-                              <WrapItem key={hatId}>
-                                <Tag size="sm" colorScheme="blue" borderRadius="full">
-                                  <TagLabel>Hat #{hatId}</TagLabel>
-                                  <TagCloseButton onClick={() => handleRemoveHat(hatId, setClaimHats, claimHats)} />
-                                </Tag>
-                              </WrapItem>
-                            ))}
-                          </Wrap>
-                        )}
-                      </FormControl>
-
-                      {/* Review Hats */}
-                      <FormControl mb={3}>
-                        <FormLabel fontSize="sm">Hats that can REVIEW/COMPLETE tasks</FormLabel>
-                        <HStack>
-                          <Input
-                            placeholder="Hat ID"
-                            value={newReviewHat}
-                            onChange={(e) => setNewReviewHat(e.target.value)}
-                            size="sm"
-                          />
-                          <IconButton
-                            aria-label="Add hat"
-                            icon={<AddIcon />}
-                            size="sm"
-                            colorScheme="orange"
-                            onClick={() => handleAddHat(newReviewHat, setReviewHats, reviewHats, setNewReviewHat)}
-                          />
-                        </HStack>
-                        {reviewHats.length > 0 && (
-                          <Wrap mt={2}>
-                            {reviewHats.map((hatId) => (
-                              <WrapItem key={hatId}>
-                                <Tag size="sm" colorScheme="orange" borderRadius="full">
-                                  <TagLabel>Hat #{hatId}</TagLabel>
-                                  <TagCloseButton onClick={() => handleRemoveHat(hatId, setReviewHats, reviewHats)} />
-                                </Tag>
-                              </WrapItem>
-                            ))}
-                          </Wrap>
-                        )}
-                      </FormControl>
-
-                      {/* Assign Hats */}
-                      <FormControl>
-                        <FormLabel fontSize="sm">Hats that can ASSIGN tasks</FormLabel>
-                        <HStack>
-                          <Input
-                            placeholder="Hat ID"
-                            value={newAssignHat}
-                            onChange={(e) => setNewAssignHat(e.target.value)}
-                            size="sm"
-                          />
-                          <IconButton
-                            aria-label="Add hat"
-                            icon={<AddIcon />}
-                            size="sm"
-                            colorScheme="purple"
-                            onClick={() => handleAddHat(newAssignHat, setAssignHats, assignHats, setNewAssignHat)}
-                          />
-                        </HStack>
-                        {assignHats.length > 0 && (
-                          <Wrap mt={2}>
-                            {assignHats.map((hatId) => (
-                              <WrapItem key={hatId}>
-                                <Tag size="sm" colorScheme="purple" borderRadius="full">
-                                  <TagLabel>Hat #{hatId}</TagLabel>
-                                  <TagCloseButton onClick={() => handleRemoveHat(hatId, setAssignHats, assignHats)} />
-                                </Tag>
-                              </WrapItem>
-                            ))}
-                          </Wrap>
-                        )}
-                      </FormControl>
+                      {roleHatIds.length > 0 ? (
+                        <VStack spacing={3} align="stretch">
+                          {permissionConfig.map(({ label, description: desc, set, setter, color }) => (
+                            <Box key={label} p={3} bg="gray.50" borderRadius="md" borderLeft="3px solid" borderLeftColor={`${color}.400`}>
+                              <Text fontSize="sm" fontWeight="600" color="gray.700" mb={0.5}>{label}</Text>
+                              <Text fontSize="xs" color="gray.500" mb={2}>{desc}</Text>
+                              <Wrap spacing={3}>
+                                {roleHatIds.map((hatId) => (
+                                  <WrapItem key={hatId}>
+                                    <Checkbox
+                                      size="sm"
+                                      colorScheme={color}
+                                      isChecked={set.has(hatId)}
+                                      onChange={() => toggleRole(hatId, setter)}
+                                    >
+                                      <Text fontSize="sm">{getRoleName(hatId)}</Text>
+                                    </Checkbox>
+                                  </WrapItem>
+                                ))}
+                              </Wrap>
+                            </Box>
+                          ))}
+                        </VStack>
+                      ) : (
+                        <Text fontSize="sm" color="gray.500">
+                          Organization roles are still loading...
+                        </Text>
+                      )}
                     </Box>
                   </VStack>
                 </AccordionPanel>
@@ -504,7 +424,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, availableHats = 
         </ModalBody>
 
         <ModalFooter>
-          <Button variant="ghost" mr={3} onClick={onClose}>
+          <Button variant="ghost" mr={3} onClick={handleClose}>
             Cancel
           </Button>
           <Button
