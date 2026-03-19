@@ -12,7 +12,6 @@ import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
 const Navbar = () => {
   const router = useRouter();
   const { userDAO } = router.query;
-  const isOnJoinPage = router.pathname === '/user';
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isPasskeyUser, accountAddress, isAuthenticated } = useAuth();
   const [mounted, setMounted] = useState(false);
@@ -192,7 +191,7 @@ const Navbar = () => {
           )}
           {mounted && (isPasskeyUser || isAuthenticated) ? (
             <LoginButton />
-          ) : !isOnJoinPage ? (
+          ) : (
             <Button
               as={NextLink}
               href={`/user/?userDAO=${userDAO}`}
@@ -206,7 +205,7 @@ const Navbar = () => {
             >
               Join or Sign In
             </Button>
-          ) : null}
+          )}
         </Flex>
 
         {/* Mobile Hamburger Button */}
@@ -272,7 +271,7 @@ const Navbar = () => {
                 <VStack spacing={3}>
                   <LoginButton />
                 </VStack>
-              ) : !isOnJoinPage ? (
+              ) : (
                 <VStack spacing={4}>
                   <Button
                     as={NextLink}
@@ -290,7 +289,7 @@ const Navbar = () => {
                     Join or Sign In
                   </Button>
                 </VStack>
-              ) : null}
+              )}
               <Text fontSize="xs" color="whiteAlpha.600" mt={6} textAlign="center">
                 Powered by PoA • {new Date().getFullYear()}
               </Text>
