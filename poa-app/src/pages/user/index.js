@@ -43,7 +43,7 @@ import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { useAuth } from '@/context/AuthContext';
-import { motion } from "framer-motion";
+
 import { FaWallet, FaUserPlus, FaUser, FaCheck, FaChevronRight, FaLink, FaInfoCircle, FaShieldAlt, FaRegLightbulb, FaUsers, FaFingerprint, FaPaperPlane, FaCopy, FaHandshake, FaRedo } from 'react-icons/fa';
 import PasskeyLoginButton from '@/components/passkey/PasskeyLoginButton';
 import PasskeyOnboardingModal from '@/components/passkey/PasskeyOnboardingModal';
@@ -53,26 +53,12 @@ import { RoleApplicationForm, VouchLinkHandler, VouchProgressBar } from '@/compo
 import { VouchFirstPhase } from '@/hooks/useVouchFirstOnboarding';
 import { getAllCredentials } from '@/services/web3/passkey/passkeyStorage';
 
-// Animation keyframes
-const gradientAnimation = keyframes`
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-`;
-
-const float = keyframes`
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
-`;
-
+// Subtle pulse animation for CTA buttons when form is ready
 const pulse = keyframes`
   0% { transform: scale(1); }
   50% { transform: scale(1.05); }
   100% { transform: scale(1); }
 `;
-
-const MotionBox = motion(Box);
 
 const User = () => {
   const { hasMemberRole, graphUsername } = useUserContext();
@@ -179,10 +165,10 @@ const User = () => {
   const mainSpacing = useBreakpointValue({ base: 4, md: 6 });
   const formSpacing = useBreakpointValue({ base: 4, md: 6 });
 
-  // Enhanced gradient background
+  // Calm gradient background (static, no animation)
   const bgGradient = useColorModeValue(
-    'linear-gradient(135deg, #ffe8c3 0%, #ffd0d0 25%, #e1c4ff 50%, #c4e7ff 75%, #c4ffe1 100%)',
-    'linear-gradient(135deg, #2d1f3d 0%, #1a1625 50%, #2a273f 100%)'
+    'linear-gradient(135deg, #e8f4f0 0%, #e1ecf7 50%, #ede8f5 100%)',
+    'linear-gradient(135deg, #1a1625 0%, #1e2030 50%, #2a273f 100%)'
   );
 
   const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(0, 0, 0, 0.6)');
@@ -461,11 +447,9 @@ const User = () => {
         bottom="0"
         zIndex="-1"
         bgGradient={bgGradient}
-        animation={`${gradientAnimation} 15s ease infinite`}
-        backgroundSize="400% 400%"
         overflow="hidden"
       >
-        {/* Abstract decorative elements */}
+        {/* Subtle decorative elements */}
         <Box
           position="absolute"
           top="10%"
@@ -473,9 +457,9 @@ const User = () => {
           width="40vh"
           height="40vh"
           borderRadius="full"
-          bgGradient="linear(to-r, teal.200, blue.200)"
-          filter="blur(80px)"
-          opacity="0.4"
+          bgGradient="linear(to-r, teal.100, blue.100)"
+          filter="blur(100px)"
+          opacity="0.25"
         />
         <Box
           position="absolute"
@@ -484,9 +468,9 @@ const User = () => {
           width="30vh"
           height="30vh"
           borderRadius="full"
-          bgGradient="linear(to-r, purple.200, pink.200)"
-          filter="blur(80px)"
-          opacity="0.4"
+          bgGradient="linear(to-r, purple.100, pink.100)"
+          filter="blur(100px)"
+          opacity="0.25"
         />
       </Box>
 
@@ -646,14 +630,9 @@ const User = () => {
                   ) : vouchFirstHook.pendingCredential && vouchFirstHook.phase !== VouchFirstPhase.SUCCESS ? (
                     <VStack spacing={formSpacing} align="stretch">
                       <Box textAlign="center">
-                        <MotionBox
-                          animate={{ y: [0, -10, 0] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          display="inline-block"
-                          mb={4}
-                        >
+                        <Box display="inline-block" mb={4}>
                           <Icon as={FaHandshake} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                        </MotionBox>
+                        </Box>
                         <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
                           Waiting for Vouches
                         </Heading>
@@ -826,14 +805,9 @@ const User = () => {
                               </>
                             ) : (
                               <>
-                                <MotionBox
-                                  animate={{ scale: [1, 1.1, 1] }}
-                                  transition={{ duration: 2, repeat: Infinity }}
-                                  display="inline-block"
-                                  mb={4}
-                                >
+                                <Box display="inline-block" mb={4}>
                                   <Icon as={FaHandshake} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                                </MotionBox>
+                                </Box>
                                 <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
                                   Application Submitted!
                                 </Heading>
@@ -1044,14 +1018,9 @@ const User = () => {
                           </Box>
 
                           <Box textAlign="center">
-                            <MotionBox
-                              animate={{ y: [0, -10, 0] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                              display="inline-block"
-                              mb={4}
-                            >
+                            <Box display="inline-block" mb={4}>
                               <Icon as={FaPaperPlane} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                            </MotionBox>
+                            </Box>
                             <Heading size={{ base: "md", md: "lg" }} mb={{ base: 2, md: 4 }} color={textColor}>
                               Apply to Join {userDAO}
                             </Heading>
@@ -1148,14 +1117,9 @@ const User = () => {
                           </Box>
 
                           <Box textAlign="center">
-                            <MotionBox
-                              animate={{ y: [0, -10, 0] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                              display="inline-block"
-                              mb={4}
-                            >
+                            <Box display="inline-block" mb={4}>
                               <Icon as={FaUserPlus} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                            </MotionBox>
+                            </Box>
                             <Heading size={{ base: "md", md: "lg" }} mb={{ base: 2, md: 4 }} color={textColor}>
                               Complete Your Membership
                             </Heading>
@@ -1293,14 +1257,9 @@ const User = () => {
                   ) : !isAuthenticated && hasVouchGatedRoles ? (
                     <VStack spacing={formSpacing} align="stretch">
                       <Box textAlign="center">
-                        <MotionBox
-                          animate={{ y: [0, -10, 0] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          display="inline-block"
-                          mb={4}
-                        >
+                        <Box display="inline-block" mb={4}>
                           <Icon as={FaFingerprint} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                        </MotionBox>
+                        </Box>
                         <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
                           Apply to Join {userDAO}
                         </Heading>
@@ -1396,12 +1355,9 @@ const User = () => {
                   /* ── Branch 6: Not authenticated + open org → Create Account / Sign In ── */
                   ) : (
                     <VStack spacing={{ base: 6, md: 8 }} align="center">
-                      <MotionBox
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      >
+                      <Box>
                         <Icon as={FaWallet} color={accentColor} boxSize={{ base: 12, md: 16 }} />
-                      </MotionBox>
+                      </Box>
 
                       <VStack spacing={{ base: 2, md: 3 }}>
                         <Heading size={{ base: "md", md: "lg" }} textAlign="center" color={textColor}>
@@ -1459,7 +1415,12 @@ const User = () => {
         <PasskeyOnboardingModal
           isOpen={isCreateOpen}
           onClose={onCreateClose}
-          onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
+          onSuccess={() => {
+            if (!hasVouchGatedRoles) {
+              router.push(`/dashboard/?userDAO=${userDAO}`);
+            }
+            // For vouch-gated orgs: stay on page so user can apply for a role
+          }}
           showWalletOption
         />
         <SignInModal
