@@ -79,7 +79,7 @@ const User = () => {
   const { address } = useAccount();
   const { isAuthenticated, isPasskeyUser, accountAddress } = useAuth();
   const { quickJoinContractAddress, poDescription, logoHash } = usePOContext();
-  const { organization, executeWithNotification } = useWeb3();
+  const { organization, executeWithNotification, signer } = useWeb3();
   const router = useRouter();
   const { userDAO, vouch: vouchAddress, hatId: vouchHatId } = router.query;
   const usernameInputRef = useRef(null);
@@ -255,23 +255,42 @@ const User = () => {
 
     setLoading(true);
 
-    // Get passkey credential for the current account
-    const credential = accountAddress ? getAllCredentials()[accountAddress.toLowerCase()] : null;
-    if (!credential) {
-      toast({
-        title: "Credential not found",
-        description: "Could not find your passkey credential. Please sign in again.",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-        position: "top",
-      });
-      setLoading(false);
-      return;
+    let joinFn;
+    if (isPasskeyUser) {
+      // Passkey: get credential and call registerAndQuickJoinWithPasskey
+      const credential = accountAddress ? getAllCredentials()[accountAddress.toLowerCase()] : null;
+      if (!credential) {
+        toast({
+          title: "Credential not found",
+          description: "Could not find your passkey credential. Please sign in again.",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+          position: "top",
+        });
+        setLoading(false);
+        return;
+      }
+      joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
+    } else {
+      // EOA: use EIP-712 signature and call registerAndQuickJoin
+      if (!signer) {
+        toast({
+          title: "Wallet not connected",
+          description: "Please connect your wallet to continue.",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+          position: "top",
+        });
+        setLoading(false);
+        return;
+      }
+      joinFn = () => organization.registerAndJoinEOA(quickJoinContractAddress, newUsername, signer);
     }
 
     const result = await executeWithNotification(
-      () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential),
+      joinFn,
       {
         pendingMessage: 'Registering username and joining organization...',
         successMessage: 'Account created! Redirecting...',
@@ -283,7 +302,7 @@ const User = () => {
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer]);
 
   const handleApplyAndJoin = useCallback(async () => {
     if (!organization) return;
@@ -332,7 +351,7 @@ const User = () => {
       let joinFn;
       if (hasExistingUsername) {
         joinFn = () => organization.quickJoinWithUser(quickJoinContractAddress);
-      } else {
+      } else if (isPasskeyUser) {
         const credential = accountAddress ? getAllCredentials()[accountAddress.toLowerCase()] : null;
         if (!credential) {
           toast({
@@ -346,6 +365,19 @@ const User = () => {
           return;
         }
         joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
+      } else {
+        if (!signer) {
+          toast({
+            title: "Wallet not connected",
+            description: "Please connect your wallet to continue.",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+            position: "top",
+          });
+          return;
+        }
+        joinFn = () => organization.registerAndJoinEOA(quickJoinContractAddress, newUsername, signer);
       }
 
       const joinResult = await executeWithNotification(
@@ -402,6 +434,7 @@ const User = () => {
     organization, selectedHatId, applicationNotes, applicationExperience,
     dispaly, graphUsername, newUsername, quickJoinContractAddress,
     executeWithNotification, applyForRole, router, userDAO, toast, accountAddress,
+    isPasskeyUser, signer,
   ]);
 
   const benefits = [
