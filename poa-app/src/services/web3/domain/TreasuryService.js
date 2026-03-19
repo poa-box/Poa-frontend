@@ -250,7 +250,7 @@ export class TreasuryService {
 
     return this.txManager.execute(
       contract,
-      'toggleOptOut',
+      'optOut',
       [optOut],
       options
     );
