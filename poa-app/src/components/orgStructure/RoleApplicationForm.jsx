@@ -17,8 +17,6 @@ export function RoleApplicationForm({
   onSelectRole,
   notes,
   onNotesChange,
-  experience,
-  onExperienceChange,
 }) {
   const textColor = useColorModeValue('gray.800', 'white');
   const inputBg = useColorModeValue('white', 'whiteAlpha.100');
@@ -83,20 +81,6 @@ export function RoleApplicationForm({
         />
       </FormControl>
 
-      <FormControl>
-        <FormLabel color={labelColor} fontSize="sm">Relevant Experience (Optional)</FormLabel>
-        <Textarea
-          placeholder="Describe any relevant experience or skills..."
-          value={experience}
-          onChange={onExperienceChange}
-          rows={2}
-          bg={inputBg}
-          color={textColor}
-          borderColor={borderColor}
-          _placeholder={{ color: placeholderColor }}
-          _focus={{ borderColor: 'teal.400', boxShadow: '0 0 0 1px teal.400' }}
-        />
-      </FormControl>
     </VStack>
   );
 }

@@ -100,7 +100,6 @@ const User = () => {
   // Role application state (for vouch-gated orgs)
   const [selectedHatId, setSelectedHatId] = useState(null);
   const [applicationNotes, setApplicationNotes] = useState('');
-  const [applicationExperience, setApplicationExperience] = useState('');
 
   // Tracks when authenticated user has submitted application and is waiting for vouches.
   // Persisted to sessionStorage so a page refresh doesn't lose the vouch link.
@@ -361,7 +360,6 @@ const User = () => {
       // applyForRole() does not require membership — it just records the application on-chain.
       const applyResult = await applyForRole(selectedHatId, {
         notes: applicationNotes.trim(),
-        experience: applicationExperience.trim(),
         appliedAt: new Date().toISOString(),
       });
 
@@ -410,7 +408,7 @@ const User = () => {
       setLoading(false);
     }
   }, [
-    selectedHatId, applicationNotes, applicationExperience,
+    selectedHatId, applicationNotes,
     applyForRole, toast, accountAddress, address, userDAO, rolesWithVouching,
   ]);
 
@@ -1278,8 +1276,6 @@ const User = () => {
                         onSelectRole={setSelectedHatId}
                         notes={applicationNotes}
                         onNotesChange={(e) => setApplicationNotes(e.target.value)}
-                        experience={applicationExperience}
-                        onExperienceChange={(e) => setApplicationExperience(e.target.value)}
                       />
 
                       {/* Error display */}
