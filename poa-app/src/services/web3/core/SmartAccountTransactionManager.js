@@ -28,7 +28,17 @@ const AA_ERROR_MESSAGES = {
   AA33: 'Gas sponsor rejected the transaction. The organization may have run out of gas budget.',
   AA40: 'Verification gas limit too low.',
   AA41: 'Transaction exceeds gas limits.',
-  AA51: 'Prefund not available.',
+  AA51: 'Prefund not available. Your account needs funds to pay for gas.',
+};
+
+/**
+ * When paymaster falls back to self-funded and self-funded also fails,
+ * the real issue is usually that the account has no native tokens.
+ * These AA codes get a more specific message in that scenario.
+ */
+const AA_FALLBACK_MESSAGES = {
+  AA21: 'Gas sponsorship was unavailable and your account has no funds to pay for gas.',
+  AA51: 'Gas sponsorship was unavailable and your account has no funds to pay for gas.',
 };
 
 export class SmartAccountTransactionManager {
@@ -244,7 +254,7 @@ export class SmartAccountTransactionManager {
       ? this.hatIds.map((hatId) => encodeHatPaymasterData({ hatId, orgId: this.orgId }))
       : [];
 
-    return buildUserOpWithFallback({
+    const userOp = await buildUserOpWithFallback({
       sender: this.accountAddress,
       callData,
       bundlerClient: this.bundlerClient,
@@ -254,6 +264,12 @@ export class SmartAccountTransactionManager {
         paymasterDataEntries,
       } : {}),
     });
+
+    // Track whether paymaster was expected but the UserOp ended up self-funded.
+    // This helps produce better error messages if self-funded execution also fails.
+    this._paymasterFellBack = hasPaymaster && !userOp.paymaster;
+
+    return userOp;
   }
 
   /**
@@ -263,12 +279,14 @@ export class SmartAccountTransactionManager {
    * @returns {Object} Parsed error with userMessage and technicalMessage
    */
   _parseAAError(message, originalError = null) {
-    // Check for AA error codes
+    // Check for AA error codes — use fallback-specific messages when paymaster was
+    // expected but unavailable (so the user knows the real issue is no gas budget + no funds)
     for (const [code, userMessage] of Object.entries(AA_ERROR_MESSAGES)) {
       if (message.includes(code)) {
+        const fallbackMsg = this._paymasterFellBack ? AA_FALLBACK_MESSAGES[code] : null;
         return {
           category: 'smart_account_error',
-          userMessage,
+          userMessage: fallbackMsg || userMessage,
           technicalMessage: message,
           originalError,
         };
@@ -295,10 +313,12 @@ export class SmartAccountTransactionManager {
       };
     }
 
-    // Generic
+    // Generic — if paymaster fell back, hint at the real cause
     return {
       category: 'smart_account_error',
-      userMessage: 'Transaction failed. Please try again.',
+      userMessage: this._paymasterFellBack
+        ? 'Gas sponsorship was unavailable and your account has no funds to pay for gas.'
+        : 'Transaction failed. Please try again.',
       technicalMessage: message,
       originalError,
     };
