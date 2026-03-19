@@ -1266,6 +1266,19 @@ const User = () => {
                         <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
                           Create your passkey account, then share a link with existing members to vouch for you.
                         </Text>
+                        <Text
+                          fontSize="sm"
+                          color={subtextColor}
+                          mt={1}
+                          cursor="pointer"
+                          onClick={onSignInOpen}
+                          _hover={{ color: 'teal.500' }}
+                        >
+                          Already have an account?{' '}
+                          <Text as="span" fontWeight="600" color="teal.500" textDecoration="underline">
+                            Sign In
+                          </Text>
+                        </Text>
                       </Box>
 
                       {/* Username input */}
@@ -1340,16 +1353,16 @@ const User = () => {
                         />
                       </Flex>
 
-                      <Text
-                        fontSize="sm"
-                        color={subtextColor}
-                        textAlign="center"
-                        cursor="pointer"
-                        _hover={{ color: 'amethyst.600', textDecoration: 'underline' }}
+                      <Button
+                        variant="outline"
+                        colorScheme="teal"
+                        size="md"
+                        width="100%"
                         onClick={onSignInOpen}
+                        leftIcon={<FaUser />}
                       >
-                        Already have an account? <Text as="span" fontWeight="600">Sign In</Text>
-                      </Text>
+                        Sign In to Existing Account
+                      </Button>
                     </VStack>
 
                   /* ── Branch 6: Not authenticated + open org → Create Account / Sign In ── */
@@ -1365,6 +1378,18 @@ const User = () => {
                         </Heading>
                         <Text textAlign="center" color={subtextColor} maxW="md" fontSize={{ base: "sm", md: "md" }}>
                           Create an account with your fingerprint or connect a wallet to get started.
+                        </Text>
+                        <Text
+                          fontSize="sm"
+                          color={subtextColor}
+                          cursor="pointer"
+                          onClick={onSignInOpen}
+                          _hover={{ color: 'teal.500' }}
+                        >
+                          Already have an account?{' '}
+                          <Text as="span" fontWeight="600" color="teal.500" textDecoration="underline">
+                            Sign In
+                          </Text>
                         </Text>
                       </VStack>
 
@@ -1394,16 +1419,16 @@ const User = () => {
                         <Divider />
                       </HStack>
 
-                      <Text
-                        fontSize="sm"
-                        color={subtextColor}
-                        textAlign="center"
-                        cursor="pointer"
-                        _hover={{ color: 'amethyst.600', textDecoration: 'underline' }}
+                      <Button
+                        variant="outline"
+                        colorScheme="teal"
+                        size="md"
+                        width="100%"
                         onClick={onSignInOpen}
+                        leftIcon={<FaUser />}
                       >
-                        Already have an account? <Text as="span" fontWeight="600">Sign In</Text>
-                      </Text>
+                        Sign In to Existing Account
+                      </Button>
                     </VStack>
                   )}
                 </CardBody>
