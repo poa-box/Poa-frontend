@@ -7,6 +7,7 @@ import QuickJoinABI from '../../../../abi/QuickJoinNew.json';
 import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
 import { requireAddress, requireValidUsername } from '../utils/validation';
 import { signRegistrationChallenge, computeRegistrationChallenge } from '../passkey/passkeySign';
+import { signRegistration } from '../utils/registrySigner';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
 const networkConfig = NETWORKS[DEFAULT_NETWORK];
@@ -87,6 +88,45 @@ export class OrganizationService {
         nonce,
         [auth.authenticatorData, auth.clientDataJSON, auth.challengeIndex, auth.typeIndex, auth.r, auth.s],
       ],
+      options
+    );
+  }
+
+  /**
+   * Register a username and join an organization via registerAndQuickJoin (EOA wallets).
+   * Uses EIP-712 signature for username registration.
+   *
+   * @param {string} contractAddress - QuickJoin contract address
+   * @param {string} username - Username for new account
+   * @param {ethers.Signer} signer - Ethers signer for the EOA wallet
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async registerAndJoinEOA(contractAddress, username, signer, options = {}) {
+    requireAddress(contractAddress, 'QuickJoin contract address');
+    requireValidUsername(username);
+
+    if (!this.registryAddress) {
+      throw new Error('Registry address is required for new user registration');
+    }
+
+    // Sign registration via EIP-712
+    console.log('[OrganizationService] Requesting EIP-712 registration signature...');
+    const { deadline, nonce, signature } = await signRegistration({
+      signer,
+      registryAddress: this.registryAddress,
+      username,
+    });
+
+    const userAddress = await signer.getAddress();
+
+    console.log('[OrganizationService] Calling registerAndQuickJoin...');
+    const quickJoinContract = this.factory.createWritable(contractAddress, QuickJoinABI);
+
+    return this.txManager.execute(
+      quickJoinContract,
+      'registerAndQuickJoin',
+      [userAddress, username, deadline, nonce, signature],
       options
     );
   }
