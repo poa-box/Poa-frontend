@@ -1043,8 +1043,6 @@ const User = () => {
                             onSelectRole={setSelectedHatId}
                             notes={applicationNotes}
                             onNotesChange={(e) => setApplicationNotes(e.target.value)}
-                            experience={applicationExperience}
-                            onExperienceChange={(e) => setApplicationExperience(e.target.value)}
                           />
 
                           <Button
