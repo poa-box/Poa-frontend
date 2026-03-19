@@ -1266,20 +1266,17 @@ const User = () => {
                         <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
                           Create your passkey account, then share a link with existing members to vouch for you.
                         </Text>
-                        <Text
-                          fontSize="sm"
-                          color={subtextColor}
-                          mt={1}
-                          cursor="pointer"
-                          onClick={onSignInOpen}
-                          _hover={{ color: 'teal.500' }}
-                        >
-                          Already have an account?{' '}
-                          <Text as="span" fontWeight="600" color="teal.500" textDecoration="underline">
-                            Sign In
-                          </Text>
-                        </Text>
                       </Box>
+
+                      <Button
+                        variant="outline"
+                        colorScheme="teal"
+                        size="sm"
+                        onClick={onSignInOpen}
+                        leftIcon={<FaUser />}
+                      >
+                        Already have an account? Sign In
+                      </Button>
 
                       {/* Username input */}
                       <InputGroup size={isMobile ? "md" : "lg"}>
@@ -1352,17 +1349,6 @@ const User = () => {
                           label="Connect Wallet"
                         />
                       </Flex>
-
-                      <Button
-                        variant="outline"
-                        colorScheme="teal"
-                        size="md"
-                        width="100%"
-                        onClick={onSignInOpen}
-                        leftIcon={<FaUser />}
-                      >
-                        Sign In to Existing Account
-                      </Button>
                     </VStack>
 
                   /* ── Branch 6: Not authenticated + open org → Create Account / Sign In ── */
@@ -1379,19 +1365,17 @@ const User = () => {
                         <Text textAlign="center" color={subtextColor} maxW="md" fontSize={{ base: "sm", md: "md" }}>
                           Create an account with your fingerprint or connect a wallet to get started.
                         </Text>
-                        <Text
-                          fontSize="sm"
-                          color={subtextColor}
-                          cursor="pointer"
-                          onClick={onSignInOpen}
-                          _hover={{ color: 'teal.500' }}
-                        >
-                          Already have an account?{' '}
-                          <Text as="span" fontWeight="600" color="teal.500" textDecoration="underline">
-                            Sign In
-                          </Text>
-                        </Text>
                       </VStack>
+
+                      <Button
+                        variant="outline"
+                        colorScheme="teal"
+                        size="sm"
+                        onClick={onSignInOpen}
+                        leftIcon={<FaUser />}
+                      >
+                        Already have an account? Sign In
+                      </Button>
 
                       <VStack spacing={3} width="100%">
                         <Button
@@ -1411,24 +1395,6 @@ const User = () => {
                         </Text>
                       </VStack>
 
-                      <HStack width="100%" align="center">
-                        <Divider />
-                        <Text fontSize="xs" color="gray.400" whiteSpace="nowrap" px={2}>
-                          or
-                        </Text>
-                        <Divider />
-                      </HStack>
-
-                      <Button
-                        variant="outline"
-                        colorScheme="teal"
-                        size="md"
-                        width="100%"
-                        onClick={onSignInOpen}
-                        leftIcon={<FaUser />}
-                      >
-                        Sign In to Existing Account
-                      </Button>
                     </VStack>
                   )}
                 </CardBody>
