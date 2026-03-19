@@ -209,10 +209,10 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, availableHats = 
         description: description.trim(),
         cap: capWei,
         managers: managers.map(m => m.address), // Extract just the addresses
-        createHats: createHats.map(h => parseInt(h, 10)),
-        claimHats: claimHats.map(h => parseInt(h, 10)),
-        reviewHats: reviewHats.map(h => parseInt(h, 10)),
-        assignHats: assignHats.map(h => parseInt(h, 10)),
+        createHats: createHats.map(h => h.toString()),
+        claimHats: claimHats.map(h => h.toString()),
+        reviewHats: reviewHats.map(h => h.toString()),
+        assignHats: assignHats.map(h => h.toString()),
       });
 
       resetForm();

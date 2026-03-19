@@ -4,7 +4,7 @@
  * Shows vouch confirmation card with progress and vouch button.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   VStack,
   Text,
@@ -23,6 +23,8 @@ import {
 import { FaCheck, FaHandshake, FaArrowRight } from 'react-icons/fa';
 import { useRouter } from 'next/router';
 import { VouchProgressBar } from './VouchProgressBar';
+import apolloClient from '../../util/apolloClient';
+import { FETCH_USERNAME_NEW } from '../../util/queries';
 
 /**
  * @param {Object} props
@@ -47,6 +49,7 @@ export function VouchLinkHandler({
 }) {
   const router = useRouter();
   const [vouchSubmitted, setVouchSubmitted] = useState(false);
+  const [username, setUsername] = useState(null);
 
   const cardBg = useColorModeValue('rgba(255, 255, 255, 0.9)', 'rgba(0, 0, 0, 0.6)');
   const textColor = useColorModeValue('gray.800', 'white');
@@ -60,6 +63,19 @@ export function VouchLinkHandler({
   const truncatedAddress = vouchAddress
     ? `${vouchAddress.substring(0, 6)}...${vouchAddress.substring(vouchAddress.length - 4)}`
     : '';
+
+  // Look up username for the vouch address
+  useEffect(() => {
+    if (!vouchAddress) return;
+    apolloClient.query({
+      query: FETCH_USERNAME_NEW,
+      variables: { id: vouchAddress.toLowerCase() },
+      fetchPolicy: 'cache-first',
+    }).then(({ data }) => {
+      const name = data?.account?.username;
+      if (name && name.trim().length > 0) setUsername(name);
+    }).catch(() => {});
+  }, [vouchAddress]);
 
   const handleVouch = async () => {
     const result = await vouchFor(vouchAddress, hatId);
@@ -91,8 +107,8 @@ export function VouchLinkHandler({
               <Badge colorScheme="teal" fontSize="sm" px={3} py={1} borderRadius="md">
                 {roleName}
               </Badge>
-              <Badge colorScheme="gray" fontSize="sm" px={3} py={1} borderRadius="md" fontFamily="mono">
-                {truncatedAddress}
+              <Badge colorScheme="gray" fontSize="sm" px={3} py={1} borderRadius="md" fontFamily={username ? 'inherit' : 'mono'}>
+                {username || truncatedAddress}
               </Badge>
             </HStack>
 

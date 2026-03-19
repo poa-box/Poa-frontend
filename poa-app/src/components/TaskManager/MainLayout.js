@@ -113,25 +113,31 @@ const MainLayout = () => {
     // Get hat IDs for default permissions from org's roleHatIds
     // roleHatIds[0] = Member, roleHatIds[1] = Executive, etc.
     // Members can claim tasks, non-members (executives+) can create/review/assign
-    const nonMemberHatIds = roleHatIds?.slice(1) || [];
+    if (!roleHatIds || roleHatIds.length === 0) {
+      console.error('Cannot create project: roleHatIds not loaded yet');
+      throw new Error('Organization roles are still loading. Please wait a moment and try again.');
+    }
 
-    // For simple creates, assign default permissions based on org roles
+    const nonMemberHatIds = roleHatIds.slice(1);
+
+    // Default permissions based on org roles
     // All roles (member + non-member) can claim tasks
     // Non-member roles (executive+) can create, review, and assign
-    const defaultClaimHats = roleHatIds || [];
-    const defaultCreateHats = nonMemberHatIds;
-    const defaultReviewHats = nonMemberHatIds;
-    const defaultAssignHats = nonMemberHatIds;
+    // If only one role exists, give it all permissions
+    const defaultClaimHats = roleHatIds;
+    const defaultCreateHats = nonMemberHatIds.length > 0 ? nonMemberHatIds : roleHatIds;
+    const defaultReviewHats = nonMemberHatIds.length > 0 ? nonMemberHatIds : roleHatIds;
+    const defaultAssignHats = nonMemberHatIds.length > 0 ? nonMemberHatIds : roleHatIds;
 
     const createProjectData = {
       name: projectName,
       metadataHash,
       cap: isSimpleCreate ? 0 : (projectData.cap || 0),
       managers: isSimpleCreate ? [] : (projectData.managers || []),
-      createHats: isSimpleCreate ? defaultCreateHats : (projectData.createHats || []),
-      claimHats: isSimpleCreate ? defaultClaimHats : (projectData.claimHats || []),
-      reviewHats: isSimpleCreate ? defaultReviewHats : (projectData.reviewHats || []),
-      assignHats: isSimpleCreate ? defaultAssignHats : (projectData.assignHats || []),
+      createHats: isSimpleCreate ? defaultCreateHats : (projectData.createHats?.length > 0 ? projectData.createHats : defaultCreateHats),
+      claimHats: isSimpleCreate ? defaultClaimHats : (projectData.claimHats?.length > 0 ? projectData.claimHats : defaultClaimHats),
+      reviewHats: isSimpleCreate ? defaultReviewHats : (projectData.reviewHats?.length > 0 ? projectData.reviewHats : defaultReviewHats),
+      assignHats: isSimpleCreate ? defaultAssignHats : (projectData.assignHats?.length > 0 ? projectData.assignHats : defaultAssignHats),
     };
 
     console.log('Final createProjectData:', createProjectData);

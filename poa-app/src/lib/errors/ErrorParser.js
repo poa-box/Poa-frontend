@@ -63,7 +63,7 @@ const REVERT_PATTERNS = {
   // Membership errors
   'Not a member': 'You must be a member of this organization.',
   'Already a member': 'You are already a member of this organization.',
-  'Unauthorized': 'You do not have permission for this action.',
+  'Unauthorized': 'You do not have permission for this action. The project may need role permissions configured.',
   'Insufficient permissions': 'You do not have the required permissions.',
 
   // Voting errors
@@ -177,11 +177,16 @@ function extractRevertReason(error) {
  * @returns {Object|null} Decoded error or null
  */
 function tryDecodeCustomError(error, abi) {
-  if (!abi || !error.data) return null;
+  if (!abi) return null;
+
+  const errorData = error.data
+    || error.error?.data?.data
+    || (typeof error.error?.data === 'string' ? error.error.data : null);
+  if (!errorData) return null;
 
   try {
     const iface = new ethers.utils.Interface(abi);
-    const decodedError = iface.parseError(error.data);
+    const decodedError = iface.parseError(errorData);
     return {
       name: decodedError.name,
       args: decodedError.args,
@@ -297,7 +302,9 @@ export function parseError(error, abi = null) {
 
     // Try to decode custom error from error data if no reason found
     if (!userMessage) {
-      const errorData = error.error?.data?.data || error.data;
+      const errorData = error.error?.data?.data
+        || (typeof error.error?.data === 'string' ? error.error.data : null)
+        || error.data;
       if (errorData) {
         const customErrorName = decodeCustomErrorSelector(errorData);
         if (customErrorName) {
