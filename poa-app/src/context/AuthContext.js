@@ -24,7 +24,6 @@ import {
   getLastUsedCredential,
   hasStoredCredentials,
   savePasskeyCredential,
-  removeCredential,
 } from '../services/web3/passkey/passkeyStorage';
 import { discoverPasskeyCredential } from '../services/web3/passkey/passkeyDiscover';
 
@@ -160,14 +159,11 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   /**
-   * Disconnect passkey session and remove stored credential.
+   * Disconnect passkey session (keeps stored credential for re-authentication).
    */
   const disconnectPasskey = useCallback(() => {
-    if (passkeyState) {
-      removeCredential(passkeyState.accountAddress);
-    }
     setPasskeyState(null);
-  }, [passkeyState]);
+  }, []);
 
   const hasStoredPasskey = typeof window !== 'undefined' ? hasStoredCredentials() : false;
 
