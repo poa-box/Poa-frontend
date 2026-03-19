@@ -165,9 +165,9 @@ const User = () => {
   const mainSpacing = useBreakpointValue({ base: 4, md: 6 });
   const formSpacing = useBreakpointValue({ base: 4, md: 6 });
 
-  // Calm gradient background (static, no animation)
+  // Rich gradient background — deeper tones that complement the teal/green palette
   const bgGradient = useColorModeValue(
-    'linear-gradient(135deg, #e8f4f0 0%, #e1ecf7 50%, #ede8f5 100%)',
+    'linear-gradient(135deg, #c7ddd5 0%, #c4d4e4 40%, #d5cde6 70%, #c7ddd5 100%)',
     'linear-gradient(135deg, #1a1625 0%, #1e2030 50%, #2a273f 100%)'
   );
 
@@ -449,7 +449,7 @@ const User = () => {
         bgGradient={bgGradient}
         overflow="hidden"
       >
-        {/* Subtle decorative elements */}
+        {/* Soft decorative elements */}
         <Box
           position="absolute"
           top="10%"
@@ -457,9 +457,9 @@ const User = () => {
           width="40vh"
           height="40vh"
           borderRadius="full"
-          bgGradient="linear(to-r, teal.100, blue.100)"
-          filter="blur(100px)"
-          opacity="0.25"
+          bgGradient="linear(to-r, teal.200, blue.100)"
+          filter="blur(90px)"
+          opacity="0.35"
         />
         <Box
           position="absolute"
@@ -468,9 +468,9 @@ const User = () => {
           width="30vh"
           height="30vh"
           borderRadius="full"
-          bgGradient="linear(to-r, purple.100, pink.100)"
-          filter="blur(100px)"
-          opacity="0.25"
+          bgGradient="linear(to-r, purple.200, pink.100)"
+          filter="blur(90px)"
+          opacity="0.3"
         />
       </Box>
 
@@ -1331,14 +1331,14 @@ const User = () => {
                         <Divider />
                       </HStack>
 
-                      <Box p={2} borderRadius="lg">
+                      <Flex justify="center" p={2}>
                         <ConnectButton
                           showBalance={false}
                           chainStatus={isMobile ? "none" : "icon"}
                           accountStatus={isMobile ? "avatar" : "address"}
                           label="Connect Wallet"
                         />
-                      </Box>
+                      </Flex>
 
                       <Text
                         fontSize="sm"
