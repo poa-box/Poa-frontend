@@ -67,6 +67,7 @@ export async function discoverPasskeyCredential() {
 
 /**
  * Query the subgraph to find the account address for a given credentialId.
+ * Retries up to 3 times with short delays to handle indexing lag.
  */
 async function lookupAccountByCredentialId(credentialId) {
   const query = `
@@ -79,13 +80,27 @@ async function lookupAccountByCredentialId(credentialId) {
     }
   `;
 
-  const response = await fetch(SUBGRAPH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, variables: { credentialId } }),
-  });
+  const MAX_RETRIES = 3;
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch(SUBGRAPH_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables: { credentialId } }),
+      });
 
-  const { data } = await response.json();
-  const credential = data?.passkeyCredentials?.[0];
-  return credential?.account?.id || null;
+      const { data } = await response.json();
+      const credential = data?.passkeyCredentials?.[0];
+      if (credential?.account?.id) return credential.account.id;
+    } catch (err) {
+      console.warn(`[passkeyDiscover] Subgraph lookup attempt ${attempt + 1} failed:`, err.message);
+    }
+
+    // Wait before retry (1s, 2s)
+    if (attempt < MAX_RETRIES - 1) {
+      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+    }
+  }
+
+  return null;
 }
