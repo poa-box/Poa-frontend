@@ -1257,9 +1257,6 @@ const User = () => {
                   ) : !isAuthenticated && hasVouchGatedRoles ? (
                     <VStack spacing={formSpacing} align="stretch">
                       <Box textAlign="center">
-                        <Box display="inline-block" mb={4}>
-                          <Icon as={FaFingerprint} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                        </Box>
                         <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
                           Apply to Join {userDAO}
                         </Heading>
