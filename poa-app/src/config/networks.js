@@ -12,6 +12,9 @@ export const NETWORKS = {
     blockExplorer: 'https://sepolia.etherscan.io',
     isTestnet: true,
     subgraphUrl: process.env.NEXT_PUBLIC_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest',
+    bountyTokens: {
+      USDC: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+    },
   },
   baseSepolia: {
     chainId: 84532,
@@ -21,6 +24,23 @@ export const NETWORKS = {
     blockExplorer: 'https://sepolia.basescan.org',
     isTestnet: true,
     subgraphUrl: process.env.NEXT_PUBLIC_BASE_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-base-sepolia/version/latest',
+    bountyTokens: {
+      USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    },
+  },
+  gnosis: {
+    chainId: 100,
+    name: 'Gnosis',
+    nativeCurrency: { name: 'xDAI', symbol: 'xDAI', decimals: 18 },
+    rpcUrl: process.env.NEXT_PUBLIC_GNOSIS_RPC_URL || 'https://rpc.gnosischain.com',
+    blockExplorer: 'https://gnosisscan.io',
+    isTestnet: false,
+    subgraphUrl: process.env.NEXT_PUBLIC_GNOSIS_SUBGRAPH_URL || '',
+    bountyTokens: {
+      BREAD: '0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3',
+      USDC:  '0xDDAfbb505ad214D7b80b1f830fcCc89B60fB7A83',
+      WXDAI: '0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d',
+    },
   },
 };
 

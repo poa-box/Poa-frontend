@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Button,
   FormControl,
@@ -41,6 +41,8 @@ import {
 import { AddIcon, InfoIcon } from '@chakra-ui/icons';
 import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
+import { getBountyTokenOptions } from '../../util/tokens';
+import { usePOContext } from '../../context/POContext';
 
 /**
  * @param {Object} props
@@ -53,6 +55,7 @@ import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
  */
 const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [] }) => {
   const toast = useToast();
+  const { orgChainId } = usePOContext();
   const [loading, setLoading] = useState(false);
 
   // Basic fields
@@ -62,6 +65,10 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
   // Token cap (0 = unlimited)
   const [hasCap, setHasCap] = useState(false);
   const [cap, setCap] = useState('');
+
+  // Bounty budgets: array of { token, cap, isUnlimited } objects
+  const [bountyBudgets, setBountyBudgets] = useState([]);
+  const availableTokens = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
   // Additional managers - stores { address, displayName } objects
   const [managers, setManagers] = useState([]);
@@ -191,6 +198,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
     setDescription('');
     setHasCap(false);
     setCap('');
+    setBountyBudgets([]);
     setManagers([]);
     setNewManager('');
     // Permission sets are re-populated by useEffect on next open
@@ -212,6 +220,35 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
       return;
     }
 
+    // Validate bounty budgets: each enabled token must have a cap or be unlimited
+    for (const b of bountyBudgets) {
+      const tokenInfo = availableTokens.find(t => t.address === b.token);
+      if (!b.isUnlimited && (!b.cap || Number(b.cap) <= 0)) {
+        toast({
+          title: 'Bounty Cap Required',
+          description: `Please set a spending cap for ${tokenInfo?.symbol || 'token'} or mark it as unlimited.`,
+          status: 'error',
+          duration: 3000,
+        });
+        return;
+      }
+      // Contract enforces MAX_PAYOUT = 1e24 wei (1M tokens at 18 decimals)
+      if (!b.isUnlimited) {
+        const decimals = tokenInfo?.decimals || 18;
+        const capWei = ethers.utils.parseUnits(b.cap.toString(), decimals);
+        const MAX_PAYOUT = ethers.BigNumber.from('1000000000000000000000000'); // 1e24
+        if (capWei.gt(MAX_PAYOUT)) {
+          toast({
+            title: 'Cap Too Large',
+            description: `${tokenInfo?.symbol || 'Token'} cap exceeds the maximum of ${(1e24 / Math.pow(10, decimals)).toLocaleString()} ${tokenInfo?.symbol || 'tokens'}. Use unlimited for no cap.`,
+            status: 'error',
+            duration: 5000,
+          });
+          return;
+        }
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -220,6 +257,17 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
       if (hasCap && cap) {
         capWei = ethers.utils.parseUnits(cap.toString(), 18);
       }
+
+      // Build bounty token arrays from configured budgets
+      // UNLIMITED = type(uint128).max = 2^128 - 1
+      const UNLIMITED = ethers.BigNumber.from('340282366920938463463374607431768211455');
+      const bountyTokenAddrs = bountyBudgets.map(b => b.token);
+      const bountyCapsWei = bountyBudgets.map(b => {
+        if (b.isUnlimited) return UNLIMITED;
+        const tokenInfo = availableTokens.find(t => t.address === b.token);
+        const decimals = tokenInfo?.decimals || 18;
+        return ethers.utils.parseUnits(b.cap.toString(), decimals);
+      });
 
       await onCreateProject({
         name: name.trim(),
@@ -230,6 +278,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
         claimHats: Array.from(claimRoles).map(String),
         reviewHats: Array.from(reviewRoles).map(String),
         assignHats: Array.from(assignRoles).map(String),
+        bountyTokens: bountyTokenAddrs,
+        bountyCaps: bountyCapsWei,
       });
 
       handleClose();
@@ -323,6 +373,87 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
             )}
 
             <Divider />
+
+            {/* Bounty Token Budgets */}
+            {availableTokens.length > 0 && (
+              <>
+                <FormControl>
+                  <HStack spacing={1} mb={2}>
+                    <FormLabel mb={0}>Bounty Token Budgets</FormLabel>
+                    <Tooltip label="Enable ERC-20 tokens for bounty payments on tasks in this project. Each token needs a spending cap." placement="top">
+                      <InfoIcon color="gray.400" boxSize={3} />
+                    </Tooltip>
+                  </HStack>
+                  <Text fontSize="xs" color="gray.500" mb={3}>
+                    Tasks can only use bounty tokens that are enabled here.
+                  </Text>
+
+                  <VStack spacing={2} align="stretch">
+                    {availableTokens.map((token) => {
+                      const budget = bountyBudgets.find(b => b.token === token.address);
+                      const isEnabled = !!budget;
+
+                      return (
+                        <Box key={token.address} p={3} bg="gray.50" borderRadius="md">
+                          <HStack justify="space-between" mb={isEnabled ? 2 : 0}>
+                            <HStack spacing={2}>
+                              <Text fontSize="sm" fontWeight="600">{token.symbol}</Text>
+                              <Text fontSize="xs" color="gray.500">{token.name}</Text>
+                            </HStack>
+                            <Switch
+                              isChecked={isEnabled}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setBountyBudgets(prev => [...prev, { token: token.address, cap: '', isUnlimited: false }]);
+                                } else {
+                                  setBountyBudgets(prev => prev.filter(b => b.token !== token.address));
+                                }
+                              }}
+                              colorScheme="teal"
+                              size="sm"
+                            />
+                          </HStack>
+
+                          {isEnabled && (
+                            <HStack spacing={3}>
+                              <Checkbox
+                                size="sm"
+                                isChecked={budget.isUnlimited}
+                                onChange={(e) => {
+                                  setBountyBudgets(prev => prev.map(b =>
+                                    b.token === token.address ? { ...b, isUnlimited: e.target.checked } : b
+                                  ));
+                                }}
+                                colorScheme="teal"
+                              >
+                                <Text fontSize="xs">Unlimited</Text>
+                              </Checkbox>
+                              {!budget.isUnlimited && (
+                                <NumberInput
+                                  size="sm"
+                                  value={budget.cap}
+                                  onChange={(value) => {
+                                    setBountyBudgets(prev => prev.map(b =>
+                                      b.token === token.address ? { ...b, cap: value } : b
+                                    ));
+                                  }}
+                                  min={0}
+                                  flex={1}
+                                >
+                                  <NumberInputField placeholder={`Max ${token.symbol}`} />
+                                </NumberInput>
+                              )}
+                            </HStack>
+                          )}
+                        </Box>
+                      );
+                    })}
+                  </VStack>
+                </FormControl>
+
+                <Divider />
+              </>
+            )}
 
             {/* Advanced Settings */}
             <Accordion allowToggle>
