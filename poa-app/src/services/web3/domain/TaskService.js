@@ -44,12 +44,14 @@ export class TaskService {
    * @param {Object} projectData - Project data
    * @param {string} projectData.name - Project name
    * @param {string} [projectData.metadataHash=''] - IPFS metadata hash
-   * @param {number} [projectData.cap=0] - Task cap (0 = unlimited)
+   * @param {number} [projectData.cap=0] - PT cap (0 = unlimited)
    * @param {string[]} [projectData.managers=[]] - Manager addresses
    * @param {number[]} [projectData.createHats=[]] - Hat IDs for create permission
    * @param {number[]} [projectData.claimHats=[]] - Hat IDs for claim permission
    * @param {number[]} [projectData.reviewHats=[]] - Hat IDs for review permission
    * @param {number[]} [projectData.assignHats=[]] - Hat IDs for assign permission
+   * @param {string[]} [projectData.bountyTokens=[]] - Bounty token addresses
+   * @param {string[]} [projectData.bountyCaps=[]] - Bounty caps per token (wei)
    * @param {Object} [options={}] - Transaction options
    * @returns {Promise<TransactionResult>}
    */
@@ -66,36 +68,42 @@ export class TaskService {
       claimHats = [],
       reviewHats = [],
       assignHats = [],
+      bountyTokens = [],
+      bountyCaps = [],
     } = projectData;
 
     const contract = this.factory.createWritable(contractAddress, TaskManagerABI);
 
     const titleBytes = stringToBytes(name);
-    // Use ipfsCidToBytes32 to extract the SHA256 digest from the CID
-    // This allows the subgraph to reconstruct the CID and fetch metadata from IPFS
     const metaHash = metadataHash ? ipfsCidToBytes32(metadataHash) : ethers.constants.HashZero;
 
-    // Debug logging
+    // Contract expects a single struct tuple (BootstrapProjectConfig)
+    const projectStruct = [
+      titleBytes,
+      metaHash,
+      cap,
+      managers,
+      createHats,
+      claimHats,
+      reviewHats,
+      assignHats,
+      bountyTokens,
+      bountyCaps,
+    ];
+
     console.log('=== createProject DEBUG ===');
     console.log('Contract address:', contractAddress);
     console.log('Name:', name);
-    console.log('Title bytes:', titleBytes);
-    console.log('Title bytes length:', titleBytes?.length || 'undefined');
-    console.log('Metadata hash:', metaHash);
-    console.log('Cap (raw):', cap);
-    console.log('Cap (toString):', cap?.toString?.() || cap);
-    console.log('Cap type:', typeof cap);
+    console.log('Cap:', cap?.toString?.() || cap);
     console.log('Managers:', managers);
-    console.log('CreateHats:', createHats);
-    console.log('ClaimHats:', claimHats);
-    console.log('ReviewHats:', reviewHats);
-    console.log('AssignHats:', assignHats);
+    console.log('BountyTokens:', bountyTokens);
+    console.log('BountyCaps:', bountyCaps.map(c => c?.toString?.() || c));
     console.log('=== END DEBUG ===');
 
     return this.txManager.execute(
       contract,
       'createProject',
-      [titleBytes, metaHash, cap, managers, createHats, claimHats, reviewHats, assignHats],
+      [projectStruct],
       options
     );
   }

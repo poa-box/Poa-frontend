@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Button,
   FormControl,
@@ -20,9 +20,13 @@ import {
   InputGroup,
   InputRightAddon,
 } from '@chakra-ui/react';
-import { BOUNTY_TOKEN_OPTIONS, BOUNTY_TOKENS, hasBounty as checkHasBounty } from '../../util/tokens';
+import { getBountyTokenOptions, BOUNTY_TOKENS, hasBounty as checkHasBounty } from '../../util/tokens';
+import { usePOContext } from '../../context/POContext';
 
 const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
+  const { orgChainId } = usePOContext();
+  const tokenOptions = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
+
   const [name, setName] = useState(task.name);
   const [description, setDescription] = useState(task.description);
   const [difficulty, setDifficulty] = useState(task.difficulty);
@@ -32,7 +36,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
   const taskHasBounty = checkHasBounty(task.bountyToken, task.bountyPayout);
   const [hasBounty, setHasBounty] = useState(taskHasBounty);
   const [bountyToken, setBountyToken] = useState(
-    taskHasBounty ? task.bountyToken : BOUNTY_TOKENS.BREAD.address
+    taskHasBounty ? task.bountyToken : (tokenOptions[0]?.address || '')
   );
   const [bountyAmount, setBountyAmount] = useState(
     taskHasBounty ? task.bountyPayout : ''
@@ -111,6 +115,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
                 isChecked={hasBounty}
                 onChange={(e) => setHasBounty(e.target.checked)}
                 colorScheme="teal"
+                isDisabled={tokenOptions.length === 0}
               />
             </HStack>
           </FormControl>
@@ -125,7 +130,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
                     onChange={(e) => setBountyToken(e.target.value)}
                     size="sm"
                   >
-                    {BOUNTY_TOKEN_OPTIONS.filter(t => !t.isDefault).map((token) => (
+                    {tokenOptions.map((token) => (
                       <option key={token.symbol} value={token.address}>
                         {token.symbol} - {token.name}
                       </option>
@@ -144,7 +149,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
                       onChange={(e) => setBountyAmount(e.target.value)}
                     />
                     <InputRightAddon>
-                      {BOUNTY_TOKEN_OPTIONS.find(t => t.address === bountyToken)?.symbol || 'TOKEN'}
+                      {tokenOptions.find(t => t.address === bountyToken)?.symbol || 'TOKEN'}
                     </InputRightAddon>
                   </InputGroup>
                 </FormControl>

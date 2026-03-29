@@ -138,6 +138,8 @@ const MainLayout = () => {
       claimHats: isSimpleCreate ? defaultClaimHats : (projectData.claimHats?.length > 0 ? projectData.claimHats : defaultClaimHats),
       reviewHats: isSimpleCreate ? defaultReviewHats : (projectData.reviewHats?.length > 0 ? projectData.reviewHats : defaultReviewHats),
       assignHats: isSimpleCreate ? defaultAssignHats : (projectData.assignHats?.length > 0 ? projectData.assignHats : defaultAssignHats),
+      bountyTokens: isSimpleCreate ? [] : (projectData.bountyTokens || []),
+      bountyCaps: isSimpleCreate ? [] : (projectData.bountyCaps || []),
     };
 
     console.log('Final createProjectData:', createProjectData);

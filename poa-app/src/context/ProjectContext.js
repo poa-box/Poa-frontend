@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { useAccount } from 'wagmi';
 import { usePOContext } from './POContext';
 import { formatTokenAmount } from '../util/formatToken';
+import { getTokenByAddress } from '../util/tokens';
 
 const ProjectContext = createContext();
 
@@ -100,6 +101,7 @@ export const ProjectProvider = ({ children }) => {
 
                     const taskTitle = task.title || 'Indexing...';
                     const taskPayout = formatTokenAmount(task.payout || '0');
+                    const bountyTokenInfo = getTokenByAddress(task.bountyToken);
                     const transformedTask = {
                         id: task.id,
                         taskId: task.taskId,
@@ -119,7 +121,7 @@ export const ProjectProvider = ({ children }) => {
                         Payout: taskPayout, // Alias with capital P for TaskCard
                         kubixPayout: taskPayout, // Alias for TaskColumn
                         bountyToken: task.bountyToken,
-                        bountyPayout: formatTokenAmount(task.bountyPayout || '0'),
+                        bountyPayout: formatTokenAmount(task.bountyPayout || '0', bountyTokenInfo.decimals, bountyTokenInfo.decimals <= 6 ? 2 : 0),
                         projectId: project.id,
                         status: task.status,
                         claimerUsername: task.assigneeUsername || '',
