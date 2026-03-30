@@ -223,8 +223,11 @@ export function useVotingPower() {
     };
 
     if (leaderboardData?.length > 0) {
+      let totalMembershipPower = 0;
+      let totalContributionPower = 0;
+
       const userPowers = leaderboardData.map(user => {
-        const userBalance = parseTokenBalance(user.participationTokenBalance || '0');
+        const userBalance = parseTokenBalance(user.token || '0');
         let userContrib = 0;
 
         const contribClass = classConfig.find(c => c.strategy === VOTING_STRATEGY.ERC20_BAL);
@@ -236,18 +239,30 @@ export function useVotingPower() {
           }
         }
 
-        return 100 + userContrib;
+        totalMembershipPower += 100;
+        totalContributionPower += userContrib;
+        return { membership: 100, contribution: userContrib, total: 100 + userContrib };
       });
 
-      orgStats.totalOrgPower = userPowers.reduce((a, b) => a + b, 0);
-      orgStats.averagePower = orgStats.totalOrgPower / userPowers.length;
-      orgStats.maxPower = Math.max(...userPowers);
-      orgStats.percentOfTotal = orgStats.totalOrgPower > 0
-        ? (totalPower / orgStats.totalOrgPower) * 100
+      const totalRawPower = userPowers.reduce((a, b) => a + b.total, 0);
+
+      // Calculate share per-class then weight — matches contract logic:
+      // share = (userMembership/totalMembership) × membershipWeight
+      //       + (userContribution/totalContribution) × contributionWeight
+      const membershipShare = totalMembershipPower > 0
+        ? (membershipPower / totalMembershipPower)
         : 0;
+      const contributionShare = totalContributionPower > 0
+        ? (contributionPower / totalContributionPower)
+        : 0;
+
+      orgStats.totalOrgPower = totalRawPower;
+      orgStats.averagePower = totalRawPower / userPowers.length;
+      orgStats.maxPower = Math.max(...userPowers.map(p => p.total));
+      orgStats.percentOfTotal = (membershipShare * democracyWeight) + (contributionShare * contributionWeight);
       orgStats.aboveAverage = totalPower > orgStats.averagePower;
 
-      const sortedPowers = [...userPowers].sort((a, b) => b - a);
+      const sortedPowers = [...userPowers.map(p => p.total)].sort((a, b) => b - a);
       orgStats.userRank = sortedPowers.findIndex(p => p <= totalPower) + 1;
     }
 

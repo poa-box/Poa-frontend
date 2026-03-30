@@ -25,10 +25,6 @@ import {
   Badge,
   SimpleGrid,
   Divider,
-  Stat,
-  StatLabel,
-  StatNumber,
-  StatHelpText,
   Skeleton,
   keyframes,
 } from "@chakra-ui/react";
@@ -232,9 +228,16 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
 
   return (
     <VStack spacing={3} w="100%" maxW="500px">
-      <Text fontSize="sm" color="gray.300" fontWeight="semibold">
-        Your Personal Voting Power
-      </Text>
+      <HStack spacing={2}>
+        <Text fontSize="sm" color="gray.300" fontWeight="semibold">
+          Your Personal Voting Power
+        </Text>
+        {isQuadratic && (
+          <Badge colorScheme="blue" variant="subtle" fontSize="2xs">
+            Quadratic
+          </Badge>
+        )}
+      </HStack>
 
       {/* The two-voice bar with actual percentages */}
       <Box w="100%" position="relative">
@@ -320,28 +323,6 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
         </Flex>
       </Box>
 
-      {/* Legend with actual values */}
-      <HStack spacing={6} justify="center" flexWrap="wrap">
-        <HStack spacing={2}>
-          <Box w="12px" h="12px" borderRadius="full" bg="purple.400" />
-          <VStack spacing={0} align="start">
-            <Text fontSize="xs" color="gray.300" fontWeight="medium">Membership</Text>
-            <Text fontSize="2xs" color="gray.500">{membershipPower} pts × {democracyWeight}%</Text>
-          </VStack>
-        </HStack>
-        <HStack spacing={2}>
-          <Box w="12px" h="12px" borderRadius="full" bg="blue.400" />
-          <VStack spacing={0} align="start">
-            <Text fontSize="xs" color="gray.300" fontWeight="medium">Work</Text>
-            <Text fontSize="2xs" color="gray.500">{formatPowerNumber(contributionPower)} pts × {contributionWeight}%</Text>
-          </VStack>
-        </HStack>
-        {isQuadratic && (
-          <Badge colorScheme="blue" variant="subtle" fontSize="2xs">
-            Quadratic Voting
-          </Badge>
-        )}
-      </HStack>
     </VStack>
   );
 };
@@ -351,79 +332,60 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
  */
 const VotingPowerStats = ({ membershipPower, contributionPower, classWeights, ptBalance, poMembers, orgStats }) => {
   const totalPower = membershipPower + contributionPower;
-  const democracyWeight = classWeights?.democracy ?? 50;
-  const contributionWeight = classWeights?.contribution ?? 50;
 
   return (
-    <VStack spacing={4} w="100%" maxW="700px">
-      {/* Main power breakdown */}
-      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4} w="100%">
-        <Stat textAlign="center">
-          <StatLabel color="gray.400" fontSize="xs">Membership</StatLabel>
-          <StatNumber color="purple.300" fontSize="lg">{membershipPower}</StatNumber>
-          <StatHelpText color="gray.500" fontSize="2xs" m={0}>
-            base points
-          </StatHelpText>
-        </Stat>
-        <Stat textAlign="center">
-          <StatLabel color="gray.400" fontSize="xs">Work</StatLabel>
-          <StatNumber color="blue.300" fontSize="lg">{formatPowerNumber(contributionPower)}</StatNumber>
-          <StatHelpText color="gray.500" fontSize="2xs" m={0}>
-            from {ptBalance || 0} tokens
-          </StatHelpText>
-        </Stat>
-        <Stat textAlign="center">
-          <StatLabel color="gray.400" fontSize="xs">Total Power</StatLabel>
-          <StatNumber color="green.300" fontSize="lg">{formatPowerNumber(totalPower)}</StatNumber>
-          <StatHelpText color="gray.500" fontSize="2xs" m={0}>
-            combined
-          </StatHelpText>
-        </Stat>
-        <Stat textAlign="center">
-          <StatLabel color="gray.400" fontSize="xs">Your Share</StatLabel>
-          <StatNumber color="yellow.300" fontSize="lg">
-            {orgStats?.percentOfTotal ? `${orgStats.percentOfTotal.toFixed(1)}%` : '—'}
-          </StatNumber>
-          <StatHelpText color="gray.500" fontSize="2xs" m={0}>
-            of org power
-          </StatHelpText>
-        </Stat>
-      </SimpleGrid>
+    <VStack spacing={3} w="100%" maxW="500px">
+      {/* Compact power breakdown */}
+      <HStack
+        spacing={0}
+        w="100%"
+        justify="space-between"
+        p={3}
+        bg="whiteAlpha.50"
+        borderRadius="lg"
+        border="1px solid"
+        borderColor="whiteAlpha.100"
+      >
+        <VStack spacing={0} flex={1}>
+          <Text fontSize="md" fontWeight="bold" color="purple.300">{membershipPower}</Text>
+          <Text fontSize="2xs" color="gray.500">membership</Text>
+        </VStack>
+        <Text color="gray.600" fontSize="xs">+</Text>
+        <VStack spacing={0} flex={1}>
+          <Text fontSize="md" fontWeight="bold" color="blue.300">{formatPowerNumber(contributionPower)}</Text>
+          <Text fontSize="2xs" color="gray.500">{ptBalance || 0} tokens</Text>
+        </VStack>
+        <Text color="gray.600" fontSize="xs">=</Text>
+        <VStack spacing={0} flex={1}>
+          <Text fontSize="md" fontWeight="bold" color="green.300">{formatPowerNumber(totalPower)}</Text>
+          <Text fontSize="2xs" color="gray.500">total</Text>
+        </VStack>
+        {orgStats?.percentOfTotal != null && (
+          <>
+            <Divider orientation="vertical" h="28px" borderColor="whiteAlpha.200" />
+            <VStack spacing={0} flex={1}>
+              <Text fontSize="md" fontWeight="bold" color="yellow.300">
+                {orgStats.percentOfTotal.toFixed(0)}%
+              </Text>
+              <Text fontSize="2xs" color="gray.500">your share</Text>
+            </VStack>
+          </>
+        )}
+      </HStack>
 
-      {/* Context comparison */}
+      {/* Compact org context */}
       {orgStats && orgStats.totalOrgPower > 0 && (
-        <HStack
-          spacing={4}
-          p={3}
-          bg="whiteAlpha.50"
-          borderRadius="lg"
-          border="1px solid"
-          borderColor="whiteAlpha.100"
-          flexWrap="wrap"
-          justify="center"
-        >
-          <HStack spacing={2}>
-            <Text fontSize="xs" color="gray.400">Org average:</Text>
-            <Text fontSize="xs" color="gray.300" fontWeight="medium">
-              {formatPowerNumber(orgStats.averagePower)} pts
-            </Text>
-          </HStack>
-          <Divider orientation="vertical" h="16px" borderColor="whiteAlpha.300" display={{ base: "none", md: "block" }} />
-          <HStack spacing={2}>
-            <Text fontSize="xs" color="gray.400">You are</Text>
-            <Badge
-              colorScheme={orgStats.aboveAverage ? "green" : "gray"}
-              variant="subtle"
-              fontSize="2xs"
-            >
-              {orgStats.aboveAverage ? "above average" : "below average"}
-            </Badge>
-          </HStack>
-          <Divider orientation="vertical" h="16px" borderColor="whiteAlpha.300" display={{ base: "none", md: "block" }} />
-          <HStack spacing={2}>
-            <Text fontSize="xs" color="gray.400">Members:</Text>
-            <Text fontSize="xs" color="gray.300" fontWeight="medium">{poMembers}</Text>
-          </HStack>
+        <HStack spacing={3} justify="center" flexWrap="wrap">
+          <Text fontSize="2xs" color="gray.500">
+            {poMembers} members · avg {formatPowerNumber(orgStats.averagePower)} pts
+          </Text>
+          <Badge
+            colorScheme={orgStats.aboveAverage ? "green" : "gray"}
+            variant="subtle"
+            fontSize="2xs"
+          >
+            {orgStats.aboveAverage ? "above avg" : "below avg"}
+          </Badge>
         </HStack>
       )}
     </VStack>
@@ -606,53 +568,6 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
         {/* Hybrid Voting Education Section */}
         {showHybridEducation && (
           <>
-            {/* Organization Voting Split - shows the actual class weights */}
-            {!isLoading && classWeights && (
-              <Box
-                p={4}
-                bg="whiteAlpha.50"
-                borderRadius="xl"
-                border="1px solid"
-                borderColor="rgba(237, 137, 54, 0.15)"
-                w="100%"
-                maxW="500px"
-              >
-                <VStack spacing={3}>
-                  <HStack spacing={2} justify="center" flexWrap="wrap">
-                    <Text fontSize="sm" color="gray.400" fontWeight="medium">
-                      Voting Weight Configuration
-                    </Text>
-                    {classConfig?.some(c => c.strategy === 'ERC20_BAL' && c.quadratic) && (
-                      <Badge colorScheme="blue" variant="subtle" fontSize="2xs">
-                        Quadratic
-                      </Badge>
-                    )}
-                  </HStack>
-                  <HStack spacing={4} justify="center" flexWrap="wrap">
-                    <HStack spacing={2}>
-                      <Box w="14px" h="14px" borderRadius="full" bg="purple.400" />
-                      <VStack spacing={0} align="start">
-                        <Text fontSize="lg" fontWeight="bold" color="purple.300">
-                          {classWeights.democracy}%
-                        </Text>
-                        <Text fontSize="xs" color="gray.400">Membership</Text>
-                      </VStack>
-                    </HStack>
-                    <Text color="gray.600" fontSize="lg">+</Text>
-                    <HStack spacing={2}>
-                      <Box w="14px" h="14px" borderRadius="full" bg="blue.400" />
-                      <VStack spacing={0} align="start">
-                        <Text fontSize="lg" fontWeight="bold" color="blue.300">
-                          {classWeights.contribution}%
-                        </Text>
-                        <Text fontSize="xs" color="gray.400">Work</Text>
-                      </VStack>
-                    </HStack>
-                  </HStack>
-                </VStack>
-              </Box>
-            )}
-
             {/* Two Voices visualization bar - shows user's personal power */}
             <TwoVoicesBar
               membershipPower={membershipPower}
@@ -675,20 +590,6 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
                 poMembers={poMembers}
                 orgStats={orgStats}
               />
-            )}
-
-            {/* Status badge */}
-            {hasVotingPower && message && (
-              <Badge
-                colorScheme="green"
-                variant="subtle"
-                px={4}
-                py={1}
-                borderRadius="full"
-                fontSize="xs"
-              >
-                {message}
-              </Badge>
             )}
 
             {/* Learn more dropdown - always show for hybrid voting */}
