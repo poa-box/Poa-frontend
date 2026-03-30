@@ -199,6 +199,7 @@ export const initialState = {
     name: '',
     description: '',
     logoURL: '',
+    logoPreviewUrl: '',
     links: [],
     infoIPFSHash: '',
     autoUpgrade: true,
@@ -768,7 +769,11 @@ export function deployerReducer(state, action) {
     case ACTION_TYPES.SET_LOGO_URL:
       return {
         ...state,
-        organization: { ...state.organization, logoURL: action.payload },
+        organization: {
+          ...state.organization,
+          logoURL: action.payload.url ?? action.payload,
+          logoPreviewUrl: action.payload.previewUrl ?? '',
+        },
       };
 
     case ACTION_TYPES.SET_IPFS_HASH:
