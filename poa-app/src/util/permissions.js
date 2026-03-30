@@ -75,13 +75,11 @@ function normalizeHatId(hatId) {
 export function userHasProjectPermission(userHatIds, projectRolePermissions, permissionType) {
     // No user hats means no permissions
     if (!userHatIds || !userHatIds.length) {
-        console.debug('[Permissions] No user hat IDs available');
         return false;
     }
 
     // No project permissions configured - this project needs permission setup
     if (!projectRolePermissions || !projectRolePermissions.length) {
-        console.debug('[Permissions] No role permissions configured for this project');
         return false;
     }
 

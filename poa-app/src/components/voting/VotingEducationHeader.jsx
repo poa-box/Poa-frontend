@@ -206,9 +206,6 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
   // Determine if quadratic voting is enabled (strategy is string enum: 'DIRECT' or 'ERC20_BAL')
   const isQuadratic = classConfig?.some(c => c.strategy === 'ERC20_BAL' && c.quadratic) ?? false;
 
-  // Debug output
-  console.log('[TwoVoicesBar] Rendering with:', { membershipPower, contributionPower, totalPower, isLoading, status, hasMemberRole });
-
   // If loading, show skeleton
   if (isLoading) {
     return (
@@ -415,18 +412,6 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
   const showHybridEducation = selectedTab === 0 && PTVoteType === "Hybrid";
   const showParticipationEducation = selectedTab === 0 && PTVoteType === "Participation";
 
-  // Debug logging
-  console.log('[VotingEducationHeader] Render state:', {
-    selectedTab,
-    PTVoteType,
-    showHybridEducation,
-    hasMemberRole,
-    hasVotingPower,
-    isLoading,
-    status,
-    membershipPower,
-    contributionPower,
-  });
 
   // Get the appropriate title and tagline
   // Tab 0 = Hybrid/Participation Voting, Tab 1 = Direct Democracy

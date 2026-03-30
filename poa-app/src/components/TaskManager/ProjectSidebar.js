@@ -59,12 +59,8 @@ const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCrea
   // Check if user can create projects
   // Project creation requires one of the creatorHatIds from the TaskManager
   const canManageProjects = useMemo(() => {
-    if (!userHatIds.length) {
-      console.debug('[ProjectSidebar] No user hat IDs, cannot manage projects');
-      return false;
-    }
+    if (!userHatIds.length) return false;
 
-    // Normalize user's hat IDs for comparison
     const normalizedUserHats = userHatIds.map(normalizeHatId);
 
     // Check if user has one of the creatorHatIds from TaskManager
@@ -72,32 +68,22 @@ const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCrea
       const hasCreatorHat = creatorHatIds.some(creatorHatId =>
         normalizedUserHats.includes(normalizeHatId(creatorHatId))
       );
-      if (hasCreatorHat) {
-        console.debug('[ProjectSidebar] User has a creator hat, can manage projects');
-        return true;
-      }
+      if (hasCreatorHat) return true;
     }
 
     // Fallback: Check if user has a non-member role (executive or higher)
-    // This is for backwards compatibility when creatorHatIds aren't indexed yet
     if (roleHatIds && roleHatIds.length > 1 && (!creatorHatIds || creatorHatIds.length === 0)) {
       const nonMemberRoles = roleHatIds.slice(ROLE_INDICES.EXECUTIVE);
-      const hasNonMemberRole = nonMemberRoles.some(roleId =>
-        normalizedUserHats.includes(normalizeHatId(roleId))
-      );
-      if (hasNonMemberRole) {
-        console.debug('[ProjectSidebar] User has executive+ role (fallback), can manage projects');
+      if (nonMemberRoles.some(roleId => normalizedUserHats.includes(normalizeHatId(roleId)))) {
         return true;
       }
     }
 
     // If no creatorHatIds configured and no projects exist, allow members to create first project
     if ((!creatorHatIds || creatorHatIds.length === 0) && !projectsData?.length && userHatIds.length > 0) {
-      console.debug('[ProjectSidebar] No creatorHatIds configured and no projects, allowing first project creation');
       return true;
     }
 
-    console.debug('[ProjectSidebar] User cannot manage projects - no creator hat found');
     return false;
   }, [userHatIds, projectsData, roleHatIds, creatorHatIds]);
 
