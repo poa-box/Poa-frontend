@@ -18,8 +18,9 @@ import { CloseIcon } from "@chakra-ui/icons";
 import { useQuery } from "@apollo/client";
 import LogoDropzoneModal from "@/components/Architect/LogoDropzoneModal";
 import LinksModal from "@/components/Architect/LinksModal";
-import { useAccount, useDisconnect, useSwitchChain } from "wagmi";
-import { useEthersSigner } from "@/components/ProviderConverter";
+import { useAccount, useDisconnect, useSwitchChain, useConfig } from "wagmi";
+import { getConnectorClient } from "wagmi/actions";
+import { useEthersSigner, clientToSigner } from "@/components/ProviderConverter";
 import { useAuth } from "@/context/AuthContext";
 import { useIPFScontext } from "@/context/ipfsContext";
 import { main, buildDeployCalldata } from "../../../scripts/newDeployment";
@@ -60,6 +61,7 @@ function DeployerPageContent() {
   const { switchChainAsync } = useSwitchChain();
   const { passkeyState } = useAuth();
   const signer = useEthersSigner();
+  const wagmiConfig = useConfig();
 
   const { disconnect } = useDisconnect();
 
@@ -68,13 +70,21 @@ function DeployerPageContent() {
   // Uses a ref so we only disconnect once (the first auto-reconnect), not after user-initiated connects.
   const hasDisconnectedAutoReconnect = useRef(false);
   const [walletUserConnected, setWalletUserConnected] = useState(false);
+  const isPasskeyUser = !!passkeyState?.accountAddress;
 
   useEffect(() => {
     if (!hasDisconnectedAutoReconnect.current && (status === 'reconnecting' || status === 'connected')) {
       hasDisconnectedAutoReconnect.current = true;
-      disconnect();
+      // Only force auth choice when the user has a passkey — wallet-only users
+      // shouldn't be disconnected because re-triggering connect can stall
+      // in some wallet extensions (e.g. Brave) that consider the dapp already authorized.
+      if (isPasskeyUser) {
+        disconnect();
+      } else {
+        setWalletUserConnected(true);
+      }
     }
-  }, [status, disconnect]);
+  }, [status, disconnect, isPasskeyUser]);
   useEffect(() => {
     if (status === 'connecting') setWalletUserConnected(true);
     if (status === 'disconnected') setWalletUserConnected(false);
@@ -87,7 +97,6 @@ function DeployerPageContent() {
   // Fetch infrastructure addresses from the target deploy chain's subgraph
   const deployChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
   const deploySubgraphUrl = getSubgraphUrl(deployChainId);
-  const isPasskeyUser = !!passkeyState?.accountAddress;
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
     fetchPolicy: 'network-only',
     context: { subgraphUrl: deploySubgraphUrl },
@@ -157,9 +166,13 @@ function DeployerPageContent() {
   const handleDeployStart = async (config) => {
     setIsDeploying(true);
 
-    // Switch to the selected chain before deploying
+    // Passkey deploys use chain-specific viem/bundler clients — they never
+    // touch the wallet provider, so we skip chain switching and signer refresh.
     const targetChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
-    if (connectedChainId && connectedChainId !== targetChainId) {
+    const isPasskeyDeployer = !!passkeyState?.accountAddress;
+    const needsChainSwitch = !isPasskeyDeployer && connectedChainId && connectedChainId !== targetChainId;
+
+    if (needsChainSwitch) {
       try {
         await switchChainAsync({ chainId: targetChainId });
       } catch (e) {
@@ -173,6 +186,21 @@ function DeployerPageContent() {
         });
         setIsDeploying(false);
         return;
+      }
+    }
+
+    // After a chain switch the signer from useEthersSigner() is stale (captured
+    // at render time with the old chain's transport/network). Fetch a fresh
+    // connector client for the target chain so RPC calls and signatures use the
+    // correct chain.
+    let deploySigner = signer;
+    if (needsChainSwitch) {
+      try {
+        const freshClient = await getConnectorClient(wagmiConfig, { chainId: targetChainId });
+        deploySigner = clientToSigner(freshClient);
+        console.log('[DEPLOY] Got fresh signer for target chain', targetChainId);
+      } catch (e) {
+        console.warn('[DEPLOY] Could not get fresh signer, using hook signer:', e.message);
       }
     }
 
@@ -295,17 +323,16 @@ function DeployerPageContent() {
       // When a passkey account is set it takes priority as deployer address (line 398).
       // We can only produce a valid ECDSA signature when the EOA IS the deployer,
       // because the contract checks that the recovered signer matches deployerAddress.
-      const isPasskeyDeployer = !!passkeyState?.accountAddress;
       const hasNewUsername = deployerUsername && deployerUsername.trim().length > 0;
 
-      if (!isPasskeyDeployer && signer && hasNewUsername) {
+      if (!isPasskeyDeployer && deploySigner && hasNewUsername) {
         try {
           console.log('[DEPLOY] Checking on-chain username for', address);
           const registryAddress = infrastructureAddresses.registryAddress;
           const existingOnChainUsername = await fetchExistingUsername(
             registryAddress,
             address,
-            signer.provider
+            deploySigner.provider
           );
 
           if (!existingOnChainUsername || existingOnChainUsername.trim().length === 0) {
@@ -319,7 +346,7 @@ function DeployerPageContent() {
             });
 
             const sigResult = await signRegistration({
-              signer,
+              signer: deploySigner,
               registryAddress,
               username: deployerUsername,
               deadlineSeconds: 300,
@@ -353,7 +380,7 @@ function DeployerPageContent() {
           });
         }
       } else {
-        console.log('[DEPLOY] Skipping EIP-712 signing:', { isPasskeyDeployer, hasSigner: !!signer, hasNewUsername });
+        console.log('[DEPLOY] Skipping EIP-712 signing:', { isPasskeyDeployer, hasSigner: !!deploySigner, hasNewUsername });
       }
 
       // Call the deployment function
@@ -639,7 +666,7 @@ function DeployerPageContent() {
           state.voting.ddQuorum,
           state.voting.hybridQuorum,
           deployerUsername,
-          signer,
+          deploySigner,
           customRoles,
           infrastructureAddresses,
           regSignatureData,
