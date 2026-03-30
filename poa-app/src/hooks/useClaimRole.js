@@ -68,7 +68,7 @@ export function useClaimRole(eligibilityModuleAddress) {
 
     try {
       const result = await executeWithNotification(
-        () => eligibility.claimVouchedHat(eligibilityModuleAddress, hatId),
+        () => eligibility.claimVouchedHat(eligibilityModuleAddress, hatId, { paymasterHatIds: [hatId] }),
         {
           pendingMessage: 'Claiming role...',
           successMessage: 'Role claimed successfully!',
