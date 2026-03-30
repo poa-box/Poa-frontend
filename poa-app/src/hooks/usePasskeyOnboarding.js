@@ -4,10 +4,12 @@
  * Provides step tracking, error handling, and AuthContext integration.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../context/AuthContext';
 import { usePOContext } from '../context/POContext';
+import { DEFAULT_CHAIN_ID } from '../config/networks';
+import { createChainClients } from '../services/web3/utils/chainClients';
 import {
   createPasskeyOnboardingService,
   OnboardingStep,
@@ -22,21 +24,36 @@ import { FETCH_PASSKEY_FACTORY_ADDRESS } from '../util/passkeyQueries';
  * @returns {Object} Onboarding state and controls
  */
 export function usePasskeyOnboarding() {
-  const { publicClient, bundlerClient, activatePasskey } = useAuth();
-  const { quickJoinContractAddress, orgId } = usePOContext();
+  const { publicClient: homePublicClient, bundlerClient: homeBundlerClient, activatePasskey } = useAuth();
+  const { quickJoinContractAddress, orgId, subgraphUrl, orgChainId } = usePOContext();
 
   const [step, setStep] = useState(OnboardingStep.IDLE);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [isOnboarding, setIsOnboarding] = useState(false);
 
-  // Fetch infrastructure addresses
-  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
+  // Create chain-specific clients when org is on a different chain
+  const isCrossChain = orgChainId && orgChainId !== DEFAULT_CHAIN_ID;
+  const { publicClient, bundlerClient, chainId } = useMemo(() => {
+    if (!isCrossChain) {
+      return { publicClient: homePublicClient, bundlerClient: homeBundlerClient, chainId: DEFAULT_CHAIN_ID };
+    }
+    const clients = createChainClients(orgChainId);
+    if (!clients) return { publicClient: homePublicClient, bundlerClient: homeBundlerClient, chainId: DEFAULT_CHAIN_ID };
+    return { publicClient: clients.publicClient, bundlerClient: clients.bundlerClient, chainId: orgChainId };
+  }, [isCrossChain, orgChainId, homePublicClient, homeBundlerClient]);
+
+  // Fetch infrastructure addresses — routed to org's chain subgraph
+  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
+    context: subgraphUrl ? { subgraphUrl } : undefined,
+  });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
   const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
-  // Fetch factory address from subgraph
-  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS);
+  // Fetch factory address from org chain's subgraph
+  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
+    context: subgraphUrl ? { subgraphUrl } : undefined,
+  });
   const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
   // Check if all required addresses are available
@@ -75,6 +92,7 @@ export function usePasskeyOnboarding() {
         quickJoinAddress: quickJoinContractAddress,
         paymasterAddress,
         orgId,
+        chainId,
       });
 
       const onboardResult = await service.onboard(username, (newStep, data) => {
@@ -118,6 +136,7 @@ export function usePasskeyOnboarding() {
     quickJoinContractAddress,
     paymasterAddress,
     orgId,
+    chainId,
     activatePasskey,
   ]);
 

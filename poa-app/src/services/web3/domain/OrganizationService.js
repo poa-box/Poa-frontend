@@ -10,8 +10,6 @@ import { signRegistrationChallenge, computeRegistrationChallenge } from '../pass
 import { signRegistration } from '../utils/registrySigner';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
-const networkConfig = NETWORKS[DEFAULT_NETWORK];
-
 // Registration deadline: 5 minutes
 const REGISTRATION_DEADLINE_SECONDS = 300;
 
@@ -23,11 +21,13 @@ export class OrganizationService {
    * @param {ContractFactory} contractFactory - Contract factory instance
    * @param {TransactionManager} transactionManager - Transaction manager instance
    * @param {string} [registryAddress] - UniversalAccountRegistry address for new user registration
+   * @param {number} [chainId] - Chain ID for registration challenge (defaults to home chain)
    */
-  constructor(contractFactory, transactionManager, registryAddress = null) {
+  constructor(contractFactory, transactionManager, registryAddress = null, chainId = null) {
     this.factory = contractFactory;
     this.txManager = transactionManager;
     this.registryAddress = registryAddress;
+    this.chainId = chainId || NETWORKS[DEFAULT_NETWORK].chainId;
   }
 
   /**
@@ -66,7 +66,7 @@ export class OrganizationService {
       username,
       nonce,
       deadline,
-      chainId: networkConfig.chainId,
+      chainId: this.chainId,
       registryAddress: this.registryAddress,
     });
 
@@ -153,6 +153,6 @@ export class OrganizationService {
  * @param {string} [registryAddress] - UniversalAccountRegistry address
  * @returns {OrganizationService}
  */
-export function createOrganizationService(factory, txManager, registryAddress = null) {
-  return new OrganizationService(factory, txManager, registryAddress);
+export function createOrganizationService(factory, txManager, registryAddress = null, chainId = null) {
+  return new OrganizationService(factory, txManager, registryAddress, chainId);
 }
