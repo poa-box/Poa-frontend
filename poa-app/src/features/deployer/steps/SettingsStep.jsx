@@ -18,7 +18,7 @@ import {
   Icon,
   useColorModeValue,
 } from '@chakra-ui/react';
-import { PiGraduationCap, PiHandshake, PiGlobe } from 'react-icons/pi';
+import { PiGraduationCap, PiHandshake, PiGlobe, PiIdentificationCard } from 'react-icons/pi';
 import { NETWORKS, DEFAULT_DEPLOY_CHAIN_ID } from '../../../config/networks';
 import { useDeployer } from '../context/DeployerContext';
 import { StepHeader, NavigationButtons } from '../components/common';
@@ -109,6 +109,51 @@ export function SettingsStep() {
               onChange={(value) => actions.toggleFeature('electionHubEnabled', value)}
             />
           </VStack>
+        </Box>
+
+        {/* Metadata Admin */}
+        <Box
+          bg={cardBg}
+          p={6}
+          borderRadius="2xl"
+          border="1px solid"
+          borderColor={borderColor}
+          backdropFilter="blur(16px)"
+          boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+        >
+          <HStack spacing={3} mb={4}>
+            <Icon as={PiIdentificationCard} boxSize={5} color="amethyst.500" />
+            <Box>
+              <Text fontWeight="600" fontSize="md">
+                Metadata Admin
+              </Text>
+              <Text fontSize="xs" color="warmGray.500">
+                Who can update the org's name, logo, and description without a vote
+              </Text>
+            </Box>
+          </HStack>
+          <Select
+            value={state.metadataAdminRoleIndex === null ? '' : state.metadataAdminRoleIndex}
+            onChange={(e) => {
+              const val = e.target.value;
+              actions.setMetadataAdminRole(val === '' ? null : Number(val));
+            }}
+            borderColor={borderColor}
+            borderRadius="lg"
+          >
+            <option value="">Governance Only (requires a vote)</option>
+            {state.roles.map((role, idx) => (
+              <option key={role.id} value={idx}>
+                {role.name}
+              </option>
+            ))}
+          </Select>
+          <Text fontSize="xs" color="warmGray.500" mt={2}>
+            {state.metadataAdminRoleIndex === null
+              ? 'Metadata changes will require a governance proposal to pass.'
+              : `Any ${state.roles[state.metadataAdminRoleIndex]?.name || 'selected role'} holder can update the org profile directly.`
+            }
+          </Text>
         </Box>
 
         {/* Deployment Network (advanced mode only) */}

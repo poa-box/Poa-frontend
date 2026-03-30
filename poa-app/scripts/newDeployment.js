@@ -99,7 +99,8 @@ export async function main(
     regSignatureData = null,
     overrideDeployerAddress = null,
     paymasterConfig = null,
-    paymasterFundingWei = null
+    paymasterFundingWei = null,
+    metadataAdminRoleIndex = null
   ) {
     // Validate infrastructure addresses - these must be fetched from subgraph
     const orgDeployerAddress = infrastructureAddresses.orgDeployerAddress;
@@ -199,7 +200,9 @@ export async function main(
       roles: roles,
       roleAssignments: roleAssignments,
       // Metadata admin: type(uint256).max = skip (topHat fallback in contract)
-      metadataAdminRoleIndex: ethers.constants.MaxUint256,
+      metadataAdminRoleIndex: metadataAdminRoleIndex !== null && metadataAdminRoleIndex !== undefined
+        ? metadataAdminRoleIndex
+        : ethers.constants.MaxUint256,
       // Passkey support (boolean - matches deployed contract v1.0.1)
       passkeyEnabled: true,
       // Education hub configuration
@@ -521,6 +524,7 @@ export function buildDeployCalldata({
   infrastructureAddresses = {},
   regSignatureData = null,
   paymasterConfig = null,
+  metadataAdminRoleIndex = null,
 }) {
   const orgDeployerAddress = infrastructureAddresses.orgDeployerAddress;
   const registryAddress = infrastructureAddresses.registryAddress;
@@ -564,7 +568,9 @@ export function buildDeployCalldata({
     ddInitialTargets: [],
     roles,
     roleAssignments,
-    metadataAdminRoleIndex: ethers.constants.MaxUint256,
+    metadataAdminRoleIndex: metadataAdminRoleIndex !== null && metadataAdminRoleIndex !== undefined
+      ? metadataAdminRoleIndex
+      : ethers.constants.MaxUint256,
     passkeyEnabled: true,
     educationHubConfig: { enabled: educationHubEnabled || false },
     bootstrap: { projects: [], tasks: [] },
