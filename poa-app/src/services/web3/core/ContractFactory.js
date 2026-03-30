@@ -40,7 +40,9 @@ export class ContractFactory {
       return new ethers.Contract(address, abi, this.provider);
     }
 
-    this._validateSigner(); // throws
+    // No signer or provider: contract supports ABI encoding only (.address, .interface).
+    // Used by passkey users where SmartAccountTransactionManager handles execution.
+    return new ethers.Contract(address, abi);
   }
 
   /**

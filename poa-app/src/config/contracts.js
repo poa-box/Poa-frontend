@@ -19,6 +19,7 @@ export const INFRASTRUCTURE_CONTRACTS = {
     hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137',
   },
   gnosis: {
+    universalAccountRegistry: '0x55F72CEB09cBC1fAAED734b6505b99b0a1DFA1cA',
     hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137',
   },
   sepolia: {
