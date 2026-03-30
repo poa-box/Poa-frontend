@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { useQuery } from '@apollo/client';
 import { FETCH_VOTING_DATA_NEW } from '../util/queries';
 import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
+import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 
@@ -118,7 +118,7 @@ export const VotingProvider = ({ children }) => {
     const [votingType, setVotingType] = useState('Hybrid');
     const [votingClasses, setVotingClasses] = useState([]);
 
-    const { address } = useAccount();
+    const { accountAddress: address } = useAuth();
     const router = useRouter();
     const { orgId, subgraphUrl } = usePOContext();
 

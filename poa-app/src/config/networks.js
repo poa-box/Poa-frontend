@@ -115,5 +115,7 @@ export function getSubgraphUrl(chainId) {
  * Used by browse page and org discovery to query all chains in parallel.
  */
 export function getAllSubgraphUrls() {
-  return Object.values(NETWORKS).map(n => ({ chainId: n.chainId, url: n.subgraphUrl, name: n.name }));
+  return Object.values(NETWORKS)
+    .filter(n => !n.isTestnet)
+    .map(n => ({ chainId: n.chainId, url: n.subgraphUrl, name: n.name }));
 }

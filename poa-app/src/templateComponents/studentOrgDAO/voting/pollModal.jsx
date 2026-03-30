@@ -29,7 +29,7 @@ import {
 import { LockIcon, InfoOutlineIcon } from "@chakra-ui/icons";
 import CountDown from "./countDown";
 import { useRouter } from "next/router";
-import { useAccount } from "wagmi";
+import { useAuth } from "@/context/AuthContext";
 import { useRoleNames, useVotingPower } from "@/hooks";
 
 
@@ -55,7 +55,7 @@ const PollModal = ({
 }) => {
   const router = useRouter();
   const { userDAO } = router.query;
-  const { address } = useAccount();
+  const { accountAddress: address } = useAuth();
   const { getRoleNamesString, allRoles } = useRoleNames();
   const {
     membershipPower,
