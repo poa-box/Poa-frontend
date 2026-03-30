@@ -88,22 +88,11 @@ export function userHasProjectPermission(userHatIds, projectRolePermissions, per
     // Normalize user hat IDs for comparison
     const normalizedUserHats = userHatIds.map(normalizeHatId);
 
-    console.debug('[Permissions] Checking permission:', permissionType);
-    console.debug('[Permissions] User hat IDs:', normalizedUserHats);
-    console.debug('[Permissions] Project permissions:', JSON.stringify(projectRolePermissions));
-
-    const hasPermission = projectRolePermissions.some(perm => {
+    return projectRolePermissions.some(perm => {
         if (!perm[permissionType]) return false;
-
         const permHatId = normalizeHatId(perm.hatId);
-        const matches = normalizedUserHats.includes(permHatId);
-
-        console.debug(`[Permissions] Hat ${permHatId} has ${permissionType}=${perm[permissionType]}, user match=${matches}`);
-        return matches;
+        return normalizedUserHats.includes(permHatId);
     });
-
-    console.debug('[Permissions] Final result for', permissionType, ':', hasPermission);
-    return hasPermission;
 }
 
 /**

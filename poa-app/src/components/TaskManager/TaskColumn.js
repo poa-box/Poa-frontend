@@ -5,7 +5,7 @@ import { useDrop } from 'react-dnd';
 import TaskCard from './TaskCard';
 import { useTaskBoard } from '../../context/TaskBoardContext';
 import AddTaskModal from './AddTaskModal';
-import { useAccount } from 'wagmi';
+import { useAuth } from '../../context/AuthContext';
 import {usePOContext} from '@/context/POContext';
 import { useToast } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
@@ -32,7 +32,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
   const {userDAO} = router.query;
   const { moveTask, addTask, editTask } = useTaskBoard();
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
-  const { address: account } = useAccount();
+  const { accountAddress: account } = useAuth();
   const { taskManagerContractAddress, roleHatIds } = usePOContext();
   const { taskCount, projectsData } = useProjectContext();
   const toast = useToast();

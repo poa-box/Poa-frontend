@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { useQuery } from '@apollo/client';
 import { FETCH_PROJECTS_DATA_NEW } from '../util/queries';
 import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
+import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { getTokenByAddress } from '../util/tokens';
@@ -23,7 +23,7 @@ export const ProjectProvider = ({ children }) => {
     const [projectsData, setProjectsData] = useState([]);
     const [taskCount, setTaskCount] = useState(0);
     const [recommendedTasks, setRecommendedTasks] = useState([]);
-    const { address } = useAccount();
+    const { accountAddress: address } = useAuth();
     const { orgId, subgraphUrl } = usePOContext();
 
     const router = useRouter();
