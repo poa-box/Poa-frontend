@@ -230,9 +230,10 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     // Metadata admin: which role's hat gets metadata-admin privilege.
     // ethers.constants.MaxUint256 = skip (topHat fallback in contract).
     // Priority: explicit option > state value > MaxUint256 (skip/topHat fallback).
-    metadataAdminRoleIndex: options.metadataAdminRoleIndex
-      ?? (state.metadataAdminRoleIndex !== null && state.metadataAdminRoleIndex !== undefined
-        ? state.metadataAdminRoleIndex
+    metadataAdminRoleIndex: options.metadataAdminRoleIndex != null
+      ? ethers.BigNumber.from(options.metadataAdminRoleIndex)
+      : (state.metadataAdminRoleIndex !== null && state.metadataAdminRoleIndex !== undefined
+        ? ethers.BigNumber.from(state.metadataAdminRoleIndex)
         : ethers.constants.MaxUint256),
     // Passkey support - enabled by default for all new orgs
     passkeyEnabled: true,

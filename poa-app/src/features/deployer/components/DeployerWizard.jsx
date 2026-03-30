@@ -28,6 +28,7 @@ import { useDeployer, STEPS, STEP_NAMES } from '../context/DeployerContext';
 import { mapStateToDeploymentParams, createDeploymentConfig } from '../utils/deploymentMapper';
 import { getRichTemplateById } from '../templates';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../../../util/queries';
+import { DEFAULT_DEPLOY_CHAIN_ID, getSubgraphUrl } from '../../../config/networks';
 
 // New step components
 import TemplateStep from '../steps/TemplateStep';
@@ -247,9 +248,13 @@ export function DeployerWizard({
   const headingColor = useColorModeValue('warmGray.900', 'white');
   const subtitleColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
-  // Fetch infrastructure addresses from subgraph
+  // Fetch infrastructure addresses from the selected deploy chain's subgraph
+  const deployChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
+  const deploySubgraphUrl = getSubgraphUrl(deployChainId);
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
     fetchPolicy: 'network-only',
+    context: { subgraphUrl: deploySubgraphUrl },
+    skip: !deploySubgraphUrl,
   });
 
   // Extract infrastructure addresses from subgraph data
