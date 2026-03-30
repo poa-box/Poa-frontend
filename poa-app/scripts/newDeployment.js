@@ -201,7 +201,7 @@ export async function main(
       roleAssignments: roleAssignments,
       // Metadata admin: type(uint256).max = skip (topHat fallback in contract)
       metadataAdminRoleIndex: metadataAdminRoleIndex !== null && metadataAdminRoleIndex !== undefined
-        ? metadataAdminRoleIndex
+        ? ethers.BigNumber.from(metadataAdminRoleIndex)
         : ethers.constants.MaxUint256,
       // Passkey support (boolean - matches deployed contract v1.0.1)
       passkeyEnabled: true,
@@ -569,7 +569,7 @@ export function buildDeployCalldata({
     roles,
     roleAssignments,
     metadataAdminRoleIndex: metadataAdminRoleIndex !== null && metadataAdminRoleIndex !== undefined
-      ? metadataAdminRoleIndex
+      ? ethers.BigNumber.from(metadataAdminRoleIndex)
       : ethers.constants.MaxUint256,
     passkeyEnabled: true,
     educationHubConfig: { enabled: educationHubEnabled || false },
