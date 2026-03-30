@@ -272,7 +272,7 @@ function OrganizationHero({ organization, templateName, goToStep }) {
         >
           {organization.logoURL ? (
             <Image
-              src={`https://ipfs.io/ipfs/${organization.logoURL}`}
+              src={organization.logoPreviewUrl || `https://ipfs.io/ipfs/${organization.logoURL}`}
               alt="Organization logo"
               w="100%"
               h="100%"

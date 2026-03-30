@@ -181,6 +181,7 @@ function DeployerPageContent() {
           url: link.url,
         })),
         template: state.organization.template || 'default',
+        logo: state.organization.logoURL || null,
       };
 
       console.log('[DEPLOY] Preparing IPFS metadata:', jsonData);

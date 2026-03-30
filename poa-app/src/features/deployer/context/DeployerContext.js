@@ -97,8 +97,8 @@ export function DeployerProvider({ children }) {
     // Organization
     updateOrganization: (updates) =>
       dispatch({ type: ACTION_TYPES.UPDATE_ORGANIZATION, payload: updates }),
-    setLogoURL: (url) =>
-      dispatch({ type: ACTION_TYPES.SET_LOGO_URL, payload: url }),
+    setLogoURL: (urlOrObj) =>
+      dispatch({ type: ACTION_TYPES.SET_LOGO_URL, payload: urlOrObj }),
     setIPFSHash: (hash) =>
       dispatch({ type: ACTION_TYPES.SET_IPFS_HASH, payload: hash }),
     addLink: (link) =>
