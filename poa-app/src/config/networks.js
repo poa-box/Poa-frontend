@@ -11,7 +11,7 @@ export const NETWORKS = {
     rpcUrl: process.env.NEXT_PUBLIC_ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
     blockExplorer: 'https://arbiscan.io',
     isTestnet: false,
-    subgraphUrl: process.env.NEXT_PUBLIC_ARBITRUM_SUBGRAPH_URL || '',
+    subgraphUrl: process.env.NEXT_PUBLIC_ARBITRUM_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-arb-v-1/version/latest',
     bountyTokens: {
       USDC: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
     },
@@ -25,7 +25,7 @@ export const NETWORKS = {
     rpcUrl: process.env.NEXT_PUBLIC_GNOSIS_RPC_URL || 'https://rpc.gnosischain.com',
     blockExplorer: 'https://gnosisscan.io',
     isTestnet: false,
-    subgraphUrl: process.env.NEXT_PUBLIC_GNOSIS_SUBGRAPH_URL || '',
+    subgraphUrl: process.env.NEXT_PUBLIC_GNOSIS_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-gnosis-v-1/version/latest',
     bountyTokens: {
       BREAD: '0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3',
       USDC:  '0xDDAfbb505ad214D7b80b1f830fcCc89B60fB7A83',
