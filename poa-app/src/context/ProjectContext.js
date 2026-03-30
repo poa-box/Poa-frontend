@@ -29,12 +29,12 @@ export const ProjectProvider = ({ children }) => {
     const router = useRouter();
 
     // pollInterval keeps task data fresh. cache-and-network shows cached data instantly.
-    // 30s is appropriate for mainnet (Arbitrum/Gnosis) — avoids hammering the subgraph.
+    // 40s balances liveness against The Graph Studio rate limits.
     const { data, loading, error } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-and-network',
-        pollInterval: 30000,
+        pollInterval: 40000,
         context: { subgraphUrl },
     });
 
