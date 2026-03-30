@@ -14,7 +14,7 @@ import { useIPFScontext } from '../context/ipfsContext';
 import { usePOContext } from '../context/POContext';
 import { useUserContext } from '../context/UserContext';
 import { INFRASTRUCTURE_CONTRACTS, getInfrastructureAddress } from '../config/contracts';
-import { DEFAULT_NETWORK } from '../config/networks';
+import { DEFAULT_NETWORK, DEFAULT_CHAIN_ID } from '../config/networks';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
 import { FETCH_PAYMASTER_ORG_CONFIG } from '../util/passkeyQueries';
 
@@ -42,7 +42,10 @@ import { TokenRequestService, createTokenRequestService } from '../services/web3
 export function useWeb3Services(options = {}) {
   const { ipfsService: providedIpfs = null, network = DEFAULT_NETWORK } = options;
   const signer = useEthersSigner();
-  const provider = useEthersProvider();
+  // Pass DEFAULT_CHAIN_ID so wagmi returns a client even without a wallet connection.
+  // Without this, passkey-only users get no provider (useClient() returns undefined
+  // when no wallet is connected and no chainId is specified).
+  const provider = useEthersProvider({ chainId: DEFAULT_CHAIN_ID });
   const { isPasskeyUser, isAuthenticated, passkeyState, publicClient, bundlerClient } = useAuth();
 
   // Get IPFS service from context if not provided
