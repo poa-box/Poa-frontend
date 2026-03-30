@@ -98,12 +98,12 @@ export function useVouchFirstOnboarding({
     }
   }, [orgName]);
 
-  // Poll for vouches while awaiting
+  // Poll for vouches while awaiting (safety net — useVouches already refetches on vouch events)
   useEffect(() => {
     if (phase === VouchFirstPhase.AWAITING_VOUCHES && refetchVouches) {
       pollIntervalRef.current = setInterval(() => {
         refetchVouches();
-      }, 30000);
+      }, 45000);
       return () => clearInterval(pollIntervalRef.current);
     }
     return () => clearInterval(pollIntervalRef.current);

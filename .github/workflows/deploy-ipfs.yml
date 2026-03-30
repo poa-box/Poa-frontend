@@ -129,3 +129,4 @@ jobs:
           echo "**Preview URLs:**" >> $GITHUB_STEP_SUMMARY
           echo "- Gateway: https://${{ secrets.PINATA_GATEWAY }}/ipfs/${{ steps.pinata.outputs.ipfs_hash }}" >> $GITHUB_STEP_SUMMARY
           echo "- Production: https://poa.earth" >> $GITHUB_STEP_SUMMARY
+          echo "- Production: https://poa.box" >> $GITHUB_STEP_SUMMARY

@@ -435,6 +435,7 @@ function DeployerPageContent() {
           infrastructureAddresses,
           regSignatureData,
           paymasterConfig,
+          metadataAdminRoleIndex: state.metadataAdminRoleIndex,
         });
 
         const fundingBigInt = paymasterFundingWei.gt(0) ? BigInt(paymasterFundingWei.toString()) : 0n;
@@ -685,7 +686,8 @@ function DeployerPageContent() {
           regSignatureData,
           undefined, // overrideDeployerAddress
           paymasterConfig,
-          paymasterFundingWei
+          paymasterFundingWei,
+          state.metadataAdminRoleIndex
         );
       }
 

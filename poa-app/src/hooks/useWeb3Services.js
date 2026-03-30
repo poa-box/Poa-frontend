@@ -155,7 +155,7 @@ export function useWeb3Services(options = {}) {
   const { data: pmConfig } = useQuery(FETCH_PAYMASTER_ORG_CONFIG, {
     variables: { orgId },
     skip: !orgId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
     context: { subgraphUrl },
   });
   const orgPaymaster = pmConfig?.paymasterOrgConfigs?.[0];
