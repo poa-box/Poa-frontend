@@ -4,7 +4,7 @@
  * Supports both EOA (RainbowKit/wagmi) and Passkey (ERC-4337) auth types.
  */
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
 import { encodeFunctionData } from 'viem';
 import { useEthersSigner, useEthersProvider } from '@/components/ProviderConverter';
@@ -80,9 +80,12 @@ export function useWeb3Services(options = {}) {
   const userContext = useUserContext();
   const hatIds = userContext?.userData?.hatIds || null;
 
-  // Fetch infrastructure addresses from subgraph — routed to org's chain when available
+  // Fetch infrastructure addresses from subgraph — routed to org's chain when available.
+  // Use network-only when subgraphUrl is present: Apollo's cache keys don't include context,
+  // so cache-first would serve stale data from the default chain after subgraphUrl changes.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
     context: subgraphUrl ? { subgraphUrl } : undefined,
+    fetchPolicy: subgraphUrl ? 'network-only' : 'cache-first',
   });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
   const paymasterHubAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
@@ -91,24 +94,62 @@ export function useWeb3Services(options = {}) {
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
     skip: !isPasskeyUser || !isCrossChain,
     context: subgraphUrl ? { subgraphUrl } : undefined,
+    fetchPolicy: subgraphUrl ? 'network-only' : 'cache-first',
   });
   const orgFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
   // Compute initCode for cross-chain passkey account deployment.
+  // Verifies the target chain factory produces the same CREATE2 address (factories at
+  // different addresses on different chains produce different account addresses).
   // SmartAccountTransactionManager will check account existence at call time before using it.
-  const crossChainInitCode = useMemo(() => {
-    if (!isPasskeyUser || !isCrossChain || !orgFactoryAddress || !passkeyState) return '0x';
-    try {
-      const factoryCallData = encodeFunctionData({
-        abi: PasskeyAccountFactoryABI,
-        functionName: 'createAccount',
-        args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
-      });
-      return orgFactoryAddress + factoryCallData.slice(2);
-    } catch {
-      return '0x';
+  const [crossChainInitCode, setCrossChainInitCode] = useState('0x');
+
+  useEffect(() => {
+    if (!isPasskeyUser || !isCrossChain || !orgFactoryAddress || !passkeyState || !effectivePublicClient) {
+      setCrossChainInitCode('0x');
+      return;
     }
-  }, [isPasskeyUser, isCrossChain, orgFactoryAddress, passkeyState]);
+
+    let cancelled = false;
+
+    async function verifyAndBuildInitCode() {
+      try {
+        // Verify factory produces the same account address on the target chain
+        const targetAddress = await effectivePublicClient.readContract({
+          address: orgFactoryAddress,
+          abi: PasskeyAccountFactoryABI,
+          functionName: 'getAddress',
+          args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
+        });
+
+        if (cancelled) return;
+
+        if (targetAddress.toLowerCase() !== passkeyState.accountAddress.toLowerCase()) {
+          console.error(
+            `[useWeb3Services] Cross-chain CREATE2 mismatch: target factory produces ${targetAddress}, ` +
+            `expected ${passkeyState.accountAddress}. Cross-chain account deployment unavailable.`
+          );
+          setCrossChainInitCode('0x');
+          return;
+        }
+
+        const factoryCallData = encodeFunctionData({
+          abi: PasskeyAccountFactoryABI,
+          functionName: 'createAccount',
+          args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
+        });
+        setCrossChainInitCode(orgFactoryAddress + factoryCallData.slice(2));
+      } catch (e) {
+        if (!cancelled) {
+          console.warn('[useWeb3Services] Failed to verify cross-chain factory:', e.message);
+          setCrossChainInitCode('0x');
+        }
+      }
+    }
+
+    verifyAndBuildInitCode();
+    return () => { cancelled = true; };
+  }, [isPasskeyUser, isCrossChain, orgFactoryAddress, passkeyState, effectivePublicClient]);
 
   // Check if this org has gas sponsorship enabled (subgraph lookup, no RPC)
   const { data: pmConfig } = useQuery(FETCH_PAYMASTER_ORG_CONFIG, {

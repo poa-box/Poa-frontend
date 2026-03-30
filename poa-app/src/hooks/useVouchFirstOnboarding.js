@@ -62,15 +62,18 @@ export function useVouchFirstOnboarding({
     return { publicClient: clients.publicClient, bundlerClient: clients.bundlerClient, chainId: orgChainId };
   }, [isCrossChain, orgChainId, homePublicClient, homeBundlerClient]);
 
-  // Infrastructure addresses — routed to org's chain subgraph
+  // Infrastructure addresses — routed to org's chain subgraph.
+  // network-only ensures we get data from the correct chain (Apollo cache keys ignore context).
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
     context: subgraphUrl ? { subgraphUrl } : undefined,
+    fetchPolicy: subgraphUrl ? 'network-only' : 'cache-first',
   });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
   const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
     context: subgraphUrl ? { subgraphUrl } : undefined,
+    fetchPolicy: subgraphUrl ? 'network-only' : 'cache-first',
   });
   const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 

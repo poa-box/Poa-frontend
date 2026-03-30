@@ -55,9 +55,21 @@ export class OrganizationService {
     const { credentialId, publicKeyX, publicKeyY, salt, rawCredentialId } = credential;
     const accountAddress = this.txManager.accountAddress;
 
-    // Query registry nonce for this account (0 for accounts that haven't registered)
-    const registryContract = this.factory.createReadOnly(this.registryAddress, UniversalAccountRegistryABI);
-    const nonce = BigInt(await registryContract.nonces(accountAddress));
+    // Query registry nonce for this account (0 for accounts that haven't registered).
+    // Passkey: use chain-routed viem client (ethers provider may be on a different chain).
+    // EOA: use ethers via contract factory (signer's provider is on the correct chain after auto-switch).
+    let nonce;
+    if (this.txManager.publicClient) {
+      nonce = BigInt(await this.txManager.publicClient.readContract({
+        address: this.registryAddress,
+        abi: UniversalAccountRegistryABI,
+        functionName: 'nonces',
+        args: [accountAddress],
+      }));
+    } else {
+      const registryContract = this.factory.createReadOnly(this.registryAddress, UniversalAccountRegistryABI);
+      nonce = BigInt(await registryContract.nonces(accountAddress));
+    }
     const deadline = BigInt(Math.floor(Date.now() / 1000) + REGISTRATION_DEADLINE_SECONDS);
 
     // Compute and sign the registration challenge (biometric prompt #1)
