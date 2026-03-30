@@ -274,6 +274,10 @@ export const initialState = {
     budgetEpochUnit: 'weeks',      // 'hours' | 'days' | 'weeks'
   },
 
+  // Metadata admin: which role can update org name/logo/description without a vote
+  // null = Governance Only (topHat fallback), or a role index
+  metadataAdminRoleIndex: null,
+
   // Chain selection (defaults to Gnosis satellite chain)
   selectedChainId: DEFAULT_DEPLOY_CHAIN_ID,
 
@@ -359,6 +363,9 @@ export const ACTION_TYPES = {
 
   // Features
   TOGGLE_FEATURE: 'TOGGLE_FEATURE',
+
+  // Metadata Admin
+  SET_METADATA_ADMIN_ROLE: 'SET_METADATA_ADMIN_ROLE',
 
   // Paymaster
   TOGGLE_PAYMASTER: 'TOGGLE_PAYMASTER',
@@ -476,7 +483,7 @@ export function deployerReducer(state, action) {
 
     case ACTION_TYPES.APPLY_TEMPLATE: {
       // Payload contains the template defaults from getTemplateDefaults()
-      const { roles, permissions, voting, features, governancePhilosophy } = action.payload;
+      const { roles, permissions, voting, features, governancePhilosophy, metadataAdminRoleIndex } = action.payload;
 
       // Map governancePhilosophy to slider value
       const sliderValue = governancePhilosophy === 'democratic' ? 85
@@ -489,6 +496,7 @@ export function deployerReducer(state, action) {
         permissions,
         voting,
         features,
+        metadataAdminRoleIndex: metadataAdminRoleIndex ?? null,
         philosophy: {
           ...state.philosophy,
           slider: sliderValue,
@@ -851,10 +859,21 @@ export function deployerReducer(state, action) {
         }
       }
 
+      // Adjust metadata admin role index
+      let adjustedMetadataAdminRole = state.metadataAdminRoleIndex;
+      if (adjustedMetadataAdminRole !== null) {
+        if (adjustedMetadataAdminRole === removeIndex) {
+          adjustedMetadataAdminRole = null;
+        } else if (adjustedMetadataAdminRole > removeIndex) {
+          adjustedMetadataAdminRole = adjustedMetadataAdminRole - 1;
+        }
+      }
+
       return {
         ...state,
         roles: adjustedRoles,
         permissions: adjustedPermissions,
+        metadataAdminRoleIndex: adjustedMetadataAdminRole,
         paymaster: {
           ...state.paymaster,
           operatorRoleIndex: adjustedPaymasterOperatorRole,
@@ -1129,6 +1148,13 @@ export function deployerReducer(state, action) {
         },
       };
     }
+
+    // Metadata Admin
+    case ACTION_TYPES.SET_METADATA_ADMIN_ROLE:
+      return {
+        ...state,
+        metadataAdminRoleIndex: action.payload, // null = Governance Only, or role index
+      };
 
     // Paymaster
     case ACTION_TYPES.TOGGLE_PAYMASTER:

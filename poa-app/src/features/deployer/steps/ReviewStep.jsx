@@ -1238,26 +1238,44 @@ export function ReviewStep({
 
         {/* Features Section */}
         <ReviewSectionCard
-          title="Optional Features"
+          title="Settings & Features"
           stepIndex={STEPS.SETTINGS}
           icon={PiGear}
           status="valid"
           goToStep={goToStep}
         >
-          <Flex gap={4} flexWrap="wrap">
-            <FeatureCard
-              name="Education Hub"
-              description="Create learning resources for your community"
-              icon={PiGraduationCap}
-              isEnabled={state.features.educationHubEnabled}
-            />
-            <FeatureCard
-              name="Election Hub"
-              description="Run elections for leadership positions"
-              icon={PiHandshake}
-              isEnabled={state.features.electionHubEnabled}
-            />
-          </Flex>
+          <VStack align="stretch" spacing={4}>
+            {/* Metadata Admin */}
+            <HStack spacing={2}>
+              <Text fontSize="sm" fontWeight="600" color="warmGray.700">Metadata Admin:</Text>
+              <Badge
+                bg={state.metadataAdminRoleIndex !== null ? 'amethyst.100' : 'warmGray.100'}
+                color={state.metadataAdminRoleIndex !== null ? 'amethyst.700' : 'warmGray.600'}
+                borderRadius="full"
+                px={3}
+              >
+                {state.metadataAdminRoleIndex !== null
+                  ? state.roles[state.metadataAdminRoleIndex]?.name || 'Unknown Role'
+                  : 'Governance Only'}
+              </Badge>
+            </HStack>
+
+            {/* Feature Toggles */}
+            <Flex gap={4} flexWrap="wrap">
+              <FeatureCard
+                name="Education Hub"
+                description="Create learning resources for your community"
+                icon={PiGraduationCap}
+                isEnabled={state.features.educationHubEnabled}
+              />
+              <FeatureCard
+                name="Election Hub"
+                description="Run elections for leadership positions"
+                icon={PiHandshake}
+                isEnabled={state.features.electionHubEnabled}
+              />
+            </Flex>
+          </VStack>
         </ReviewSectionCard>
 
         {/* Gas Sponsorship Section - only if enabled */}

@@ -229,7 +229,11 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     roleAssignments,
     // Metadata admin: which role's hat gets metadata-admin privilege.
     // ethers.constants.MaxUint256 = skip (topHat fallback in contract).
-    metadataAdminRoleIndex: options.metadataAdminRoleIndex ?? ethers.constants.MaxUint256,
+    // Priority: explicit option > state value > MaxUint256 (skip/topHat fallback).
+    metadataAdminRoleIndex: options.metadataAdminRoleIndex
+      ?? (state.metadataAdminRoleIndex !== null && state.metadataAdminRoleIndex !== undefined
+        ? state.metadataAdminRoleIndex
+        : ethers.constants.MaxUint256),
     // Passkey support - enabled by default for all new orgs
     passkeyEnabled: true,
     // Education hub configuration
@@ -358,6 +362,13 @@ export function validateDeploymentConfig(state) {
       errors.push(`Role "${role.name}" cannot be its own admin`);
     }
   });
+
+  // Metadata admin validation
+  if (state.metadataAdminRoleIndex !== null && state.metadataAdminRoleIndex !== undefined) {
+    if (state.metadataAdminRoleIndex >= state.roles.length) {
+      errors.push('Metadata admin role index is out of range');
+    }
+  }
 
   // Paymaster validation
   if (state.paymaster?.enabled) {

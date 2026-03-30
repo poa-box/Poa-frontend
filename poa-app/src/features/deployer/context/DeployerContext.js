@@ -160,6 +160,10 @@ export function DeployerProvider({ children }) {
     toggleFeature: (feature, value) =>
       dispatch({ type: ACTION_TYPES.TOGGLE_FEATURE, payload: { feature, value } }),
 
+    // Metadata Admin
+    setMetadataAdminRole: (roleIndex) =>
+      dispatch({ type: ACTION_TYPES.SET_METADATA_ADMIN_ROLE, payload: roleIndex }),
+
     // Paymaster
     togglePaymaster: (value) =>
       dispatch({ type: ACTION_TYPES.TOGGLE_PAYMASTER, payload: value }),
@@ -291,6 +295,12 @@ export function DeployerProvider({ children }) {
 
     // Chain
     getSelectedChainId: () => state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID,
+
+    // Metadata Admin
+    getMetadataAdminRole: () => {
+      const idx = state.metadataAdminRoleIndex;
+      return idx !== null && idx < state.roles.length ? state.roles[idx] : null;
+    },
 
     // Paymaster
     isPaymasterEnabled: () => state.paymaster.enabled,

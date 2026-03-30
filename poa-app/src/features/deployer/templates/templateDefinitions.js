@@ -148,6 +148,9 @@ const WORKER_COOP_TEMPLATE = {
       electionHubEnabled: true,
     },
 
+    // Governance Only - democratic orgs should vote on metadata changes
+    metadataAdminRoleIndex: null,
+
     governancePhilosophy: 'democratic',
   },
 
@@ -271,6 +274,9 @@ const OPEN_SOURCE_TEMPLATE = {
       electionHubEnabled: true,
     },
 
+    // Maintainers manage the project page - they ship releases and manage docs
+    metadataAdminRoleIndex: 1,
+
     governancePhilosophy: 'hybrid',
   },
 
@@ -384,6 +390,9 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
       educationHubEnabled: false,
       electionHubEnabled: false,
     },
+
+    // Governance Only - flat structure, collective decisions
+    metadataAdminRoleIndex: null,
 
     governancePhilosophy: 'democratic',
   },
@@ -508,6 +517,9 @@ const COMMUNITY_DAO_TEMPLATE = {
       electionHubEnabled: true,
     },
 
+    // Delegates handle admin operations as elected representatives
+    metadataAdminRoleIndex: 1,
+
     governancePhilosophy: 'hybrid',
   },
 
@@ -549,7 +561,7 @@ const STUDENT_ORG_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 1,
-          voucherRoleIndex: 0, // Members vouch for other Members
+          voucherRoleIndex: 1, // Executives vouch for new Members
           combineWithHierarchy: true,
         },
         defaults: { eligible: false, standing: true },
@@ -630,6 +642,9 @@ const STUDENT_ORG_TEMPLATE = {
       educationHubEnabled: true,   // Education hub for training
       electionHubEnabled: true,    // For democratic executive elections
     },
+
+    // Executives handle day-to-day ops including org profile updates
+    metadataAdminRoleIndex: 1,
 
     governancePhilosophy: 'hybrid',
   },
@@ -743,6 +758,9 @@ const CUSTOM_TEMPLATE = {
       educationHubEnabled: false,
       electionHubEnabled: false,
     },
+
+    // Governance Only - safe default, user can override
+    metadataAdminRoleIndex: null,
 
     governancePhilosophy: 'democratic',
   },
