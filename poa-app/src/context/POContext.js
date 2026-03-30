@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useMemo, useCallback, useState } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useMemo, useCallback, useState, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { FETCH_ORG_FULL_DATA } from '../util/queries';
 import { useRouter } from 'next/router';
@@ -196,7 +196,7 @@ export const POProvider = ({ children }) => {
     }, [poName]);
 
     // Step 2: Fetch full org data using bytes ID, routed to the correct chain's subgraph
-    const subgraphUrl = getSubgraphUrl(state.orgChainId);
+    const subgraphUrl = useMemo(() => getSubgraphUrl(state.orgChainId), [state.orgChainId]);
 
     const { data: orgData, loading: orgDataLoading, error: orgDataError, refetch: refetchOrgData } = useQuery(FETCH_ORG_FULL_DATA, {
         variables: { orgId: state.orgId },
@@ -205,15 +205,19 @@ export const POProvider = ({ children }) => {
         context: { subgraphUrl },
     });
 
+    // Stable ref for Apollo's refetch (changes every render)
+    const refetchOrgDataRef = useRef(refetchOrgData);
+    refetchOrgDataRef.current = refetchOrgData;
+
     // Handle refresh events from Web3 transactions
     const handleRefresh = useCallback(() => {
-        if (state.orgId && refetchOrgData) {
+        if (state.orgId) {
             // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
             setTimeout(() => {
-                refetchOrgData();
+                refetchOrgDataRef.current();
             }, 5000);
         }
-    }, [state.orgId, refetchOrgData]);
+    }, [state.orgId]);
 
     // Subscribe to relevant events
     useRefreshSubscription(

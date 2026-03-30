@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAccount } from 'wagmi';
 import { useAuth } from './AuthContext';
@@ -64,11 +64,15 @@ export const UserProvider = ({ children }) => {
     // Subscribe to role:claimed event to refetch user data
     const { subscribe } = useRefresh();
 
+    // Stable ref for Apollo's refetch (changes every render)
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
+
     const refetchUserData = useCallback(() => {
         if (orgUserID && account) {
-            refetch();
+            refetchRef.current();
         }
-    }, [refetch, orgUserID, account]);
+    }, [orgUserID, account]);
 
     useEffect(() => {
         const unsubscribe = subscribe('role:claimed', () => {

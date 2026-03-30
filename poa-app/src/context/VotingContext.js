@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { FETCH_VOTING_DATA_NEW } from '../util/queries';
 import { useRouter } from 'next/router';
@@ -129,12 +129,20 @@ export const VotingProvider = ({ children }) => {
         context: { subgraphUrl },
     });
 
-    // Memoize refetch handler for stable reference
+    // Stable ref for Apollo's refetch (changes every render)
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
+
+    // Stable refetch callback that never changes identity
+    const stableRefetch = useCallback(() => {
+        refetchRef.current();
+    }, []);
+
     const handleRefresh = useCallback(() => {
         if (orgId) {
-            refetch();
+            stableRefetch();
         }
-    }, [orgId, refetch]);
+    }, [orgId, stableRefetch]);
 
     // Subscribe to refresh events from Web3Context
     useRefreshSubscription(
@@ -219,7 +227,7 @@ export const VotingProvider = ({ children }) => {
         ongoingPolls,
         votingType,
         votingClasses,
-        refetch,
+        refetch: stableRefetch,
     }), [
         hybridVotingOngoing,
         hybridVotingCompleted,
@@ -230,7 +238,7 @@ export const VotingProvider = ({ children }) => {
         ongoingPolls,
         votingType,
         votingClasses,
-        refetch,
+        stableRefetch,
     ]);
 
     return (
