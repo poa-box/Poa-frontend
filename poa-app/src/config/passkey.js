@@ -21,7 +21,7 @@ export function getBundlerUrl(chainId = DEFAULT_CHAIN_ID) {
 export const WEBAUTHN_RP_NAME = 'Perpetual Organization Architect';
 
 // Gas estimation buffer percentage (applied on top of bundler estimates)
-export const GAS_BUFFER_PERCENT = 20n;
+export const GAS_BUFFER_PERCENT = 10n;
 
 // Maximum total gas per UserOp — Pimlico bundler rejects ops above 15M.
 // Leave headroom for bundler-side overhead calculations.

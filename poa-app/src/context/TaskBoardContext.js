@@ -40,7 +40,7 @@ export const TaskBoardProvider = ({
   // After an optimistic update, server data is suppressed until it catches up or
   // the grace period expires (safety valve).
   const optimisticLockRef = useRef(null);
-  const OPTIMISTIC_GRACE_PERIOD = 12000; // 12s — covers 2+ poll-interval cycles
+  const OPTIMISTIC_GRACE_PERIOD = 65000; // 65s — covers 2+ poll-interval cycles (30s each)
 
   useEffect(() => {
     if (optimisticLockRef.current) {

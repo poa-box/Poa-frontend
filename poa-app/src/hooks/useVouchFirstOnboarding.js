@@ -83,7 +83,7 @@ export function useVouchFirstOnboarding({
     if (phase === VouchFirstPhase.AWAITING_VOUCHES && refetchVouches) {
       pollIntervalRef.current = setInterval(() => {
         refetchVouches();
-      }, 15000);
+      }, 30000);
       return () => clearInterval(pollIntervalRef.current);
     }
     return () => clearInterval(pollIntervalRef.current);

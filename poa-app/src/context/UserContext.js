@@ -72,10 +72,10 @@ export const UserProvider = ({ children }) => {
 
     useEffect(() => {
         const unsubscribe = subscribe('role:claimed', () => {
-            // Wait for subgraph to index, then refetch user data
+            // Wait for subgraph to index on mainnet, then refetch user data
             setTimeout(() => {
                 refetchUserData();
-            }, 1000);
+            }, 5000);
         });
         return unsubscribe;
     }, [subscribe, refetchUserData]);
@@ -83,10 +83,10 @@ export const UserProvider = ({ children }) => {
     // Subscribe to username_changed event to refetch user data
     useEffect(() => {
         const unsubscribe = subscribe('user:username_changed', () => {
-            // Wait for subgraph to index, then refetch user data
+            // Wait for subgraph to index on mainnet, then refetch user data
             setTimeout(() => {
                 refetchUserData();
-            }, 1000);
+            }, 5000);
         });
         return unsubscribe;
     }, [subscribe, refetchUserData]);

@@ -28,13 +28,13 @@ export const ProjectProvider = ({ children }) => {
 
     const router = useRouter();
 
-    // pollInterval replaces graph-client's @live directive — polls every 5s
-    // to keep task data fresh. cache-and-network shows cached data instantly.
+    // pollInterval keeps task data fresh. cache-and-network shows cached data instantly.
+    // 30s is appropriate for mainnet (Arbitrum/Gnosis) — avoids hammering the subgraph.
     const { data, loading, error } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-and-network',
-        pollInterval: 5000,
+        pollInterval: 30000,
         context: { subgraphUrl },
     });
 

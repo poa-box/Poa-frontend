@@ -208,10 +208,10 @@ export const POProvider = ({ children }) => {
     // Handle refresh events from Web3 transactions
     const handleRefresh = useCallback(() => {
         if (state.orgId && refetchOrgData) {
-            // Small delay to allow subgraph to index the new data
+            // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
             setTimeout(() => {
                 refetchOrgData();
-            }, 2000);
+            }, 5000);
         }
     }, [state.orgId, refetchOrgData]);
 
