@@ -8,6 +8,8 @@ export {
   NETWORKS,
   DEFAULT_NETWORK,
   DEFAULT_CHAIN_ID,
+  DEFAULT_DEPLOY_NETWORK,
+  DEFAULT_DEPLOY_CHAIN_ID,
   getNetworkByChainId,
   getNetworkNameByChainId,
   isNetworkSupported,

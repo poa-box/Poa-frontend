@@ -30,6 +30,8 @@ import {
 } from "@chakra-ui/react";
 import { AddIcon, DeleteIcon, InfoOutlineIcon } from "@chakra-ui/icons";
 import { useRoleNames } from "@/hooks";
+import { usePOContext } from "@/context/POContext";
+import { getNetworkByChainId } from "../../config/networks";
 import SetterActionSelector from "./SetterActionSelector";
 
 const glassLayerStyle = {
@@ -65,6 +67,9 @@ const CreateVoteModal = ({
   projectNames = {},
 }) => {
   const { allRoles } = useRoleNames();
+  const { orgChainId } = usePOContext();
+  const orgNetwork = getNetworkByChainId(orgChainId);
+  const nativeCurrencySymbol = orgNetwork?.nativeCurrency?.symbol || 'ETH';
   const [candidateName, setCandidateName] = useState("");
   const [candidateAddress, setCandidateAddress] = useState("");
 
@@ -344,9 +349,9 @@ const CreateVoteModal = ({
                 </FormControl>
 
                 <FormControl>
-                  <FormLabel color="white" fontWeight="medium">Amount (ETH)</FormLabel>
+                  <FormLabel color="white" fontWeight="medium">Amount ({nativeCurrencySymbol})</FormLabel>
                   <Input
-                    placeholder="Amount in ETH"
+                    placeholder={`Amount in ${nativeCurrencySymbol}`}
                     value={proposal.transferAmount}
                     onChange={handleTransferAmountChange}
                     type="number"

@@ -4,6 +4,36 @@
  */
 
 export const NETWORKS = {
+  arbitrum: {
+    chainId: 42161,
+    name: 'Arbitrum One',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrl: process.env.NEXT_PUBLIC_ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
+    blockExplorer: 'https://arbiscan.io',
+    isTestnet: false,
+    subgraphUrl: process.env.NEXT_PUBLIC_ARBITRUM_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-arb-v-1/version/latest',
+    bountyTokens: {
+      USDC: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
+    },
+    defaultFunding: '0.003',
+    defaultBudgetCap: '0.003',
+  },
+  gnosis: {
+    chainId: 100,
+    name: 'Gnosis',
+    nativeCurrency: { name: 'xDAI', symbol: 'xDAI', decimals: 18 },
+    rpcUrl: process.env.NEXT_PUBLIC_GNOSIS_RPC_URL || 'https://rpc.gnosischain.com',
+    blockExplorer: 'https://gnosisscan.io',
+    isTestnet: false,
+    subgraphUrl: process.env.NEXT_PUBLIC_GNOSIS_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-gnosis-v-1/version/latest',
+    bountyTokens: {
+      BREAD: '0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3',
+      USDC:  '0xDDAfbb505ad214D7b80b1f830fcCc89B60fB7A83',
+      WXDAI: '0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d',
+    },
+    defaultFunding: '0.0002',
+    defaultBudgetCap: '0.0002',
+  },
   sepolia: {
     chainId: 11155111,
     name: 'Sepolia',
@@ -15,6 +45,8 @@ export const NETWORKS = {
     bountyTokens: {
       USDC: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
     },
+    defaultFunding: '0.05',
+    defaultBudgetCap: '0.05',
   },
   baseSepolia: {
     chainId: 84532,
@@ -27,25 +59,18 @@ export const NETWORKS = {
     bountyTokens: {
       USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
     },
-  },
-  gnosis: {
-    chainId: 100,
-    name: 'Gnosis',
-    nativeCurrency: { name: 'xDAI', symbol: 'xDAI', decimals: 18 },
-    rpcUrl: process.env.NEXT_PUBLIC_GNOSIS_RPC_URL || 'https://rpc.gnosischain.com',
-    blockExplorer: 'https://gnosisscan.io',
-    isTestnet: false,
-    subgraphUrl: process.env.NEXT_PUBLIC_GNOSIS_SUBGRAPH_URL || '',
-    bountyTokens: {
-      BREAD: '0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3',
-      USDC:  '0xDDAfbb505ad214D7b80b1f830fcCc89B60fB7A83',
-      WXDAI: '0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d',
-    },
+    defaultFunding: '0.05',
+    defaultBudgetCap: '0.05',
   },
 };
 
-export const DEFAULT_NETWORK = 'sepolia';
+// Home chain (accounts, passkeys, core infrastructure)
+export const DEFAULT_NETWORK = 'arbitrum';
 export const DEFAULT_CHAIN_ID = NETWORKS[DEFAULT_NETWORK].chainId;
+
+// Default chain for org deployment (satellite chain)
+export const DEFAULT_DEPLOY_NETWORK = 'gnosis';
+export const DEFAULT_DEPLOY_CHAIN_ID = NETWORKS[DEFAULT_DEPLOY_NETWORK].chainId;
 
 /**
  * Get network configuration by chain ID

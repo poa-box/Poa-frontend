@@ -13,7 +13,7 @@ import {
 } from "@chakra-ui/react";
 import { ConnectButton, useChainModal } from "@rainbow-me/rainbowkit";
 import { useChainId } from "wagmi";
-import { DEFAULT_CHAIN_ID, NETWORKS, DEFAULT_NETWORK } from "../../config/networks";
+import { DEFAULT_DEPLOY_CHAIN_ID, NETWORKS, DEFAULT_DEPLOY_NETWORK } from "../../config/networks";
 
 const ConfirmationModal = ({
   isOpen,
@@ -108,13 +108,13 @@ const ConfirmationModal = ({
           </Button>
 
           {display ? (
-            chainId === DEFAULT_CHAIN_ID ? (
+            chainId === DEFAULT_DEPLOY_CHAIN_ID ? (
               <Button colorScheme="blue" onClick={onSave} >
                 Confirm
               </Button>
             ) : (
               <Button colorScheme="blue" onClick={openChainModal}>
-                Switch to {NETWORKS[DEFAULT_NETWORK].name}
+                Switch to {NETWORKS[DEFAULT_DEPLOY_NETWORK].name}
               </Button>
             )
           ) : (

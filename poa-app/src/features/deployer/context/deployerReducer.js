@@ -12,6 +12,7 @@
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { DEFAULT_DEPLOY_CHAIN_ID, NETWORKS, DEFAULT_DEPLOY_NETWORK, getNetworkByChainId } from '../../../config/networks';
 
 // Step constants - New flow
 export const STEPS = {
@@ -261,19 +262,19 @@ export const initialState = {
     enabled: true,
     operatorRoleIndex: null,       // null = type(uint256).max (skip), or role index
     autoWhitelistContracts: true,  // Default true - most users want this
-    fundingAmountEth: '0.05',      // ETH to deposit as msg.value (default org budget)
+    fundingAmountEth: NETWORKS[DEFAULT_DEPLOY_NETWORK].defaultFunding,  // Native currency to deposit as msg.value
     maxFeePerGas: '',              // gwei string, '' = 0 = no cap
     maxPriorityFeePerGas: '',      // gwei string
     maxCallGas: '',                // gas units string
     maxVerificationGas: '',
     maxPreVerificationGas: '',
-    budgetCapEth: '0.05',          // ETH amount per epoch per hat (generous default)
+    budgetCapEth: NETWORKS[DEFAULT_DEPLOY_NETWORK].defaultBudgetCap,    // Native currency per epoch per hat
     budgetEpochValue: '1',         // 1 week epoch
     budgetEpochUnit: 'weeks',      // 'hours' | 'days' | 'weeks'
   },
 
-  // Chain selection (advanced mode only; null = use DEFAULT_CHAIN_ID)
-  selectedChainId: null,
+  // Chain selection (defaults to Gnosis satellite chain)
+  selectedChainId: DEFAULT_DEPLOY_CHAIN_ID,
 
   // Deployment state
   deployment: {
@@ -1141,8 +1142,21 @@ export function deployerReducer(state, action) {
       };
 
     // Chain
-    case ACTION_TYPES.SET_SELECTED_CHAIN_ID:
-      return { ...state, selectedChainId: action.payload };
+    case ACTION_TYPES.SET_SELECTED_CHAIN_ID: {
+      const newChainId = action.payload;
+      const networkConfig = getNetworkByChainId(newChainId);
+      const newFunding = networkConfig?.defaultFunding || '0.05';
+      const newBudgetCap = networkConfig?.defaultBudgetCap || '0.05';
+      return {
+        ...state,
+        selectedChainId: newChainId,
+        paymaster: {
+          ...state.paymaster,
+          fundingAmountEth: newFunding,
+          budgetCapEth: newBudgetCap,
+        },
+      };
+    }
 
     // Validation
     case ACTION_TYPES.SET_ERRORS:

@@ -64,7 +64,7 @@ import { validateHierarchy } from '../utils/hierarchyUtils';
 import NavigationButtons from '../components/common/NavigationButtons';
 import { roleHasBundle } from '../utils/powerBundles';
 import { DeployerUsernameSection } from '../components/review/DeployerUsernameSection';
-import { getNetworkByChainId } from '../../../config/networks';
+import { getNetworkByChainId, DEFAULT_DEPLOY_CHAIN_ID } from '../../../config/networks';
 
 // Animations
 const pulseGlow = keyframes`
@@ -730,6 +730,11 @@ export function ReviewStep({
   const { state, actions, selectors } = useDeployer();
   const toast = useToast();
 
+  // Get native currency symbol for the selected deploy chain
+  const selectedChainId = selectors.getSelectedChainId();
+  const selectedNetwork = getNetworkByChainId(selectedChainId);
+  const nativeSymbol = selectedNetwork?.nativeCurrency?.symbol || 'ETH';
+
   // Auth modal state
   const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
   const { isOpen: isCreateOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure();
@@ -1283,14 +1288,14 @@ export function ReviewStep({
               {state.paymaster.fundingAmountEth && parseFloat(state.paymaster.fundingAmountEth) > 0 && (
                 <HStack>
                   <Text fontSize="sm" color="warmGray.500">Initial funding:</Text>
-                  <Text fontSize="sm" fontWeight="500">{state.paymaster.fundingAmountEth} ETH</Text>
+                  <Text fontSize="sm" fontWeight="500">{state.paymaster.fundingAmountEth} {nativeSymbol}</Text>
                 </HStack>
               )}
               {state.paymaster.budgetCapEth && parseFloat(state.paymaster.budgetCapEth) > 0 && (
                 <HStack>
                   <Text fontSize="sm" color="warmGray.500">Budget:</Text>
                   <Text fontSize="sm" fontWeight="500">
-                    {state.paymaster.budgetCapEth} ETH per {state.paymaster.budgetEpochValue} {state.paymaster.budgetEpochUnit}
+                    {state.paymaster.budgetCapEth} {nativeSymbol} per {state.paymaster.budgetEpochValue} {state.paymaster.budgetEpochUnit}
                   </Text>
                 </HStack>
               )}
