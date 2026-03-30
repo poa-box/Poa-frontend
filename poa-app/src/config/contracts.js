@@ -15,6 +15,7 @@ import { NETWORKS, DEFAULT_CHAIN_ID, getNetworkNameByChainId } from './networks'
  */
 export const INFRASTRUCTURE_CONTRACTS = {
   arbitrum: {
+    universalAccountRegistry: '0x01A13c92321E9CA2C02577b92A4F8d2FDC4d8513',
     hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137',
   },
   gnosis: {
