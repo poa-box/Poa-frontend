@@ -84,9 +84,9 @@ export function useWeb3Services(options = {}) {
   // Create core services — auth-type-aware
   const factory = useMemo(() => {
     if (isPasskeyUser) {
-      // Passkey: create factory with provider only (contracts used for ABI encoding)
-      if (!provider) return null;
-      return createContractFactory(null, provider);
+      // Passkey: factory is used for ABI encoding only (SmartAccountTransactionManager
+      // handles execution). Provider is optional — contracts work for encoding without one.
+      return createContractFactory(null, provider || undefined);
     }
     // EOA: create factory with signer
     if (!signer) return null;
