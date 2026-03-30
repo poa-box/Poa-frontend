@@ -73,8 +73,8 @@ export async function buildUserOp({
     callGasLimit: 500_000n,
     verificationGasLimit: 1_500_000n,
     preVerificationGas: 100_000n,
-    maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 3_000_000_000n,
-    maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 1_500_000_000n,
+    maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 500_000_000n,
+    maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 100_000_000n,
     ...(paymasterAddress ? {
       paymaster: paymasterAddress,
       paymasterVerificationGasLimit: 200_000n,
@@ -150,8 +150,8 @@ export async function buildUserOpWithFallback({
     callGasLimit: 500_000n,
     verificationGasLimit: 1_500_000n,
     preVerificationGas: 100_000n,
-    maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 3_000_000_000n,
-    maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 1_500_000_000n,
+    maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 500_000_000n,
+    maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 100_000_000n,
     signature: DUMMY_SIGNATURE,
   };
 
