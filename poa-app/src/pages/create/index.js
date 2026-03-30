@@ -43,11 +43,14 @@ import { resolveRoleUsernames } from "@/features/deployer/utils/usernameResolver
 import { encodeFunctionData, createPublicClient, http, defineChain } from "viem";
 import { createPimlicoClient } from "permissionless/clients/pimlico";
 import PasskeyAccountABI from "../../../abi/PasskeyAccount.json";
+import PasskeyAccountFactoryABI from "../../../abi/PasskeyAccountFactory.json";
+import UniversalAccountRegistryABI from "../../../abi/UniversalAccountRegistry.json";
 import { buildUserOp, getUserOpHash } from "@/services/web3/passkey/userOpBuilder";
 import { signUserOpWithPasskey } from "@/services/web3/passkey/passkeySign";
 import { encodeOrgDeployPaymasterData } from "@/services/web3/passkey/paymasterData";
 import { getBundlerUrl, ENTRY_POINT_ADDRESS } from "@/config/passkey";
 import { DEFAULT_DEPLOY_CHAIN_ID, getNetworkByChainId, getSubgraphUrl } from "@/config/networks";
+import { FETCH_PASSKEY_FACTORY_ADDRESS } from "@/util/passkeyQueries";
 
 /**
  * Inner component that has access to DeployerContext
@@ -84,11 +87,20 @@ function DeployerPageContent() {
   // Fetch infrastructure addresses from the target deploy chain's subgraph
   const deployChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
   const deploySubgraphUrl = getSubgraphUrl(deployChainId);
+  const isPasskeyUser = !!passkeyState?.accountAddress;
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
     fetchPolicy: 'network-only',
     context: { subgraphUrl: deploySubgraphUrl },
     skip: !deploySubgraphUrl,
   });
+
+  // Fetch passkey factory address on deploy chain (needed for cross-chain account creation)
+  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
+    fetchPolicy: 'network-only',
+    context: { subgraphUrl: deploySubgraphUrl },
+    skip: !deploySubgraphUrl || !isPasskeyUser,
+  });
+  const deployChainFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
 
   // Extract addresses from subgraph data
@@ -388,7 +400,7 @@ function DeployerPageContent() {
         const fundingBigInt = paymasterFundingWei.gt(0) ? BigInt(paymasterFundingWei.toString()) : 0n;
 
         // Create chain-specific clients for deployment target.
-        // AuthContext clients are pinned to Sepolia for login/reconnect flows.
+        // AuthContext clients are pinned to the home chain for login/reconnect flows.
         const targetNetwork = getNetworkByChainId(targetChainId);
         const targetChain = defineChain({
           id: targetNetwork.chainId,
@@ -407,25 +419,142 @@ function DeployerPageContent() {
           entryPoint: { address: ENTRY_POINT_ADDRESS, version: '0.7' },
         });
 
+        // --- Cross-chain account handling ---
+        // Check if the passkey smart account exists on the target chain.
+        // If not, include initCode so the EntryPoint deploys it via the factory.
+        let initCode = '0x';
+        const accountBytecode = await deployPublicClient.getBytecode({
+          address: passkeyState.accountAddress,
+        });
+        const accountExistsOnTargetChain = accountBytecode && accountBytecode !== '0x';
+
+        if (!accountExistsOnTargetChain) {
+          if (!deployChainFactoryAddress) {
+            throw new Error(
+              `Passkey account factory not found on ${targetNetwork.name}. ` +
+              `The protocol infrastructure may not be deployed on this chain yet.`
+            );
+          }
+
+          // Verify the target chain's factory produces the same address as our home-chain account.
+          // CREATE2 address depends on factory address, so if factories differ across chains
+          // the account address would differ — causing AA14 (initCode must return sender).
+          const targetAccountAddress = await deployPublicClient.readContract({
+            address: deployChainFactoryAddress,
+            abi: PasskeyAccountFactoryABI,
+            functionName: 'getAddress',
+            args: [
+              passkeyState.credentialId,
+              passkeyState.publicKeyX,
+              passkeyState.publicKeyY,
+              BigInt(passkeyState.salt),
+            ],
+          });
+
+          if (targetAccountAddress.toLowerCase() !== passkeyState.accountAddress.toLowerCase()) {
+            throw new Error(
+              `Account address mismatch: home chain account is ${passkeyState.accountAddress} ` +
+              `but ${targetNetwork.name} factory would create ${targetAccountAddress}. ` +
+              `Cross-chain deployment is not supported for this configuration.`
+            );
+          }
+
+          const factoryCallData = encodeFunctionData({
+            abi: PasskeyAccountFactoryABI,
+            functionName: 'createAccount',
+            args: [
+              passkeyState.credentialId,
+              passkeyState.publicKeyX,
+              passkeyState.publicKeyY,
+              BigInt(passkeyState.salt),
+            ],
+          });
+          initCode = deployChainFactoryAddress + factoryCallData.slice(2);
+          console.log('[DEPLOY] Account not found on target chain — initCode will deploy it');
+        }
+
+        // Check if the deployer's username is registered on the target chain's registry.
+        // The home chain (Arbitrum) has the username, but this chain's registry may not.
+        let needsUsernameRegistration = false;
+        const registryAddress = infrastructureAddresses.registryAddress;
+        if (deployerUsername && registryAddress) {
+          try {
+            const existingName = await deployPublicClient.readContract({
+              address: registryAddress,
+              abi: UniversalAccountRegistryABI,
+              functionName: 'getUsername',
+              args: [passkeyState.accountAddress],
+            });
+            needsUsernameRegistration = !existingName || existingName.trim().length === 0;
+            console.log('[DEPLOY] Username on target chain:', existingName || '(none)');
+          } catch {
+            // If account doesn't exist yet, getUsername will revert — treat as unregistered
+            needsUsernameRegistration = true;
+            console.log('[DEPLOY] Could not read username on target chain — will register');
+          }
+        }
+
+        // Build the UserOp callData:
+        // - If username needs registration: executeBatch([registerAccount, deployFullOrg])
+        // - Otherwise: single execute(deployFullOrg) (existing behavior)
+        let sponsoredCallData;
+        let selfFundedCallData;
+
+        if (needsUsernameRegistration && registryAddress) {
+          const registerCallData = encodeFunctionData({
+            abi: UniversalAccountRegistryABI,
+            functionName: 'registerAccount',
+            args: [deployerUsername],
+          });
+
+          sponsoredCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'executeBatch',
+            args: [
+              [registryAddress, orgDeployerAddress],
+              [0n, 0n],
+              [registerCallData, calldata],
+            ],
+          });
+
+          selfFundedCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'executeBatch',
+            args: [
+              [registryAddress, orgDeployerAddress],
+              [0n, fundingBigInt],
+              [registerCallData, calldata],
+            ],
+          });
+
+          console.log('[DEPLOY] Using executeBatch: registerAccount + deployFullOrg');
+        } else {
+          sponsoredCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'execute',
+            args: [orgDeployerAddress, 0n, calldata],
+          });
+
+          selfFundedCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'execute',
+            args: [orgDeployerAddress, fundingBigInt, calldata],
+          });
+        }
+
         // Try sponsored deployment first (solidarity fund pays gas via PaymasterHub),
         // then fall back to self-funded if sponsorship is unavailable.
-        // Sponsored path requires execute(orgDeployer, 0, ...) per PaymasterHub contract.
         let userOp;
         const paymasterHubAddress = infrastructureAddresses.paymasterHubProxy;
 
         if (paymasterHubAddress) {
           try {
-            const sponsoredCallData = encodeFunctionData({
-              abi: PasskeyAccountABI,
-              functionName: 'execute',
-              args: [orgDeployerAddress, 0n, calldata],
-            });
-
             userOp = await buildUserOp({
               sender: passkeyState.accountAddress,
               callData: sponsoredCallData,
               bundlerClient: deployBundlerClient,
               publicClient: deployPublicClient,
+              initCode,
               paymasterAddress: paymasterHubAddress,
               paymasterData: encodeOrgDeployPaymasterData(),
             });
@@ -448,17 +577,12 @@ function DeployerPageContent() {
 
         if (!userOp) {
           // Self-funded: account pays gas, can include ETH for org paymaster funding
-          const selfFundedCallData = encodeFunctionData({
-            abi: PasskeyAccountABI,
-            functionName: 'execute',
-            args: [orgDeployerAddress, fundingBigInt, calldata],
-          });
-
           userOp = await buildUserOp({
             sender: passkeyState.accountAddress,
             callData: selfFundedCallData,
             bundlerClient: deployBundlerClient,
             publicClient: deployPublicClient,
+            initCode,
           });
 
           console.log('[DEPLOY] UserOp built self-funded (account pays gas)');
