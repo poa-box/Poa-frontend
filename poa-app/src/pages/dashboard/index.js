@@ -14,6 +14,7 @@ import {
   Spinner,
   Center,
   useBreakpointValue,
+  useClipboard,
   Flex,
   Wrap,
   WrapItem,
@@ -22,6 +23,7 @@ import {
   StatNumber,
   SimpleGrid,
   Collapse,
+  Tooltip,
 } from '@chakra-ui/react';
 import { useVotingContext } from '@/context/VotingContext';
 import { usePOContext } from '@/context/POContext';
@@ -32,7 +34,7 @@ import OngoingPolls from '@/components/userPage/OngoingPolls';
 import { useRouter } from 'next/router';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { FaLink } from 'react-icons/fa';
-import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus } from 'react-icons/fi';
+import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiCheck } from 'react-icons/fi';
 import { useIPFScontext } from "@/context/ipfsContext";
 import { useOrgStructure } from '@/hooks/useOrgStructure';
 import { VouchingSection } from '@/components/orgStructure/VouchingSection';
@@ -49,6 +51,11 @@ const PerpetualOrgDashboard = () => {
   const [imageFetched, setImageFetched] = useState(false);
   const [isVouchingExpanded, setIsVouchingExpanded] = useState(false);
   const { fetchImageFromIpfs } = useIPFScontext();
+
+  const inviteLink = typeof window !== 'undefined' && userDAO
+    ? `${window.location.origin}/user?userDAO=${userDAO}`
+    : '';
+  const { hasCopied, onCopy } = useClipboard(inviteLink);
 
   // Responsive design breakpoints — single call to reduce matchMedia listeners
   const bp = useBreakpointValue({
@@ -216,6 +223,21 @@ const PerpetualOrgDashboard = () => {
                         )}
                       </Wrap>
                     </Box>
+                    <Tooltip label={hasCopied ? 'Copied!' : 'Copy invite link to clipboard'} closeOnClick={false} hasArrow>
+                      <Button
+                        onClick={onCopy}
+                        size="sm"
+                        variant="outline"
+                        colorScheme={hasCopied ? 'green' : 'purple'}
+                        leftIcon={<Icon as={hasCopied ? FiCheck : FiCopy} />}
+                        borderColor={hasCopied ? 'green.400' : 'purple.400'}
+                        color={hasCopied ? 'green.300' : 'purple.300'}
+                        _hover={{ bg: hasCopied ? 'green.900' : 'purple.900' }}
+                        transition="all 0.2s"
+                      >
+                        {hasCopied ? 'Copied!' : 'Copy Invite Link'}
+                      </Button>
+                    </Tooltip>
                   </VStack>
                 </Flex>
               </Box>
