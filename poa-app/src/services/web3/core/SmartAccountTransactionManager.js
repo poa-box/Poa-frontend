@@ -74,7 +74,7 @@ export class SmartAccountTransactionManager {
    * @returns {Promise<TransactionResult>}
    */
   async execute(contract, method, args = [], options = {}) {
-    const { onStateChange } = options;
+    const { onStateChange, paymasterHatIds: overrideHatIds } = options;
 
     try {
       // State: Estimating
@@ -92,7 +92,7 @@ export class SmartAccountTransactionManager {
       });
 
       // 3. Build UserOp — try with paymaster first, fall back to self-funded
-      const userOp = await this._buildUserOpWithFallback(callData);
+      const userOp = await this._buildUserOpWithFallback(callData, overrideHatIds);
 
       // State: Awaiting signature (biometric prompt)
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
@@ -237,21 +237,23 @@ export class SmartAccountTransactionManager {
    * Build a UserOp with paymaster-first-then-self-funded fallback.
    * Nonce + gas prices are fetched once; only estimation is retried on paymaster rejection.
    */
-  async _buildUserOpWithFallback(callData) {
-    // Paymaster requires orgId AND at least one hatId (hat-scoped budget set by OrgDeployer)
-    const hasPaymaster = this.paymasterAddress && this.orgId && this.hatIds?.length > 0;
+  async _buildUserOpWithFallback(callData, overrideHatIds = null) {
+    // Use override hat IDs if provided (e.g., target hat for first role claim),
+    // otherwise fall back to the user's current hats.
+    const effectiveHatIds = overrideHatIds?.length > 0 ? overrideHatIds : this.hatIds;
+    const hasPaymaster = this.paymasterAddress && this.orgId && effectiveHatIds?.length > 0;
 
     console.log('[SmartAccountTxMgr] Paymaster check:', {
       hasPaymaster,
       paymasterAddress: this.paymasterAddress,
       orgId: this.orgId,
-      hatIds: this.hatIds,
+      hatIds: effectiveHatIds,
       accountAddress: this.accountAddress,
     });
 
     // Build paymaster data for each hat ID so the builder can try them all
     const paymasterDataEntries = hasPaymaster
-      ? this.hatIds.map((hatId) => encodeHatPaymasterData({ hatId, orgId: this.orgId }))
+      ? effectiveHatIds.map((hatId) => encodeHatPaymasterData({ hatId, orgId: this.orgId }))
       : [];
 
     const userOp = await buildUserOpWithFallback({
