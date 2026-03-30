@@ -4,8 +4,9 @@
  * Supports both EOA (RainbowKit/wagmi) and Passkey (ERC-4337) auth types.
  */
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
+import { encodeFunctionData } from 'viem';
 import { useEthersSigner, useEthersProvider } from '@/components/ProviderConverter';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
@@ -16,7 +17,9 @@ import { useUserContext } from '../context/UserContext';
 import { INFRASTRUCTURE_CONTRACTS, getInfrastructureAddress } from '../config/contracts';
 import { DEFAULT_NETWORK, DEFAULT_CHAIN_ID } from '../config/networks';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
-import { FETCH_PAYMASTER_ORG_CONFIG } from '../util/passkeyQueries';
+import { FETCH_PAYMASTER_ORG_CONFIG, FETCH_PASSKEY_FACTORY_ADDRESS } from '../util/passkeyQueries';
+import { createChainClients } from '../services/web3/utils/chainClients';
+import PasskeyAccountFactoryABI from '../../abi/PasskeyAccountFactory.json';
 
 // Core services
 import { ContractFactory, createContractFactory } from '../services/web3/core/ContractFactory';
@@ -52,21 +55,101 @@ export function useWeb3Services(options = {}) {
   const ipfsContext = useIPFScontext();
   const ipfsService = providedIpfs || ipfsContext;
 
-  // Get org ID and subgraph URL from POContext for paymaster data
+  // Get org ID, chain, and subgraph URL from POContext for paymaster data
   // usePOContext returns undefined when outside POProvider (non-org routes)
   const poContext = usePOContext();
   const orgId = poContext?.orgId || null;
   const subgraphUrl = poContext?.subgraphUrl || null;
+  const orgChainId = poContext?.orgChainId || null;
+
+  // Create chain-specific clients when org is on a different chain than home chain
+  const isCrossChain = orgChainId && orgChainId !== DEFAULT_CHAIN_ID;
+  const { effectivePublicClient, effectiveBundlerClient, effectiveChainId } = useMemo(() => {
+    if (!isCrossChain) {
+      return { effectivePublicClient: publicClient, effectiveBundlerClient: bundlerClient, effectiveChainId: DEFAULT_CHAIN_ID };
+    }
+    const clients = createChainClients(orgChainId);
+    if (!clients) {
+      return { effectivePublicClient: publicClient, effectiveBundlerClient: bundlerClient, effectiveChainId: DEFAULT_CHAIN_ID };
+    }
+    return { effectivePublicClient: clients.publicClient, effectiveBundlerClient: clients.bundlerClient, effectiveChainId: orgChainId };
+  }, [isCrossChain, orgChainId, publicClient, bundlerClient]);
 
   // Get user's hat IDs for hat-scoped paymaster budget
   // useUserContext returns undefined outside UserProvider (safe with optional chaining)
   const userContext = useUserContext();
   const hatIds = userContext?.userData?.hatIds || null;
 
-  // Fetch infrastructure addresses from subgraph
-  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
+  // Fetch infrastructure addresses from subgraph — routed to org's chain when available.
+  // Use network-only when subgraphUrl is present: Apollo's cache keys don't include context,
+  // so cache-first would serve stale data from the default chain after subgraphUrl changes.
+  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
+    context: subgraphUrl ? { subgraphUrl } : undefined,
+    fetchPolicy: subgraphUrl ? 'network-only' : 'cache-first',
+  });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
   const paymasterHubAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
+
+  // For passkey cross-chain: fetch factory address from org chain to compute initCode
+  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
+    skip: !isPasskeyUser || !isCrossChain,
+    context: subgraphUrl ? { subgraphUrl } : undefined,
+    fetchPolicy: subgraphUrl ? 'network-only' : 'cache-first',
+  });
+  const orgFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
+
+  // Compute initCode for cross-chain passkey account deployment.
+  // Verifies the target chain factory produces the same CREATE2 address (factories at
+  // different addresses on different chains produce different account addresses).
+  // SmartAccountTransactionManager will check account existence at call time before using it.
+  const [crossChainInitCode, setCrossChainInitCode] = useState('0x');
+
+  useEffect(() => {
+    if (!isPasskeyUser || !isCrossChain || !orgFactoryAddress || !passkeyState || !effectivePublicClient) {
+      setCrossChainInitCode('0x');
+      return;
+    }
+
+    let cancelled = false;
+
+    async function verifyAndBuildInitCode() {
+      try {
+        // Verify factory produces the same account address on the target chain
+        const targetAddress = await effectivePublicClient.readContract({
+          address: orgFactoryAddress,
+          abi: PasskeyAccountFactoryABI,
+          functionName: 'getAddress',
+          args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
+        });
+
+        if (cancelled) return;
+
+        if (targetAddress.toLowerCase() !== passkeyState.accountAddress.toLowerCase()) {
+          console.error(
+            `[useWeb3Services] Cross-chain CREATE2 mismatch: target factory produces ${targetAddress}, ` +
+            `expected ${passkeyState.accountAddress}. Cross-chain account deployment unavailable.`
+          );
+          setCrossChainInitCode('0x');
+          return;
+        }
+
+        const factoryCallData = encodeFunctionData({
+          abi: PasskeyAccountFactoryABI,
+          functionName: 'createAccount',
+          args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
+        });
+        setCrossChainInitCode(orgFactoryAddress + factoryCallData.slice(2));
+      } catch (e) {
+        if (!cancelled) {
+          console.warn('[useWeb3Services] Failed to verify cross-chain factory:', e.message);
+          setCrossChainInitCode('0x');
+        }
+      }
+    }
+
+    verifyAndBuildInitCode();
+    return () => { cancelled = true; };
+  }, [isPasskeyUser, isCrossChain, orgFactoryAddress, passkeyState, effectivePublicClient]);
 
   // Check if this org has gas sponsorship enabled (subgraph lookup, no RPC)
   const { data: pmConfig } = useQuery(FETCH_PAYMASTER_ORG_CONFIG, {
@@ -96,22 +179,24 @@ export function useWeb3Services(options = {}) {
   const txManager = useMemo(() => {
     if (isPasskeyUser) {
       // Passkey: create SmartAccountTransactionManager
-      // paymasterAddress is optional — if absent, account pays its own gas
-      if (!passkeyState || !publicClient || !bundlerClient) return null;
+      // Uses org-chain clients when org is on a different chain than home chain
+      if (!passkeyState || !effectivePublicClient || !effectiveBundlerClient) return null;
       return createSmartAccountTransactionManager({
         accountAddress: passkeyState.accountAddress,
         rawCredentialId: passkeyState.rawCredentialId,
-        publicClient,
-        bundlerClient,
+        publicClient: effectivePublicClient,
+        bundlerClient: effectiveBundlerClient,
         paymasterAddress,
         orgId,
         hatIds,
+        chainId: effectiveChainId,
+        initCode: crossChainInitCode,
       });
     }
     // EOA: create standard TransactionManager
     if (!signer) return null;
     return createTransactionManager(signer);
-  }, [signer, isPasskeyUser, passkeyState, publicClient, bundlerClient, paymasterAddress, orgId, hatIds]);
+  }, [signer, isPasskeyUser, passkeyState, effectivePublicClient, effectiveBundlerClient, paymasterAddress, orgId, hatIds, effectiveChainId, crossChainInitCode]);
 
   // Create domain services
   const services = useMemo(() => {
@@ -129,14 +214,14 @@ export function useWeb3Services(options = {}) {
 
     return {
       user: createUserService(factory, txManager, registryAddress),
-      organization: createOrganizationService(factory, txManager, registryAddress),
+      organization: createOrganizationService(factory, txManager, registryAddress, effectiveChainId),
       voting: createVotingService(factory, txManager, ipfsService),
       task: createTaskService(factory, txManager, ipfsService),
       education: createEducationService(factory, txManager, ipfsService),
       eligibility: createEligibilityService(factory, txManager),
       tokenRequest: createTokenRequestService(factory, txManager, ipfsService),
     };
-  }, [factory, txManager, ipfsService, registryAddress]);
+  }, [factory, txManager, ipfsService, registryAddress, effectiveChainId]);
 
   // Contract addresses helper
   const getContractAddress = useCallback((contractName) => {

@@ -16,8 +16,6 @@ import { encodeHatPaymasterData } from '../passkey/paymasterData';
 import { ENTRY_POINT_ADDRESS } from '../../../config/passkey';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
-const networkConfig = NETWORKS[DEFAULT_NETWORK];
-
 /**
  * ERC-4337 error code mappings
  */
@@ -51,8 +49,10 @@ export class SmartAccountTransactionManager {
    * @param {string} params.paymasterAddress - PaymasterHub proxy address
    * @param {string} [params.orgId] - Current org ID (bytes32) for paymaster data
    * @param {string[]} [params.hatIds] - User's hat IDs for hat-scoped paymaster budget (tries each before self-pay)
+   * @param {number} [params.chainId] - Chain ID for UserOp hash (defaults to home chain)
+   * @param {string} [params.initCode='0x'] - initCode for cross-chain account deployment
    */
-  constructor({ accountAddress, rawCredentialId, publicClient, bundlerClient, paymasterAddress, orgId = null, hatIds = null }) {
+  constructor({ accountAddress, rawCredentialId, publicClient, bundlerClient, paymasterAddress, orgId = null, hatIds = null, chainId = null, initCode = '0x' }) {
     this.accountAddress = accountAddress;
     this.rawCredentialId = rawCredentialId;
     this.publicClient = publicClient;
@@ -60,7 +60,8 @@ export class SmartAccountTransactionManager {
     this.paymasterAddress = paymasterAddress;
     this.orgId = orgId;
     this.hatIds = hatIds;
-    this.chainId = networkConfig.chainId;
+    this.chainId = chainId || NETWORKS[DEFAULT_NETWORK].chainId;
+    this.initCode = initCode;
   }
 
   /**
@@ -251,6 +252,17 @@ export class SmartAccountTransactionManager {
       accountAddress: this.accountAddress,
     });
 
+    // Determine initCode: only include if account doesn't exist on-chain yet.
+    // This handles cross-chain joins where the passkey account needs deployment.
+    let initCode = '0x';
+    if (this.initCode && this.initCode !== '0x') {
+      const bytecode = await this.publicClient.getBytecode({ address: this.accountAddress });
+      if (!bytecode || bytecode === '0x') {
+        initCode = this.initCode;
+        console.log('[SmartAccountTxMgr] Cross-chain: including initCode for account deployment');
+      }
+    }
+
     // Build paymaster data for each hat ID so the builder can try them all
     const paymasterDataEntries = hasPaymaster
       ? effectiveHatIds.map((hatId) => encodeHatPaymasterData({ hatId, orgId: this.orgId }))
@@ -261,6 +273,7 @@ export class SmartAccountTransactionManager {
       callData,
       bundlerClient: this.bundlerClient,
       publicClient: this.publicClient,
+      initCode,
       ...(hasPaymaster ? {
         paymasterAddress: this.paymasterAddress,
         paymasterDataEntries,

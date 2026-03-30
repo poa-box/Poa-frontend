@@ -10,8 +10,6 @@ import { signRegistrationChallenge, computeRegistrationChallenge } from '../pass
 import { signRegistration } from '../utils/registrySigner';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
-const networkConfig = NETWORKS[DEFAULT_NETWORK];
-
 // Registration deadline: 5 minutes
 const REGISTRATION_DEADLINE_SECONDS = 300;
 
@@ -23,11 +21,13 @@ export class OrganizationService {
    * @param {ContractFactory} contractFactory - Contract factory instance
    * @param {TransactionManager} transactionManager - Transaction manager instance
    * @param {string} [registryAddress] - UniversalAccountRegistry address for new user registration
+   * @param {number} [chainId] - Chain ID for registration challenge (defaults to home chain)
    */
-  constructor(contractFactory, transactionManager, registryAddress = null) {
+  constructor(contractFactory, transactionManager, registryAddress = null, chainId = null) {
     this.factory = contractFactory;
     this.txManager = transactionManager;
     this.registryAddress = registryAddress;
+    this.chainId = chainId || NETWORKS[DEFAULT_NETWORK].chainId;
   }
 
   /**
@@ -55,9 +55,21 @@ export class OrganizationService {
     const { credentialId, publicKeyX, publicKeyY, salt, rawCredentialId } = credential;
     const accountAddress = this.txManager.accountAddress;
 
-    // Query registry nonce for this account (0 for accounts that haven't registered)
-    const registryContract = this.factory.createReadOnly(this.registryAddress, UniversalAccountRegistryABI);
-    const nonce = BigInt(await registryContract.nonces(accountAddress));
+    // Query registry nonce for this account (0 for accounts that haven't registered).
+    // Passkey: use chain-routed viem client (ethers provider may be on a different chain).
+    // EOA: use ethers via contract factory (signer's provider is on the correct chain after auto-switch).
+    let nonce;
+    if (this.txManager.publicClient) {
+      nonce = BigInt(await this.txManager.publicClient.readContract({
+        address: this.registryAddress,
+        abi: UniversalAccountRegistryABI,
+        functionName: 'nonces',
+        args: [accountAddress],
+      }));
+    } else {
+      const registryContract = this.factory.createReadOnly(this.registryAddress, UniversalAccountRegistryABI);
+      nonce = BigInt(await registryContract.nonces(accountAddress));
+    }
     const deadline = BigInt(Math.floor(Date.now() / 1000) + REGISTRATION_DEADLINE_SECONDS);
 
     // Compute and sign the registration challenge (biometric prompt #1)
@@ -66,7 +78,7 @@ export class OrganizationService {
       username,
       nonce,
       deadline,
-      chainId: networkConfig.chainId,
+      chainId: this.chainId,
       registryAddress: this.registryAddress,
     });
 
@@ -153,6 +165,6 @@ export class OrganizationService {
  * @param {string} [registryAddress] - UniversalAccountRegistry address
  * @returns {OrganizationService}
  */
-export function createOrganizationService(factory, txManager, registryAddress = null) {
-  return new OrganizationService(factory, txManager, registryAddress);
+export function createOrganizationService(factory, txManager, registryAddress = null, chainId = null) {
+  return new OrganizationService(factory, txManager, registryAddress, chainId);
 }

@@ -22,8 +22,6 @@ import { encodeOnboardingPaymasterData, encodeSolidarityOnboardingPaymasterData 
 import { ENTRY_POINT_ADDRESS } from '../../../config/passkey';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
-const networkConfig = NETWORKS[DEFAULT_NETWORK];
-
 // Registration deadline: 5 minutes from now
 const REGISTRATION_DEADLINE_SECONDS = 300;
 
@@ -70,7 +68,7 @@ export class PasskeyOnboardingService {
    * @param {string} [params.orgId] - bytes32 org ID (org mode only)
    * @param {string} [params.mode='org'] - 'org' for org-scoped onboarding, 'solidarity' for protocol-level
    */
-  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId, mode = 'org', hatId }) {
+  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId, mode = 'org', hatId, chainId = null }) {
     this.publicClient = publicClient;
     this.bundlerClient = bundlerClient;
     this.factoryAddress = factoryAddress;
@@ -80,6 +78,7 @@ export class PasskeyOnboardingService {
     this.orgId = orgId;
     this.mode = mode;
     this.hatId = hatId;
+    this.chainId = chainId || NETWORKS[DEFAULT_NETWORK].chainId;
   }
 
   /**
@@ -130,7 +129,7 @@ export class PasskeyOnboardingService {
       username,
       nonce,
       deadline,
-      chainId: networkConfig.chainId,
+      chainId: this.chainId,
       registryAddress: this.registryAddress,
     });
 
@@ -239,7 +238,7 @@ export class PasskeyOnboardingService {
       const userOpHash = getUserOpHash(
         userOp,
         ENTRY_POINT_ADDRESS,
-        networkConfig.chainId,
+        this.chainId,
       );
       const signature = await signUserOpWithPasskey(userOpHash, rawCredentialId);
       userOp.signature = signature;
@@ -334,7 +333,7 @@ export class PasskeyOnboardingService {
       const userOpHash = getUserOpHash(
         userOp,
         ENTRY_POINT_ADDRESS,
-        networkConfig.chainId,
+        this.chainId,
       );
       const signature = await signUserOpWithPasskey(userOpHash, rawCredentialId);
       userOp.signature = signature;
