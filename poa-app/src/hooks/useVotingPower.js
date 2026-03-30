@@ -92,15 +92,10 @@ export function useVotingPower() {
 
   // Use subgraph classes if available, otherwise use defaults
   const classConfig = useMemo(() => {
-    if (votingType !== 'Hybrid') {
-      console.log('[useVotingPower] Not hybrid voting, skipping class config');
-      return null;
-    }
+    if (votingType !== 'Hybrid') return null;
 
     // If we have classes from subgraph, use them (strategy is a string enum: 'DIRECT' or 'ERC20_BAL')
     if (subgraphClasses && subgraphClasses.length > 0) {
-      console.log('[useVotingPower] Using classes from subgraph:', JSON.stringify(subgraphClasses, null, 2));
-      // Normalize slicePct to number, strategy stays as string
       return subgraphClasses.map(cls => ({
         ...cls,
         slicePct: Number(cls.slicePct),
@@ -108,7 +103,6 @@ export function useVotingPower() {
     }
 
     // Fall back to defaults if subgraph doesn't have classes yet
-    console.log('[useVotingPower] Using default class config (subgraph has no classes)');
     return defaultClasses;
   }, [votingType, subgraphClasses]);
 
@@ -117,13 +111,6 @@ export function useVotingPower() {
 
   // Calculate voting power
   const votingPower = useMemo(() => {
-    console.log('[useVotingPower] Calculating power:', {
-      hasMemberRole,
-      votingType,
-      classConfigLength: classConfig?.length,
-      userPTBalance: userData?.participationTokenBalance,
-    });
-
     // Default response for non-members or when data isn't loaded
     const defaultPower = {
       membershipPower: 0,
@@ -136,16 +123,13 @@ export function useVotingPower() {
       status: 'unknown',
     };
 
-    // Not a member
     if (!hasMemberRole) {
-      console.log('[useVotingPower] User is not a member');
       return { ...defaultPower, message: 'Join to participate in voting', status: 'not_member' };
     }
 
     // Direct Democracy mode
     if (votingType !== 'Hybrid') {
       const memberCount = poMembers || 1;
-      console.log('[useVotingPower] Direct Democracy mode');
       return {
         membershipPower: 100,
         contributionPower: 0,
@@ -159,9 +143,7 @@ export function useVotingPower() {
       };
     }
 
-    // Hybrid mode - wait for class config to be set
     if (!classConfig || classConfig.length === 0) {
-      console.log('[useVotingPower] Waiting for class config');
       return { ...defaultPower, message: 'Loading...', status: 'loading' };
     }
 
@@ -171,25 +153,12 @@ export function useVotingPower() {
     let democracyWeight = 0;
     let contributionWeight = 0;
 
-    console.log('[useVotingPower] Processing classes:', classConfig.length, 'classes');
-    classConfig.forEach((cls, index) => {
-      console.log(`[useVotingPower] Class ${index}:`, {
-        strategy: cls.strategy,
-        strategyType: typeof cls.strategy,
-        slicePct: cls.slicePct,
-        isDirectMatch: cls.strategy === VOTING_STRATEGY.DIRECT,
-        isERC20Match: cls.strategy === VOTING_STRATEGY.ERC20_BAL,
-      });
-
+    classConfig.forEach((cls) => {
       if (cls.strategy === VOTING_STRATEGY.DIRECT) {
-        // Direct democracy class - fixed 100 points
         membershipPower = 100;
         democracyWeight = Number(cls.slicePct);
-        console.log('[useVotingPower] Found DIRECT class, membershipPower=100, weight=', cls.slicePct);
       } else if (cls.strategy === VOTING_STRATEGY.ERC20_BAL) {
-        // Token-weighted class - read weight directly from subgraph
         contributionWeight = Number(cls.slicePct);
-        console.log('[useVotingPower] Found ERC20_BAL class, weight=', cls.slicePct);
 
         // Get user's token balance
         const rawBalance = userData?.participationTokenBalance || '0';
@@ -284,7 +253,6 @@ export function useVotingPower() {
       status: 'ready',
     };
 
-    console.log('[useVotingPower] Final result:', result);
     return result;
   }, [classConfig, userData, hasMemberRole, votingType, poMembers, leaderboardData]);
 

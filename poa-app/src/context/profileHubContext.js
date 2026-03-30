@@ -63,7 +63,7 @@ export const ProfileHubProvider = ({ children }) => {
         let cancelled = false;
 
         async function fetchAll() {
-            const entries = Object.values(NETWORKS);
+            const entries = Object.values(NETWORKS).filter(n => !n.isTestnet);
             const results = await Promise.all(
                 entries.map(net => fetchOrgsFromSource(net.subgraphUrl, net))
             );

@@ -52,7 +52,6 @@ function normalizeToIpfsCid(hash) {
     if (hash.startsWith('0x')) {
         const cid = bytes32ToIpfsCid(hash);
         if (cid) {
-            console.log('Converted bytes32 to CID:', hash, '->', cid);
             return cid;
         }
         console.warn('Failed to convert bytes32 to CID:', hash);
@@ -162,11 +161,8 @@ export const IPFSprovider = ({ children }) => {
      * @throws {IPFSError} If fetch or parse fails
      */
     const fetchFromIpfs = useCallback(async (ipfsHash) => {
-        console.log("fetching from IPFS", ipfsHash);
-
         // Zero/empty hashes are valid - they mean "no content"
         if (isZeroHash(ipfsHash)) {
-            console.log("IPFS hash is empty/zero, returning null");
             return null;
         }
 
@@ -181,10 +177,8 @@ export const IPFSprovider = ({ children }) => {
             const result = await withRetry(async () => {
                 let stringData = '';
                 for await (const chunk of ipfsClient.cat(validHash)) {
-                    console.log("chunk:", chunk);
                     stringData += new TextDecoder().decode(chunk);
                 }
-                console.log("stringData:", stringData);
                 return stringData;
             });
 
@@ -215,11 +209,8 @@ export const IPFSprovider = ({ children }) => {
      * @throws {IPFSError} If fetch fails
      */
     const fetchImageFromIpfs = useCallback(async (ipfsHash) => {
-        console.log("fetching image from IPFS", ipfsHash);
-
         // Zero/empty hashes are valid - they mean "no image"
         if (isZeroHash(ipfsHash)) {
-            console.log("IPFS image hash is empty/zero, returning null");
             return null;
         }
 
@@ -244,7 +235,6 @@ export const IPFSprovider = ({ children }) => {
 
             // Create Object URL from Blob
             const imageUrl = URL.createObjectURL(blob);
-            console.log("Image URL:", imageUrl);
 
             return imageUrl;
         } catch (error) {

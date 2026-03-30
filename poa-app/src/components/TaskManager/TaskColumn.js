@@ -68,34 +68,16 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
   // Check if user can create tasks in this project
   // Falls back to checking if user has executive+ role when permissions are not configured
   const canCreateTask = useMemo(() => {
-    const hasPermission = userCanCreateTask(userHatIds, projectRolePermissions);
-    if (hasPermission) {
-      console.debug('[TaskColumn] User has create permission via project role permissions');
-      return true;
-    }
-    // Fallback: If no project permissions configured, check if user has executive+ role
-    if (!projectRolePermissions?.length && hasNonMemberRole) {
-      console.debug('[TaskColumn] No project permissions configured, falling back to executive role check');
-      return true;
-    }
-    console.debug('[TaskColumn] User cannot create tasks');
+    if (userCanCreateTask(userHatIds, projectRolePermissions)) return true;
+    if (!projectRolePermissions?.length && hasNonMemberRole) return true;
     return false;
   }, [userHatIds, projectRolePermissions, hasNonMemberRole]);
 
   // Check if user can review tasks in this project
   // Falls back to checking if user has executive+ role when permissions are not configured
   const canReviewTask = useMemo(() => {
-    const hasPermission = userCanReviewTask(userHatIds, projectRolePermissions);
-    if (hasPermission) {
-      console.debug('[TaskColumn] User has review permission via project role permissions');
-      return true;
-    }
-    // Fallback: If no project permissions configured, check if user has executive+ role
-    if (!projectRolePermissions?.length && hasNonMemberRole) {
-      console.debug('[TaskColumn] No project permissions configured, falling back to executive role check');
-      return true;
-    }
-    console.debug('[TaskColumn] User cannot review tasks');
+    if (userCanReviewTask(userHatIds, projectRolePermissions)) return true;
+    if (!projectRolePermissions?.length && hasNonMemberRole) return true;
     return false;
   }, [userHatIds, projectRolePermissions, hasNonMemberRole]);
 
