@@ -275,9 +275,10 @@ export function validateHierarchy(roles) {
       if (voucherIdx < 0 || voucherIdx >= roles.length) {
         errors.push(`Role "${role.name}" has invalid voucher role reference (index ${voucherIdx})`);
       }
-      // Self-reference check: a role cannot vouch for itself
-      if (voucherIdx === idx) {
-        errors.push(`Role "${role.name}" cannot vouch for itself. Select a different voucher role.`);
+      // Self-reference: a role vouching for itself is valid (e.g., Members vouch for Members)
+      // but needs at least one initial member to bootstrap the chain of trust
+      if (voucherIdx === idx && !role.distribution?.mintToDeployer) {
+        warnings.push(`Warning: Role "${role.name}" vouches for itself but deployer won't receive it. Ensure initial members are assigned to bootstrap vouching.`);
       }
       if (role.vouching.quorum <= 0) {
         errors.push(`Role "${role.name}" has vouching enabled but quorum is not positive`);
