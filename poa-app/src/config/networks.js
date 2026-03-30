@@ -4,29 +4,19 @@
  */
 
 export const NETWORKS = {
-  sepolia: {
-    chainId: 11155111,
-    name: 'Sepolia',
+  arbitrum: {
+    chainId: 42161,
+    name: 'Arbitrum One',
     nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrl: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
-    blockExplorer: 'https://sepolia.etherscan.io',
-    isTestnet: true,
-    subgraphUrl: process.env.NEXT_PUBLIC_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest',
+    rpcUrl: process.env.NEXT_PUBLIC_ARBITRUM_RPC_URL || 'https://arb1.arbitrum.io/rpc',
+    blockExplorer: 'https://arbiscan.io',
+    isTestnet: false,
+    subgraphUrl: process.env.NEXT_PUBLIC_ARBITRUM_SUBGRAPH_URL || '',
     bountyTokens: {
-      USDC: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+      USDC: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
     },
-  },
-  baseSepolia: {
-    chainId: 84532,
-    name: 'Base Sepolia',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrl: process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com',
-    blockExplorer: 'https://sepolia.basescan.org',
-    isTestnet: true,
-    subgraphUrl: process.env.NEXT_PUBLIC_BASE_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-base-sepolia/version/latest',
-    bountyTokens: {
-      USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-    },
+    defaultFunding: '0.003',
+    defaultBudgetCap: '0.003',
   },
   gnosis: {
     chainId: 100,
@@ -41,11 +31,46 @@ export const NETWORKS = {
       USDC:  '0xDDAfbb505ad214D7b80b1f830fcCc89B60fB7A83',
       WXDAI: '0xe91D153E0b41518A2Ce8Dd3D7944Fa863463a97d',
     },
+    defaultFunding: '0.0002',
+    defaultBudgetCap: '0.0002',
+  },
+  sepolia: {
+    chainId: 11155111,
+    name: 'Sepolia',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrl: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
+    blockExplorer: 'https://sepolia.etherscan.io',
+    isTestnet: true,
+    subgraphUrl: process.env.NEXT_PUBLIC_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest',
+    bountyTokens: {
+      USDC: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
+    },
+    defaultFunding: '0.05',
+    defaultBudgetCap: '0.05',
+  },
+  baseSepolia: {
+    chainId: 84532,
+    name: 'Base Sepolia',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrl: process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com',
+    blockExplorer: 'https://sepolia.basescan.org',
+    isTestnet: true,
+    subgraphUrl: process.env.NEXT_PUBLIC_BASE_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-base-sepolia/version/latest',
+    bountyTokens: {
+      USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+    },
+    defaultFunding: '0.05',
+    defaultBudgetCap: '0.05',
   },
 };
 
-export const DEFAULT_NETWORK = 'sepolia';
+// Home chain (accounts, passkeys, core infrastructure)
+export const DEFAULT_NETWORK = 'arbitrum';
 export const DEFAULT_CHAIN_ID = NETWORKS[DEFAULT_NETWORK].chainId;
+
+// Default chain for org deployment (satellite chain)
+export const DEFAULT_DEPLOY_NETWORK = 'gnosis';
+export const DEFAULT_DEPLOY_CHAIN_ID = NETWORKS[DEFAULT_DEPLOY_NETWORK].chainId;
 
 /**
  * Get network configuration by chain ID

@@ -19,7 +19,7 @@ import {
   useColorModeValue,
 } from '@chakra-ui/react';
 import { PiGraduationCap, PiHandshake, PiGlobe } from 'react-icons/pi';
-import { NETWORKS, DEFAULT_CHAIN_ID } from '../../../config/networks';
+import { NETWORKS, DEFAULT_DEPLOY_CHAIN_ID } from '../../../config/networks';
 import { useDeployer } from '../context/DeployerContext';
 import { StepHeader, NavigationButtons } from '../components/common';
 import { PaymasterConfigSection } from '../components/paymaster/PaymasterConfigSection';
@@ -134,7 +134,7 @@ export function SettingsStep() {
               </Box>
             </HStack>
             <Select
-              value={state.selectedChainId || DEFAULT_CHAIN_ID}
+              value={state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID}
               onChange={(e) => actions.setSelectedChainId(Number(e.target.value))}
               bg="white"
               borderColor={borderColor}

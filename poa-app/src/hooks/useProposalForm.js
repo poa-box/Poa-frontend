@@ -12,6 +12,8 @@ import {
   CONTRACT_MAP,
   getTemplateById,
 } from '@/config/setterDefinitions';
+import { usePOContext } from '@/context/POContext';
+import { getNetworkByChainId } from '../config/networks';
 
 const defaultProposal = {
   name: "",
@@ -40,6 +42,9 @@ const defaultProposal = {
 
 export function useProposalForm({ onSubmit }) {
   const toast = useToast();
+  const { orgChainId } = usePOContext();
+  const orgNetwork = getNetworkByChainId(orgChainId);
+  const nativeCurrencySymbol = orgNetwork?.nativeCurrency?.symbol || 'ETH';
   const [proposal, setProposal] = useState(defaultProposal);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
 
@@ -510,7 +515,7 @@ export function useProposalForm({ onSubmit }) {
 
       let successDescription;
       if (proposal.type === "transferFunds") {
-        successDescription = `Transfer proposal created. If "Yes" wins, ${proposal.transferAmount} ETH will be sent to ${proposal.transferAddress.slice(0, 6)}...${proposal.transferAddress.slice(-4)}`;
+        successDescription = `Transfer proposal created. If "Yes" wins, ${proposal.transferAmount} ${nativeCurrencySymbol} will be sent to ${proposal.transferAddress.slice(0, 6)}...${proposal.transferAddress.slice(-4)}`;
       } else if (proposal.type === "election") {
         successDescription = `Election created with ${proposal.electionCandidates.length} candidates. The winner will receive the role automatically.`;
       } else if (proposal.type === "setter") {

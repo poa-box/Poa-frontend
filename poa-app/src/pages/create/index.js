@@ -47,7 +47,7 @@ import { buildUserOp, getUserOpHash } from "@/services/web3/passkey/userOpBuilde
 import { signUserOpWithPasskey } from "@/services/web3/passkey/passkeySign";
 import { encodeOrgDeployPaymasterData } from "@/services/web3/passkey/paymasterData";
 import { getBundlerUrl, ENTRY_POINT_ADDRESS } from "@/config/passkey";
-import { DEFAULT_CHAIN_ID, getNetworkByChainId } from "@/config/networks";
+import { DEFAULT_DEPLOY_CHAIN_ID, getNetworkByChainId, getSubgraphUrl } from "@/config/networks";
 
 /**
  * Inner component that has access to DeployerContext
@@ -81,9 +81,13 @@ function DeployerPageContent() {
   const router = useRouter();
   const { state, actions } = useDeployer();
 
-  // Fetch infrastructure addresses from subgraph
+  // Fetch infrastructure addresses from the target deploy chain's subgraph
+  const deployChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
+  const deploySubgraphUrl = getSubgraphUrl(deployChainId);
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
     fetchPolicy: 'network-only',
+    context: { subgraphUrl: deploySubgraphUrl },
+    skip: !deploySubgraphUrl,
   });
 
 
@@ -142,7 +146,7 @@ function DeployerPageContent() {
     setIsDeploying(true);
 
     // Switch to the selected chain before deploying
-    const targetChainId = state.selectedChainId || DEFAULT_CHAIN_ID;
+    const targetChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
     if (connectedChainId && connectedChainId !== targetChainId) {
       try {
         await switchChainAsync({ chainId: targetChainId });

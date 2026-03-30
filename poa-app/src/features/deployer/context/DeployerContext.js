@@ -21,7 +21,7 @@ import {
   VOTING_STRATEGY,
 } from './deployerReducer';
 import { getTemplateById, getTemplateDefaults, TEMPLATE_LIST } from '../templates';
-import { DEFAULT_CHAIN_ID } from '../../../config/networks';
+import { DEFAULT_DEPLOY_CHAIN_ID } from '../../../config/networks';
 
 // Create the context
 const DeployerContext = createContext(null);
@@ -290,7 +290,7 @@ export function DeployerProvider({ children }) {
     },
 
     // Chain
-    getSelectedChainId: () => state.selectedChainId || DEFAULT_CHAIN_ID,
+    getSelectedChainId: () => state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID,
 
     // Paymaster
     isPaymasterEnabled: () => state.paymaster.enabled,

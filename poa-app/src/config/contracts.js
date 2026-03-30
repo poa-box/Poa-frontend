@@ -14,6 +14,12 @@ import { NETWORKS, DEFAULT_CHAIN_ID, getNetworkNameByChainId } from './networks'
  * hatsProtocol is the same address on all chains.
  */
 export const INFRASTRUCTURE_CONTRACTS = {
+  arbitrum: {
+    hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137',
+  },
+  gnosis: {
+    hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137',
+  },
   sepolia: {
     universalAccountRegistry: '0xDdB1DA30020861d92c27aE981ac0f4Fe8BA536F2',
     hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137',
