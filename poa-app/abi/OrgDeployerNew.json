@@ -418,6 +418,16 @@
                     "name": "assignHats",
                     "type": "uint256[]",
                     "internalType": "uint256[]"
+                  },
+                  {
+                    "name": "bountyTokens",
+                    "type": "address[]",
+                    "internalType": "address[]"
+                  },
+                  {
+                    "name": "bountyCaps",
+                    "type": "uint256[]",
+                    "internalType": "uint256[]"
                   }
                 ]
               },
