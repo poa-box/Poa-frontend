@@ -214,7 +214,10 @@ async function estimateGas(userOp, bundlerClient) {
     // or ~3k with the RIP-7212 precompile. The bundler's gas estimation uses a dummy
     // signature that quick-fails, causing it to underestimate the real verification cost.
     // Enforce a minimum to prevent AA23 (validateUserOp OOG) errors.
-    const MIN_VERIFICATION_GAS = 500_000n;
+    // When initCode is present (cross-chain account creation), account deployment +
+    // P-256 verification needs more gas than subsequent calls.
+    const hasInitCode = userOp.factory && userOp.factoryData;
+    const MIN_VERIFICATION_GAS = hasInitCode ? 1_000_000n : 500_000n;
     const estimatedVerification = applyBuffer(gasEstimate.verificationGasLimit);
     userOp.verificationGasLimit = estimatedVerification < MIN_VERIFICATION_GAS
       ? MIN_VERIFICATION_GAS
