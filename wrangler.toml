@@ -9,5 +9,7 @@ SITE_CID = "placeholder"
 # Attach to your zone + routes
 routes = [
   { pattern = "poa.earth/*", zone_name = "poa.earth" },
-  { pattern = "www.poa.earth/*", zone_name = "poa.earth" }
+  { pattern = "www.poa.earth/*", zone_name = "poa.earth" },
+  { pattern = "poa.box/*", zone_name = "poa.box" },
+  { pattern = "www.poa.box/*", zone_name = "poa.box" }
 ]
