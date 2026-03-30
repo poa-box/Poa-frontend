@@ -54,27 +54,30 @@ export async function fetchExistingUsername(registryAddress, userAddress, provid
  * @param {string} params.registryAddress - UniversalAccountRegistry contract address
  * @param {string} params.username - Username to register
  * @param {number} [params.deadlineSeconds=300] - Seconds until the signature expires
+ * @param {number} [params.chainId] - Explicit chain ID (avoids signer.getChainId() which can be stale after chain switch)
+ * @param {ethers.providers.Provider} [params.readProvider] - Provider for on-chain reads (nonce, block). Falls back to signer.provider.
  * @returns {Promise<{ deadline: ethers.BigNumber, nonce: ethers.BigNumber, signature: string }>}
  */
-export async function signRegistration({ signer, registryAddress, username, deadlineSeconds = 300 }) {
+export async function signRegistration({ signer, registryAddress, username, deadlineSeconds = 300, chainId, readProvider }) {
   if (!signer) throw new Error('Signer is required for EIP-712 signing');
   if (!registryAddress) throw new Error('Registry address is required');
   if (!username || username.trim().length === 0) throw new Error('Username is required');
 
-  const chainId = await signer.getChainId();
+  const resolvedChainId = chainId || await signer.getChainId();
   const userAddress = await signer.getAddress();
+  const provider = readProvider || signer.provider;
 
-  // Read current nonce from the registry contract
-  const nonce = await fetchRegistryNonce(registryAddress, userAddress, signer.provider);
+  // Read current nonce from the registry contract via the read provider
+  const nonce = await fetchRegistryNonce(registryAddress, userAddress, provider);
 
   // Deadline based on latest block timestamp (avoids client-clock skew)
-  const block = await signer.provider.getBlock('latest');
+  const block = await provider.getBlock('latest');
   const deadline = ethers.BigNumber.from(block.timestamp).add(deadlineSeconds);
 
   const domain = {
     name: DOMAIN_NAME,
     version: DOMAIN_VERSION,
-    chainId,
+    chainId: resolvedChainId,
     verifyingContract: registryAddress,
   };
 

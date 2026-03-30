@@ -25,9 +25,10 @@ import { useAuth } from "@/context/AuthContext";
 import { useIPFScontext } from "@/context/ipfsContext";
 import { main, buildDeployCalldata } from "../../../scripts/newDeployment";
 import { useRouter } from "next/router";
-import { FETCH_INFRASTRUCTURE_ADDRESSES } from "@/util/queries";
+import { FETCH_INFRASTRUCTURE_ADDRESSES, FETCH_USERNAME_NEW } from "@/util/queries";
 import { ipfsCidToBytes32 } from "@/services/web3/utils/encoding";
-import { signRegistration, getSkipRegistrationDefaults, fetchExistingUsername } from "@/services/web3/utils/registrySigner";
+import { signRegistration, getSkipRegistrationDefaults } from "@/services/web3/utils/registrySigner";
+import { ethers } from 'ethers';
 
 // New deployer imports
 import {
@@ -111,6 +112,15 @@ function DeployerPageContent() {
   });
   const deployChainFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
+  // Check if deployer already has a username on the deploy chain (via subgraph)
+  const deployerAddr = passkeyState?.accountAddress || address;
+  const { data: deployChainAccountData } = useQuery(FETCH_USERNAME_NEW, {
+    variables: { id: deployerAddr?.toLowerCase() },
+    fetchPolicy: 'network-only',
+    context: { subgraphUrl: deploySubgraphUrl },
+    skip: !deployerAddr || !deploySubgraphUrl,
+  });
+  const deployChainHasUsername = !!deployChainAccountData?.account?.username;
 
   // Extract addresses from subgraph data
   const infrastructureAddresses = useMemo(() => {
@@ -314,29 +324,20 @@ function DeployerPageContent() {
         });
       });
 
-      // === EIP-712 Registration Signature ===
-      // Determine whether we need to sign for username registration during deploy.
-      // The contract's HatsTreeSetup checks: accountRegistry != 0 && username.length > 0
-      // && regSignature.length > 0. If any condition fails it silently skips registration.
+      // === EIP-712 Registration Signature (EOA only) ===
+      // The deploy contract's HatsTreeSetup calls registerAccountBySig atomically.
+      // It checks: registryAddr != 0 && username.length > 0 && regSignature.length > 0
+      // and is idempotent (skips if user already has a username on-chain).
+      // We use the subgraph to avoid signing when the user already has a username,
+      // and a public RPC provider for on-chain reads (nonce, block) so they work
+      // reliably after a chain switch.
       let regSignatureData = getSkipRegistrationDefaults();
-
-      // When a passkey account is set it takes priority as deployer address (line 398).
-      // We can only produce a valid ECDSA signature when the EOA IS the deployer,
-      // because the contract checks that the recovered signer matches deployerAddress.
       const hasNewUsername = deployerUsername && deployerUsername.trim().length > 0;
 
-      if (!isPasskeyDeployer && deploySigner && hasNewUsername) {
-        try {
-          console.log('[DEPLOY] Checking on-chain username for', address);
-          const registryAddress = infrastructureAddresses.registryAddress;
-          const existingOnChainUsername = await fetchExistingUsername(
-            registryAddress,
-            address,
-            deploySigner.provider
-          );
-
-          if (!existingOnChainUsername || existingOnChainUsername.trim().length === 0) {
-            console.log('[DEPLOY] No existing username — requesting EIP-712 signature...');
+      if (!isPasskeyDeployer && deploySigner && hasNewUsername && !deployChainHasUsername) {
+        const registryAddress = infrastructureAddresses.registryAddress;
+        if (registryAddress) {
+          try {
             toast({
               title: 'Signature Required',
               description: 'Please sign the message in your wallet to register your username.',
@@ -345,11 +346,21 @@ function DeployerPageContent() {
               isClosable: true,
             });
 
+            // Use a public RPC provider for reads — the wallet provider can be stale
+            // after switchChainAsync (transport/network metadata not yet updated).
+            const targetNetwork = getNetworkByChainId(targetChainId);
+            const readProvider = new ethers.providers.JsonRpcProvider(
+              targetNetwork.rpcUrl,
+              { chainId: targetChainId, name: targetNetwork.name }
+            );
+
             const sigResult = await signRegistration({
               signer: deploySigner,
               registryAddress,
               username: deployerUsername,
               deadlineSeconds: 300,
+              chainId: targetChainId,
+              readProvider,
             });
 
             regSignatureData = {
@@ -363,24 +374,26 @@ function DeployerPageContent() {
               nonce: sigResult.nonce.toString(),
               signatureLength: sigResult.signature.length,
             });
-          } else {
-            console.log('[DEPLOY] User already has on-chain username:', existingOnChainUsername, '— skipping signature');
+          } catch (sigError) {
+            if (sigError.code === 4001 || sigError.code === 'ACTION_REJECTED') {
+              throw new Error('Username registration signature was rejected. Deployment cancelled.');
+            }
+            console.error('[DEPLOY] EIP-712 signing failed, deploying without registration:', sigError);
+            toast({
+              title: 'Username registration skipped',
+              description: 'Could not prepare the username signature. Your org will deploy without on-chain username registration. You can register your username later.',
+              status: 'warning',
+              duration: 8000,
+              isClosable: true,
+            });
           }
-        } catch (sigError) {
-          if (sigError.code === 4001 || sigError.code === 'ACTION_REJECTED') {
-            throw new Error('Username registration signature was rejected. Deployment cancelled.');
-          }
-          console.error('[DEPLOY] EIP-712 signing failed, continuing with defaults:', sigError);
-          toast({
-            title: 'Username registration skipped',
-            description: 'Could not prepare the username signature. Your org will deploy without on-chain username registration. You can register your username later.',
-            status: 'warning',
-            duration: 8000,
-            isClosable: true,
-          });
         }
-      } else {
-        console.log('[DEPLOY] Skipping EIP-712 signing:', { isPasskeyDeployer, hasSigner: !!deploySigner, hasNewUsername });
+      } else if (!isPasskeyDeployer) {
+        console.log('[DEPLOY] Skipping EIP-712 signing:', {
+          hasSigner: !!deploySigner,
+          hasNewUsername,
+          deployChainHasUsername,
+        });
       }
 
       // Call the deployment function
