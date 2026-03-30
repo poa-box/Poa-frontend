@@ -80,21 +80,22 @@ export function useWeb3Services(options = {}) {
   const userContext = useUserContext();
   const hatIds = userContext?.userData?.hatIds || null;
 
-  // Fetch infrastructure addresses from subgraph — routed to org's chain when available.
-  // Use network-only when subgraphUrl is present: Apollo's cache keys don't include context,
-  // so cache-first would serve stale data from the default chain after subgraphUrl changes.
+  // Fetch infrastructure addresses from subgraph — routed to org's chain.
+  // Skip until subgraphUrl is resolved by POContext to avoid querying the default
+  // (Arbitrum) subgraph and getting wrong-chain addresses.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    context: subgraphUrl ? { subgraphUrl } : undefined,
-    fetchPolicy: subgraphUrl ? 'network-only' : 'cache-first',
+    context: { subgraphUrl },
+    fetchPolicy: 'network-only',
+    skip: !subgraphUrl,
   });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
   const paymasterHubAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
   // For passkey cross-chain: fetch factory address from org chain to compute initCode
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
-    skip: !isPasskeyUser || !isCrossChain,
-    context: subgraphUrl ? { subgraphUrl } : undefined,
-    fetchPolicy: subgraphUrl ? 'network-only' : 'cache-first',
+    skip: !isPasskeyUser || !isCrossChain || !subgraphUrl,
+    context: { subgraphUrl },
+    fetchPolicy: 'network-only',
   });
   const orgFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
