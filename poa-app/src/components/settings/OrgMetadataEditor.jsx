@@ -3,7 +3,7 @@
  * Allows admins to update name, description, logo, and links
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Box,
   VStack,
@@ -33,11 +33,14 @@ import { PiImage } from 'react-icons/pi';
 import { useDropzone } from 'react-dropzone';
 import { useQuery } from '@apollo/client';
 
+import { useAccount, useSwitchChain } from 'wagmi';
 import { useIPFScontext } from '@/context/ipfsContext';
+import { useAuth } from '@/context/AuthContext';
 import { useWeb3Services, useTransactionWithNotification } from '@/hooks';
 import { ipfsCidToBytes32, stringToBytes } from '@/services/web3/utils/encoding';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
 import { RefreshEvent } from '@/context/RefreshContext';
+import { getSubgraphUrl, getNetworkByChainId } from '@/config/networks';
 import OrgRegistryABI from '../../../abi/OrgRegistry.json';
 
 // IPFS gateway - matches pattern used elsewhere in codebase
@@ -202,6 +205,7 @@ function LinksEditor({ links, onChange }) {
  */
 export default function OrgMetadataEditor({
   orgId,
+  orgChainId,
   currentName,
   currentDescription,
   currentLinks,
@@ -211,11 +215,19 @@ export default function OrgMetadataEditor({
   const { addToIpfs } = useIPFScontext();
   const { factory, txManager, isReady } = useWeb3Services();
   const { executeWithNotification } = useTransactionWithNotification();
+  const { isPasskeyUser } = useAuth();
+  const { chain: connectedChain } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
 
-  // Fetch infrastructure addresses from subgraph
+  // Fetch infrastructure addresses from the ORG'S chain subgraph (not default/home chain)
+  const orgSubgraphUrl = orgChainId ? getSubgraphUrl(orgChainId) : null;
   const { data: infraData, loading: infraLoading, error: infraError } = useQuery(
     FETCH_INFRASTRUCTURE_ADDRESSES,
-    { fetchPolicy: 'cache-first' }
+    {
+      fetchPolicy: 'no-cache',
+      context: orgSubgraphUrl ? { subgraphUrl: orgSubgraphUrl } : undefined,
+      skip: !orgSubgraphUrl,
+    }
   );
 
   // Extract OrgRegistry address from infrastructure data
@@ -306,6 +318,18 @@ export default function OrgMetadataEditor({
       // 5. Validate OrgRegistry address from infrastructure query
       if (!orgRegistryAddress) {
         throw new Error('OrgRegistry address not found. Infrastructure may not be deployed.');
+      }
+
+      // 5b. Switch EOA wallet to org's chain if needed
+      if (!isPasskeyUser && orgChainId && connectedChain?.id !== orgChainId) {
+        const networkName = getNetworkByChainId(orgChainId)?.name || 'the correct network';
+        toast({
+          title: 'Switching network',
+          description: `Switching to ${networkName}...`,
+          status: 'info',
+          duration: 3000,
+        });
+        await switchChainAsync({ chainId: orgChainId });
       }
 
       // 6. Call updateOrgMetaAsAdmin via txManager for proper result handling

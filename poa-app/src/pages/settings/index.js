@@ -31,6 +31,7 @@ const SettingsPage = () => {
 
   const {
     orgId,
+    orgChainId,
     poDescription,
     poLinks,
     logoUrl,
@@ -128,6 +129,7 @@ const SettingsPage = () => {
 
           <OrgMetadataEditor
             orgId={orgId}
+            orgChainId={orgChainId}
             currentName={userDAO}
             currentDescription={poDescription}
             currentLinks={poLinks}
