@@ -293,7 +293,7 @@ const ArtisticButton = styled(Button)`
 `;
 
 const Home = () => {
-  const{logoHash, poDescription, poLinks} = usePOContext();
+  const{logoUrl, poDescription, poLinks} = usePOContext();
 
   const router = useRouter();
   const { userDAO } = router.query;
@@ -321,22 +321,21 @@ const Home = () => {
 
   useEffect(() => {
     const fetchImage = async () => {
-      console.log('logoHash', logoHash);
-      if (logoHash) {
-        const imageUrl = await fetchImageFromIpfs(logoHash);
+      if (logoUrl) {
+        const imageUrl = await fetchImageFromIpfs(logoUrl);
         setImage(imageUrl);
       }
     };
 
     fetchImage();
-    
+
     // Set loaded state after a short delay for animations
     const timer = setTimeout(() => {
       setIsLoaded(true);
     }, 100);
-    
+
     return () => clearTimeout(timer);
-  }, [logoHash]);
+  }, [logoUrl]);
 
   return (
     <>

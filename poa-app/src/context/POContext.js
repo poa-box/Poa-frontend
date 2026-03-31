@@ -74,7 +74,7 @@ const initialState = {
     orgId: null,
     orgChainId: null,
     poDescription: 'No description provided or IPFS content still being indexed',
-    poLinks: {},
+    poLinks: [],
     logoHash: '',
     logoUrl: '',
     metadataAdminHatId: null,
@@ -267,15 +267,14 @@ export const POProvider = ({ children }) => {
             const adminHat = org.metadataAdminHatId;
 
             let poDescription = 'No description provided or IPFS content still being indexed';
-            let poLinks = {};
+            let poLinks = [];
             if (org.metadata) {
                 poDescription = org.metadata.description || 'No description provided';
                 if (org.metadata.links && org.metadata.links.length > 0) {
-                    const linksObj = {};
-                    org.metadata.links.forEach(link => {
-                        linksObj[link.name] = link.url;
-                    });
-                    poLinks = linksObj;
+                    poLinks = org.metadata.links.map(link => ({
+                        name: link.name,
+                        url: link.url,
+                    }));
                 }
             } else if (org.metadataHash) {
                 poDescription = 'Organization description loading from IPFS...';

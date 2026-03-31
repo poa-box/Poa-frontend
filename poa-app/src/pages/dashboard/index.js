@@ -43,7 +43,7 @@ import { glassLayerStyle } from '@/components/shared/glassStyles';
 
 const PerpetualOrgDashboard = () => {
   const { ongoingPolls } = useVotingContext();
-  const { poContextLoading, poDescription, poLinks, logoHash, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
+  const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
 
   const router = useRouter();
   const { userDAO } = router.query;
@@ -67,14 +67,14 @@ const PerpetualOrgDashboard = () => {
 
   useEffect(() => {
     const fetchImage = async () => {
-      if (logoHash && !imageFetched) {
-        const imageUrlFetch = await fetchImageFromIpfs(logoHash);
+      if (logoUrl && !imageFetched) {
+        const imageUrlFetch = await fetchImageFromIpfs(logoUrl);
         setImageURL(imageUrlFetch);
         setImageFetched(true);
       }
     };
     fetchImage();
-  }, [logoHash]);
+  }, [logoUrl]);
 
   const { leaderboardDisplayData } = usePOContext();
   const { recommendedTasks } = useProjectContext();
