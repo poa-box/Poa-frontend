@@ -113,10 +113,12 @@ function DeployerPageContent() {
   const deployChainFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
   // Check if deployer already has a username on the deploy chain (via subgraph)
+  // IMPORTANT: Use 'no-cache' to prevent Apollo from returning cached Arbitrum results
+  // for the same account ID queried against the Gnosis subgraph endpoint.
   const deployerAddr = passkeyState?.accountAddress || address;
   const { data: deployChainAccountData } = useQuery(FETCH_USERNAME_NEW, {
     variables: { id: deployerAddr?.toLowerCase() },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'no-cache',
     context: { subgraphUrl: deploySubgraphUrl },
     skip: !deployerAddr || !deploySubgraphUrl,
   });
