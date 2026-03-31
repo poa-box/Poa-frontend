@@ -49,10 +49,13 @@ const IPFS_GATEWAY = 'https://ipfs.io/ipfs/';
 /**
  * Logo Upload Component
  */
-function LogoUpload({ logoURL, onUpload, onRemove }) {
+function LogoUpload({ logoURL, localPreview, onUpload, onRemove }) {
   const [isUploading, setIsUploading] = useState(false);
   const { addToIpfs } = useIPFScontext();
   const toast = useToast();
+
+  // Use local blob preview (instant) if available, otherwise IPFS gateway (may have propagation delay)
+  const previewSrc = localPreview || (logoURL ? `${IPFS_GATEWAY}${logoURL}` : null);
 
   const onDrop = useCallback(async (acceptedFiles) => {
     const file = acceptedFiles[0];
@@ -62,7 +65,9 @@ function LogoUpload({ logoURL, onUpload, onRemove }) {
     try {
       const result = await addToIpfs(file);
       if (result && result.path) {
-        onUpload(result.path);
+        // Create a local blob URL for instant preview (IPFS gateway may take time to propagate)
+        const blobUrl = URL.createObjectURL(file);
+        onUpload(result.path, blobUrl);
         toast({
           title: 'Logo uploaded',
           status: 'success',
@@ -105,10 +110,10 @@ function LogoUpload({ logoURL, onUpload, onRemove }) {
       <input {...getInputProps()} />
       {isUploading ? (
         <Spinner size="lg" color="coral.500" />
-      ) : logoURL ? (
+      ) : previewSrc ? (
         <VStack spacing={3}>
           <Image
-            src={`${IPFS_GATEWAY}${logoURL}`}
+            src={previewSrc}
             alt="Logo"
             boxSize="80px"
             objectFit="cover"
@@ -252,6 +257,7 @@ export default function OrgMetadataEditor({
   const [name, setName] = useState(currentName || '');
   const [description, setDescription] = useState(currentDescription || '');
   const [logoURL, setLogoURL] = useState(currentLogoHash || '');
+  const [logoPreview, setLogoPreview] = useState(null); // Local blob URL for instant preview
   const [links, setLinks] = useState(
     Array.isArray(currentLinks)
       ? currentLinks
@@ -259,17 +265,18 @@ export default function OrgMetadataEditor({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Update form when props change
+  // Update form when props change (e.g., after successful save + subgraph re-index).
+  // Do NOT reset logoURL here — it's set by user actions (upload/remove) only.
+  // Resetting it would clobber an in-progress upload with the old CID.
   useEffect(() => {
     setName(currentName || '');
     setDescription(currentDescription || '');
-    setLogoURL(currentLogoHash || '');
     setLinks(
       Array.isArray(currentLinks)
         ? currentLinks
         : Object.entries(currentLinks || {}).map(([name, url]) => ({ name, url }))
     );
-  }, [currentName, currentDescription, currentLinks, currentLogoHash]);
+  }, [currentName, currentDescription, currentLinks]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -471,8 +478,15 @@ export default function OrgMetadataEditor({
             </FormLabel>
             <LogoUpload
               logoURL={logoURL}
-              onUpload={setLogoURL}
-              onRemove={() => setLogoURL('')}
+              localPreview={logoPreview}
+              onUpload={(cid, blobUrl) => {
+                setLogoURL(cid);
+                setLogoPreview(blobUrl);
+              }}
+              onRemove={() => {
+                setLogoURL('');
+                setLogoPreview(null);
+              }}
             />
           </FormControl>
 
