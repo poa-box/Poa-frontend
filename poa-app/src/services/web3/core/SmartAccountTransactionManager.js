@@ -254,12 +254,21 @@ export class SmartAccountTransactionManager {
 
     // Determine initCode: only include if account doesn't exist on-chain yet.
     // This handles cross-chain joins where the passkey account needs deployment.
+    // Always check bytecode so we can provide a clear error when the account
+    // isn't deployed and no initCode is available.
     let initCode = '0x';
-    if (this.initCode && this.initCode !== '0x') {
-      const bytecode = await this.publicClient.getBytecode({ address: this.accountAddress });
-      if (!bytecode || bytecode === '0x') {
+    const bytecode = await this.publicClient.getBytecode({ address: this.accountAddress });
+    const accountDeployed = bytecode && bytecode !== '0x';
+
+    if (!accountDeployed) {
+      if (this.initCode && this.initCode !== '0x') {
         initCode = this.initCode;
         console.log('[SmartAccountTxMgr] Cross-chain: including initCode for account deployment');
+      } else {
+        throw Object.assign(
+          new Error('Smart account is not deployed on this chain and no deployment data is available. Please try again in a moment — the app may still be loading cross-chain data.'),
+          { category: 'account_not_deployed' }
+        );
       }
     }
 
