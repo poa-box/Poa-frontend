@@ -197,6 +197,36 @@ export const UserProvider = ({ children }) => {
         }
     }, [account, loading]);
 
+    /**
+     * Optimistically set user state after a successful join transaction.
+     * This allows immediate redirect to profileHub without waiting for subgraph indexing.
+     * The subgraph data will replace this on the next refetch.
+     *
+     * @param {{ address: string, hatIds: string[], username: string }} joinData
+     */
+    const optimisticJoin = useCallback(({ address: userAddr, hatIds, username }) => {
+        const lowerAddr = userAddr?.toLowerCase();
+        if (username) setGraphUsername(username);
+        setHasMemberRole(true);
+        if (hatIds?.length > 1 || (hatIds?.length === 1 && roleHatIds?.[1] && hatIds.includes(roleHatIds[1]))) {
+            setHasExecRole(true);
+        }
+        setUserData(prev => ({
+            ...prev,
+            id: orgId ? `${orgId}-${lowerAddr}` : prev.id,
+            address: lowerAddr || prev.address,
+            hatIds: hatIds || prev.hatIds || [],
+            membershipStatus: 'Active',
+            participationTokenBalance: prev.participationTokenBalance || '0',
+            tasksCompleted: prev.tasksCompleted || 0,
+            totalVotes: prev.totalVotes || 0,
+        }));
+        setUserDataLoading(false);
+
+        // Schedule a subgraph refetch to replace optimistic data with real data
+        setTimeout(() => refetchUserData(), 8000);
+    }, [orgId, roleHatIds, refetchUserData]);
+
     const contextValue = useMemo(() => ({
         userDataLoading,
         userProposals,
@@ -210,6 +240,7 @@ export const UserProvider = ({ children }) => {
         completedModules,
         error,
         refetchUserData,
+        optimisticJoin,
     }), [
         userDataLoading,
         userProposals,
@@ -223,6 +254,7 @@ export const UserProvider = ({ children }) => {
         completedModules,
         error,
         refetchUserData,
+        optimisticJoin,
     ]);
 
     return (

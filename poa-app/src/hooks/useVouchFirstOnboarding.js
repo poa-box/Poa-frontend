@@ -293,6 +293,9 @@ export function useVouchFirstOnboarding({
     createCredentialAndLink,
     completeOnboarding,
     reset,
+    // Expose for optimistic cache update after join
+    existingUsername: existingUsername || null,
+    vouchedHatId: pendingCredential?.selectedHatId || null,
   };
 }
 
