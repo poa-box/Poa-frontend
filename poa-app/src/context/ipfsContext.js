@@ -117,15 +117,25 @@ export const IPFSprovider = ({ children }) => {
     const addToIpfs = useCallback(async (content) => {
         console.log("[IPFS] Starting upload to The Graph's IPFS endpoint...");
         console.log("[IPFS] Content type:", typeof content);
-        console.log("[IPFS] Content length:", typeof content === 'string' ? content.length : content?.length || 'unknown');
+        console.log("[IPFS] Content length:", typeof content === 'string' ? content.length : content?.length || content?.size || 'unknown');
         if (typeof content === 'string') {
             console.log("[IPFS] Content preview:", content.substring(0, 200) + (content.length > 200 ? '...' : ''));
+        }
+
+        // Convert File/Blob to Uint8Array to preserve binary data.
+        // Without this, ipfs-http-client reads binary files as text,
+        // replacing bytes > 0x7F with UTF-8 replacement characters.
+        let ipfsContent = content;
+        if (content instanceof Blob) {
+            console.log("[IPFS] Converting File/Blob to Uint8Array for binary-safe upload...");
+            const arrayBuffer = await content.arrayBuffer();
+            ipfsContent = new Uint8Array(arrayBuffer);
         }
 
         try {
             const addedData = await withRetry(async () => {
                 console.log("[IPFS] Attempting add to api.thegraph.com/ipfs...");
-                const result = await ipfsClient.add({ content });
+                const result = await ipfsClient.add(ipfsContent);
                 console.log("[IPFS] Add successful!");
                 console.log("[IPFS] Result:", JSON.stringify(result, null, 2));
                 return result;
