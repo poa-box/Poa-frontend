@@ -49,7 +49,7 @@ const IPFS_GATEWAY = 'https://ipfs.io/ipfs/';
 /**
  * Logo Upload Component
  */
-function LogoUpload({ logoURL, localPreview, onUpload, onRemove }) {
+function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChange }) {
   const [isUploading, setIsUploading] = useState(false);
   const { addToIpfs } = useIPFScontext();
   const toast = useToast();
@@ -62,6 +62,7 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove }) {
     if (!file) return;
 
     setIsUploading(true);
+    onUploadingChange?.(true);
     try {
       const result = await addToIpfs(file);
       if (result && result.path) {
@@ -83,8 +84,9 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove }) {
       });
     } finally {
       setIsUploading(false);
+      onUploadingChange?.(false);
     }
-  }, [addToIpfs, onUpload, toast]);
+  }, [addToIpfs, onUpload, onUploadingChange, toast]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -257,6 +259,7 @@ export default function OrgMetadataEditor({
   const [description, setDescription] = useState(currentDescription || '');
   const [logoURL, setLogoURL] = useState(currentLogoHash || '');
   const [logoPreview, setLogoPreview] = useState(null); // Local blob URL for instant preview
+  const [logoUploading, setLogoUploading] = useState(false);
   const [links, setLinks] = useState(
     Array.isArray(currentLinks)
       ? currentLinks
@@ -486,6 +489,7 @@ export default function OrgMetadataEditor({
                 setLogoURL('');
                 setLogoPreview(null);
               }}
+              onUploadingChange={setLogoUploading}
             />
           </FormControl>
 
@@ -521,7 +525,7 @@ export default function OrgMetadataEditor({
             onClick={handleSubmit}
             isLoading={isSubmitting}
             loadingText="Saving..."
-            isDisabled={!name.trim()}
+            isDisabled={!name.trim() || logoUploading}
             borderRadius="xl"
             h="52px"
             fontSize="md"
