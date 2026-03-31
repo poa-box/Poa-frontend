@@ -258,8 +258,25 @@ const User = () => {
     if (!organization) return;
 
     setLoading(true);
+
+    // Determine the hat to claim from vouch progress
+    const vouchedHatId = authenticatedUserVouchProgress?.hatId
+      || (pendingApplicationProgress?.isComplete ? pendingVouchApplication?.hatId : null)
+      || null;
+
+    let joinFn;
+    if (vouchedHatId) {
+      // Vouched flow: claim specific hat(s) via claimHatsWithUser
+      const claimHatIds = [BigInt(vouchedHatId)];
+      console.log('[Join] Vouched flow: claiming hat', vouchedHatId);
+      joinFn = () => organization.claimHatsWithUser(quickJoinContractAddress, claimHatIds);
+    } else {
+      // Standard flow: quickJoinWithUser (mints memberHatIds)
+      joinFn = () => organization.quickJoinWithUser(quickJoinContractAddress);
+    }
+
     const result = await executeWithNotification(
-      () => organization.quickJoinWithUser(quickJoinContractAddress),
+      joinFn,
       {
         pendingMessage: 'Joining organization...',
         successMessage: 'Successfully joined! Redirecting...',
@@ -272,7 +289,7 @@ const User = () => {
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication]);
 
   const handleJoinNewUser = useCallback(async () => {
     if (!organization) return;
@@ -292,9 +309,14 @@ const User = () => {
 
     setLoading(true);
 
+    // Determine the hat to claim from vouch progress
+    const vouchedHatId = authenticatedUserVouchProgress?.hatId
+      || (pendingApplicationProgress?.isComplete ? pendingVouchApplication?.hatId : null)
+      || null;
+
     let joinFn;
     if (isPasskeyUser) {
-      // Passkey: get credential and call registerAndQuickJoinWithPasskey
+      // Passkey: get credential
       const credential = accountAddress ? getAllCredentials()[accountAddress.toLowerCase()] : null;
       if (!credential) {
         toast({
@@ -308,9 +330,18 @@ const User = () => {
         setLoading(false);
         return;
       }
-      joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
+
+      if (vouchedHatId) {
+        // Vouched passkey: registerAndClaimHatsWithPasskey (register + claim specific hat)
+        const claimHatIds = [BigInt(vouchedHatId)];
+        console.log('[Join] Vouched passkey: register + claim hat', vouchedHatId);
+        joinFn = () => organization.registerAndClaimHatsNewUser(quickJoinContractAddress, newUsername, credential, claimHatIds);
+      } else {
+        // Standard passkey: registerAndQuickJoinWithPasskey (register + mint memberHatIds)
+        joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
+      }
     } else {
-      // EOA: use EIP-712 signature and call registerAndQuickJoin
+      // EOA path
       if (!signer) {
         toast({
           title: "Wallet not connected",
@@ -323,7 +354,16 @@ const User = () => {
         setLoading(false);
         return;
       }
-      joinFn = () => organization.registerAndJoinEOA(quickJoinContractAddress, newUsername, signer);
+
+      if (vouchedHatId) {
+        // Vouched EOA: registerAndClaimHats (register + claim specific hat)
+        const claimHatIds = [BigInt(vouchedHatId)];
+        console.log('[Join] Vouched EOA: register + claim hat', vouchedHatId);
+        joinFn = () => organization.registerAndClaimHatsEOA(quickJoinContractAddress, newUsername, claimHatIds, signer);
+      } else {
+        // Standard EOA: registerAndQuickJoin (register + mint memberHatIds)
+        joinFn = () => organization.registerAndJoinEOA(quickJoinContractAddress, newUsername, signer);
+      }
     }
 
     const result = await executeWithNotification(
@@ -340,7 +380,7 @@ const User = () => {
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication]);
 
   const handleApplyAndJoin = useCallback(async () => {
     if (!selectedHatId) {
