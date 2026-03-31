@@ -15,6 +15,7 @@ import PasskeyAccountABI from '../../../../abi/PasskeyAccount.json';
 import PasskeyAccountFactoryABI from '../../../../abi/PasskeyAccountFactory.json';
 import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
 import QuickJoinABI from '../../../../abi/QuickJoinNew.json';
+import EligibilityModuleABI from '../../../../abi/EligibilityModuleNew.json';
 import { createPasskeyCredential } from '../passkey/passkeyCreate';
 import { signUserOpWithPasskey, signRegistrationChallenge, computeRegistrationChallenge } from '../passkey/passkeySign';
 import { buildUserOp, getUserOpHash } from '../passkey/userOpBuilder';
@@ -68,17 +69,19 @@ export class PasskeyOnboardingService {
    * @param {string} [params.orgId] - bytes32 org ID (org mode only)
    * @param {string} [params.mode='org'] - 'org' for org-scoped onboarding, 'solidarity' for protocol-level
    */
-  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, paymasterAddress, orgId, mode = 'org', hatId, chainId = null }) {
+  constructor({ publicClient, bundlerClient, factoryAddress, registryAddress, quickJoinAddress, eligibilityModuleAddress, paymasterAddress, orgId, mode = 'org', hatId, chainId = null, existingUsername = null }) {
     this.publicClient = publicClient;
     this.bundlerClient = bundlerClient;
     this.factoryAddress = factoryAddress;
     this.registryAddress = registryAddress;
     this.quickJoinAddress = quickJoinAddress;
+    this.eligibilityModuleAddress = eligibilityModuleAddress;
     this.paymasterAddress = paymasterAddress;
     this.orgId = orgId;
     this.mode = mode;
     this.hatId = hatId;
     this.chainId = chainId || NETWORKS[DEFAULT_NETWORK].chainId;
+    this.existingUsername = existingUsername;
   }
 
   /**
@@ -154,6 +157,74 @@ export class PasskeyOnboardingService {
       abi: PasskeyAccountABI,
       functionName: 'execute',
       args: [this.quickJoinAddress, 0n, registerAndJoinData],
+    });
+  }
+
+  /**
+   * Build callData for vouch-claim onboarding: register username + claimVouchedHat.
+   * Used when a user has been vouched for a specific hat and needs to claim it directly
+   * via the EligibilityModule (instead of QuickJoin which only mints quickJoinRoles).
+   *
+   * If the user already has a username (existingUsername), skips registration entirely.
+   *
+   * @param {Object} credential - Passkey credential data
+   * @param {string} accountAddress - Counterfactual account address
+   * @param {string} username - Username to register (ignored if existingUsername is set)
+   * @param {Function} onStep - Progress callback
+   * @returns {string} Encoded callData for the UserOp (batch execute)
+   */
+  async _buildVouchClaimCallData(credential, accountAddress, username, onStep) {
+    const { credentialId, publicKeyX, publicKeyY, salt, rawCredentialId } = credential;
+
+    // Build the claimVouchedHat call
+    const claimData = encodeFunctionData({
+      abi: EligibilityModuleABI,
+      functionName: 'claimVouchedHat',
+      args: [BigInt(this.hatId)],
+    });
+
+    // If user already has a username on another chain, just claim the hat (single call)
+    if (this.existingUsername) {
+      return encodeFunctionData({
+        abi: PasskeyAccountABI,
+        functionName: 'execute',
+        args: [this.eligibilityModuleAddress, 0n, claimData],
+      });
+    }
+
+    // Otherwise: register username + claim hat in a batch call
+    const nonce = await this._getRegistryNonce(accountAddress);
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + REGISTRATION_DEADLINE_SECONDS);
+
+    // Compute and sign the EIP-712 registration challenge
+    const challengeHash = computeRegistrationChallenge({
+      accountAddress,
+      username,
+      nonce,
+      deadline,
+      chainId: this.chainId,
+      registryAddress: this.registryAddress,
+    });
+
+    onStep(OnboardingStep.SIGNING_REGISTRATION);
+    const auth = await signRegistrationChallenge(challengeHash, rawCredentialId);
+
+    // Build registerAccountByPasskeySig call
+    const registerData = encodeFunctionData({
+      abi: UniversalAccountRegistryABI,
+      functionName: 'registerAccountByPasskeySig',
+      args: [credentialId, publicKeyX, publicKeyY, salt, username, deadline, nonce, auth],
+    });
+
+    // Batch: [registerUsername, claimVouchedHat]
+    return encodeFunctionData({
+      abi: PasskeyAccountABI,
+      functionName: 'executeBatch',
+      args: [
+        [this.registryAddress, this.eligibilityModuleAddress],
+        [0n, 0n],
+        [registerData, claimData],
+      ],
     });
   }
 
@@ -309,9 +380,15 @@ export class PasskeyOnboardingService {
       });
       const initCode = this.factoryAddress + factoryCallData.slice(2);
 
-      // Build callData: registerAndQuickJoinWithPasskey
-      // This signs the registration challenge (biometric prompt #1)
-      const callData = await this._buildOrgModeCallData(credential, accountAddress, username, onStep);
+      // Build callData based on available path:
+      // - If eligibilityModuleAddress is set: vouch-claim path (claimVouchedHat)
+      // - Otherwise: QuickJoin path (registerAndQuickJoinWithPasskey)
+      let callData;
+      if (this.eligibilityModuleAddress) {
+        callData = await this._buildVouchClaimCallData(credential, accountAddress, username, onStep);
+      } else {
+        callData = await this._buildOrgModeCallData(credential, accountAddress, username, onStep);
+      }
 
       const paymasterData = encodeOnboardingPaymasterData({
         hatId: this.hatId,

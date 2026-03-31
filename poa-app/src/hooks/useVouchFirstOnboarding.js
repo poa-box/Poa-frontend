@@ -47,6 +47,8 @@ export const VouchFirstPhase = {
 export function useVouchFirstOnboarding({
   orgName,
   refetchVouches,
+  eligibilityModuleAddress,
+  existingUsername,
 }) {
   const { publicClient: homePublicClient, bundlerClient: homeBundlerClient, activatePasskey } = useAuth();
   const { quickJoinContractAddress, orgId, subgraphUrl, orgChainId } = usePOContext();
@@ -199,10 +201,12 @@ export function useVouchFirstOnboarding({
         factoryAddress,
         registryAddress,
         quickJoinAddress: quickJoinContractAddress,
+        eligibilityModuleAddress,
         paymasterAddress,
         orgId,
         hatId: pendingCredential.selectedHatId,
         chainId,
+        existingUsername: existingUsername || null,
       });
 
       const credential = {
@@ -255,9 +259,11 @@ export function useVouchFirstOnboarding({
     factoryAddress,
     registryAddress,
     quickJoinContractAddress,
+    eligibilityModuleAddress,
     paymasterAddress,
     orgId,
     chainId,
+    existingUsername,
     activatePasskey,
   ]);
 
