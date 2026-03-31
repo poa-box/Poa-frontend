@@ -30,6 +30,10 @@ export const UserProvider = ({ children }) => {
     const [completedModules, setCompletedModules] = useState([]);
     const [userDataLoading, setUserDataLoading] = useState(true);
 
+    // Guard: when true, the query useEffect won't clear optimistic data.
+    // Set by optimisticJoin, cleared by the 8s refetch.
+    const optimisticGuardRef = React.useRef(false);
+
     const [account, setAccount] = useState(null);
 
     // Use AuthContext's unified address (supports both EOA and passkey)
@@ -159,7 +163,10 @@ export const UserProvider = ({ children }) => {
                     if (!aCompleted && bCompleted) return -1;
                     return parseInt(a.endTimestamp) - parseInt(b.endTimestamp);
                 }));
-            } else {
+            } else if (!optimisticGuardRef.current) {
+                // Only clear state if we don't have optimistic data pending.
+                // After optimisticJoin, the subgraph hasn't indexed yet so user is null,
+                // but we already set the correct state optimistically.
                 setHasExecRole(false);
                 setHasApproverRole(false);
                 setUserData({});
@@ -208,6 +215,11 @@ export const UserProvider = ({ children }) => {
         const lowerAddr = userAddr?.toLowerCase();
         if (username) setGraphUsername(username);
         setHasMemberRole(true);
+
+        // Guard: prevent the query useEffect from clearing this data
+        // until the subgraph has had time to index.
+        optimisticGuardRef.current = true;
+
         // Optimistically set exec role if the claimed hat matches the exec hat (index 1).
         // Normalize both via BigInt for safe comparison between hex (frontend) and
         // decimal (subgraph) string representations.
@@ -233,8 +245,12 @@ export const UserProvider = ({ children }) => {
         }));
         setUserDataLoading(false);
 
-        // Schedule a subgraph refetch to replace optimistic data with real data
-        setTimeout(() => refetchUserData(), 8000);
+        // Schedule a subgraph refetch to replace optimistic data with real data.
+        // Clear the guard so the query can update state normally.
+        setTimeout(() => {
+            optimisticGuardRef.current = false;
+            refetchUserData();
+        }, 8000);
     }, [orgId, roleHatIds, refetchUserData]);
 
     const contextValue = useMemo(() => ({
