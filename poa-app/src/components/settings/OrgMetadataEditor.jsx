@@ -90,43 +90,45 @@ function LogoUpload({ logoURL, onUpload, onRemove }) {
     <Box
       {...getRootProps()}
       border="2px dashed"
-      borderColor={isDragActive ? 'blue.400' : 'gray.600'}
-      borderRadius="lg"
-      p={4}
+      borderColor={isDragActive ? 'coral.400' : 'warmGray.200'}
+      borderRadius="xl"
+      p={6}
       textAlign="center"
       cursor="pointer"
-      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
-      _hover={{ borderColor: 'blue.400', bg: 'whiteAlpha.50' }}
+      bg={isDragActive ? 'coral.50' : 'warmGray.50'}
+      transition="all 0.2s ease"
+      _hover={{ borderColor: 'coral.300', bg: 'coral.50' }}
     >
       <input {...getInputProps()} />
       {isUploading ? (
-        <Spinner size="lg" color="blue.400" />
+        <Spinner size="lg" color="coral.500" />
       ) : logoURL ? (
-        <VStack spacing={2}>
+        <VStack spacing={3}>
           <Image
             src={`${IPFS_GATEWAY}${logoURL}`}
             alt="Logo"
             boxSize="80px"
             objectFit="cover"
-            borderRadius="md"
+            borderRadius="xl"
           />
           <Button
             size="sm"
             variant="ghost"
             colorScheme="red"
-            leftIcon={<CloseIcon />}
+            leftIcon={<CloseIcon boxSize={2} />}
             onClick={(e) => {
               e.stopPropagation();
               onRemove();
             }}
+            fontWeight="400"
           >
             Remove
           </Button>
         </VStack>
       ) : (
         <VStack spacing={2}>
-          <Icon as={PiImage} boxSize={8} color="gray.400" />
-          <Text color="gray.400" fontSize="sm">
+          <Icon as={PiImage} boxSize={8} color="warmGray.300" />
+          <Text color="warmGray.400" fontSize="sm">
             {isDragActive ? 'Drop logo here' : 'Click or drag to upload logo'}
           </Text>
         </VStack>
@@ -162,8 +164,12 @@ function LinksEditor({ links, onChange }) {
             value={link.name}
             onChange={(e) => handleUpdateLink(index, 'name', e.target.value)}
             size="sm"
-            bg="whiteAlpha.100"
-            borderColor="gray.600"
+            bg="white"
+            borderColor="warmGray.200"
+            borderRadius="lg"
+            color="warmGray.800"
+            _placeholder={{ color: 'warmGray.400' }}
+            _focus={{ borderColor: 'coral.400', boxShadow: '0 0 0 1px var(--chakra-colors-coral-400)' }}
             flex={1}
           />
           <Input
@@ -171,25 +177,34 @@ function LinksEditor({ links, onChange }) {
             value={link.url}
             onChange={(e) => handleUpdateLink(index, 'url', e.target.value)}
             size="sm"
-            bg="whiteAlpha.100"
-            borderColor="gray.600"
+            bg="white"
+            borderColor="warmGray.200"
+            borderRadius="lg"
+            color="warmGray.800"
+            _placeholder={{ color: 'warmGray.400' }}
+            _focus={{ borderColor: 'coral.400', boxShadow: '0 0 0 1px var(--chakra-colors-coral-400)' }}
             flex={2}
           />
           <IconButton
-            icon={<CloseIcon />}
+            icon={<CloseIcon boxSize={2} />}
             size="sm"
             variant="ghost"
-            colorScheme="red"
+            color="warmGray.400"
+            _hover={{ color: 'red.500', bg: 'red.50' }}
             onClick={() => handleRemoveLink(index)}
             aria-label="Remove link"
+            borderRadius="lg"
           />
         </HStack>
       ))}
       <Button
-        leftIcon={<AddIcon />}
+        leftIcon={<AddIcon boxSize={3} />}
         size="sm"
-        variant="outline"
+        variant="ghost"
+        color="coral.500"
+        _hover={{ bg: 'coral.50' }}
         onClick={handleAddLink}
+        fontWeight="500"
       >
         Add Link
       </Button>
@@ -336,11 +351,11 @@ export default function OrgMetadataEditor({
   // Show loading state while fetching infrastructure
   if (infraLoading) {
     return (
-      <Card bg="gray.800" borderColor="gray.700">
+      <Card variant="elevated" borderRadius="2xl">
         <CardBody>
           <VStack spacing={4} py={8}>
-            <Spinner size="lg" color="blue.400" />
-            <Text color="gray.400">Loading infrastructure...</Text>
+            <Spinner size="lg" color="coral.500" />
+            <Text color="warmGray.500">Loading infrastructure...</Text>
           </VStack>
         </CardBody>
       </Card>
@@ -350,9 +365,9 @@ export default function OrgMetadataEditor({
   // Show error if infrastructure fetch failed
   if (infraError) {
     return (
-      <Card bg="gray.800" borderColor="gray.700">
+      <Card variant="elevated" borderRadius="2xl">
         <CardBody>
-          <Alert status="error" borderRadius="md">
+          <Alert status="error" borderRadius="xl" bg="red.50">
             <AlertIcon />
             <Text>Failed to load infrastructure addresses: {infraError.message}</Text>
           </Alert>
@@ -364,9 +379,9 @@ export default function OrgMetadataEditor({
   // Show warning if OrgRegistry not found
   if (!orgRegistryAddress) {
     return (
-      <Card bg="gray.800" borderColor="gray.700">
+      <Card variant="elevated" borderRadius="2xl">
         <CardBody>
-          <Alert status="warning" borderRadius="md">
+          <Alert status="warning" borderRadius="xl" bg="orange.50">
             <AlertIcon />
             <Text>OrgRegistry contract not found. Infrastructure may not be fully deployed.</Text>
           </Alert>
@@ -376,48 +391,60 @@ export default function OrgMetadataEditor({
   }
 
   return (
-    <Card bg="gray.800" borderColor="gray.700">
-      <CardHeader>
-        <Heading size="md" color="white">Edit Organization Info</Heading>
-      </CardHeader>
-      <CardBody>
-        <VStack spacing={6} align="stretch">
+    <Card variant="elevated" borderRadius="2xl" overflow="hidden">
+      <CardBody px={{ base: 5, md: 8 }} py={8}>
+        <VStack spacing={7} align="stretch">
           {/* Name */}
           <FormControl isRequired>
-            <FormLabel color="gray.300">Organization Name</FormLabel>
+            <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={2}>
+              Organization Name
+            </FormLabel>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Enter organization name"
-              bg="whiteAlpha.100"
-              borderColor="gray.600"
+              bg="white"
+              borderColor="warmGray.200"
+              borderRadius="xl"
+              color="warmGray.800"
+              _placeholder={{ color: 'warmGray.400' }}
+              _focus={{ borderColor: 'coral.400', boxShadow: '0 0 0 1px var(--chakra-colors-coral-400)' }}
               maxLength={64}
+              size="lg"
             />
-            <FormHelperText color="gray.500">
+            <FormHelperText color="warmGray.400" fontSize="xs">
               {name.length}/64 characters
             </FormHelperText>
           </FormControl>
 
           {/* Description */}
           <FormControl>
-            <FormLabel color="gray.300">Description</FormLabel>
+            <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={2}>
+              Description
+            </FormLabel>
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Describe your organization..."
-              bg="whiteAlpha.100"
-              borderColor="gray.600"
+              bg="white"
+              borderColor="warmGray.200"
+              borderRadius="xl"
+              color="warmGray.800"
+              _placeholder={{ color: 'warmGray.400' }}
+              _focus={{ borderColor: 'coral.400', boxShadow: '0 0 0 1px var(--chakra-colors-coral-400)' }}
               rows={4}
               maxLength={500}
             />
-            <FormHelperText color="gray.500">
+            <FormHelperText color="warmGray.400" fontSize="xs">
               {description.length}/500 characters
             </FormHelperText>
           </FormControl>
 
           {/* Logo */}
           <FormControl>
-            <FormLabel color="gray.300">Logo</FormLabel>
+            <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={2}>
+              Logo
+            </FormLabel>
             <LogoUpload
               logoURL={logoURL}
               onUpload={setLogoURL}
@@ -425,31 +452,42 @@ export default function OrgMetadataEditor({
             />
           </FormControl>
 
-          <Divider borderColor="gray.600" />
+          <Divider borderColor="warmGray.100" />
 
           {/* Links */}
           <FormControl>
-            <FormLabel color="gray.300">Links</FormLabel>
+            <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={2}>
+              Links
+            </FormLabel>
             <LinksEditor links={links} onChange={setLinks} />
           </FormControl>
 
-          <Divider borderColor="gray.600" />
+          <Divider borderColor="warmGray.100" />
 
           {/* Submit */}
-          <Alert status="info" variant="subtle" borderRadius="md">
-            <AlertIcon />
-            <Text fontSize="sm">
+          <Box
+            bg="amethyst.50"
+            borderRadius="xl"
+            px={4}
+            py={3}
+            border="1px solid"
+            borderColor="amethyst.100"
+          >
+            <Text fontSize="sm" color="amethyst.700">
               Changes will be submitted as a blockchain transaction and may take a moment to appear.
             </Text>
-          </Alert>
+          </Box>
 
           <Button
-            colorScheme="blue"
+            variant="primary"
             size="lg"
             onClick={handleSubmit}
             isLoading={isSubmitting}
             loadingText="Saving..."
             isDisabled={!name.trim()}
+            borderRadius="xl"
+            h="52px"
+            fontSize="md"
           >
             Save Changes
           </Button>
