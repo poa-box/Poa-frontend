@@ -68,9 +68,11 @@ export function useVouchFirstOnboarding({
   // Skip until subgraphUrl is resolved by POContext to avoid querying the default
   // (Arbitrum) subgraph and getting wrong-chain addresses (e.g. registry on Arbitrum
   // instead of Gnosis).
+  // MUST use no-cache: Apollo caches by query+variables (not endpoint), so queries
+  // against different subgraphs can return poisoned cache results.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
     context: { subgraphUrl },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'no-cache',
     skip: !subgraphUrl,
   });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
@@ -78,7 +80,7 @@ export function useVouchFirstOnboarding({
 
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
     context: { subgraphUrl },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'no-cache',
     skip: !subgraphUrl,
   });
   const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
@@ -291,6 +293,9 @@ export function useVouchFirstOnboarding({
     createCredentialAndLink,
     completeOnboarding,
     reset,
+    // Expose for optimistic cache update after join
+    existingUsername: existingUsername || null,
+    vouchedHatId: pendingCredential?.selectedHatId || null,
   };
 }
 
