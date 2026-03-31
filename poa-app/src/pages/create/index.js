@@ -378,14 +378,40 @@ function DeployerPageContent() {
             if (sigError.code === 4001 || sigError.code === 'ACTION_REJECTED') {
               throw new Error('Username registration signature was rejected. Deployment cancelled.');
             }
-            console.error('[DEPLOY] EIP-712 signing failed, deploying without registration:', sigError);
-            toast({
-              title: 'Username registration skipped',
-              description: 'Could not prepare the username signature. Your org will deploy without on-chain username registration. You can register your username later.',
-              status: 'warning',
-              duration: 8000,
-              isClosable: true,
-            });
+            // Retry once after a brief delay — chain switch may not have fully propagated
+            console.warn('[DEPLOY] EIP-712 signing failed, retrying after delay...', sigError.message);
+            try {
+              await new Promise(r => setTimeout(r, 2000));
+              // Re-fetch fresh signer in case the first one was stale
+              const retryClient = await getConnectorClient(wagmiConfig, { chainId: targetChainId });
+              const retrySigner = clientToSigner(retryClient);
+              const sigResult = await signRegistration({
+                signer: retrySigner,
+                registryAddress,
+                username: deployerUsername,
+                deadlineSeconds: 300,
+                chainId: targetChainId,
+                readProvider,
+              });
+              regSignatureData = {
+                regDeadline: sigResult.deadline,
+                regNonce: sigResult.nonce,
+                regSignature: sigResult.signature,
+              };
+              console.log('[DEPLOY] EIP-712 signature obtained on retry');
+            } catch (retryError) {
+              if (retryError.code === 4001 || retryError.code === 'ACTION_REJECTED') {
+                throw new Error('Username registration signature was rejected. Deployment cancelled.');
+              }
+              console.error('[DEPLOY] EIP-712 signing failed on retry, deploying without registration:', retryError);
+              toast({
+                title: 'Username registration skipped',
+                description: 'Could not prepare the username signature. Your org will deploy without on-chain username registration. You can register your username later.',
+                status: 'warning',
+                duration: 8000,
+                isClosable: true,
+              });
+            }
           }
         }
       } else if (!isPasskeyDeployer) {
