@@ -7,6 +7,7 @@ import { useRouter } from 'next/router';
 import { usePOContext } from './POContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { useRefresh } from './RefreshContext';
+import { findUsernameAcrossChains } from '../util/crossChainUsername';
 
 const UserContext = createContext();
 
@@ -170,6 +171,19 @@ export const UserProvider = ({ children }) => {
             setUserDataLoading(false);
         }
     }, [data, roleHatIds, approverHatsData]);
+
+    // Cross-chain username fallback: if this chain's subgraph has no username
+    // for the user, check all chains. The user may have registered on a different chain.
+    useEffect(() => {
+        if (graphUsername || !account || !data) return;
+        let cancelled = false;
+        findUsernameAcrossChains(account).then(({ username }) => {
+            if (!cancelled && username) {
+                setGraphUsername(username);
+            }
+        }).catch(() => {});
+        return () => { cancelled = true; };
+    }, [graphUsername, account, data]);
 
     useEffect(() => {
         if (!orgId && userDAO) {

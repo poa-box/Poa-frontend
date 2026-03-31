@@ -104,13 +104,26 @@ export function useWeb3Services(options = {}) {
   // different addresses on different chains produce different account addresses).
   // SmartAccountTransactionManager will check account existence at call time before using it.
   const [crossChainInitCode, setCrossChainInitCode] = useState('0x');
+  // Track whether cross-chain initCode resolution has completed (so we can
+  // block isReady until it finishes and prevent transactions from firing early).
+  const [crossChainInitCodeResolved, setCrossChainInitCodeResolved] = useState(false);
 
   useEffect(() => {
-    if (!isPasskeyUser || !isCrossChain || !orgFactoryAddress || !passkeyState || !effectivePublicClient) {
+    if (!isPasskeyUser || !isCrossChain) {
+      // Not cross-chain — no initCode needed, immediately resolved
       setCrossChainInitCode('0x');
+      setCrossChainInitCodeResolved(true);
       return;
     }
 
+    if (!orgFactoryAddress || !passkeyState || !effectivePublicClient) {
+      // Cross-chain but deps not ready yet — mark as unresolved
+      setCrossChainInitCode('0x');
+      setCrossChainInitCodeResolved(false);
+      return;
+    }
+
+    setCrossChainInitCodeResolved(false);
     let cancelled = false;
 
     async function verifyAndBuildInitCode() {
@@ -131,6 +144,7 @@ export function useWeb3Services(options = {}) {
             `expected ${passkeyState.accountAddress}. Cross-chain account deployment unavailable.`
           );
           setCrossChainInitCode('0x');
+          setCrossChainInitCodeResolved(true);
           return;
         }
 
@@ -144,6 +158,10 @@ export function useWeb3Services(options = {}) {
         if (!cancelled) {
           console.warn('[useWeb3Services] Failed to verify cross-chain factory:', e.message);
           setCrossChainInitCode('0x');
+        }
+      } finally {
+        if (!cancelled) {
+          setCrossChainInitCodeResolved(true);
         }
       }
     }
@@ -229,9 +247,11 @@ export function useWeb3Services(options = {}) {
     return getInfrastructureAddress(contractName);
   }, []);
 
-  // Check if services are ready (auth-type-aware)
+  // Check if services are ready (auth-type-aware).
+  // For cross-chain passkey users, also wait for initCode resolution so
+  // transactions don't fire before we know whether account deployment is needed.
   const isReady = isPasskeyUser
-    ? Boolean(isAuthenticated && factory && txManager)
+    ? Boolean(isAuthenticated && factory && txManager && crossChainInitCodeResolved)
     : Boolean(signer && factory && txManager);
 
   return {
