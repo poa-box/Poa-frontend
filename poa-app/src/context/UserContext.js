@@ -208,8 +208,18 @@ export const UserProvider = ({ children }) => {
         const lowerAddr = userAddr?.toLowerCase();
         if (username) setGraphUsername(username);
         setHasMemberRole(true);
-        if (hatIds?.length > 1 || (hatIds?.length === 1 && roleHatIds?.[1] && hatIds.includes(roleHatIds[1]))) {
-            setHasExecRole(true);
+        // Optimistically set exec role if the claimed hat matches the exec hat (index 1).
+        // Normalize both to lowercase hex strings for comparison since subgraph uses
+        // decimal strings and the frontend may use hex.
+        const execHat = roleHatIds?.[1];
+        if (execHat && hatIds?.length > 0) {
+            try {
+                const execNorm = BigInt(execHat).toString();
+                const hasExec = hatIds.some(h => BigInt(h).toString() === execNorm);
+                if (hasExec) setHasExecRole(true);
+            } catch {
+                // If BigInt conversion fails, skip exec detection — subgraph will fix it
+            }
         }
         setUserData(prev => ({
             ...prev,

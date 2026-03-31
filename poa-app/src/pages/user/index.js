@@ -218,7 +218,9 @@ const User = () => {
 
     const addr = accountAddress || address;
     const hatId = vouchFirstHook.vouchedHatId;
-    const username = vouchFirstHook.existingUsername || vouchFirstHook.registeredUsername || graphUsername || '';
+    // Username: prefer the cross-chain existing username (passed to hook), fall back
+    // to the username entered in the input field, then the subgraph username.
+    const username = crossChainUsername || newUsername?.trim() || graphUsername || '';
 
     // Optimistically mark the user as a member so profileHub renders correctly
     optimisticJoin({
