@@ -122,24 +122,41 @@ export const IPFSprovider = ({ children }) => {
             console.log("[IPFS] Content preview:", content.substring(0, 200) + (content.length > 200 ? '...' : ''));
         }
 
-        // Convert File/Blob to Uint8Array to preserve binary data.
-        // Without this, ipfs-http-client reads binary files as text,
-        // replacing bytes > 0x7F with UTF-8 replacement characters.
-        let ipfsContent = content;
-        if (content instanceof Blob) {
-            console.log("[IPFS] Converting File/Blob to Uint8Array for binary-safe upload...");
-            const arrayBuffer = await content.arrayBuffer();
-            ipfsContent = new Uint8Array(arrayBuffer);
-        }
+        // For binary files (images), use direct fetch to IPFS API with FormData.
+        // ipfs-http-client corrupts binary data even with Uint8Array — an 86KB PNG
+        // becomes 149KB due to UTF-8 multi-byte encoding of high bytes (>0x7F).
+        // Direct FormData upload preserves the raw bytes correctly.
+        // For strings (JSON metadata), ipfs-http-client works fine.
+        const isBinary = content instanceof Blob;
 
         try {
-            const addedData = await withRetry(async () => {
-                console.log("[IPFS] Attempting add to api.thegraph.com/ipfs...");
-                const result = await ipfsClient.add(ipfsContent);
-                console.log("[IPFS] Add successful!");
-                console.log("[IPFS] Result:", JSON.stringify(result, null, 2));
-                return result;
-            });
+            let addedData;
+            if (isBinary) {
+                console.log("[IPFS] Binary file detected — using direct FormData upload...");
+                addedData = await withRetry(async () => {
+                    const formData = new FormData();
+                    formData.append('file', content);
+                    const response = await fetch('https://api.thegraph.com/ipfs/api/v0/add', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    if (!response.ok) {
+                        throw new Error(`IPFS upload failed: ${response.status} ${response.statusText}`);
+                    }
+                    const result = await response.json();
+                    console.log("[IPFS] Direct upload successful!");
+                    console.log("[IPFS] Result:", JSON.stringify(result, null, 2));
+                    return { path: result.Hash, size: result.Size };
+                });
+            } else {
+                addedData = await withRetry(async () => {
+                    console.log("[IPFS] Attempting add to api.thegraph.com/ipfs...");
+                    const result = await ipfsClient.add(content);
+                    console.log("[IPFS] Add successful!");
+                    console.log("[IPFS] Result:", JSON.stringify(result, null, 2));
+                    return result;
+                });
+            }
 
             console.log("[IPFS] Final CID (path):", addedData.path);
             console.log("[IPFS] CID format check - starts with 'Qm':", addedData.path?.startsWith('Qm'));
