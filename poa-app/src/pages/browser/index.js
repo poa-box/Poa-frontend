@@ -156,7 +156,10 @@ const BrowserPage = () => {
     onOpen();
   };
 
+  const hiddenOrgIds = ["tkrjehbcuebc", "Test3", "Test2", "Test"];
+
   const filteredOrganizations = perpetualOrganizations.filter(po => {
+    if (hiddenOrgIds.includes(po.id)) return false;
     const matchesSearch = po.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (po.aboutInfo?.description && po.aboutInfo.description.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesNetwork = networkFilter === "all" || po.networkName === networkFilter;
