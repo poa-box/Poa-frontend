@@ -6,6 +6,7 @@
 import { startAuthentication, base64URLStringToBuffer, bufferToBase64URLString } from '@simplewebauthn/browser';
 import { encodeAbiParameters, parseAbiParameters, keccak256, pad, toBytes, toHex } from 'viem';
 import { computeCredentialId } from './passkeyUtils';
+import { getWebAuthnRpId } from '../../../config/passkey';
 
 // P-256 curve order
 const P256_N = BigInt('0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551');
@@ -31,10 +32,12 @@ async function getWebAuthnAssertion(challengeHash, rawCredentialIdBase64) {
   const hashBytes = toBytes(challengeHash);
   const challenge = bufferToBase64URLString(hashBytes);
 
-  const assertion = await startAuthentication({
+  const primaryRpId = getWebAuthnRpId();
+
+  const opts = (rpId) => ({
     optionsJSON: {
       challenge,
-      rpId: window.location.hostname,
+      rpId,
       allowCredentials: [{
         id: rawCredentialIdBase64,
         type: 'public-key',
@@ -44,6 +47,19 @@ async function getWebAuthnAssertion(challengeHash, rawCredentialIdBase64) {
       timeout: 120000,
     },
   });
+
+  let assertion;
+  try {
+    assertion = await startAuthentication(opts(primaryRpId));
+  } catch (err) {
+    // Legacy passkeys were created with the full hostname (e.g. "www.poa.box")
+    // as RP ID. When allowCredentials lists a credential whose RP ID doesn't
+    // match, the browser filters it out and rejects without a biometric prompt,
+    // so this retry is transparent to the user.
+    const fallbackRpId = window.location.hostname;
+    if (fallbackRpId === primaryRpId) throw err;
+    assertion = await startAuthentication(opts(fallbackRpId));
+  }
 
   const authenticatorDataBuffer = base64URLStringToBuffer(assertion.response.authenticatorData);
   const authenticatorData = new Uint8Array(authenticatorDataBuffer);

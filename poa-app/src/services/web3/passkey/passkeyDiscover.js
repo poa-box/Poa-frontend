@@ -9,6 +9,7 @@ import { keccak256, encodePacked } from 'viem';
 import { computeCredentialId } from './passkeyUtils';
 import { findPendingCredentialByCredentialId } from './passkeyStorage';
 import { getAllSubgraphUrls } from '../../../config/networks';
+import { getWebAuthnRpId } from '../../../config/passkey';
 
 /**
  * Trigger WebAuthn discoverable authentication and look up the account from the subgraph.
@@ -21,16 +22,35 @@ export async function discoverPasskeyCredential() {
   const challengeBytes = crypto.getRandomValues(new Uint8Array(32));
   const challenge = bufferToBase64URLString(challengeBytes);
 
-  // Trigger WebAuthn discoverable authentication (no allowCredentials = OS shows passkey picker)
-  const assertion = await startAuthentication({
+  // Trigger WebAuthn discoverable authentication (no allowCredentials = OS shows passkey picker).
+  // Try the registrable-domain RP ID first (works for new passkeys and custom domains).
+  // Fall back to the full hostname for legacy passkeys created before the RP ID change.
+  //
+  // NOTE: Unlike the allowCredentials flow in passkeySign, the discoverable flow
+  // shows a full browser dialog even when no passkeys match. Legacy users whose
+  // only passkey uses the old RP ID will need to dismiss the first "no passkeys"
+  // dialog before the fallback fires. This is acceptable during the transition
+  // period and only affects the uncommon case of discover-flow + legacy passkey.
+  const primaryRpId = getWebAuthnRpId();
+
+  const opts = (rpId) => ({
     optionsJSON: {
       challenge,
-      rpId: window.location.hostname,
+      rpId,
       allowCredentials: [],
       userVerification: 'required',
       timeout: 120000,
     },
   });
+
+  let assertion;
+  try {
+    assertion = await startAuthentication(opts(primaryRpId));
+  } catch (err) {
+    const fallbackRpId = window.location.hostname;
+    if (fallbackRpId === primaryRpId) throw err;
+    assertion = await startAuthentication(opts(fallbackRpId));
+  }
 
   // Extract the raw credential ID
   const rawCredentialId = assertion.rawId;
