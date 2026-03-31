@@ -87,8 +87,9 @@ const OrgAvatar = ({ name, size = "110px" }) => (
 );
 
 const OrgBanner = ({ name, logoHash }) => {
-  const { safeFetchFromIpfs, fetchImageFromIpfs } = useIPFScontext();
+  const { safeFetchFromIpfs, safeFetchImageFromIpfs } = useIPFScontext();
   const [imageUrl, setImageUrl] = useState(null);
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,8 +98,8 @@ const OrgBanner = ({ name, logoHash }) => {
       try {
         const metadata = await safeFetchFromIpfs(logoHash);
         if (cancelled || !metadata?.logo) return;
-        const blobUrl = await fetchImageFromIpfs(metadata.logo);
-        if (!cancelled) setImageUrl(blobUrl);
+        const blobUrl = await safeFetchImageFromIpfs(metadata.logo);
+        if (!cancelled && blobUrl) setImageUrl(blobUrl);
       } catch (e) {
         // fall back to gradient
       }
@@ -107,18 +108,27 @@ const OrgBanner = ({ name, logoHash }) => {
     return () => { cancelled = true; };
   }, [logoHash]);
 
+  const showImage = imageUrl && !imgError;
+
   return (
     <Flex
       w="100%"
       h={["120px", "140px"]}
-      background={getOrgGradient(name)}
+      background={showImage ? "white" : getOrgGradient(name)}
       align="center"
       justify="center"
       position="relative"
       overflow="hidden"
     >
-      {imageUrl ? (
-        <Image src={imageUrl} alt={`${name} logo`} objectFit="cover" w="100%" h="100%" />
+      {showImage ? (
+        <Image
+          src={imageUrl}
+          alt={`${name} logo`}
+          objectFit="contain"
+          maxW="85%"
+          maxH="85%"
+          onError={() => setImgError(true)}
+        />
       ) : (
         <Text
           fontSize={["4xl", "5xl"]}
@@ -132,7 +142,7 @@ const OrgBanner = ({ name, logoHash }) => {
         </Text>
       )}
       {/* Subtle pattern overlay */}
-      {!imageUrl && (
+      {!showImage && (
         <Box
           position="absolute"
           inset={0}
