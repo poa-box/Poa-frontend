@@ -156,7 +156,7 @@ const BrowserPage = () => {
     onOpen();
   };
 
-  const hiddenOrgIds = ["tkrjehbcuebc", "Test3", "Test2", "Test"];
+  const hiddenOrgIds = ["tkrjehbcuebc", "Test3", "Test2", "Test", "Test5", "Test6"];
 
   const filteredOrganizations = perpetualOrganizations.filter(po => {
     if (hiddenOrgIds.includes(po.id)) return false;
