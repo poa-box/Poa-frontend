@@ -62,7 +62,7 @@ const pulse = keyframes`
 `;
 
 const User = () => {
-  const { hasMemberRole, graphUsername } = useUserContext();
+  const { hasMemberRole, graphUsername, optimisticJoin } = useUserContext();
   const { address } = useAccount();
   const { isAuthenticated, isPasskeyUser, accountAddress } = useAuth();
   const { quickJoinContractAddress, poDescription, logoHash } = usePOContext();
@@ -211,11 +211,24 @@ const User = () => {
     }
   }, [hasMemberRole, address, vouchAddress]);
 
-  // Redirect on vouch-first success
+  // Redirect on vouch-first success — optimistically update UserContext and redirect
+  // immediately. The subgraph data will replace the optimistic data on the next refetch.
   useEffect(() => {
-    if (vouchFirstHook.phase === VouchFirstPhase.SUCCESS) {
-      router.push(`/profileHub/?userDAO=${userDAO}`);
-    }
+    if (vouchFirstHook.phase !== VouchFirstPhase.SUCCESS) return;
+
+    const addr = accountAddress || address;
+    const hatId = vouchFirstHook.vouchedHatId;
+    // Username: prefer cross-chain existing username, fall back to input field, then subgraph
+    const username = crossChainUsername || newUsername?.trim() || graphUsername || '';
+
+    // Optimistically mark the user as a member so profileHub renders correctly
+    optimisticJoin({
+      address: addr,
+      hatIds: hatId ? [hatId] : [],
+      username,
+    });
+
+    router.push(`/profileHub/?userDAO=${userDAO}`);
   }, [vouchFirstHook.phase]);
 
   // Sync pendingVouchApplication to sessionStorage
