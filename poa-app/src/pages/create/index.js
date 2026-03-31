@@ -98,15 +98,17 @@ function DeployerPageContent() {
   // Fetch infrastructure addresses from the target deploy chain's subgraph
   const deployChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
   const deploySubgraphUrl = getSubgraphUrl(deployChainId);
+  // IMPORTANT: Use 'no-cache' for ALL cross-chain subgraph queries to prevent Apollo
+  // from returning cached Arbitrum results when querying Gnosis (same query, different endpoint).
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'no-cache',
     context: { subgraphUrl: deploySubgraphUrl },
     skip: !deploySubgraphUrl,
   });
 
   // Fetch passkey factory address on deploy chain (needed for cross-chain account creation)
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'no-cache',
     context: { subgraphUrl: deploySubgraphUrl },
     skip: !deploySubgraphUrl || !isPasskeyUser,
   });
