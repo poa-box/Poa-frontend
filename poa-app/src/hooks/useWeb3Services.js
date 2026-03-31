@@ -83,19 +83,23 @@ export function useWeb3Services(options = {}) {
   // Fetch infrastructure addresses from subgraph — routed to org's chain.
   // Skip until subgraphUrl is resolved by POContext to avoid querying the default
   // (Arbitrum) subgraph and getting wrong-chain addresses.
+  // MUST use no-cache: same Apollo cache-poisoning issue as factory query above.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
     context: { subgraphUrl },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'no-cache',
     skip: !subgraphUrl,
   });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
   const paymasterHubAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
-  // For passkey cross-chain: fetch factory address from org chain to compute initCode
+  // For passkey cross-chain: fetch factory address from org chain to compute initCode.
+  // MUST use no-cache: Apollo caches by query+variables (not endpoint), so if the same
+  // query was run against Arbitrum's subgraph first, 'network-only' returns the cached
+  // Arbitrum result instead of querying the Gnosis subgraph.
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
     skip: !isPasskeyUser || !isCrossChain || !subgraphUrl,
     context: { subgraphUrl },
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'no-cache',
   });
   const orgFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 

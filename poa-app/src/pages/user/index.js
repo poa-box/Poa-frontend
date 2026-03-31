@@ -211,11 +211,21 @@ const User = () => {
     }
   }, [hasMemberRole, address, vouchAddress]);
 
-  // Redirect on vouch-first success
+  // Redirect on vouch-first success — delay to allow subgraph indexing.
+  // Without this, profileHub loads before the subgraph has indexed the new member
+  // and shows WelcomeClaimPage instead of the actual profile.
   useEffect(() => {
-    if (vouchFirstHook.phase === VouchFirstPhase.SUCCESS) {
+    if (vouchFirstHook.phase !== VouchFirstPhase.SUCCESS) return;
+
+    // Wait 8 seconds for subgraph to index the join transaction, then redirect.
+    // The profileHub page has its own refetch logic (UserContext subscribes to
+    // role:claimed events) so even if the subgraph is slightly behind, it will
+    // catch up shortly after the page loads.
+    const timer = setTimeout(() => {
       router.push(`/profileHub/?userDAO=${userDAO}`);
-    }
+    }, 8000);
+
+    return () => clearTimeout(timer);
   }, [vouchFirstHook.phase]);
 
   // Sync pendingVouchApplication to sessionStorage
