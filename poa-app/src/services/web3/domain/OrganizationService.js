@@ -156,6 +156,64 @@ export class OrganizationService {
 
     return this.txManager.execute(contract, 'quickJoinWithUser', [], options);
   }
+
+  /**
+   * Claim specific hats for a vouched EOA user who already has a username.
+   * Used by vouch-first flow: user was vouched, now claims the specific hat(s).
+   *
+   * @param {string} contractAddress - QuickJoin contract address
+   * @param {BigInt[]} claimHatIds - Hat IDs to mint
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async claimHatsWithUser(contractAddress, claimHatIds, options = {}) {
+    requireAddress(contractAddress, 'QuickJoin contract address');
+
+    console.log('[OrganizationService] Calling claimHatsWithUser with', claimHatIds.length, 'hats');
+    const contract = this.factory.createWritable(contractAddress, QuickJoinABI);
+
+    return this.txManager.execute(contract, 'claimHatsWithUser', [claimHatIds], options);
+  }
+
+  /**
+   * Register username + claim specific hats for a vouched EOA user.
+   * Combines EIP-712 registration + vouch hat claim in one transaction.
+   *
+   * @param {string} contractAddress - QuickJoin contract address
+   * @param {string} username - Username for registration
+   * @param {BigInt[]} claimHatIds - Hat IDs to mint
+   * @param {ethers.Signer} signer - Ethers signer for the EOA wallet
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async registerAndClaimHatsEOA(contractAddress, username, claimHatIds, signer, options = {}) {
+    requireAddress(contractAddress, 'QuickJoin contract address');
+    requireValidUsername(username);
+
+    if (!this.registryAddress) {
+      throw new Error('Registry address is required for new user registration');
+    }
+
+    // Sign registration via EIP-712
+    console.log('[OrganizationService] Requesting EIP-712 registration signature for vouch-claim...');
+    const { deadline, nonce, signature } = await signRegistration({
+      signer,
+      registryAddress: this.registryAddress,
+      username,
+    });
+
+    const userAddress = await signer.getAddress();
+
+    console.log('[OrganizationService] Calling registerAndClaimHats...');
+    const contract = this.factory.createWritable(contractAddress, QuickJoinABI);
+
+    return this.txManager.execute(
+      contract,
+      'registerAndClaimHats',
+      [userAddress, username, deadline, nonce, signature, claimHatIds],
+      options
+    );
+  }
 }
 
 /**

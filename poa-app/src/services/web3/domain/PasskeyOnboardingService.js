@@ -161,34 +161,72 @@ export class PasskeyOnboardingService {
   }
 
   /**
-   * Build callData for vouch-claim onboarding: register username + claimVouchedHat.
-   * Used when a user has been vouched for a specific hat and needs to claim it directly
-   * via the EligibilityModule (instead of QuickJoin which only mints quickJoinRoles).
-   *
-   * If the user already has a username (existingUsername), skips registration entirely.
+   * Build callData for vouch-claim onboarding via QuickJoin.
+   * Uses the new registerAndClaimHatsWithPasskey (needs username) or
+   * claimHatsWithUser (already has username) on QuickJoin instead of
+   * EligibilityModule.claimVouchedHat — this atomically handles registration
+   * + hat claiming through the org's whitelisted QuickJoin contract.
    *
    * @param {Object} credential - Passkey credential data
    * @param {string} accountAddress - Counterfactual account address
    * @param {string} username - Username to register (ignored if existingUsername is set)
    * @param {Function} onStep - Progress callback
-   * @returns {string} Encoded callData for the UserOp (batch execute)
+   * @returns {string} Encoded callData for the UserOp
    */
   async _buildVouchClaimCallData(credential, accountAddress, username, onStep) {
-    // Vouch-claim path: just claim the hat via EligibilityModule.
-    // Username registration is handled separately (either the user already has one
-    // from another chain, or it's registered via the solidarity onboarding path).
-    // We can't batch registry calls with the hat claim because the org's paymaster
-    // rules only whitelist org contracts, not the global UniversalAccountRegistry.
-    const claimData = encodeFunctionData({
-      abi: EligibilityModuleABI,
-      functionName: 'claimVouchedHat',
-      args: [BigInt(this.hatId)],
+    const claimHatIds = [BigInt(this.hatId)];
+
+    // If user already has a username, just claim the hats (no registration needed)
+    if (this.existingUsername) {
+      console.log('[Onboarding] Vouch-claim with existing username:', this.existingUsername);
+      const claimData = encodeFunctionData({
+        abi: QuickJoinABI,
+        functionName: 'claimHatsWithUser',
+        args: [claimHatIds],
+      });
+      return encodeFunctionData({
+        abi: PasskeyAccountABI,
+        functionName: 'execute',
+        args: [this.quickJoinAddress, 0n, claimData],
+      });
+    }
+
+    // New user: register username + claim hats via registerAndClaimHatsWithPasskey
+    console.log('[Onboarding] Vouch-claim with new username:', username);
+    const { credentialId, publicKeyX, publicKeyY, salt, rawCredentialId } = credential;
+
+    const nonce = await this._getRegistryNonce(accountAddress);
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + REGISTRATION_DEADLINE_SECONDS);
+
+    const challengeHash = computeRegistrationChallenge({
+      accountAddress,
+      username,
+      nonce,
+      deadline,
+      chainId: this.chainId,
+      registryAddress: this.registryAddress,
+    });
+
+    onStep(OnboardingStep.SIGNING_REGISTRATION);
+    const auth = await signRegistrationChallenge(challengeHash, rawCredentialId);
+
+    const joinData = encodeFunctionData({
+      abi: QuickJoinABI,
+      functionName: 'registerAndClaimHatsWithPasskey',
+      args: [
+        [credentialId, publicKeyX, publicKeyY, BigInt(salt)],
+        username,
+        deadline,
+        nonce,
+        [auth.authenticatorData, auth.clientDataJSON, auth.challengeIndex, auth.typeIndex, auth.r, auth.s],
+        claimHatIds,
+      ],
     });
 
     return encodeFunctionData({
       abi: PasskeyAccountABI,
       functionName: 'execute',
-      args: [this.eligibilityModuleAddress, 0n, claimData],
+      args: [this.quickJoinAddress, 0n, joinData],
     });
   }
 
