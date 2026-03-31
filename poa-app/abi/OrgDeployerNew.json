@@ -127,12 +127,12 @@
             "internalType": "bool"
           },
           {
-            "name": "hybridQuorumPct",
+            "name": "hybridThresholdPct",
             "type": "uint8",
             "internalType": "uint8"
           },
           {
-            "name": "ddQuorumPct",
+            "name": "ddThresholdPct",
             "type": "uint8",
             "internalType": "uint8"
           },
@@ -418,6 +418,16 @@
                     "name": "assignHats",
                     "type": "uint256[]",
                     "internalType": "uint256[]"
+                  },
+                  {
+                    "name": "bountyTokens",
+                    "type": "address[]",
+                    "internalType": "address[]"
+                  },
+                  {
+                    "name": "bountyCaps",
+                    "type": "uint256[]",
+                    "internalType": "uint256[]"
                   }
                 ]
               },
@@ -563,6 +573,11 @@
           },
           {
             "name": "paymentManager",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "eligibilityModule",
             "type": "address",
             "internalType": "address"
           }

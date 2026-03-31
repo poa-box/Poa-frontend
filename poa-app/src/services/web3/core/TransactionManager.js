@@ -4,7 +4,7 @@
  */
 
 import { parseError, Web3ErrorCategory } from '@/lib/errors';
-import { calculateGasLimit, getDefaultGasPrice, createGasOptions } from '@/config';
+import { calculateGasLimit, createGasOptions } from '@/config';
 
 /**
  * Transaction states for tracking progress
@@ -78,7 +78,6 @@ export class TransactionManager {
    */
   constructor(signer, config = {}) {
     this.signer = signer;
-    this.gasPrice = config.gasPrice || getDefaultGasPrice();
   }
 
   /**
@@ -102,7 +101,6 @@ export class TransactionManager {
       const gasEstimate = await this._estimateGas(contract, method, args);
       const gasOptions = createGasOptions(gasEstimate, {
         isDelete: opts.isDelete,
-        gasPrice: this.gasPrice,
       });
 
       // State: Awaiting signature
@@ -208,14 +206,6 @@ export class TransactionManager {
       // Re-throw with the original error for proper parsing
       throw error;
     }
-  }
-
-  /**
-   * Update gas price
-   * @param {BigNumber} gasPrice - New gas price
-   */
-  updateGasPrice(gasPrice) {
-    this.gasPrice = gasPrice;
   }
 
   /**

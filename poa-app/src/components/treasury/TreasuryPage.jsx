@@ -40,6 +40,7 @@ const TreasuryPage = () => {
     poContextLoading,
     poMembers,
     participationTokenAddress,
+    subgraphUrl,
   } = usePOContext();
   const { hasExecRole } = useUserContext();
 
@@ -54,6 +55,7 @@ const TreasuryPage = () => {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
+    context: { subgraphUrl },
   });
 
   const isLoading = poContextLoading || treasuryLoading;

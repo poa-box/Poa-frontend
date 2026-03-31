@@ -8,6 +8,7 @@ import { useQuery } from '@apollo/client';
 import { useAccount } from 'wagmi';
 import { FETCH_VOUCHES_FOR_ORG } from '../util/queries';
 import { useRefreshSubscription } from '../context/RefreshContext';
+import { usePOContext } from '../context/POContext';
 
 /**
  * Normalize a hat ID to a string for consistent comparison
@@ -38,6 +39,7 @@ function normalizeAddress(addr) {
  */
 export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
   const { address: userAddress } = useAccount();
+  const { subgraphUrl } = usePOContext();
   const normalizedUserAddress = normalizeAddress(userAddress);
 
   // Fetch vouches from subgraph
@@ -45,6 +47,7 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
     variables: { eligibilityModuleId: eligibilityModuleAddress },
     skip: !eligibilityModuleAddress,
     fetchPolicy: 'cache-first',
+    context: { subgraphUrl },
   });
 
   // Subscribe to refresh events for real-time updates

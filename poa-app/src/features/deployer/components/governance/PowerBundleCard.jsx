@@ -44,9 +44,9 @@ export function PowerBundleCard({
   const bundle = POWER_BUNDLES[bundleKey];
   if (!bundle) return null;
 
-  const cardBg = useColorModeValue('white', 'gray.700');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const descriptionColor = useColorModeValue('gray.600', 'gray.400');
+  const cardBg = useColorModeValue('white', 'warmGray.700');
+  const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
+  const descriptionColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   const icon = BUNDLE_ICONS[bundleKey] || '📋';
   const colorScheme = BUNDLE_COLORS[bundleKey] || 'gray';
@@ -74,7 +74,7 @@ export function PowerBundleCard({
             <Text fontWeight="bold">{bundle.name}</Text>
           </HStack>
           <Tooltip label={bundle.permissions.join(', ')} placement="top">
-            <InfoOutlineIcon color="gray.400" boxSize={4} cursor="help" />
+            <InfoOutlineIcon color="warmGray.400" boxSize={4} cursor="help" />
           </Tooltip>
         </HStack>
 
@@ -85,7 +85,7 @@ export function PowerBundleCard({
 
         {/* Role Checkboxes */}
         <Box pt={2}>
-          <Text fontSize="xs" color="gray.500" mb={2}>
+          <Text fontSize="xs" color="warmGray.500" mb={2}>
             Which roles have this power?
           </Text>
           <VStack align="stretch" spacing={2}>

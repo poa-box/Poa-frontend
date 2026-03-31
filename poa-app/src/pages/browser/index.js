@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useIPFScontext } from "../../context/ipfsContext";
 import { useprofileHubContext } from "../../context/profileHubContext";
 import { useAuth } from "@/context/AuthContext";
 import { useGlobalAccount } from "@/hooks/useGlobalAccount";
@@ -30,6 +31,7 @@ import {
   ModalBody,
   ModalCloseButton,
   useDisclosure,
+  Image,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
 import { FaSearch, FaUsers, FaArrowRight, FaGlobe, FaInfoCircle, FaBuilding, FaUserFriends, FaShieldAlt } from "react-icons/fa";
@@ -84,46 +86,75 @@ const OrgAvatar = ({ name, size = "110px" }) => (
   </Flex>
 );
 
-const OrgBanner = ({ name }) => (
-  <Flex
-    w="100%"
-    h={["120px", "140px"]}
-    background={getOrgGradient(name)}
-    align="center"
-    justify="center"
-    position="relative"
-  >
-    <Text
-      fontSize={["4xl", "5xl"]}
-      fontWeight="800"
-      color="rgba(255, 255, 255, 0.9)"
-      textTransform="uppercase"
-      userSelect="none"
-      letterSpacing="0.05em"
+const OrgBanner = ({ name, logoHash }) => {
+  const { safeFetchFromIpfs, fetchImageFromIpfs } = useIPFScontext();
+  const [imageUrl, setImageUrl] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadLogo() {
+      if (!logoHash) return;
+      try {
+        const metadata = await safeFetchFromIpfs(logoHash);
+        if (cancelled || !metadata?.logo) return;
+        const blobUrl = await fetchImageFromIpfs(metadata.logo);
+        if (!cancelled) setImageUrl(blobUrl);
+      } catch (e) {
+        // fall back to gradient
+      }
+    }
+    loadLogo();
+    return () => { cancelled = true; };
+  }, [logoHash]);
+
+  return (
+    <Flex
+      w="100%"
+      h={["120px", "140px"]}
+      background={getOrgGradient(name)}
+      align="center"
+      justify="center"
+      position="relative"
+      overflow="hidden"
     >
-      {name.charAt(0)}
-    </Text>
-    {/* Subtle pattern overlay */}
-    <Box
-      position="absolute"
-      inset={0}
-      opacity={0.18}
-      background="radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)"
-      backgroundSize="40px 40px"
-      pointerEvents="none"
-    />
-  </Flex>
-);
+      {imageUrl ? (
+        <Image src={imageUrl} alt={`${name} logo`} objectFit="cover" w="100%" h="100%" />
+      ) : (
+        <Text
+          fontSize={["4xl", "5xl"]}
+          fontWeight="800"
+          color="rgba(255, 255, 255, 0.9)"
+          textTransform="uppercase"
+          userSelect="none"
+          letterSpacing="0.05em"
+        >
+          {name.charAt(0)}
+        </Text>
+      )}
+      {/* Subtle pattern overlay */}
+      {!imageUrl && (
+        <Box
+          position="absolute"
+          inset={0}
+          opacity={0.18}
+          background="radial-gradient(circle at 20% 50%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px)"
+          backgroundSize="40px 40px"
+          pointerEvents="none"
+        />
+      )}
+    </Flex>
+  );
+};
 
 const BrowserPage = () => {
   const router = useRouter();
-  const { perpetualOrganizations, setprofileHubLoaded } = useprofileHubContext();
+  const { perpetualOrganizations, isLoading: isOrgsLoading } = useprofileHubContext();
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
   const { isPasskeyUser, isAuthenticated, hasStoredPasskey } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [networkFilter, setNetworkFilter] = useState("all");
   const [selectedOrg, setSelectedOrg] = useState(null);
   const [mounted, setMounted] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -156,17 +187,18 @@ const BrowserPage = () => {
     onOpen();
   };
 
-  useEffect(() => {
-    if (perpetualOrganizations.length === 0) {
-      setprofileHubLoaded(true);
-    }
-    setIsLoading(false);
-  }, [perpetualOrganizations]);
+  const hiddenOrgIds = ["tkrjehbcuebc", "Test3", "Test2", "Test", "Test5", "Test6"];
 
-  const filteredOrganizations = perpetualOrganizations.filter(po =>
-    po.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (po.aboutInfo?.description && po.aboutInfo.description.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredOrganizations = perpetualOrganizations.filter(po => {
+    if (hiddenOrgIds.includes(po.id)) return false;
+    const matchesSearch = po.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (po.aboutInfo?.description && po.aboutInfo.description.toLowerCase().includes(searchTerm.toLowerCase()));
+    const matchesNetwork = networkFilter === "all" || po.networkName === networkFilter;
+    return matchesSearch && matchesNetwork;
+  });
+
+  // Get unique network names for filter chips
+  const availableNetworks = [...new Set(perpetualOrganizations.map(po => po.networkName).filter(Boolean))];
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -409,6 +441,38 @@ const BrowserPage = () => {
                 </InputRightElement>
               </InputGroup>
 
+              {/* Network Filter Chips */}
+              {availableNetworks.length > 1 && (
+                <HStack spacing={2} mb={[4, 6]} flexWrap="wrap" justifyContent="center">
+                  <Badge
+                    px={3} py={1.5} borderRadius="full" cursor="pointer" fontSize="sm" fontWeight="600"
+                    bg={networkFilter === "all" ? "warmGray.900" : "white"}
+                    color={networkFilter === "all" ? "white" : "warmGray.600"}
+                    border="1px solid"
+                    borderColor={networkFilter === "all" ? "warmGray.900" : "warmGray.200"}
+                    onClick={() => setNetworkFilter("all")}
+                    _hover={{ borderColor: "warmGray.400" }}
+                    transition="all 0.2s"
+                  >
+                    All Networks
+                  </Badge>
+                  {availableNetworks.map(name => (
+                    <Badge
+                      key={name} px={3} py={1.5} borderRadius="full" cursor="pointer" fontSize="sm" fontWeight="600"
+                      bg={networkFilter === name ? "warmGray.900" : "white"}
+                      color={networkFilter === name ? "white" : "warmGray.600"}
+                      border="1px solid"
+                      borderColor={networkFilter === name ? "warmGray.900" : "warmGray.200"}
+                      onClick={() => setNetworkFilter(name)}
+                      _hover={{ borderColor: "warmGray.400" }}
+                      transition="all 0.2s"
+                    >
+                      {name}
+                    </Badge>
+                  ))}
+                </HStack>
+              )}
+
               {/* Stats */}
               <HStack
                 spacing={[4, 8]}
@@ -443,7 +507,7 @@ const BrowserPage = () => {
             initial="hidden"
             animate="visible"
           >
-            {isLoading ? (
+            {isOrgsLoading ? (
               <Grid
                 templateColumns={{
                   base: "repeat(1, 1fr)",
@@ -530,7 +594,7 @@ const BrowserPage = () => {
                       >
                         <Link href={`/home?userDAO=${po.id}`} passHref>
                           <Box as="a">
-                            <OrgBanner name={po.id} />
+                            <OrgBanner name={po.id} logoHash={po.logoHash} />
                           </Box>
                         </Link>
 
@@ -548,15 +612,15 @@ const BrowserPage = () => {
                               </Heading>
                             </Link>
                             <Badge
-                              bg="amethyst.50"
-                              color="amethyst.600"
+                              bg={po.networkName === 'Sepolia' ? 'blue.50' : po.networkName === 'Base Sepolia' ? 'green.50' : 'amethyst.50'}
+                              color={po.networkName === 'Sepolia' ? 'blue.600' : po.networkName === 'Base Sepolia' ? 'green.600' : 'amethyst.600'}
                               borderRadius="full"
                               px={2.5}
                               py={0.5}
                               fontSize="xs"
                               fontWeight="600"
                             >
-                              Org
+                              {po.networkName || 'Org'}
                             </Badge>
                           </Flex>
 

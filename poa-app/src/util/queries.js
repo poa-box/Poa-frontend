@@ -1,41 +1,9 @@
 import { gql } from '@apollo/client';
 
 // ============================================
-// POP SUBGRAPH QUERIES (Hoodi testnet)
-// Schema: https://api.studio.thegraph.com/query/73367/poa-2/version/latest
+// POP SUBGRAPH QUERIES (Sepolia + Base Sepolia)
+// Schema: https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest
 // ============================================
-
-// Fetch all organizations for browsing
-export const FETCH_ALL_ORGS = gql`
-  query FetchAllOrgs {
-    organizations(first: 100, orderBy: deployedAt, orderDirection: desc) {
-      id
-      name
-      metadataHash
-      deployedAt
-      topHatId
-      participationToken {
-        id
-        totalSupply
-      }
-      quickJoin {
-        id
-      }
-      hybridVoting {
-        id
-      }
-      directDemocracyVoting {
-        id
-      }
-      taskManager {
-        id
-      }
-      educationHub {
-        id
-      }
-    }
-  }
-`;
 
 // Fetch single organization by orgId (bytes)
 export const FETCH_ORG_BY_ID = gql`
@@ -58,11 +26,13 @@ export const FETCH_ORG_BY_ID = gql`
       }
       hybridVoting {
         id
+        thresholdPct
         quorum
       }
       directDemocracyVoting {
         id
-        quorumPercentage
+        thresholdPct
+        quorum
       }
       taskManager {
         id
@@ -196,11 +166,13 @@ export const FETCH_ORG_FULL_DATA = gql`
       }
       hybridVoting {
         id
+        thresholdPct
         quorum
       }
       directDemocracyVoting {
         id
-        quorumPercentage
+        thresholdPct
+        quorum
       }
       taskManager {
         id
@@ -265,6 +237,7 @@ export const FETCH_VOTING_DATA_NEW = gql`
       id
       hybridVoting {
         id
+        thresholdPct
         quorum
         votingClasses(where: { isActive: true }, orderBy: classIndex, orderDirection: asc) {
           id
@@ -308,7 +281,8 @@ export const FETCH_VOTING_DATA_NEW = gql`
       }
       directDemocracyVoting {
         id
-        quorumPercentage
+        thresholdPct
+        quorum
         ddvProposals(orderBy: startTimestamp, orderDirection: desc, first: 50) {
           id
           proposalId
@@ -553,12 +527,14 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
 
       hybridVoting {
         id
+        thresholdPct
         quorum
       }
 
       directDemocracyVoting {
         id
-        quorumPercentage
+        thresholdPct
+        quorum
       }
 
       hatPermissions {

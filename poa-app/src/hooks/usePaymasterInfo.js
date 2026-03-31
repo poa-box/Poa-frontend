@@ -13,12 +13,13 @@ import { FETCH_PAYMASTER_ORG_CONFIG } from '../util/passkeyQueries';
  * @returns {Object} Paymaster info
  */
 export function usePaymasterInfo() {
-  const { orgId } = usePOContext();
+  const { orgId, subgraphUrl } = usePOContext();
 
   const { data, loading, error } = useQuery(FETCH_PAYMASTER_ORG_CONFIG, {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
+    context: { subgraphUrl },
   });
 
   const config = data?.paymasterOrgConfigs?.[0] || null;

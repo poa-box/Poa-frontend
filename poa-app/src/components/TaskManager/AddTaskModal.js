@@ -27,8 +27,9 @@ import {
   SimpleGrid,
 } from '@chakra-ui/react';
 import { InfoIcon, CloseIcon } from '@chakra-ui/icons';
-import { BOUNTY_TOKEN_OPTIONS, BOUNTY_TOKENS } from '../../util/tokens';
+import { getBountyTokenOptions, BOUNTY_TOKENS } from '../../util/tokens';
 import { useUserContext } from '../../context/UserContext';
+import { usePOContext } from '../../context/POContext';
 import { UserSearchInput } from '@/components/common';
 import { calculatePayout, DIFFICULTY_CONFIG } from '@/util/taskUtils';
 
@@ -68,13 +69,16 @@ const selectStyles = {
 
 const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
   const { hasExecRole } = useUserContext();
+  const { orgChainId } = usePOContext();
+
+  const tokenOptions = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [difficulty, setDifficulty] = useState('easy');
   const [estHours, setEstHours] = useState(0.5);
   const [hasBounty, setHasBounty] = useState(false);
-  const [bountyToken, setBountyToken] = useState(BOUNTY_TOKENS.BREAD.address);
+  const [bountyToken, setBountyToken] = useState('');
   const [bountyAmount, setBountyAmount] = useState('');
   const [requiresApplication, setRequiresApplication] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -86,12 +90,20 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
     return calculatePayout(difficulty, estHours);
   }, [difficulty, estHours]);
 
+  // Set default bounty token to first available when options load
+  React.useEffect(() => {
+    if (tokenOptions.length > 0 && !bountyToken) {
+      setBountyToken(tokenOptions[0].address);
+    }
+  }, [tokenOptions, bountyToken]);
+
   const resetForm = () => {
     setName('');
     setDescription('');
     setDifficulty('easy');
     setEstHours(0.5);
     setHasBounty(false);
+    setBountyToken(tokenOptions[0]?.address || '');
     setBountyAmount('');
     setRequiresApplication(false);
     setSelectedUser(null);
@@ -297,13 +309,14 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                       Token Bounty
                     </Text>
                     <Text fontSize="xs" color="gray.500">
-                      (Optional)
+                      {tokenOptions.length === 0 ? '(No tokens configured)' : '(Optional)'}
                     </Text>
                   </HStack>
                   <Switch
                     isChecked={hasBounty}
                     onChange={(e) => setHasBounty(e.target.checked)}
                     colorScheme="purple"
+                    isDisabled={tokenOptions.length === 0}
                   />
                 </HStack>
               </FormControl>
@@ -326,13 +339,11 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                         size="sm"
                         {...selectStyles}
                       >
-                        {BOUNTY_TOKEN_OPTIONS.filter((t) => !t.isDefault).map(
-                          (token) => (
-                            <option key={token.symbol} value={token.address}>
-                              {token.symbol}
-                            </option>
-                          )
-                        )}
+                        {tokenOptions.map((token) => (
+                          <option key={token.symbol} value={token.address}>
+                            {token.symbol}
+                          </option>
+                        ))}
                       </Select>
                     </FormControl>
                     <FormControl id="bounty-amount">
@@ -354,7 +365,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                           borderColor="whiteAlpha.200"
                           color="gray.400"
                         >
-                          {BOUNTY_TOKEN_OPTIONS.find(
+                          {tokenOptions.find(
                             (t) => t.address === bountyToken
                           )?.symbol || 'TOKEN'}
                         </InputRightAddon>
@@ -507,7 +518,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
               onClick={handleSubmit}
               isLoading={loading}
               loadingText="Creating..."
-              isDisabled={!name.trim()}
+              isDisabled={!name.trim() || (hasBounty && (!bountyToken || !bountyAmount || Number(bountyAmount) <= 0))}
             >
               Create Task
             </Button>

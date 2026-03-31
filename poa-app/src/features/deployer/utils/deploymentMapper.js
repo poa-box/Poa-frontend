@@ -221,15 +221,20 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     regNonce: options.regSignatureData?.regNonce ?? 0,
     regSignature: options.regSignatureData?.regSignature ?? '0x',
     autoUpgrade: organization.autoUpgrade,
-    hybridQuorumPct: voting.hybridQuorum,
-    ddQuorumPct: voting.ddQuorum,
+    hybridThresholdPct: voting.hybridQuorum,
+    ddThresholdPct: voting.ddQuorum,
     hybridClasses,
     ddInitialTargets: [], // Empty for now
     roles: contractRoles,
     roleAssignments,
     // Metadata admin: which role's hat gets metadata-admin privilege.
     // ethers.constants.MaxUint256 = skip (topHat fallback in contract).
-    metadataAdminRoleIndex: options.metadataAdminRoleIndex ?? ethers.constants.MaxUint256,
+    // Priority: explicit option > state value > MaxUint256 (skip/topHat fallback).
+    metadataAdminRoleIndex: options.metadataAdminRoleIndex != null
+      ? ethers.BigNumber.from(options.metadataAdminRoleIndex)
+      : (state.metadataAdminRoleIndex !== null && state.metadataAdminRoleIndex !== undefined
+        ? ethers.BigNumber.from(state.metadataAdminRoleIndex)
+        : ethers.constants.MaxUint256),
     // Passkey support - enabled by default for all new orgs
     passkeyEnabled: true,
     // Education hub configuration
@@ -278,6 +283,8 @@ export function createDeploymentConfig(state, deployerAddress, options = {}) {
       hasVouching: state.roles.some(r => r.vouching.enabled),
       paymasterEnabled: state.paymaster?.enabled || false,
       paymasterFundingEth: state.paymaster?.fundingAmountEth || '0',
+      hybridVoterQuorum: state.voting.hybridVoterQuorum || 0,
+      ddVoterQuorum: state.voting.ddVoterQuorum || 0,
     },
   };
 }
@@ -357,6 +364,13 @@ export function validateDeploymentConfig(state) {
     }
   });
 
+  // Metadata admin validation
+  if (state.metadataAdminRoleIndex !== null && state.metadataAdminRoleIndex !== undefined) {
+    if (state.metadataAdminRoleIndex >= state.roles.length) {
+      errors.push('Metadata admin role index is out of range');
+    }
+  }
+
   // Paymaster validation
   if (state.paymaster?.enabled) {
     const pm = state.paymaster;
@@ -402,8 +416,8 @@ export function logDeploymentParams(params) {
   console.log('Reg Nonce:', params.regNonce?.toString?.() ?? '0');
   console.log('Reg Signature:', params.regSignature === '0x' ? '(skip)' : params.regSignature?.slice(0, 20) + '...');
   console.log('Auto Upgrade:', params.autoUpgrade);
-  console.log('Hybrid Quorum:', params.hybridQuorumPct);
-  console.log('DD Quorum:', params.ddQuorumPct);
+  console.log('Hybrid Threshold:', params.hybridThresholdPct);
+  console.log('DD Threshold:', params.ddThresholdPct);
   console.log('Roles:', params.roles.length);
   params.roles.forEach((r, i) => {
     console.log(`  [${i}] ${r.name}`, {

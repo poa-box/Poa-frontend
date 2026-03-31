@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useWeb3, useOrgStructure, useClaimRole, useVouches, useVouchFirstOnboarding } from "@/hooks";
 import { usePOContext } from "@/context/POContext";
 import { useUserContext } from "@/context/UserContext";
+import { findUsernameAcrossChains } from "@/util/crossChainUsername";
 import { useRouter } from 'next/router';
 import {
   VStack,
@@ -43,7 +44,7 @@ import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
 import { useAuth } from '@/context/AuthContext';
-import { motion } from "framer-motion";
+
 import { FaWallet, FaUserPlus, FaUser, FaCheck, FaChevronRight, FaLink, FaInfoCircle, FaShieldAlt, FaRegLightbulb, FaUsers, FaFingerprint, FaPaperPlane, FaCopy, FaHandshake, FaRedo } from 'react-icons/fa';
 import PasskeyLoginButton from '@/components/passkey/PasskeyLoginButton';
 import PasskeyOnboardingModal from '@/components/passkey/PasskeyOnboardingModal';
@@ -53,33 +54,19 @@ import { RoleApplicationForm, VouchLinkHandler, VouchProgressBar } from '@/compo
 import { VouchFirstPhase } from '@/hooks/useVouchFirstOnboarding';
 import { getAllCredentials } from '@/services/web3/passkey/passkeyStorage';
 
-// Animation keyframes
-const gradientAnimation = keyframes`
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-`;
-
-const float = keyframes`
-  0% { transform: translateY(0px); }
-  50% { transform: translateY(-10px); }
-  100% { transform: translateY(0px); }
-`;
-
+// Subtle pulse animation for CTA buttons when form is ready
 const pulse = keyframes`
   0% { transform: scale(1); }
   50% { transform: scale(1.05); }
   100% { transform: scale(1); }
 `;
 
-const MotionBox = motion(Box);
-
 const User = () => {
-  const { hasMemberRole, graphUsername } = useUserContext();
+  const { hasMemberRole, graphUsername, optimisticJoin } = useUserContext();
   const { address } = useAccount();
   const { isAuthenticated, isPasskeyUser, accountAddress } = useAuth();
   const { quickJoinContractAddress, poDescription, logoHash } = usePOContext();
-  const { organization, executeWithNotification } = useWeb3();
+  const { organization, executeWithNotification, signer } = useWeb3();
   const router = useRouter();
   const { userDAO, vouch: vouchAddress, hatId: vouchHatId } = router.query;
   const usernameInputRef = useRef(null);
@@ -100,6 +87,16 @@ const User = () => {
     return roles.some(r => r.vouchingEnabled);
   }, [roles]);
 
+  // Cross-chain username: check if user already has a username on any chain
+  const [crossChainUsername, setCrossChainUsername] = useState(null);
+  useEffect(() => {
+    const addr = accountAddress || address;
+    if (!addr) return;
+    findUsernameAcrossChains(addr).then(({ username }) => {
+      if (username) setCrossChainUsername(username);
+    }).catch(() => {});
+  }, [accountAddress, address]);
+
   const [newUsername, setNewUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [dispaly, setDispaly] = useState(true);
@@ -114,12 +111,23 @@ const User = () => {
   // Role application state (for vouch-gated orgs)
   const [selectedHatId, setSelectedHatId] = useState(null);
   const [applicationNotes, setApplicationNotes] = useState('');
-  const [applicationExperience, setApplicationExperience] = useState('');
+
+  // Tracks when authenticated user has submitted application and is waiting for vouches.
+  // Persisted to sessionStorage so a page refresh doesn't lose the vouch link.
+  const [pendingVouchApplication, setPendingVouchApplication] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = sessionStorage.getItem(`pendingVouchApp:${userDAO}`);
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
 
   // Vouch-first passkey onboarding hook
   const vouchFirstHook = useVouchFirstOnboarding({
     orgName: userDAO,
     refetchVouches,
+    eligibilityModuleAddress,
+    existingUsername: crossChainUsername,
   });
 
   // Compute vouch progress for the pending credential (if any)
@@ -154,6 +162,12 @@ const User = () => {
     return null;
   }, [isAuthenticated, accountAddress, hasVouchGatedRoles, hasMemberRole, rolesWithVouching, getVouchProgress]);
 
+  // Track vouch progress for a pending application (applied but not yet vouched enough)
+  const pendingApplicationProgress = useMemo(() => {
+    if (!pendingVouchApplication || !accountAddress) return null;
+    return getVouchProgress(accountAddress, pendingVouchApplication.hatId);
+  }, [pendingVouchApplication, accountAddress, getVouchProgress]);
+
   const isMobile = useBreakpointValue({ base: true, md: false });
   const textSize = useBreakpointValue({ base: "xl", md: "2xl" });
   const headingSize = useBreakpointValue({ base: "3xl", md: "4xl" });
@@ -163,10 +177,10 @@ const User = () => {
   const mainSpacing = useBreakpointValue({ base: 4, md: 6 });
   const formSpacing = useBreakpointValue({ base: 4, md: 6 });
 
-  // Enhanced gradient background
+  // Rich gradient background — deeper tones that complement the teal/green palette
   const bgGradient = useColorModeValue(
-    'linear-gradient(135deg, #ffe8c3 0%, #ffd0d0 25%, #e1c4ff 50%, #c4e7ff 75%, #c4ffe1 100%)',
-    'linear-gradient(135deg, #2d1f3d 0%, #1a1625 50%, #2a273f 100%)'
+    'linear-gradient(135deg, #c7ddd5 0%, #c4d4e4 40%, #d5cde6 70%, #c7ddd5 100%)',
+    'linear-gradient(135deg, #1a1625 0%, #1e2030 50%, #2a273f 100%)'
   );
 
   const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(0, 0, 0, 0.6)');
@@ -197,12 +211,47 @@ const User = () => {
     }
   }, [hasMemberRole, address, vouchAddress]);
 
-  // Redirect on vouch-first success
+  // Redirect on vouch-first success — optimistically update UserContext and redirect
+  // immediately. The subgraph data will replace the optimistic data on the next refetch.
   useEffect(() => {
-    if (vouchFirstHook.phase === VouchFirstPhase.SUCCESS) {
-      router.push(`/profileHub/?userDAO=${userDAO}`);
-    }
+    if (vouchFirstHook.phase !== VouchFirstPhase.SUCCESS) return;
+
+    const addr = accountAddress || address;
+    const hatId = vouchFirstHook.vouchedHatId;
+    // Username: prefer cross-chain existing username, fall back to input field, then subgraph
+    const username = crossChainUsername || newUsername?.trim() || graphUsername || '';
+
+    // Optimistically mark the user as a member so profileHub renders correctly
+    optimisticJoin({
+      address: addr,
+      hatIds: hatId ? [hatId] : [],
+      username,
+    });
+
+    router.push(`/profileHub/?userDAO=${userDAO}`);
   }, [vouchFirstHook.phase]);
+
+  // Sync pendingVouchApplication to sessionStorage
+  useEffect(() => {
+    if (!userDAO) return;
+    try {
+      if (pendingVouchApplication) {
+        sessionStorage.setItem(`pendingVouchApp:${userDAO}`, JSON.stringify(pendingVouchApplication));
+      } else {
+        sessionStorage.removeItem(`pendingVouchApp:${userDAO}`);
+      }
+    } catch { /* SSR or storage full */ }
+  }, [pendingVouchApplication, userDAO]);
+
+  // Poll for vouches while authenticated user has a pending application (pause during join)
+  useEffect(() => {
+    if (pendingVouchApplication && refetchVouches && !loading) {
+      const interval = setInterval(() => {
+        refetchVouches();
+      }, 15000);
+      return () => clearInterval(interval);
+    }
+  }, [pendingVouchApplication, refetchVouches, loading]);
 
   // Auto-select when there's only one role
   useEffect(() => {
@@ -222,8 +271,25 @@ const User = () => {
     if (!organization) return;
 
     setLoading(true);
+
+    // Determine the hat to claim from vouch progress
+    const vouchedHatId = authenticatedUserVouchProgress?.hatId
+      || (pendingApplicationProgress?.isComplete ? pendingVouchApplication?.hatId : null)
+      || null;
+
+    let joinFn;
+    if (vouchedHatId) {
+      // Vouched flow: claim specific hat(s) via claimHatsWithUser
+      const claimHatIds = [BigInt(vouchedHatId)];
+      console.log('[Join] Vouched flow: claiming hat', vouchedHatId);
+      joinFn = () => organization.claimHatsWithUser(quickJoinContractAddress, claimHatIds);
+    } else {
+      // Standard flow: quickJoinWithUser (mints memberHatIds)
+      joinFn = () => organization.quickJoinWithUser(quickJoinContractAddress);
+    }
+
     const result = await executeWithNotification(
-      () => organization.quickJoinWithUser(quickJoinContractAddress),
+      joinFn,
       {
         pendingMessage: 'Joining organization...',
         successMessage: 'Successfully joined! Redirecting...',
@@ -232,10 +298,11 @@ const User = () => {
     );
 
     if (result.success) {
+      setPendingVouchApplication(null);
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication]);
 
   const handleJoinNewUser = useCallback(async () => {
     if (!organization) return;
@@ -255,23 +322,65 @@ const User = () => {
 
     setLoading(true);
 
-    // Get passkey credential for the current account
-    const credential = accountAddress ? getAllCredentials()[accountAddress.toLowerCase()] : null;
-    if (!credential) {
-      toast({
-        title: "Credential not found",
-        description: "Could not find your passkey credential. Please sign in again.",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-        position: "top",
-      });
-      setLoading(false);
-      return;
+    // Determine the hat to claim from vouch progress
+    const vouchedHatId = authenticatedUserVouchProgress?.hatId
+      || (pendingApplicationProgress?.isComplete ? pendingVouchApplication?.hatId : null)
+      || null;
+
+    let joinFn;
+    if (isPasskeyUser) {
+      // Passkey: get credential
+      const credential = accountAddress ? getAllCredentials()[accountAddress.toLowerCase()] : null;
+      if (!credential) {
+        toast({
+          title: "Credential not found",
+          description: "Could not find your passkey credential. Please sign in again.",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+          position: "top",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (vouchedHatId) {
+        // Vouched passkey: registerAndClaimHatsWithPasskey (register + claim specific hat)
+        const claimHatIds = [BigInt(vouchedHatId)];
+        console.log('[Join] Vouched passkey: register + claim hat', vouchedHatId);
+        joinFn = () => organization.registerAndClaimHatsNewUser(quickJoinContractAddress, newUsername, credential, claimHatIds);
+      } else {
+        // Standard passkey: registerAndQuickJoinWithPasskey (register + mint memberHatIds)
+        joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
+      }
+    } else {
+      // EOA path
+      if (!signer) {
+        toast({
+          title: "Wallet not connected",
+          description: "Please connect your wallet to continue.",
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+          position: "top",
+        });
+        setLoading(false);
+        return;
+      }
+
+      if (vouchedHatId) {
+        // Vouched EOA: registerAndClaimHats (register + claim specific hat)
+        const claimHatIds = [BigInt(vouchedHatId)];
+        console.log('[Join] Vouched EOA: register + claim hat', vouchedHatId);
+        joinFn = () => organization.registerAndClaimHatsEOA(quickJoinContractAddress, newUsername, claimHatIds, signer);
+      } else {
+        // Standard EOA: registerAndQuickJoin (register + mint memberHatIds)
+        joinFn = () => organization.registerAndJoinEOA(quickJoinContractAddress, newUsername, signer);
+      }
     }
 
     const result = await executeWithNotification(
-      () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential),
+      joinFn,
       {
         pendingMessage: 'Registering username and joining organization...',
         successMessage: 'Account created! Redirecting...',
@@ -280,14 +389,13 @@ const User = () => {
     );
 
     if (result.success) {
+      setPendingVouchApplication(null);
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication]);
 
   const handleApplyAndJoin = useCallback(async () => {
-    if (!organization) return;
-
     if (!selectedHatId) {
       toast({
         title: "Role required",
@@ -312,96 +420,62 @@ const User = () => {
       return;
     }
 
-    const hasExistingUsername = dispaly && graphUsername;
-    if (!hasExistingUsername && !newUsername.trim()) {
-      usernameInputRef.current?.focus();
-      toast({
-        title: "Username required",
-        description: "Please enter a username to continue",
-        status: "warning",
-        duration: 3000,
-        isClosable: true,
-        position: "top",
-      });
-      return;
-    }
-
     setLoading(true);
     try {
-      // Step 1: Join the organization
-      let joinFn;
-      if (hasExistingUsername) {
-        joinFn = () => organization.quickJoinWithUser(quickJoinContractAddress);
-      } else {
-        const credential = accountAddress ? getAllCredentials()[accountAddress.toLowerCase()] : null;
-        if (!credential) {
-          toast({
-            title: "Credential not found",
-            description: "Could not find your passkey credential. Please sign in again.",
-            status: "error",
-            duration: 5000,
-            isClosable: true,
-            position: "top",
-          });
-          return;
-        }
-        joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
-      }
+      // For vouch-gated orgs: apply first, join later (after quorum met).
+      // applyForRole() does not require membership — it just records the application on-chain.
+      const applyResult = await applyForRole(selectedHatId, {
+        notes: applicationNotes.trim(),
+        appliedAt: new Date().toISOString(),
+      });
 
-      const joinResult = await executeWithNotification(
-        joinFn,
-        {
-          pendingMessage: 'Joining organization...',
-          successMessage: 'Joined! Submitting application...',
-          refreshEvent: hasExistingUsername ? 'member:joined' : 'user:created',
-        }
-      );
-
-      if (!joinResult.success) return;
-
-      // Step 2: Apply for the selected role
-      let applyResult;
-      try {
-        applyResult = await applyForRole(selectedHatId, {
-          notes: applicationNotes.trim(),
-          experience: applicationExperience.trim(),
-          appliedAt: new Date().toISOString(),
-        });
-      } catch (applyErr) {
-        // Join succeeded but apply threw — redirect with guidance
+      if (!applyResult?.success) {
         toast({
-          title: "Joined, but application failed",
-          description: "You're now a member. Please apply for a role from the Organization page.",
-          status: "warning",
-          duration: 8000,
+          title: "Application failed",
+          description: "Could not submit your application. Please try again.",
+          status: "error",
+          duration: 5000,
           isClosable: true,
           position: "top",
         });
-        router.push(`/profileHub/?userDAO=${userDAO}`);
         return;
       }
 
-      if (applyResult?.success) {
-        router.push(`/profileHub/?userDAO=${userDAO}`);
-      } else {
-        // Join succeeded but apply returned failure
+      // Generate vouch link for the user to share with existing members
+      const userAddr = accountAddress || address;
+      const vouchLink = `${window.location.origin}/user?userDAO=${userDAO}&vouch=${userAddr}&hatId=${selectedHatId}`;
+
+      // Copy to clipboard
+      try {
+        await navigator.clipboard.writeText(vouchLink);
         toast({
-          title: "Joined, but application failed",
-          description: "You're now a member. Please apply for a role from the Organization page.",
-          status: "warning",
-          duration: 8000,
+          title: "Application submitted!",
+          description: "Vouch link copied to clipboard. Share it with existing members.",
+          status: "success",
+          duration: 5000,
           isClosable: true,
           position: "top",
         });
-        router.push(`/profileHub/?userDAO=${userDAO}`);
+      } catch {
+        toast({
+          title: "Application submitted!",
+          description: "Share the vouch link below with existing members.",
+          status: "success",
+          duration: 5000,
+          isClosable: true,
+          position: "top",
+        });
       }
+
+      // Transition to "waiting for vouches" UI
+      const roleName = rolesWithVouching.find(r => r.hatId === selectedHatId)?.name || 'role';
+      setPendingVouchApplication({ hatId: selectedHatId, vouchLink, roleName });
     } finally {
       setLoading(false);
     }
   }, [
-    organization, selectedHatId, applicationNotes, applicationExperience,
-    dispaly, graphUsername, newUsername, quickJoinContractAddress,
-    executeWithNotification, applyForRole, router, userDAO, toast, accountAddress,
+    selectedHatId, applicationNotes,
+    applyForRole, toast, accountAddress, address, userDAO, rolesWithVouching,
   ]);
 
   const benefits = [
@@ -437,11 +511,9 @@ const User = () => {
         bottom="0"
         zIndex="-1"
         bgGradient={bgGradient}
-        animation={`${gradientAnimation} 15s ease infinite`}
-        backgroundSize="400% 400%"
         overflow="hidden"
       >
-        {/* Abstract decorative elements */}
+        {/* Soft decorative elements */}
         <Box
           position="absolute"
           top="10%"
@@ -449,9 +521,9 @@ const User = () => {
           width="40vh"
           height="40vh"
           borderRadius="full"
-          bgGradient="linear(to-r, teal.200, blue.200)"
-          filter="blur(80px)"
-          opacity="0.4"
+          bgGradient="linear(to-r, teal.200, blue.100)"
+          filter="blur(90px)"
+          opacity="0.35"
         />
         <Box
           position="absolute"
@@ -460,9 +532,9 @@ const User = () => {
           width="30vh"
           height="30vh"
           borderRadius="full"
-          bgGradient="linear(to-r, purple.200, pink.200)"
-          filter="blur(80px)"
-          opacity="0.4"
+          bgGradient="linear(to-r, purple.200, pink.100)"
+          filter="blur(90px)"
+          opacity="0.3"
         />
       </Box>
 
@@ -479,8 +551,8 @@ const User = () => {
           align="center"
           justify="center"
         >
-          {/* Left side: Organization info or benefits */}
-          <GridItem order={{ base: 2, lg: 1 }}>
+          {/* Why Join? benefits (secondary, right side) */}
+          <GridItem order={{ base: 2, lg: 2 }}>
             <ScaleFade in={true} initialScale={0.95} transition={{ enter: { duration: 0.3 } }}>
               <Card 
                 bg={cardBg}
@@ -534,16 +606,6 @@ const User = () => {
                     </VStack>
                   ) : (
                     <VStack spacing={mainSpacing} align="flex-start">
-                      <Heading
-                        as="h1"
-                        fontSize={{ base: "2xl", md: headingSize }}
-                        color={textColor}
-                        bgGradient="linear(to-r, teal.400, blue.500)"
-                        bgClip="text"
-                      >
-                        {hasVouchGatedRoles ? `Apply to Join ${userDAO}` : `Join ${userDAO}`}
-                      </Heading>
-
                       <HStack spacing={4}>
                         <Icon as={FaRegLightbulb} color="yellow.400" boxSize={benefitIconSize} />
                         <Heading as="h2" fontSize={{ base: "xl", md: "2xl" }} color={textColor}>Why Join?</Heading>
@@ -576,16 +638,6 @@ const User = () => {
                         ))}
                       </VStack>
 
-                      <Divider />
-
-                      <Box>
-                        <Text color={textColor} fontSize={{ base: "xs", md: "sm" }} fontStyle="italic">
-                          {hasVouchGatedRoles
-                            ? "Applying creates your membership and submits your role application. Existing members will review and vouch for you."
-                            : "Joining is a one-time process that creates your membership NFT. This gives you access to all organization features and benefits."
-                          }
-                        </Text>
-                      </Box>
                     </VStack>
                   )}
                 </CardBody>
@@ -593,8 +645,8 @@ const User = () => {
             </ScaleFade>
           </GridItem>
 
-          {/* Right side: Join form */}
-          <GridItem order={{ base: 1, lg: 2 }} mb={{ base: 4, lg: 0 }} overflow="hidden">
+          {/* Join form (primary, left side) */}
+          <GridItem order={{ base: 1, lg: 1 }} mb={{ base: 4, lg: 0 }} overflow="hidden">
             <ScaleFade in={animateForm} initialScale={0.95} delay={0.05} transition={{ enter: { duration: 0.3 } }}>
               <Card
                 bg={cardBg}
@@ -622,14 +674,9 @@ const User = () => {
                   ) : vouchFirstHook.pendingCredential && vouchFirstHook.phase !== VouchFirstPhase.SUCCESS ? (
                     <VStack spacing={formSpacing} align="stretch">
                       <Box textAlign="center">
-                        <MotionBox
-                          animate={{ y: [0, -10, 0] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          display="inline-block"
-                          mb={4}
-                        >
+                        <Box display="inline-block" mb={4}>
                           <Icon as={FaHandshake} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                        </MotionBox>
+                        </Box>
                         <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
                           Waiting for Vouches
                         </Heading>
@@ -713,20 +760,28 @@ const User = () => {
                       {/* Complete Join button — shown when quorum met AND quorum is actually known */}
                       {vouchFirstPendingProgress?.isComplete && vouchFirstPendingProgress.quorum > 0 ? (
                         <VStack spacing={3}>
-                          <InputGroup size={isMobile ? "md" : "lg"}>
-                            <Input
-                              placeholder="Choose a username"
-                              value={newUsername}
-                              onChange={(e) => setNewUsername(e.target.value)}
-                              bg={inputBg}
-                              borderColor={inputBorderColor}
-                              _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
-                              ref={usernameInputRef}
-                            />
-                            <InputRightElement width="4.5rem">
-                              <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
-                            </InputRightElement>
-                          </InputGroup>
+                          {crossChainUsername ? (
+                            /* User already has a username on another chain — show it, skip input */
+                            <Text fontSize="sm" color={hintColor}>
+                              Joining as <strong>{crossChainUsername}</strong>
+                            </Text>
+                          ) : (
+                            /* New user — ask for username */
+                            <InputGroup size={isMobile ? "md" : "lg"}>
+                              <Input
+                                placeholder="Choose a username"
+                                value={newUsername}
+                                onChange={(e) => setNewUsername(e.target.value)}
+                                bg={inputBg}
+                                borderColor={inputBorderColor}
+                                _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
+                                ref={usernameInputRef}
+                              />
+                              <InputRightElement width="4.5rem">
+                                <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
+                              </InputRightElement>
+                            </InputGroup>
+                          )}
                           <Button
                             colorScheme="teal"
                             size="lg"
@@ -734,10 +789,10 @@ const User = () => {
                             height={buttonHeight}
                             isLoading={vouchFirstHook.phase === VouchFirstPhase.COMPLETING}
                             loadingText={vouchFirstHook.stepMessage || "Completing..."}
-                            onClick={() => vouchFirstHook.completeOnboarding(newUsername.trim())}
-                            isDisabled={!newUsername.trim()}
+                            onClick={() => vouchFirstHook.completeOnboarding(crossChainUsername || newUsername.trim())}
+                            isDisabled={!crossChainUsername && !newUsername.trim()}
                             leftIcon={<FaCheck />}
-                            animation={newUsername ? `${pulse} 2s infinite` : undefined}
+                            animation={(crossChainUsername || newUsername) ? `${pulse} 2s infinite` : undefined}
                           >
                             Complete Join
                           </Button>
@@ -767,8 +822,156 @@ const User = () => {
 
                     /* ── Branch 3: Authenticated + vouch-gated ── */
                     ) : hasVouchGatedRoles ? (
-                      authenticatedUserVouchProgress ? (
-                        /* ── Branch 3a: Vouches complete → simplified Complete Join ── */
+                      pendingVouchApplication ? (
+                        /* ── Branch 3a: Application submitted, waiting for vouches (persisted across refresh) ── */
+                        <VStack spacing={formSpacing} align="stretch">
+                          <Box
+                            p={{ base: 3, md: 4 }}
+                            borderRadius="lg"
+                            bg={successBg}
+                            borderWidth="1px"
+                            borderColor={successBorderColor}
+                          >
+                            <Flex align="center" flexWrap="wrap">
+                              <Icon as={isPasskeyUser ? FaFingerprint : FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
+                              <Text color={textColor} fontWeight="medium" fontSize={{ base: "sm", md: "md" }}>
+                                {isPasskeyUser
+                                  ? `Passkey Account: ${accountAddress?.substring(0, 6)}...${accountAddress?.substring(accountAddress.length - 4)}`
+                                  : `Wallet Connected: ${address?.substring(0, 6)}...${address?.substring(address?.length - 4)}`
+                                }
+                              </Text>
+                            </Flex>
+                          </Box>
+
+                          <Box textAlign="center">
+                            {pendingApplicationProgress?.isComplete ? (
+                              <>
+                                <Icon as={FaCheck} color="green.400" boxSize={{ base: 10, md: 12 }} mb={4} />
+                                <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
+                                  Vouches Complete!
+                                </Heading>
+                                <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
+                                  You've been vouched for the <b>{pendingVouchApplication.roleName}</b> role.
+                                  {dispaly && graphUsername ? '' : ' Enter a username to complete your membership.'}
+                                </Text>
+                              </>
+                            ) : (
+                              <>
+                                <Box display="inline-block" mb={4}>
+                                  <Icon as={FaHandshake} color={accentColor} boxSize={{ base: 10, md: 12 }} />
+                                </Box>
+                                <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
+                                  Application Submitted!
+                                </Heading>
+                                <Text color={subtextColor} fontSize={{ base: "sm", md: "md" }}>
+                                  Share this link with existing members of <b>{userDAO}</b> so they can vouch for you
+                                  for the <b>{pendingVouchApplication.roleName}</b> role.
+                                </Text>
+                              </>
+                            )}
+                          </Box>
+
+                          {/* Vouch link copy section */}
+                          <Box
+                            p={{ base: 3, md: 4 }}
+                            borderRadius="lg"
+                            bg={inputBg}
+                            borderWidth="1px"
+                            borderColor={inputBorderColor}
+                          >
+                            <Flex align="center" gap={2}>
+                              <Text fontSize="xs" color={subtextColor} flex="1" isTruncated>
+                                {pendingVouchApplication.vouchLink}
+                              </Text>
+                              <IconButton
+                                icon={<FaCopy />}
+                                size="sm"
+                                colorScheme="teal"
+                                variant="ghost"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(pendingVouchApplication.vouchLink);
+                                  toast({
+                                    title: "Link copied!",
+                                    status: "success",
+                                    duration: 2000,
+                                    position: "top",
+                                  });
+                                }}
+                                aria-label="Copy vouch link"
+                              />
+                            </Flex>
+                          </Box>
+
+                          {/* Vouch progress */}
+                          {pendingApplicationProgress && (
+                            <Box px={2}>
+                              <VouchProgressBar
+                                current={pendingApplicationProgress.current}
+                                quorum={pendingApplicationProgress.quorum}
+                                size="md"
+                              />
+                            </Box>
+                          )}
+
+                          {/* When quorum met, show Complete Join */}
+                          {pendingApplicationProgress?.isComplete ? (
+                            <>
+                              {dispaly && graphUsername ? (
+                                <Text textAlign="center" fontSize={{ base: "sm", md: "md" }} color={hintColor}>
+                                  Joining as: <b>{graphUsername}</b>
+                                </Text>
+                              ) : (
+                                <InputGroup size={isMobile ? "md" : "lg"}>
+                                  <Input
+                                    placeholder="Choose a username"
+                                    value={newUsername}
+                                    onChange={(e) => setNewUsername(e.target.value)}
+                                    bg={inputBg}
+                                    borderColor={inputBorderColor}
+                                    _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
+                                    ref={usernameInputRef}
+                                  />
+                                  <InputRightElement width="4.5rem">
+                                    <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
+                                  </InputRightElement>
+                                </InputGroup>
+                              )}
+                              <Button
+                                colorScheme="teal"
+                                size="lg"
+                                width="100%"
+                                height={buttonHeight}
+                                fontSize={{ base: "md", md: "lg" }}
+                                isLoading={loading}
+                                loadingText="Completing..."
+                                onClick={dispaly && graphUsername ? handleJoinWithUser : handleJoinNewUser}
+                                isDisabled={!graphUsername && !newUsername.trim()}
+                                leftIcon={<FaCheck />}
+                                _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
+                                animation={(newUsername || graphUsername) ? `${pulse} 2s infinite` : undefined}
+                              >
+                                Complete Join
+                              </Button>
+                            </>
+                          ) : (
+                            <Text textAlign="center" fontSize="sm" color={hintColor}>
+                              Waiting for members to vouch for you...
+                            </Text>
+                          )}
+
+                          {/* Allow starting over */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setPendingVouchApplication(null)}
+                            leftIcon={<FaRedo />}
+                            color={hintColor}
+                          >
+                            Start Over
+                          </Button>
+                        </VStack>
+                      ) : authenticatedUserVouchProgress ? (
+                        /* ── Branch 3b: Vouches already complete (user returns after being vouched) ── */
                         <VStack spacing={formSpacing} align="stretch">
                           <Box
                             p={{ base: 3, md: 4 }}
@@ -846,7 +1049,7 @@ const User = () => {
                           </Button>
                         </VStack>
                       ) : (
-                        /* ── Branch 3b: No vouches yet → apply-to-join form ── */
+                        /* ── Branch 3c: No application yet → apply-to-join form ── */
                         <VStack spacing={formSpacing} align="stretch">
                           <Box
                             p={{ base: 3, md: 4 }}
@@ -867,14 +1070,9 @@ const User = () => {
                           </Box>
 
                           <Box textAlign="center">
-                            <MotionBox
-                              animate={{ y: [0, -10, 0] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                              display="inline-block"
-                              mb={4}
-                            >
+                            <Box display="inline-block" mb={4}>
                               <Icon as={FaPaperPlane} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                            </MotionBox>
+                            </Box>
                             <Heading size={{ base: "md", md: "lg" }} mb={{ base: 2, md: 4 }} color={textColor}>
                               Apply to Join {userDAO}
                             </Heading>
@@ -919,8 +1117,6 @@ const User = () => {
                             onSelectRole={setSelectedHatId}
                             notes={applicationNotes}
                             onNotesChange={(e) => setApplicationNotes(e.target.value)}
-                            experience={applicationExperience}
-                            onExperienceChange={(e) => setApplicationExperience(e.target.value)}
                           />
 
                           <Button
@@ -944,7 +1140,7 @@ const User = () => {
                               boxShadow: "lg",
                             }}
                           >
-                            Apply & Join {userDAO}
+                            Apply & Get Vouch Link
                           </Button>
                         </VStack>
                       )
@@ -971,14 +1167,9 @@ const User = () => {
                           </Box>
 
                           <Box textAlign="center">
-                            <MotionBox
-                              animate={{ y: [0, -10, 0] }}
-                              transition={{ duration: 2, repeat: Infinity }}
-                              display="inline-block"
-                              mb={4}
-                            >
+                            <Box display="inline-block" mb={4}>
                               <Icon as={FaUserPlus} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                            </MotionBox>
+                            </Box>
                             <Heading size={{ base: "md", md: "lg" }} mb={{ base: 2, md: 4 }} color={textColor}>
                               Complete Your Membership
                             </Heading>
@@ -1116,14 +1307,6 @@ const User = () => {
                   ) : !isAuthenticated && hasVouchGatedRoles ? (
                     <VStack spacing={formSpacing} align="stretch">
                       <Box textAlign="center">
-                        <MotionBox
-                          animate={{ y: [0, -10, 0] }}
-                          transition={{ duration: 2, repeat: Infinity }}
-                          display="inline-block"
-                          mb={4}
-                        >
-                          <Icon as={FaFingerprint} color={accentColor} boxSize={{ base: 10, md: 12 }} />
-                        </MotionBox>
                         <Heading size={{ base: "md", md: "lg" }} mb={2} color={textColor}>
                           Apply to Join {userDAO}
                         </Heading>
@@ -1131,6 +1314,16 @@ const User = () => {
                           Create your passkey account, then share a link with existing members to vouch for you.
                         </Text>
                       </Box>
+
+                      <Button
+                        variant="outline"
+                        colorScheme="teal"
+                        size="sm"
+                        onClick={onSignInOpen}
+                        leftIcon={<FaUser />}
+                      >
+                        Already have an account? Sign In
+                      </Button>
 
                       {/* Username input */}
                       <InputGroup size={isMobile ? "md" : "lg"}>
@@ -1155,8 +1348,6 @@ const User = () => {
                         onSelectRole={setSelectedHatId}
                         notes={applicationNotes}
                         onNotesChange={(e) => setApplicationNotes(e.target.value)}
-                        experience={applicationExperience}
-                        onExperienceChange={(e) => setApplicationExperience(e.target.value)}
                       />
 
                       {/* Error display */}
@@ -1195,36 +1386,22 @@ const User = () => {
                         <Divider />
                       </HStack>
 
-                      <Box p={2} borderRadius="lg">
+                      <Flex justify="center" p={2}>
                         <ConnectButton
                           showBalance={false}
                           chainStatus={isMobile ? "none" : "icon"}
                           accountStatus={isMobile ? "avatar" : "address"}
                           label="Connect Wallet"
                         />
-                      </Box>
-
-                      <Text
-                        fontSize="sm"
-                        color={subtextColor}
-                        textAlign="center"
-                        cursor="pointer"
-                        _hover={{ color: 'amethyst.600', textDecoration: 'underline' }}
-                        onClick={onSignInOpen}
-                      >
-                        Already have an account? <Text as="span" fontWeight="600">Sign In</Text>
-                      </Text>
+                      </Flex>
                     </VStack>
 
                   /* ── Branch 6: Not authenticated + open org → Create Account / Sign In ── */
                   ) : (
                     <VStack spacing={{ base: 6, md: 8 }} align="center">
-                      <MotionBox
-                        animate={{ y: [0, -10, 0] }}
-                        transition={{ duration: 2, repeat: Infinity }}
-                      >
+                      <Box>
                         <Icon as={FaWallet} color={accentColor} boxSize={{ base: 12, md: 16 }} />
-                      </MotionBox>
+                      </Box>
 
                       <VStack spacing={{ base: 2, md: 3 }}>
                         <Heading size={{ base: "md", md: "lg" }} textAlign="center" color={textColor}>
@@ -1234,6 +1411,16 @@ const User = () => {
                           Create an account with your fingerprint or connect a wallet to get started.
                         </Text>
                       </VStack>
+
+                      <Button
+                        variant="outline"
+                        colorScheme="teal"
+                        size="sm"
+                        onClick={onSignInOpen}
+                        leftIcon={<FaUser />}
+                      >
+                        Already have an account? Sign In
+                      </Button>
 
                       <VStack spacing={3} width="100%">
                         <Button
@@ -1253,24 +1440,6 @@ const User = () => {
                         </Text>
                       </VStack>
 
-                      <HStack width="100%" align="center">
-                        <Divider />
-                        <Text fontSize="xs" color="gray.400" whiteSpace="nowrap" px={2}>
-                          or
-                        </Text>
-                        <Divider />
-                      </HStack>
-
-                      <Text
-                        fontSize="sm"
-                        color={subtextColor}
-                        textAlign="center"
-                        cursor="pointer"
-                        _hover={{ color: 'amethyst.600', textDecoration: 'underline' }}
-                        onClick={onSignInOpen}
-                      >
-                        Already have an account? <Text as="span" fontWeight="600">Sign In</Text>
-                      </Text>
                     </VStack>
                   )}
                 </CardBody>
@@ -1282,7 +1451,12 @@ const User = () => {
         <PasskeyOnboardingModal
           isOpen={isCreateOpen}
           onClose={onCreateClose}
-          onSuccess={() => router.push(`/dashboard/?userDAO=${userDAO}`)}
+          onSuccess={() => {
+            if (!hasVouchGatedRoles) {
+              router.push(`/dashboard/?userDAO=${userDAO}`);
+            }
+            // For vouch-gated orgs: stay on page so user can apply for a role
+          }}
           showWalletOption
         />
         <SignInModal

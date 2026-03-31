@@ -279,44 +279,61 @@
     "name": "createProject",
     "inputs": [
       {
-        "name": "title",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "metadataHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "cap",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "managers",
-        "type": "address[]",
-        "internalType": "address[]"
-      },
-      {
-        "name": "createHats",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
-      },
-      {
-        "name": "claimHats",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
-      },
-      {
-        "name": "reviewHats",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
-      },
-      {
-        "name": "assignHats",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
+        "name": "p",
+        "type": "tuple",
+        "internalType": "struct TaskManager.BootstrapProjectConfig",
+        "components": [
+          {
+            "name": "title",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "metadataHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "cap",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "managers",
+            "type": "address[]",
+            "internalType": "address[]"
+          },
+          {
+            "name": "createHats",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          },
+          {
+            "name": "claimHats",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          },
+          {
+            "name": "reviewHats",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          },
+          {
+            "name": "assignHats",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          },
+          {
+            "name": "bountyTokens",
+            "type": "address[]",
+            "internalType": "address[]"
+          },
+          {
+            "name": "bountyCaps",
+            "type": "uint256[]",
+            "internalType": "uint256[]"
+          }
+        ]
       }
     ],
     "outputs": [

@@ -3,30 +3,44 @@
  * Centralizes all contract addresses per network
  */
 
-import { NETWORKS, getNetworkNameByChainId } from './networks';
+import { NETWORKS, DEFAULT_CHAIN_ID, getNetworkNameByChainId } from './networks';
 
 /**
  * Infrastructure contracts deployed across networks
  * These are singleton contracts used by the entire protocol
+ *
+ * Note: universalAccountRegistry is primarily fetched from the subgraph at runtime
+ * (see useWeb3Services.js). The hardcoded address here is a fallback for UserService.
+ * hatsProtocol is the same address on all chains.
  */
 export const INFRASTRUCTURE_CONTRACTS = {
-  hoodi: {
+  arbitrum: {
+    universalAccountRegistry: '0x01A13c92321E9CA2C02577b92A4F8d2FDC4d8513',
+    hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137',
+  },
+  gnosis: {
+    universalAccountRegistry: '0x55F72CEB09cBC1fAAED734b6505b99b0a1DFA1cA',
+    hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137',
+  },
+  sepolia: {
     universalAccountRegistry: '0xDdB1DA30020861d92c27aE981ac0f4Fe8BA536F2',
     hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137',
   },
-  // Future networks
-  // mainnet: { universalAccountRegistry: '0x...', hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137' },
+  baseSepolia: {
+    universalAccountRegistry: '0xDdB1DA30020861d92c27aE981ac0f4Fe8BA536F2',
+    hatsProtocol: '0x3bc1A0Ad72417f2d411118085256fC53CBdDd137',
+  },
 };
 
 /**
  * Get infrastructure contract address
  * @param {string} contractName - Name of the contract (e.g., 'universalAccountRegistry')
- * @param {number} [chainId=560048] - Network chain ID
+ * @param {number} [chainId] - Network chain ID (defaults to Sepolia)
  * @returns {string|null} Contract address or null if not found
  */
-export function getInfrastructureAddress(contractName, chainId = NETWORKS.hoodi.chainId) {
+export function getInfrastructureAddress(contractName, chainId = DEFAULT_CHAIN_ID) {
   // Use nullish coalescing to handle explicit null values (e.g., from services that don't specify chainId)
-  const effectiveChainId = chainId ?? NETWORKS.hoodi.chainId;
+  const effectiveChainId = chainId ?? DEFAULT_CHAIN_ID;
   const networkName = getNetworkNameByChainId(effectiveChainId);
   if (!networkName) {
     console.warn(`No network found for chain ID: ${effectiveChainId}`);
@@ -58,7 +72,7 @@ export const CONTRACT_NAMES = {
 
 /**
  * Get the Universal Account Registry address for a chain
- * @param {number} [chainId] - Network chain ID (defaults to Hoodi)
+ * @param {number} [chainId] - Network chain ID (defaults to Sepolia)
  * @returns {string|null} Contract address
  */
 export function getUniversalAccountRegistryAddress(chainId) {

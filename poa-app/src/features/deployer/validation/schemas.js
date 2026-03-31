@@ -285,6 +285,8 @@ export const votingSchema = z.object({
   mode: z.enum(['DIRECT', 'HYBRID']),
   hybridQuorum: z.number().int().min(1).max(100),
   ddQuorum: z.number().int().min(1).max(100),
+  hybridVoterQuorum: z.number().int().min(0).max(4294967295), // uint32 voter count
+  ddVoterQuorum: z.number().int().min(0).max(4294967295),     // uint32 voter count
   quadraticEnabled: z.boolean(),
   democracyWeight: z.number().int().min(0).max(100),
   participationWeight: z.number().int().min(0).max(100),
@@ -333,7 +335,7 @@ export const paymasterSchema = z.object({
 // ============================================
 
 export const deployerStateSchema = z.object({
-  currentStep: z.number().int().min(0).max(4),
+  currentStep: z.number().int().min(0).max(5),
   organization: organizationSchema,
   roles: rolesArraySchema,
   permissions: permissionsSchema,

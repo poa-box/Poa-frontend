@@ -10,9 +10,14 @@ import { computeCredentialId } from './passkeyUtils';
 // P-256 curve order
 const P256_N = BigInt('0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551');
 
-// EIP-712 typehash matching UniversalAccountRegistry._REGISTER_PASSKEY_TYPEHASH
+// EIP-712 constants matching UniversalAccountRegistry.sol
+const DOMAIN_TYPEHASH = keccak256(
+  toBytes('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
+);
+const NAME_HASH = keccak256(toBytes('UniversalAccountRegistry'));
+const VERSION_HASH = keccak256(toBytes('1'));
 const REGISTER_PASSKEY_TYPEHASH = keccak256(
-  toBytes('RegisterPasskeyAccount(address user,string username,uint256 nonce,uint256 deadline,uint256 chainId,address verifyingContract)')
+  toBytes('RegisterPasskeyAccount(address user,string username,uint256 nonce,uint256 deadline)')
 );
 
 /**
@@ -115,19 +120,25 @@ export async function signUserOpWithPasskey(userOpHash, rawCredentialIdBase64) {
  * @returns {string} bytes32 hex challenge hash
  */
 export function computeRegistrationChallenge({ accountAddress, username, nonce, deadline, chainId, registryAddress }) {
-  return keccak256(
+  // Domain separator: keccak256(abi.encode(DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, chainId, verifyingContract))
+  const domainSeparator = keccak256(
     encodeAbiParameters(
-      parseAbiParameters('bytes32, address, bytes32, uint256, uint256, uint256, address'),
-      [
-        REGISTER_PASSKEY_TYPEHASH,
-        accountAddress,
-        keccak256(toBytes(username)),
-        nonce,
-        deadline,
-        BigInt(chainId),
-        registryAddress,
-      ]
+      parseAbiParameters('bytes32, bytes32, bytes32, uint256, address'),
+      [DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, BigInt(chainId), registryAddress]
     )
+  );
+
+  // Struct hash: keccak256(abi.encode(TYPEHASH, user, keccak256(username), nonce, deadline))
+  const structHash = keccak256(
+    encodeAbiParameters(
+      parseAbiParameters('bytes32, address, bytes32, uint256, uint256'),
+      [REGISTER_PASSKEY_TYPEHASH, accountAddress, keccak256(toBytes(username)), nonce, deadline]
+    )
+  );
+
+  // EIP-712 digest: keccak256("\x19\x01" || domainSeparator || structHash)
+  return keccak256(
+    `0x1901${domainSeparator.slice(2)}${structHash.slice(2)}`
   );
 }
 

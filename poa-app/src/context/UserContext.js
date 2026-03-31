@@ -7,6 +7,7 @@ import { useRouter } from 'next/router';
 import { usePOContext } from './POContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { useRefresh } from './RefreshContext';
+import { findUsernameAcrossChains } from '../util/crossChainUsername';
 
 const UserContext = createContext();
 
@@ -17,7 +18,7 @@ export const UserProvider = ({ children }) => {
     const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
     const { userDAO } = router.query;
-    const { orgId, roleHatIds, participationTokenAddress } = usePOContext();
+    const { orgId, roleHatIds, participationTokenAddress, subgraphUrl } = usePOContext();
 
     const [userData, setUserData] = useState({});
     const [graphUsername, setGraphUsername] = useState('');
@@ -50,6 +51,7 @@ export const UserProvider = ({ children }) => {
         },
         skip: !orgUserID || !account,
         fetchPolicy: 'cache-first',
+        context: { subgraphUrl },
     });
 
     // Query approver hats for the participation token
@@ -57,6 +59,7 @@ export const UserProvider = ({ children }) => {
         variables: { tokenAddress: participationTokenAddress },
         skip: !participationTokenAddress,
         fetchPolicy: 'cache-first',
+        context: { subgraphUrl },
     });
 
     // Subscribe to role:claimed event to refetch user data
@@ -70,10 +73,10 @@ export const UserProvider = ({ children }) => {
 
     useEffect(() => {
         const unsubscribe = subscribe('role:claimed', () => {
-            // Wait for subgraph to index, then refetch user data
+            // Wait for subgraph to index on mainnet, then refetch user data
             setTimeout(() => {
                 refetchUserData();
-            }, 1000);
+            }, 5000);
         });
         return unsubscribe;
     }, [subscribe, refetchUserData]);
@@ -81,10 +84,10 @@ export const UserProvider = ({ children }) => {
     // Subscribe to username_changed event to refetch user data
     useEffect(() => {
         const unsubscribe = subscribe('user:username_changed', () => {
-            // Wait for subgraph to index, then refetch user data
+            // Wait for subgraph to index on mainnet, then refetch user data
             setTimeout(() => {
                 refetchUserData();
-            }, 1000);
+            }, 5000);
         });
         return unsubscribe;
     }, [subscribe, refetchUserData]);
@@ -169,6 +172,19 @@ export const UserProvider = ({ children }) => {
         }
     }, [data, roleHatIds, approverHatsData]);
 
+    // Cross-chain username fallback: if this chain's subgraph has no username
+    // for the user, check all chains. The user may have registered on a different chain.
+    useEffect(() => {
+        if (graphUsername || !account || !data) return;
+        let cancelled = false;
+        findUsernameAcrossChains(account).then(({ username }) => {
+            if (!cancelled && username) {
+                setGraphUsername(username);
+            }
+        }).catch(() => {});
+        return () => { cancelled = true; };
+    }, [graphUsername, account, data]);
+
     useEffect(() => {
         if (!orgId && userDAO) {
             setUserDataLoading(true);
@@ -180,6 +196,46 @@ export const UserProvider = ({ children }) => {
             setUserDataLoading(false);
         }
     }, [account, loading]);
+
+    /**
+     * Optimistically set user state after a successful join transaction.
+     * This allows immediate redirect to profileHub without waiting for subgraph indexing.
+     * The subgraph data will replace this on the next refetch.
+     *
+     * @param {{ address: string, hatIds: string[], username: string }} joinData
+     */
+    const optimisticJoin = useCallback(({ address: userAddr, hatIds, username }) => {
+        const lowerAddr = userAddr?.toLowerCase();
+        if (username) setGraphUsername(username);
+        setHasMemberRole(true);
+        // Optimistically set exec role if the claimed hat matches the exec hat (index 1).
+        // Normalize both via BigInt for safe comparison between hex (frontend) and
+        // decimal (subgraph) string representations.
+        const execHat = roleHatIds?.[1];
+        if (execHat && hatIds?.length > 0) {
+            try {
+                const execNorm = BigInt(execHat).toString();
+                const hasExec = hatIds.some(h => BigInt(h).toString() === execNorm);
+                if (hasExec) setHasExecRole(true);
+            } catch {
+                // If BigInt conversion fails, skip — subgraph will correct it on refetch
+            }
+        }
+        setUserData(prev => ({
+            ...prev,
+            id: orgId ? `${orgId}-${lowerAddr}` : prev.id,
+            address: lowerAddr || prev.address,
+            hatIds: hatIds || prev.hatIds || [],
+            membershipStatus: 'Active',
+            participationTokenBalance: prev.participationTokenBalance || '0',
+            tasksCompleted: prev.tasksCompleted || 0,
+            totalVotes: prev.totalVotes || 0,
+        }));
+        setUserDataLoading(false);
+
+        // Schedule a subgraph refetch to replace optimistic data with real data
+        setTimeout(() => refetchUserData(), 8000);
+    }, [orgId, roleHatIds, refetchUserData]);
 
     const contextValue = useMemo(() => ({
         userDataLoading,
@@ -194,6 +250,7 @@ export const UserProvider = ({ children }) => {
         completedModules,
         error,
         refetchUserData,
+        optimisticJoin,
     }), [
         userDataLoading,
         userProposals,
@@ -207,6 +264,7 @@ export const UserProvider = ({ children }) => {
         completedModules,
         error,
         refetchUserData,
+        optimisticJoin,
     ]);
 
     return (

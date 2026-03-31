@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { useQuery } from '@apollo/client';
 import { FETCH_VOTING_DATA_NEW } from '../util/queries';
 import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
+import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 
@@ -118,26 +118,28 @@ export const VotingProvider = ({ children }) => {
     const [votingType, setVotingType] = useState('Hybrid');
     const [votingClasses, setVotingClasses] = useState([]);
 
-    const { address } = useAccount();
+    const { accountAddress: address } = useAuth();
     const router = useRouter();
-    const { orgId } = usePOContext();
+    const { orgId, subgraphUrl } = usePOContext();
 
     const { data, loading, error, refetch } = useQuery(FETCH_VOTING_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-first',
+        context: { subgraphUrl },
     });
 
     // Memoize refetch handler for stable reference
     const handleRefresh = useCallback(() => {
         if (orgId) {
-            refetch();
+            // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
+            setTimeout(() => refetch(), 5000);
         }
     }, [orgId, refetch]);
 
-    // Subscribe to refresh events from Web3Context
+    // Subscribe only to voting-specific events (not ALL, which fires on every event)
     useRefreshSubscription(
-        [RefreshEvent.ALL, RefreshEvent.PROPOSAL_CREATED, RefreshEvent.PROPOSAL_VOTED, RefreshEvent.PROPOSAL_COMPLETED],
+        [RefreshEvent.PROPOSAL_CREATED, RefreshEvent.PROPOSAL_VOTED, RefreshEvent.PROPOSAL_COMPLETED],
         handleRefresh,
         [handleRefresh]
     );
@@ -156,7 +158,7 @@ export const VotingProvider = ({ children }) => {
 
             // Process Hybrid Voting proposals and classes
             if (org.hybridVoting) {
-                const hybridQuorum = org.hybridVoting.quorum || 0;
+                const hybridQuorum = org.hybridVoting.thresholdPct || 0;
                 hybridProposals = (org.hybridVoting.proposals || []).map(p =>
                     transformProposal(p, org.hybridVoting.id, 'Hybrid', hybridQuorum)
                 );
@@ -185,7 +187,7 @@ export const VotingProvider = ({ children }) => {
 
             // Process Direct Democracy Voting proposals
             if (org.directDemocracyVoting) {
-                const ddQuorum = org.directDemocracyVoting.quorumPercentage || 0;
+                const ddQuorum = org.directDemocracyVoting.thresholdPct || 0;
                 ddProposals = (org.directDemocracyVoting.ddvProposals || []).map(p =>
                     transformProposal(p, org.directDemocracyVoting.id, 'Direct Democracy', ddQuorum)
                 );

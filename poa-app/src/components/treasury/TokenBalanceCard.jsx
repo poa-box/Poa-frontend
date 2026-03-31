@@ -29,6 +29,8 @@ const TokenBalanceCard = ({
     ETH: 'blue.400',
     USDC: 'green.400',
     DAI: 'yellow.400',
+    xDAI: 'yellow.400',
+    WXDAI: 'yellow.400',
     BREAD: 'orange.400',
   };
 

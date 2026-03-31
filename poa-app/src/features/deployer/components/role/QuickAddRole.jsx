@@ -63,9 +63,9 @@ export function QuickAddRole({ onAdd }) {
         color="warmGray.500"
         fontWeight="500"
         _hover={{
-          borderColor: 'coral.400',
-          bg: 'coral.50',
-          color: 'coral.600',
+          borderColor: 'amethyst.400',
+          bg: 'amethyst.50',
+          color: 'amethyst.600',
         }}
         transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
         onClick={() => setIsAdding(true)}
@@ -80,11 +80,11 @@ export function QuickAddRole({ onAdd }) {
       p={5}
       borderRadius="2xl"
       border="2px dashed"
-      borderColor="coral.300"
-      bg="coral.50"
+      borderColor="amethyst.300"
+      bg="amethyst.50"
     >
       <VStack spacing={4} align="stretch">
-        <Text fontSize="sm" fontWeight="600" color="coral.700">
+        <Text fontSize="sm" fontWeight="600" color="amethyst.700">
           New Role
         </Text>
         <Input
@@ -94,10 +94,10 @@ export function QuickAddRole({ onAdd }) {
           onChange={(e) => setName(e.target.value)}
           onKeyDown={handleKeyDown}
           bg="white"
-          borderColor="coral.200"
+          borderColor="amethyst.200"
           _focus={{
-            borderColor: 'coral.400',
-            boxShadow: '0 0 0 1px var(--chakra-colors-coral-400)',
+            borderColor: 'amethyst.400',
+            boxShadow: '0 0 0 1px var(--chakra-colors-amethyst-400)',
           }}
           _placeholder={{ color: 'warmGray.400' }}
         />
@@ -112,10 +112,11 @@ export function QuickAddRole({ onAdd }) {
           </Button>
           <Button
             size="sm"
-            bg="coral.500"
+            bg="warmGray.900"
             color="white"
-            _hover={{ bg: 'coral.600' }}
-            _active={{ bg: 'coral.700' }}
+            borderRadius="full"
+            _hover={{ bg: 'warmGray.800' }}
+            _active={{ bg: 'warmGray.700' }}
             onClick={handleAdd}
             isDisabled={!name.trim()}
           >

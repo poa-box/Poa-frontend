@@ -64,11 +64,12 @@ import { validateHierarchy } from '../utils/hierarchyUtils';
 import NavigationButtons from '../components/common/NavigationButtons';
 import { roleHasBundle } from '../utils/powerBundles';
 import { DeployerUsernameSection } from '../components/review/DeployerUsernameSection';
+import { getNetworkByChainId, DEFAULT_DEPLOY_CHAIN_ID } from '../../../config/networks';
 
 // Animations
 const pulseGlow = keyframes`
-  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 101, 67, 0.3); }
-  50% { box-shadow: 0 0 0 15px rgba(240, 101, 67, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.3); }
+  50% { box-shadow: 0 0 0 15px rgba(139, 92, 246, 0); }
 `;
 
 const fadeIn = keyframes`
@@ -125,7 +126,7 @@ function ReviewSectionCard({
       _hover={{ boxShadow: '0 4px 20px rgba(0, 0, 0, 0.06)' }}
     >
       {/* Status indicator bar at top */}
-      <Box h="3px" bg={status === 'valid' ? 'green.400' : 'coral.400'} />
+      <Box h="3px" bg={status === 'valid' ? 'green.400' : 'orange.400'} />
 
       {/* Header */}
       <HStack p={4} justify="space-between" borderBottom="1px" borderColor="warmGray.100">
@@ -134,11 +135,11 @@ function ReviewSectionCard({
             <Box
               p={2}
               borderRadius="lg"
-              bg={status === 'valid' ? 'green.50' : 'coral.50'}
+              bg={status === 'valid' ? 'green.50' : 'orange.50'}
             >
               <Icon
                 as={icon}
-                color={status === 'valid' ? 'green.500' : 'coral.500'}
+                color={status === 'valid' ? 'green.500' : 'orange.500'}
                 boxSize={5}
               />
             </Box>
@@ -164,8 +165,8 @@ function ReviewSectionCard({
           size="sm"
           leftIcon={<EditIcon />}
           variant="ghost"
-          color="coral.600"
-          _hover={{ bg: 'coral.50', transform: 'translateY(-1px)' }}
+          color="amethyst.600"
+          _hover={{ bg: 'amethyst.50', transform: 'translateY(-1px)' }}
           transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
           onClick={() => goToStep(stepIndex)}
         >
@@ -250,7 +251,7 @@ function OrganizationHero({ organization, templateName, goToStep }) {
       borderRadius="2xl"
       p={6}
       borderLeft="4px solid"
-      borderLeftColor="coral.400"
+      borderLeftColor="amethyst.400"
       boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
       mb={6}
     >
@@ -260,9 +261,9 @@ function OrganizationHero({ organization, templateName, goToStep }) {
           w="72px"
           h="72px"
           borderRadius="xl"
-          bg="coral.50"
+          bg="amethyst.50"
           border="2px solid"
-          borderColor="coral.200"
+          borderColor="amethyst.200"
           overflow="hidden"
           display="flex"
           alignItems="center"
@@ -271,14 +272,14 @@ function OrganizationHero({ organization, templateName, goToStep }) {
         >
           {organization.logoURL ? (
             <Image
-              src={`https://ipfs.io/ipfs/${organization.logoURL}`}
+              src={organization.logoPreviewUrl || `https://ipfs.io/ipfs/${organization.logoURL}`}
               alt="Organization logo"
               w="100%"
               h="100%"
               objectFit="cover"
             />
           ) : (
-            <Icon as={PiImage} boxSize={8} color="coral.300" />
+            <Icon as={PiImage} boxSize={8} color="amethyst.300" />
           )}
         </Box>
 
@@ -291,7 +292,7 @@ function OrganizationHero({ organization, templateName, goToStep }) {
           </Text>
           <HStack spacing={2} flexWrap="wrap">
             {templateName && (
-              <Badge bg="coral.100" color="coral.700" borderRadius="full" px={3} py={1}>
+              <Badge bg="amethyst.100" color="amethyst.700" borderRadius="full" px={3} py={1}>
                 {templateName}
               </Badge>
             )}
@@ -311,9 +312,9 @@ function OrganizationHero({ organization, templateName, goToStep }) {
           size="sm"
           leftIcon={<EditIcon />}
           variant="outline"
-          borderColor="coral.300"
-          color="coral.600"
-          _hover={{ bg: 'coral.50' }}
+          borderColor="amethyst.300"
+          color="amethyst.600"
+          _hover={{ bg: 'amethyst.50' }}
           onClick={() => goToStep(STEPS.IDENTITY)}
         >
           Edit
@@ -339,11 +340,11 @@ function RoleCard({ role, index, roles }) {
       border="1px solid"
       borderColor="warmGray.200"
       transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
-      _hover={{ borderColor: 'coral.300', boxShadow: 'sm' }}
+      _hover={{ borderColor: 'amethyst.300', boxShadow: 'sm' }}
     >
       <HStack justify="space-between" mb={3}>
         <HStack spacing={3}>
-          <Avatar size="sm" name={role.name} bg="coral.500" color="white" />
+          <Avatar size="sm" name={role.name} bg="amethyst.500" color="white" />
           <Text fontWeight="600" color="warmGray.800">{role.name}</Text>
         </HStack>
         {parentRole === null && (
@@ -360,7 +361,7 @@ function RoleCard({ role, index, roles }) {
           </Badge>
         )}
         {role.vouching.enabled && (
-          <Badge bg="coral.100" color="coral.700" borderRadius="full" fontSize="xs" px={2}>
+          <Badge bg="amethyst.100" color="amethyst.700" borderRadius="full" fontSize="xs" px={2}>
             {role.vouching.quorum} vouches
           </Badge>
         )}
@@ -574,13 +575,13 @@ function DeploymentOverlay({ orgName, isVisible }) {
             mx="auto"
             mb={5}
             borderRadius="full"
-            bg="coral.50"
+            bg="amethyst.50"
             display="flex"
             alignItems="center"
             justifyContent="center"
             animation={`${pulseGlow} 2s ease-in-out infinite`}
           >
-            <Icon as={PiRocketLaunch} boxSize={{ base: 10, md: 12 }} color="coral.500" />
+            <Icon as={PiRocketLaunch} boxSize={{ base: 10, md: 12 }} color="amethyst.500" />
           </Box>
 
           <Heading size={{ base: "md", md: "lg" }} mb={2} color="warmGray.800">
@@ -616,7 +617,7 @@ function DeploymentOverlay({ orgName, isVisible }) {
           <Box h="4px" bg="warmGray.100" borderRadius="full" overflow="hidden" mb={4}>
             <Box
               h="100%"
-              bg="coral.500"
+              bg="amethyst.500"
               borderRadius="full"
               animation={`${subtlePulse} 1.5s ease-in-out infinite`}
               w={`${Math.min(20 + (currentStatusIndex * 20), 90)}%`}
@@ -677,11 +678,11 @@ function SuccessCelebration({ orgName, onContinue, isVisible }) {
 
           <VStack spacing={3}>
             <HStack spacing={2} flexWrap="wrap" justify="center">
-              <Icon as={PiSparkle} color="coral.500" boxSize={{ base: 5, md: 6 }} />
+              <Icon as={PiSparkle} color="amethyst.500" boxSize={{ base: 5, md: 6 }} />
               <Heading size={{ base: "lg", md: "xl" }} color="warmGray.800">
                 {orgName} is Live
               </Heading>
-              <Icon as={PiSparkle} color="coral.500" boxSize={{ base: 5, md: 6 }} />
+              <Icon as={PiSparkle} color="amethyst.500" boxSize={{ base: 5, md: 6 }} />
             </HStack>
             <Text color="warmGray.600" fontSize={{ base: "md", md: "lg" }} maxW="400px">
               You've just created a piece of community-owned infrastructure
@@ -728,6 +729,11 @@ export function ReviewStep({
 }) {
   const { state, actions, selectors } = useDeployer();
   const toast = useToast();
+
+  // Get native currency symbol for the selected deploy chain
+  const selectedChainId = selectors.getSelectedChainId();
+  const selectedNetwork = getNetworkByChainId(selectedChainId);
+  const nativeSymbol = selectedNetwork?.nativeCurrency?.symbol || 'ETH';
 
   // Auth modal state
   const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
@@ -815,23 +821,29 @@ export function ReviewStep({
       isComplete: Object.values(state.permissions).some(arr => arr.length > 0),
     },
     {
+      key: 'network',
+      label: getNetworkByChainId(selectors.getSelectedChainId())?.name || 'Network',
+      stepIndex: STEPS.SETTINGS,
+      isComplete: true,
+    },
+    {
       key: 'username',
       label: 'Your Username',
       stepIndex: STEPS.LAUNCH,
       isComplete: isUsernameReady,
     },
-  ], [state.organization, state.roles, state.voting, state.permissions, isUsernameReady]);
+  ], [state.organization, state.roles, state.voting, state.permissions, isUsernameReady, selectors]);
 
   // Smart warnings
   const warnings = useMemo(() => {
     const result = [];
 
-    // High democracy + low quorum warning
+    // High democracy + low threshold warning
     const directClass = state.voting.classes.find(c => c.strategy === VOTING_STRATEGY.DIRECT);
     if (directClass && directClass.slicePct >= 90 && state.voting.hybridQuorum <= 40) {
       result.push({
-        key: 'high-democracy-low-quorum',
-        message: 'With high democracy weight and low quorum, a small group could pass decisions. Consider increasing quorum for important votes.',
+        key: 'high-democracy-low-threshold',
+        message: 'With high democracy weight and low threshold, a small group could pass decisions. Consider increasing the threshold for important votes.',
       });
     }
 
@@ -888,7 +900,7 @@ export function ReviewStep({
       {/* Header */}
       <VStack spacing={2} mb={8} textAlign="center">
         <HStack spacing={2}>
-          <Icon as={PiRocketLaunch} color="coral.500" boxSize={6} />
+          <Icon as={PiRocketLaunch} color="amethyst.500" boxSize={6} />
           <Heading size="lg" color="warmGray.800">Ready to Launch</Heading>
         </HStack>
         <Text color="warmGray.500" maxW="500px">
@@ -987,21 +999,21 @@ export function ReviewStep({
           stepIndex={STEPS.GOVERNANCE}
           icon={PiScales}
           status="valid"
-          description={`Decisions require ${state.voting.hybridQuorum}% participation to pass.`}
+          description={`Decisions require ${state.voting.hybridQuorum}% support to pass.`}
           goToStep={goToStep}
         >
-          {/* Quorum display */}
+          {/* Threshold display */}
           <HStack spacing={6} mb={4} flexWrap="wrap">
             <Box bg="white" p={3} borderRadius="lg" border="1px solid" borderColor="warmGray.200">
-              <Text fontSize="xs" color="warmGray.500">Proposal Quorum</Text>
+              <Text fontSize="xs" color="warmGray.500">Proposal Threshold</Text>
               <Text fontWeight="bold" fontSize="xl" color="warmGray.800">{state.voting.hybridQuorum}%</Text>
             </Box>
             <Box bg="white" p={3} borderRadius="lg" border="1px solid" borderColor="warmGray.200">
-              <Text fontSize="xs" color="warmGray.500">Poll Quorum</Text>
+              <Text fontSize="xs" color="warmGray.500">Poll Threshold</Text>
               <Text fontWeight="bold" fontSize="xl" color="warmGray.800">{state.voting.ddQuorum}%</Text>
             </Box>
             <Tooltip
-              label="Quorum ensures enough people participate for decisions to be legitimate"
+              label="Threshold ensures enough support for decisions to be legitimate"
               placement="top"
               hasArrow
             >
@@ -1010,6 +1022,33 @@ export function ReviewStep({
               </Box>
             </Tooltip>
           </HStack>
+
+          {/* Voter Count Quorum - only show if non-zero */}
+          {(state.voting.hybridVoterQuorum > 0 || state.voting.ddVoterQuorum > 0) && (
+            <HStack spacing={6} mb={4} flexWrap="wrap">
+              {state.voting.hybridVoterQuorum > 0 && (
+                <Box bg="white" p={3} borderRadius="lg" border="1px solid" borderColor="warmGray.200">
+                  <Text fontSize="xs" color="warmGray.500">Min Voters (Proposals)</Text>
+                  <Text fontWeight="bold" fontSize="xl" color="warmGray.800">{state.voting.hybridVoterQuorum}</Text>
+                </Box>
+              )}
+              {state.voting.ddVoterQuorum > 0 && (
+                <Box bg="white" p={3} borderRadius="lg" border="1px solid" borderColor="warmGray.200">
+                  <Text fontSize="xs" color="warmGray.500">Min Voters (Polls)</Text>
+                  <Text fontWeight="bold" fontSize="xl" color="warmGray.800">{state.voting.ddVoterQuorum}</Text>
+                </Box>
+              )}
+              <Tooltip
+                label="Voter count quorum will be configured via governance after deployment"
+                placement="top"
+                hasArrow
+              >
+                <Box cursor="help">
+                  <Icon as={PiInfo} color="warmGray.400" boxSize={4} />
+                </Box>
+              </Tooltip>
+            </HStack>
+          )}
 
           {/* Voting Classes */}
           <Text fontWeight="500" fontSize="sm" color="warmGray.700" mb={3}>
@@ -1022,8 +1061,8 @@ export function ReviewStep({
           </SimpleGrid>
 
           {/* Smart warning for voting */}
-          {warnings.find(w => w.key === 'high-democracy-low-quorum') && (
-            <SmartWarning message={warnings.find(w => w.key === 'high-democracy-low-quorum').message} />
+          {warnings.find(w => w.key === 'high-democracy-low-threshold') && (
+            <SmartWarning message={warnings.find(w => w.key === 'high-democracy-low-threshold').message} />
           )}
         </ReviewSectionCard>
 
@@ -1116,7 +1155,7 @@ export function ReviewStep({
                     key: 'admin',
                     label: 'Admin',
                     has: hasAdmin,
-                    color: 'coral',
+                    color: 'amethyst',
                     desc: 'Can approve rewards, create tasks and bounties, set up learning content, and run polls',
                   },
                   {
@@ -1148,7 +1187,7 @@ export function ReviewStep({
                   >
                     <HStack justify="space-between" mb={3}>
                       <HStack spacing={3}>
-                        <Avatar size="sm" name={role.name} bg="coral.500" color="white" />
+                        <Avatar size="sm" name={role.name} bg="amethyst.500" color="white" />
                         <Text fontWeight="600" color="warmGray.800">{role.name}</Text>
                       </HStack>
                     </HStack>
@@ -1199,33 +1238,51 @@ export function ReviewStep({
 
         {/* Features Section */}
         <ReviewSectionCard
-          title="Optional Features"
-          stepIndex={STEPS.TEMPLATE}
+          title="Settings & Features"
+          stepIndex={STEPS.SETTINGS}
           icon={PiGear}
           status="valid"
           goToStep={goToStep}
         >
-          <Flex gap={4} flexWrap="wrap">
-            <FeatureCard
-              name="Education Hub"
-              description="Create learning resources for your community"
-              icon={PiGraduationCap}
-              isEnabled={state.features.educationHubEnabled}
-            />
-            <FeatureCard
-              name="Election Hub"
-              description="Run elections for leadership positions"
-              icon={PiHandshake}
-              isEnabled={state.features.electionHubEnabled}
-            />
-          </Flex>
+          <VStack align="stretch" spacing={4}>
+            {/* Metadata Admin */}
+            <HStack spacing={2}>
+              <Text fontSize="sm" fontWeight="600" color="warmGray.700">Metadata Admin:</Text>
+              <Badge
+                bg={state.metadataAdminRoleIndex !== null ? 'amethyst.100' : 'warmGray.100'}
+                color={state.metadataAdminRoleIndex !== null ? 'amethyst.700' : 'warmGray.600'}
+                borderRadius="full"
+                px={3}
+              >
+                {state.metadataAdminRoleIndex !== null
+                  ? state.roles[state.metadataAdminRoleIndex]?.name || 'Unknown Role'
+                  : 'Governance Only'}
+              </Badge>
+            </HStack>
+
+            {/* Feature Toggles */}
+            <Flex gap={4} flexWrap="wrap">
+              <FeatureCard
+                name="Education Hub"
+                description="Create learning resources for your community"
+                icon={PiGraduationCap}
+                isEnabled={state.features.educationHubEnabled}
+              />
+              <FeatureCard
+                name="Election Hub"
+                description="Run elections for leadership positions"
+                icon={PiHandshake}
+                isEnabled={state.features.electionHubEnabled}
+              />
+            </Flex>
+          </VStack>
         </ReviewSectionCard>
 
         {/* Gas Sponsorship Section - only if enabled */}
         {state.paymaster?.enabled && (
           <ReviewSectionCard
             title="Gas Sponsorship"
-            stepIndex={STEPS.GOVERNANCE}
+            stepIndex={STEPS.SETTINGS}
             icon={PiGasPump}
             status="valid"
             description="Gas sponsorship configuration for member transactions"
@@ -1249,14 +1306,14 @@ export function ReviewStep({
               {state.paymaster.fundingAmountEth && parseFloat(state.paymaster.fundingAmountEth) > 0 && (
                 <HStack>
                   <Text fontSize="sm" color="warmGray.500">Initial funding:</Text>
-                  <Text fontSize="sm" fontWeight="500">{state.paymaster.fundingAmountEth} ETH</Text>
+                  <Text fontSize="sm" fontWeight="500">{state.paymaster.fundingAmountEth} {nativeSymbol}</Text>
                 </HStack>
               )}
               {state.paymaster.budgetCapEth && parseFloat(state.paymaster.budgetCapEth) > 0 && (
                 <HStack>
                   <Text fontSize="sm" color="warmGray.500">Budget:</Text>
                   <Text fontSize="sm" fontWeight="500">
-                    {state.paymaster.budgetCapEth} ETH per {state.paymaster.budgetEpochValue} {state.paymaster.budgetEpochUnit}
+                    {state.paymaster.budgetCapEth} {nativeSymbol} per {state.paymaster.budgetEpochValue} {state.paymaster.budgetEpochUnit}
                   </Text>
                 </HStack>
               )}
@@ -1278,7 +1335,7 @@ export function ReviewStep({
             {/* Summary stats */}
             <HStack spacing={8} flexWrap="wrap" justify="center">
               <VStack spacing={0}>
-                <Text fontSize="2xl" fontWeight="700" color="coral.500">{summaryStats.roles}</Text>
+                <Text fontSize="2xl" fontWeight="700" color="amethyst.500">{summaryStats.roles}</Text>
                 <Text fontSize="xs" color="warmGray.500">Roles</Text>
               </VStack>
               <VStack spacing={0}>
@@ -1365,14 +1422,14 @@ export function ReviewStep({
 
                 {/* Deploy Button */}
                 <Button
-                  bg="coral.500"
+                  bg="warmGray.900"
                   color="white"
                   _hover={{
-                    bg: 'coral.600',
+                    bg: 'warmGray.800',
                     transform: 'translateY(-2px)',
-                    boxShadow: '0 8px 25px rgba(240, 101, 67, 0.35)',
+                    boxShadow: '0 8px 25px rgba(0, 0, 0, 0.25)',
                   }}
-                  _active={{ bg: 'coral.700', transform: 'translateY(0)' }}
+                  _active={{ bg: 'warmGray.700', transform: 'translateY(0)' }}
                   size="lg"
                   w="100%"
                   maxW="400px"

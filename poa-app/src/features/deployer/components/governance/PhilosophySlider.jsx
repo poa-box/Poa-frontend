@@ -31,7 +31,7 @@ import { sliderToVotingConfig } from '../../utils/philosophyMapper';
 const ZONE_INFO = {
   contribution: {
     label: 'Contribution-Weighted',
-    color: 'coral',
+    color: 'amethyst',
     implication:
       'Active contributors drive decisions. Great for teams where those doing the work should guide direction. New or less active members still have a voice, but experienced contributors lead.',
   },
@@ -219,9 +219,9 @@ function GovernanceInfoSection({ contributionWeight, democracyWeight }) {
         <HStack align="start" spacing={4}>
           <Box
             p={4}
-            bg="coral.100"
+            bg="amethyst.100"
             borderRadius="lg"
-            color="coral.600"
+            color="amethyst.600"
             display="flex"
             alignItems="center"
             justifyContent="center"
@@ -230,7 +230,7 @@ function GovernanceInfoSection({ contributionWeight, democracyWeight }) {
             <Icon as={PiChartBar} boxSize={7} />
           </Box>
           <Box flex={1}>
-            <Text fontWeight="600" fontSize="lg" color="coral.700" mb={1}>
+            <Text fontWeight="600" fontSize="lg" color="amethyst.700" mb={1}>
               Contribution Weight ({contributionWeight}%)
             </Text>
             <Text fontSize="md" color={textColor}>
@@ -322,10 +322,10 @@ export function PhilosophySlider({ value, onChange, isDisabled = false }) {
             </Text>
           </HStack>
           <HStack spacing={2}>
-            <Text fontSize="sm" fontWeight="600" color="coral.600">
+            <Text fontSize="sm" fontWeight="600" color="amethyst.600">
               {contributionWeight}% Contribution
             </Text>
-            <Box w="12px" h="12px" borderRadius="full" bg="coral.400" />
+            <Box w="12px" h="12px" borderRadius="full" bg="amethyst.400" />
           </HStack>
         </Flex>
 
@@ -360,14 +360,14 @@ export function PhilosophySlider({ value, onChange, isDisabled = false }) {
               )}
             </Box>
 
-            {/* Coral (Contribution) - fills from thumb to RIGHT */}
+            {/* Amethyst (Contribution) - fills from thumb to RIGHT */}
             <Box
               position="absolute"
               right={0}
               top={0}
               h="100%"
               w={`${100 - thumbPosition}%`}
-              bg="coral.400"
+              bg="amethyst.400"
               transition="width 0.1s ease-out"
               display="flex"
               alignItems="center"

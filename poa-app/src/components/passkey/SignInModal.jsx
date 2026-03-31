@@ -4,6 +4,7 @@
  * Does NOT handle account creation (use SolidarityOnboardingModal for that).
  */
 
+import { useState } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -17,6 +18,8 @@ import {
   HStack,
   Icon,
   Divider,
+  Alert,
+  AlertIcon,
 } from '@chakra-ui/react';
 import { FaFingerprint, FaWallet } from 'react-icons/fa';
 import { useConnectModal } from '@rainbow-me/rainbowkit';
@@ -25,15 +28,23 @@ import { useAuth } from '../../context/AuthContext';
 export default function SignInModal({ isOpen, onClose, onSuccess, onCreateAccount }) {
   const { hasStoredPasskey, connectPasskey, passkeyConnecting } = useAuth();
   const { openConnectModal } = useConnectModal();
+  const [error, setError] = useState(null);
 
   const handlePasskeyClick = async () => {
-    onClose();
+    setError(null);
     try {
       await connectPasskey();
+      onClose();
       onSuccess?.();
     } catch (err) {
       console.error('Failed to sign in with passkey:', err);
+      setError(err.message || 'Failed to sign in. Please try again.');
     }
+  };
+
+  const handleClose = () => {
+    setError(null);
+    onClose();
   };
 
   const handleWalletClick = () => {
@@ -47,7 +58,7 @@ export default function SignInModal({ isOpen, onClose, onSuccess, onCreateAccoun
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} isCentered size="md">
+    <Modal isOpen={isOpen} onClose={handleClose} isCentered size="md">
       <ModalOverlay bg="blackAlpha.600" />
       <ModalContent
         borderRadius="2xl"
@@ -62,6 +73,13 @@ export default function SignInModal({ isOpen, onClose, onSuccess, onCreateAccoun
 
         <ModalBody px={6} pb={6}>
           <VStack spacing={4}>
+            {error && (
+              <Alert status="error" borderRadius="md" fontSize="sm">
+                <AlertIcon />
+                {error}
+              </Alert>
+            )}
+
             <Text fontSize="sm" color="warmGray.500" textAlign="center" mt={-1}>
               Choose how you'd like to sign in
             </Text>

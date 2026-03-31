@@ -1,11 +1,11 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { FETCH_PROJECTS_DATA_NEW } from '../util/queries';
 import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
+import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
 import { formatTokenAmount } from '../util/formatToken';
-import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
+import { getTokenByAddress } from '../util/tokens';
 
 const ProjectContext = createContext();
 
@@ -23,43 +23,20 @@ export const ProjectProvider = ({ children }) => {
     const [projectsData, setProjectsData] = useState([]);
     const [taskCount, setTaskCount] = useState(0);
     const [recommendedTasks, setRecommendedTasks] = useState([]);
-    const { address } = useAccount();
-    const { orgId } = usePOContext();
+    const { accountAddress: address } = useAuth();
+    const { orgId, subgraphUrl } = usePOContext();
 
     const router = useRouter();
 
-    const { data, loading, error, refetch } = useQuery(FETCH_PROJECTS_DATA_NEW, {
+    // pollInterval keeps task data fresh. cache-and-network shows cached data instantly.
+    // 40s balances liveness against The Graph Studio rate limits.
+    const { data, loading, error } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
-        fetchPolicy: 'cache-first',
+        fetchPolicy: 'cache-and-network',
+        pollInterval: 40000,
+        context: { subgraphUrl },
     });
-
-    // Handle refresh events from Web3 transactions
-    const handleRefresh = useCallback(() => {
-        if (orgId && refetch) {
-            // Small delay to allow subgraph to index the new data
-            setTimeout(() => {
-                refetch();
-            }, 2000);
-        }
-    }, [orgId, refetch]);
-
-    // Subscribe to project and task events
-    useRefreshSubscription(
-        [
-            RefreshEvent.PROJECT_CREATED,
-            RefreshEvent.PROJECT_DELETED,
-            RefreshEvent.TASK_CREATED,
-            RefreshEvent.TASK_CLAIMED,
-            RefreshEvent.TASK_SUBMITTED,
-            RefreshEvent.TASK_COMPLETED,
-            RefreshEvent.TASK_UPDATED,
-            RefreshEvent.TASK_CANCELLED,
-            RefreshEvent.TASK_REJECTED,
-        ],
-        handleRefresh,
-        [handleRefresh]
-    );
 
     useEffect(() => {
         if (data?.organization?.taskManager) {
@@ -124,6 +101,7 @@ export const ProjectProvider = ({ children }) => {
 
                     const taskTitle = task.title || 'Indexing...';
                     const taskPayout = formatTokenAmount(task.payout || '0');
+                    const bountyTokenInfo = getTokenByAddress(task.bountyToken);
                     const transformedTask = {
                         id: task.id,
                         taskId: task.taskId,
@@ -143,7 +121,7 @@ export const ProjectProvider = ({ children }) => {
                         Payout: taskPayout, // Alias with capital P for TaskCard
                         kubixPayout: taskPayout, // Alias for TaskColumn
                         bountyToken: task.bountyToken,
-                        bountyPayout: formatTokenAmount(task.bountyPayout || '0'),
+                        bountyPayout: formatTokenAmount(task.bountyPayout || '0', bountyTokenInfo.decimals, bountyTokenInfo.decimals <= 6 ? 2 : 0),
                         projectId: project.id,
                         status: task.status,
                         claimerUsername: task.assigneeUsername || '',

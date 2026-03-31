@@ -21,6 +21,7 @@ import {
   VOTING_STRATEGY,
 } from './deployerReducer';
 import { getTemplateById, getTemplateDefaults, TEMPLATE_LIST } from '../templates';
+import { DEFAULT_DEPLOY_CHAIN_ID } from '../../../config/networks';
 
 // Create the context
 const DeployerContext = createContext(null);
@@ -96,8 +97,8 @@ export function DeployerProvider({ children }) {
     // Organization
     updateOrganization: (updates) =>
       dispatch({ type: ACTION_TYPES.UPDATE_ORGANIZATION, payload: updates }),
-    setLogoURL: (url) =>
-      dispatch({ type: ACTION_TYPES.SET_LOGO_URL, payload: url }),
+    setLogoURL: (urlOrObj) =>
+      dispatch({ type: ACTION_TYPES.SET_LOGO_URL, payload: urlOrObj }),
     setIPFSHash: (hash) =>
       dispatch({ type: ACTION_TYPES.SET_IPFS_HASH, payload: hash }),
     addLink: (link) =>
@@ -159,11 +160,19 @@ export function DeployerProvider({ children }) {
     toggleFeature: (feature, value) =>
       dispatch({ type: ACTION_TYPES.TOGGLE_FEATURE, payload: { feature, value } }),
 
+    // Metadata Admin
+    setMetadataAdminRole: (roleIndex) =>
+      dispatch({ type: ACTION_TYPES.SET_METADATA_ADMIN_ROLE, payload: roleIndex }),
+
     // Paymaster
     togglePaymaster: (value) =>
       dispatch({ type: ACTION_TYPES.TOGGLE_PAYMASTER, payload: value }),
     updatePaymaster: (updates) =>
       dispatch({ type: ACTION_TYPES.UPDATE_PAYMASTER, payload: updates }),
+
+    // Chain selection
+    setSelectedChainId: (chainId) =>
+      dispatch({ type: ACTION_TYPES.SET_SELECTED_CHAIN_ID, payload: chainId }),
 
     // Validation
     setErrors: (errors) =>
@@ -284,6 +293,15 @@ export function DeployerProvider({ children }) {
       return false;
     },
 
+    // Chain
+    getSelectedChainId: () => state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID,
+
+    // Metadata Admin
+    getMetadataAdminRole: () => {
+      const idx = state.metadataAdminRoleIndex;
+      return idx !== null && idx < state.roles.length ? state.roles[idx] : null;
+    },
+
     // Paymaster
     isPaymasterEnabled: () => state.paymaster.enabled,
     getPaymasterOperatorRole: () => {
@@ -321,6 +339,9 @@ export function DeployerProvider({ children }) {
         case STEPS.VOTING:
           return selectors.isVotingClassesValid();
 
+        case STEPS.SETTINGS:
+          return true; // Settings are always valid (all optional)
+
         case STEPS.REVIEW:
           return true;
 
@@ -357,6 +378,8 @@ export function DeployerProvider({ children }) {
           return {
             isValid: state.voting.classes.reduce((sum, cls) => sum + (cls.slicePct || 0), 0) === 100
           };
+        case STEPS.SETTINGS:
+          return { isValid: true }; // Settings are always valid (all optional)
         case STEPS.LAUNCH:
         case STEPS.REVIEW:
           return { isValid: true }; // Review step is always "valid" - it just displays status

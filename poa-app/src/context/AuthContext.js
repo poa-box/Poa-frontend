@@ -24,7 +24,6 @@ import {
   getLastUsedCredential,
   hasStoredCredentials,
   savePasskeyCredential,
-  removeCredential,
 } from '../services/web3/passkey/passkeyStorage';
 import { discoverPasskeyCredential } from '../services/web3/passkey/passkeyDiscover';
 
@@ -40,7 +39,7 @@ export const useAuth = () => {
 
 // Build a viem chain object from our network config
 const networkConfig = NETWORKS[DEFAULT_NETWORK];
-const hoodiChain = defineChain({
+const defaultChain = defineChain({
   id: networkConfig.chainId,
   name: networkConfig.name,
   nativeCurrency: networkConfig.nativeCurrency,
@@ -76,8 +75,10 @@ export const AuthProvider = ({ children }) => {
   const isAuthenticated = authType !== null;
 
   // Create viem public client (shared, stateless)
+  // Uses a standard RPC endpoint for eth_call, eth_getCode, etc.
+  // (Pimlico bundler only supports ERC-4337 methods, not standard JSON-RPC.)
   const publicClient = useMemo(() => createPublicClient({
-    chain: hoodiChain,
+    chain: defaultChain,
     transport: http(networkConfig.rpcUrl),
   }), []);
 
@@ -85,7 +86,7 @@ export const AuthProvider = ({ children }) => {
   const bundlerClient = useMemo(() => {
     const bundlerUrl = getBundlerUrl(networkConfig.chainId);
     return createPimlicoClient({
-      chain: hoodiChain,
+      chain: defaultChain,
       transport: http(bundlerUrl),
       entryPoint: {
         address: ENTRY_POINT_ADDRESS,
@@ -158,14 +159,11 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   /**
-   * Disconnect passkey session and remove stored credential.
+   * Disconnect passkey session (keeps stored credential for re-authentication).
    */
   const disconnectPasskey = useCallback(() => {
-    if (passkeyState) {
-      removeCredential(passkeyState.accountAddress);
-    }
     setPasskeyState(null);
-  }, [passkeyState]);
+  }, []);
 
   const hasStoredPasskey = typeof window !== 'undefined' ? hasStoredCredentials() : false;
 

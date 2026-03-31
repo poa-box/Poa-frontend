@@ -74,7 +74,7 @@ const GradientAvatar = ({ name, orgGradient }) => (
 );
 
 const Home = () => {
-  const { logoHash, poDescription, poLinks, poMembers, activeTaskAmount, completedTaskAmount } = usePOContext();
+  const { logoUrl, poDescription, poLinks, poMembers, activeTaskAmount, completedTaskAmount } = usePOContext();
   const router = useRouter();
   const { userDAO } = router.query;
   const { fetchImageFromIpfs } = useIPFScontext();
@@ -89,9 +89,9 @@ const Home = () => {
 
   useEffect(() => {
     const fetchImage = async () => {
-      if (logoHash) {
+      if (logoUrl) {
         try {
-          const imageUrl = await fetchImageFromIpfs(logoHash);
+          const imageUrl = await fetchImageFromIpfs(logoUrl);
           setImage(imageUrl);
         } catch {
           setImageError(true);
@@ -99,7 +99,7 @@ const Home = () => {
       }
     };
     fetchImage();
-  }, [logoHash]);
+  }, [logoUrl]);
 
   const orgGradient = userDAO ? getOrgGradient(userDAO) : "linear-gradient(135deg, #9055E8, #E85D85)";
   const showImage = image && !imageError;

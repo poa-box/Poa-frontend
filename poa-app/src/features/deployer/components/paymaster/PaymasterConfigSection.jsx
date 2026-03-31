@@ -4,7 +4,7 @@
  * Configures how the org sponsors gas for member transactions:
  * - Auto-whitelist deployed contracts
  * - Operator role selection
- * - ETH funding deposit
+ * - Native currency funding deposit
  * - Budget limits per role per epoch
  * - Advanced gas caps
  */
@@ -34,6 +34,7 @@ import {
 import { InfoIcon } from '@chakra-ui/icons';
 import { PiGasPump, PiShieldCheck, PiGear } from 'react-icons/pi';
 import { useDeployer } from '../../context/DeployerContext';
+import { getNetworkByChainId, DEFAULT_DEPLOY_CHAIN_ID } from '../../../../config/networks';
 
 export function PaymasterConfigSection() {
   const { state, actions } = useDeployer();
@@ -41,10 +42,15 @@ export function PaymasterConfigSection() {
   const [showBudget, setShowBudget] = useState(false);
   const [showGasLimits, setShowGasLimits] = useState(false);
 
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const helperColor = useColorModeValue('gray.500', 'gray.400');
-  const sectionBg = useColorModeValue('warmGray.50', 'gray.700');
+  // Get native currency symbol for the selected deploy chain
+  const selectedChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
+  const network = getNetworkByChainId(selectedChainId);
+  const currencySymbol = network?.nativeCurrency?.symbol || 'ETH';
+
+  const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(51, 48, 44, 0.8)');
+  const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
+  const helperColor = useColorModeValue('warmGray.500', 'warmGray.400');
+  const sectionBg = useColorModeValue('warmGray.50', 'warmGray.700');
 
   const handleToggle = (checked) => {
     actions.togglePaymaster(checked);
@@ -64,13 +70,15 @@ export function PaymasterConfigSection() {
       bg={cardBg}
       p={6}
       borderRadius="xl"
-      borderWidth="1px"
+      border="1px solid"
       borderColor={borderColor}
+      backdropFilter="blur(16px)"
+      boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
     >
       {/* Header with toggle */}
       <HStack justify="space-between" mb={paymaster.enabled ? 5 : 0}>
         <HStack spacing={3}>
-          <Icon as={PiGasPump} boxSize={5} color="coral.500" />
+          <Icon as={PiGasPump} boxSize={5} color="amethyst.500" />
           <VStack align="start" spacing={0}>
             <Heading size="sm">Gas Sponsorship</Heading>
             <Text fontSize="xs" color={helperColor}>
@@ -89,7 +97,7 @@ export function PaymasterConfigSection() {
           <Switch
             isChecked={paymaster.enabled}
             onChange={(e) => handleToggle(e.target.checked)}
-            colorScheme="coral"
+            colorScheme="purple"
             size="md"
           />
         </HStack>
@@ -159,10 +167,10 @@ export function PaymasterConfigSection() {
             </FormHelperText>
           </FormControl>
 
-          {/* ETH Funding */}
+          {/* Funding */}
           <FormControl>
             <FormLabel fontSize="sm" fontWeight="600">
-              Initial ETH Funding
+              Initial {currencySymbol} Funding
             </FormLabel>
             <InputGroup size="sm">
               <Input
@@ -174,10 +182,10 @@ export function PaymasterConfigSection() {
                 onChange={(e) => handleUpdate('fundingAmountEth', e.target.value)}
                 borderRadius="md"
               />
-              <InputRightAddon>ETH</InputRightAddon>
+              <InputRightAddon>{currencySymbol}</InputRightAddon>
             </InputGroup>
             <FormHelperText fontSize="xs">
-              ETH deposited to your org's sponsorship pool. Members' gas fees are paid from this balance.
+              {currencySymbol} deposited to your org's sponsorship pool. Members' gas fees are paid from this balance.
             </FormHelperText>
           </FormControl>
 
@@ -222,7 +230,7 @@ export function PaymasterConfigSection() {
                           onChange={(e) => handleUpdate('budgetCapEth', e.target.value)}
                           borderRadius="md"
                         />
-                        <InputRightAddon>ETH</InputRightAddon>
+                        <InputRightAddon>{currencySymbol}</InputRightAddon>
                       </InputGroup>
                     </FormControl>
                     <FormControl>

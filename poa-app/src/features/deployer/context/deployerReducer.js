@@ -2,16 +2,17 @@
  * Deployer Reducer - Manages the complete state for the DAO deployment wizard
  *
  * This reducer handles all state transitions for the deployment process.
- * Supports both Simple mode (4 steps + template) and Advanced mode (5 steps).
+ * Supports both Simple mode (5 steps + template) and Advanced mode (6 steps).
  *
  * Simple Mode Flow:
- * Template → Identity → Team → Governance → Launch
+ * Template → Identity → Team → Governance → Settings → Launch
  *
  * Advanced Mode Flow:
- * Organization → Roles → Permissions → Voting → Review
+ * Organization → Roles → Permissions → Voting → Settings → Review
  */
 
 import { v4 as uuidv4 } from 'uuid';
+import { DEFAULT_DEPLOY_CHAIN_ID, NETWORKS, DEFAULT_DEPLOY_NETWORK, getNetworkByChainId } from '../../../config/networks';
 
 // Step constants - New flow
 export const STEPS = {
@@ -19,14 +20,15 @@ export const STEPS = {
   IDENTITY: 1,        // Organization details (replaces ORGANIZATION)
   TEAM: 2,            // Roles (simplified in Simple mode)
   GOVERNANCE: 3,      // Philosophy + Powers (replaces Permissions + Voting)
-  LAUNCH: 4,          // Review & Deploy
+  SETTINGS: 4,        // Optional features & services (gas, education, etc.)
+  LAUNCH: 5,          // Review & Deploy
 
   // Legacy step aliases for Advanced mode compatibility
   ORGANIZATION: 1,
   ROLES: 2,
   PERMISSIONS: 3,
   VOTING: 3,
-  REVIEW: 4,
+  REVIEW: 5,
 };
 
 export const STEP_NAMES = [
@@ -34,6 +36,7 @@ export const STEP_NAMES = [
   'Identity',
   'Team',
   'Governance',
+  'Settings',
   'Launch',
 ];
 
@@ -43,6 +46,7 @@ export const ADVANCED_STEP_NAMES = [
   'Organization Details',
   'Roles & Hierarchy',
   'Permissions & Voting',
+  'Settings & Features',
   'Review & Deploy',
 ];
 
@@ -195,6 +199,7 @@ export const initialState = {
     name: '',
     description: '',
     logoURL: '',
+    logoPreviewUrl: '',
     links: [],
     infoIPFSHash: '',
     autoUpgrade: true,
@@ -236,6 +241,8 @@ export const initialState = {
     mode: 'DIRECT', // 'DIRECT' or 'HYBRID'
     hybridQuorum: 50,
     ddQuorum: 50,
+    hybridVoterQuorum: 0,  // Minimum voter count for hybrid proposals (0 = no minimum)
+    ddVoterQuorum: 0,      // Minimum voter count for DD proposals (0 = no minimum)
     quadraticEnabled: false,
     democracyWeight: 50,
     participationWeight: 50,
@@ -256,16 +263,23 @@ export const initialState = {
     enabled: true,
     operatorRoleIndex: null,       // null = type(uint256).max (skip), or role index
     autoWhitelistContracts: true,  // Default true - most users want this
-    fundingAmountEth: '0.05',      // ETH to deposit as msg.value (default org budget)
+    fundingAmountEth: NETWORKS[DEFAULT_DEPLOY_NETWORK].defaultFunding,  // Native currency to deposit as msg.value
     maxFeePerGas: '',              // gwei string, '' = 0 = no cap
     maxPriorityFeePerGas: '',      // gwei string
     maxCallGas: '',                // gas units string
     maxVerificationGas: '',
     maxPreVerificationGas: '',
-    budgetCapEth: '0.05',          // ETH amount per epoch per hat (generous default)
+    budgetCapEth: NETWORKS[DEFAULT_DEPLOY_NETWORK].defaultBudgetCap,    // Native currency per epoch per hat
     budgetEpochValue: '1',         // 1 week epoch
     budgetEpochUnit: 'weeks',      // 'hours' | 'days' | 'weeks'
   },
+
+  // Metadata admin: which role can update org name/logo/description without a vote
+  // null = Governance Only (topHat fallback), or a role index
+  metadataAdminRoleIndex: null,
+
+  // Chain selection (defaults to Gnosis satellite chain)
+  selectedChainId: DEFAULT_DEPLOY_CHAIN_ID,
 
   // Deployment state
   deployment: {
@@ -333,7 +347,6 @@ export const ACTION_TYPES = {
 
   // Permissions
   TOGGLE_PERMISSION: 'TOGGLE_PERMISSION',
-  SET_PERMISSION: 'SET_PERMISSION',
   SET_PERMISSION_ROLES: 'SET_PERMISSION_ROLES',
   SET_ALL_PERMISSIONS_FOR_ROLE: 'SET_ALL_PERMISSIONS_FOR_ROLE',
   CLEAR_ALL_PERMISSIONS_FOR_ROLE: 'CLEAR_ALL_PERMISSIONS_FOR_ROLE',
@@ -351,9 +364,15 @@ export const ACTION_TYPES = {
   // Features
   TOGGLE_FEATURE: 'TOGGLE_FEATURE',
 
+  // Metadata Admin
+  SET_METADATA_ADMIN_ROLE: 'SET_METADATA_ADMIN_ROLE',
+
   // Paymaster
   TOGGLE_PAYMASTER: 'TOGGLE_PAYMASTER',
   UPDATE_PAYMASTER: 'UPDATE_PAYMASTER',
+
+  // Chain
+  SET_SELECTED_CHAIN_ID: 'SET_SELECTED_CHAIN_ID',
 
   // Validation
   SET_ERRORS: 'SET_ERRORS',
@@ -464,7 +483,7 @@ export function deployerReducer(state, action) {
 
     case ACTION_TYPES.APPLY_TEMPLATE: {
       // Payload contains the template defaults from getTemplateDefaults()
-      const { roles, permissions, voting, features, governancePhilosophy } = action.payload;
+      const { roles, permissions, voting, features, governancePhilosophy, metadataAdminRoleIndex } = action.payload;
 
       // Map governancePhilosophy to slider value
       const sliderValue = governancePhilosophy === 'democratic' ? 85
@@ -477,6 +496,7 @@ export function deployerReducer(state, action) {
         permissions,
         voting,
         features,
+        metadataAdminRoleIndex: metadataAdminRoleIndex ?? null,
         philosophy: {
           ...state.philosophy,
           slider: sliderValue,
@@ -757,7 +777,11 @@ export function deployerReducer(state, action) {
     case ACTION_TYPES.SET_LOGO_URL:
       return {
         ...state,
-        organization: { ...state.organization, logoURL: action.payload },
+        organization: {
+          ...state.organization,
+          logoURL: action.payload.url ?? action.payload,
+          logoPreviewUrl: action.payload.previewUrl ?? '',
+        },
       };
 
     case ACTION_TYPES.SET_IPFS_HASH:
@@ -835,10 +859,21 @@ export function deployerReducer(state, action) {
         }
       }
 
+      // Adjust metadata admin role index
+      let adjustedMetadataAdminRole = state.metadataAdminRoleIndex;
+      if (adjustedMetadataAdminRole !== null) {
+        if (adjustedMetadataAdminRole === removeIndex) {
+          adjustedMetadataAdminRole = null;
+        } else if (adjustedMetadataAdminRole > removeIndex) {
+          adjustedMetadataAdminRole = adjustedMetadataAdminRole - 1;
+        }
+      }
+
       return {
         ...state,
         roles: adjustedRoles,
         permissions: adjustedPermissions,
+        metadataAdminRoleIndex: adjustedMetadataAdminRole,
         paymaster: {
           ...state.paymaster,
           operatorRoleIndex: adjustedPaymasterOperatorRole,
@@ -913,21 +948,6 @@ export function deployerReducer(state, action) {
           [permissionKey]: hasPermission
             ? currentRoles.filter(idx => idx !== roleIndex)
             : [...currentRoles, roleIndex],
-        },
-      };
-    }
-
-    case ACTION_TYPES.SET_PERMISSION: {
-      const { permissionKey, roleIndex, value } = action.payload;
-      const currentRoles = state.permissions[permissionKey] || [];
-
-      return {
-        ...state,
-        permissions: {
-          ...state.permissions,
-          [permissionKey]: value
-            ? [...new Set([...currentRoles, roleIndex])]
-            : currentRoles.filter(idx => idx !== roleIndex),
         },
       };
     }
@@ -1129,6 +1149,13 @@ export function deployerReducer(state, action) {
       };
     }
 
+    // Metadata Admin
+    case ACTION_TYPES.SET_METADATA_ADMIN_ROLE:
+      return {
+        ...state,
+        metadataAdminRoleIndex: action.payload, // null = Governance Only, or role index
+      };
+
     // Paymaster
     case ACTION_TYPES.TOGGLE_PAYMASTER:
       return {
@@ -1144,6 +1171,23 @@ export function deployerReducer(state, action) {
         ...state,
         paymaster: { ...state.paymaster, ...action.payload },
       };
+
+    // Chain
+    case ACTION_TYPES.SET_SELECTED_CHAIN_ID: {
+      const newChainId = action.payload;
+      const networkConfig = getNetworkByChainId(newChainId);
+      const newFunding = networkConfig?.defaultFunding || '0.05';
+      const newBudgetCap = networkConfig?.defaultBudgetCap || '0.05';
+      return {
+        ...state,
+        selectedChainId: newChainId,
+        paymaster: {
+          ...state.paymaster,
+          fundingAmountEth: newFunding,
+          budgetCapEth: newBudgetCap,
+        },
+      };
+    }
 
     // Validation
     case ACTION_TYPES.SET_ERRORS:

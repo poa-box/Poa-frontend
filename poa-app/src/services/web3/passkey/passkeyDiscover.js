@@ -8,9 +8,7 @@ import { startAuthentication, bufferToBase64URLString } from '@simplewebauthn/br
 import { keccak256, encodePacked } from 'viem';
 import { computeCredentialId } from './passkeyUtils';
 import { findPendingCredentialByCredentialId } from './passkeyStorage';
-
-const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-  'https://api.studio.thegraph.com/query/73367/poa-2/version/latest';
+import { getAllSubgraphUrls } from '../../../config/networks';
 
 /**
  * Trigger WebAuthn discoverable authentication and look up the account from the subgraph.
@@ -45,7 +43,7 @@ export async function discoverPasskeyCredential() {
     keccak256(encodePacked(['bytes32', 'string'], [credentialId, 'poa-salt-v1']))
   ).toString();
 
-  // Look up the account address from the subgraph
+  // Look up the account address across ALL chain subgraphs
   const accountAddress = await lookupAccountByCredentialId(credentialId);
   if (accountAddress) {
     return { credentialId, rawCredentialId, accountAddress, salt };
@@ -66,7 +64,8 @@ export async function discoverPasskeyCredential() {
 }
 
 /**
- * Query the subgraph to find the account address for a given credentialId.
+ * Query ALL chain subgraphs to find the account address for a given credentialId.
+ * Accounts may be deployed on any chain, so we query all mainnet subgraphs in parallel.
  */
 async function lookupAccountByCredentialId(credentialId) {
   const query = `
@@ -79,13 +78,27 @@ async function lookupAccountByCredentialId(credentialId) {
     }
   `;
 
-  const response = await fetch(SUBGRAPH_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, variables: { credentialId } }),
-  });
+  const sources = getAllSubgraphUrls();
 
-  const { data } = await response.json();
-  const credential = data?.passkeyCredentials?.[0];
-  return credential?.account?.id || null;
+  // Query all chains in parallel for fast resolution
+  const results = await Promise.allSettled(
+    sources.map(async (source) => {
+      const response = await fetch(source.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables: { credentialId } }),
+      });
+      const { data } = await response.json();
+      const credential = data?.passkeyCredentials?.[0];
+      return credential?.account?.id || null;
+    })
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) {
+      return result.value;
+    }
+  }
+
+  return null;
 }

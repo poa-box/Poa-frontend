@@ -20,7 +20,7 @@ import {
 import { FiUsers, FiArrowRight, FiCheck, FiStar, FiLock, FiUserPlus } from 'react-icons/fi';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { useClaimRole, useVouches } from '@/hooks';
-import { useAccount } from 'wagmi';
+import { useAuth } from '@/context/AuthContext';
 
 /**
  * GlassLayer - Reusable glassmorphism background component
@@ -47,7 +47,7 @@ export function WelcomeClaimPage({
   claimableRoles,
   eligibilityModuleAddress,
 }) {
-  const { address: userAddress } = useAccount();
+  const { accountAddress: userAddress } = useAuth();
   const {
     claimRole,
     isClaimingHat,

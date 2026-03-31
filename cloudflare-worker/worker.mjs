@@ -4,9 +4,13 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // redirect bare poa.earth -> www.poa.earth
+    // redirect bare domain -> www
     if (url.hostname === 'poa.earth') {
       url.hostname = 'www.poa.earth';
+      return Response.redirect(url.toString(), 301);
+    }
+    if (url.hostname === 'poa.box') {
+      url.hostname = 'www.poa.box';
       return Response.redirect(url.toString(), 301);
     }
 

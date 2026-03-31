@@ -44,7 +44,7 @@ const UserRequestHistory = () => {
   const toast = useToast();
   const { address } = useAccount();
   const { tokenRequest, executeWithNotification } = useWeb3();
-  const { participationTokenAddress } = usePOContext();
+  const { participationTokenAddress, subgraphUrl } = usePOContext();
 
   const [cancellingId, setCancellingId] = useState(null);
 
@@ -56,6 +56,7 @@ const UserRequestHistory = () => {
     },
     skip: !participationTokenAddress || !address,
     fetchPolicy: 'cache-first',
+    context: { subgraphUrl },
   });
 
   // Subscribe to refresh events

@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useReducer, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useMemo, useCallback, useState } from 'react';
 import { useQuery } from '@apollo/client';
-import { GET_ORG_BY_NAME, FETCH_ORG_FULL_DATA } from '../util/queries';
+import { FETCH_ORG_FULL_DATA } from '../util/queries';
 import { useRouter } from 'next/router';
 import { useAccount } from 'wagmi';
 import { useAuth } from './AuthContext';
@@ -8,6 +8,7 @@ import { formatTokenAmount } from '../util/formatToken';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
 import { useIPFScontext } from './ipfsContext';
+import { getSubgraphUrl, getAllSubgraphUrls } from '../config/networks';
 
 const POContext = createContext();
 
@@ -71,8 +72,9 @@ function transformEducationModules(modules) {
 const initialState = {
     // Organization info
     orgId: null,
+    orgChainId: null,
     poDescription: 'No description provided or IPFS content still being indexed',
-    poLinks: {},
+    poLinks: [],
     logoHash: '',
     logoUrl: '',
     metadataAdminHatId: null,
@@ -134,32 +136,82 @@ export const POProvider = ({ children }) => {
         return state.leaderboardData.filter(user => user.hasUsername);
     }, [state.leaderboardData]);
 
-    // Step 1: Look up org by name to get bytes ID
-    const { data: orgLookupData, loading: orgLookupLoading, error: orgLookupError } = useQuery(GET_ORG_BY_NAME, {
-        variables: { name: poName },
-        skip: !poName,
-        fetchPolicy: 'cache-first',
-        onCompleted: (data) => {
-            if (data?.organizations?.[0]) {
-                dispatch({ type: 'SET_ORG_DATA', payload: { orgId: data.organizations[0].id } });
-            }
-        },
-    });
+    // Step 1: Look up org by name across all chains via parallel fetch
+    const [orgLookupLoading, setOrgLookupLoading] = useState(!!poName);
+    const [orgLookupError, setOrgLookupError] = useState(null);
 
-    // Step 2: Fetch full org data using bytes ID
+    useEffect(() => {
+        if (!poName) {
+            setOrgLookupLoading(false);
+            return;
+        }
+        let cancelled = false;
+        setOrgLookupLoading(true);
+        setOrgLookupError(null);
+
+        async function findOrg() {
+            const sources = getAllSubgraphUrls();
+            try {
+                const results = await Promise.all(sources.map(async (source) => {
+                    try {
+                        const res = await fetch(source.url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                query: 'query FindOrg($name: String!) { organizations(where: { name: $name }, first: 1) { id name } }',
+                                variables: { name: poName },
+                            }),
+                        });
+                        const json = await res.json();
+                        const org = json?.data?.organizations?.[0];
+                        return org ? { ...org, chainId: source.chainId } : null;
+                    } catch (err) {
+                        console.warn(`[POContext] Failed to query ${source.name}:`, err.message);
+                        return null;
+                    }
+                }));
+                if (cancelled) return;
+                const found = results.find(Boolean);
+                if (found) {
+                    dispatch({
+                        type: 'SET_ORG_DATA',
+                        payload: { orgId: found.id, orgChainId: found.chainId },
+                    });
+                } else {
+                    console.warn(`[POContext] Organization "${poName}" not found on any chain`);
+                    dispatch({ type: 'SET_LOADING', payload: false });
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    console.error('[POContext] Org lookup failed:', err);
+                    setOrgLookupError(err);
+                }
+            } finally {
+                if (!cancelled) setOrgLookupLoading(false);
+            }
+        }
+
+        findOrg();
+        return () => { cancelled = true; };
+    }, [poName]);
+
+    // Step 2: Fetch full org data using bytes ID, routed to the correct chain's subgraph
+    const subgraphUrl = getSubgraphUrl(state.orgChainId);
+
     const { data: orgData, loading: orgDataLoading, error: orgDataError, refetch: refetchOrgData } = useQuery(FETCH_ORG_FULL_DATA, {
         variables: { orgId: state.orgId },
         skip: !state.orgId,
         fetchPolicy: 'cache-first',
+        context: { subgraphUrl },
     });
 
     // Handle refresh events from Web3 transactions
     const handleRefresh = useCallback(() => {
         if (state.orgId && refetchOrgData) {
-            // Small delay to allow subgraph to index the new data
+            // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
             setTimeout(() => {
                 refetchOrgData();
-            }, 2000);
+            }, 5000);
         }
     }, [state.orgId, refetchOrgData]);
 
@@ -215,15 +267,14 @@ export const POProvider = ({ children }) => {
             const adminHat = org.metadataAdminHatId;
 
             let poDescription = 'No description provided or IPFS content still being indexed';
-            let poLinks = {};
+            let poLinks = [];
             if (org.metadata) {
                 poDescription = org.metadata.description || 'No description provided';
                 if (org.metadata.links && org.metadata.links.length > 0) {
-                    const linksObj = {};
-                    org.metadata.links.forEach(link => {
-                        linksObj[link.name] = link.url;
-                    });
-                    poLinks = linksObj;
+                    poLinks = org.metadata.links.map(link => ({
+                        name: link.name,
+                        url: link.url,
+                    }));
                 }
             } else if (org.metadataHash) {
                 poDescription = 'Organization description loading from IPFS...';
@@ -261,15 +312,15 @@ export const POProvider = ({ children }) => {
                     rules: {
                         HybridVoting: org.hybridVoting ? {
                             id: org.hybridVoting.id,
-                            quorum: org.hybridVoting.quorum,
+                            quorum: org.hybridVoting.thresholdPct,
                         } : null,
                         DirectDemocracyVoting: org.directDemocracyVoting ? {
                             id: org.directDemocracyVoting.id,
-                            quorum: org.directDemocracyVoting.quorumPercentage,
+                            quorum: org.directDemocracyVoting.thresholdPct,
                         } : null,
                         ParticipationVoting: org.hybridVoting ? {
                             id: org.hybridVoting.id,
-                            quorum: org.hybridVoting.quorum,
+                            quorum: org.hybridVoting.thresholdPct,
                         } : null,
                         NFTMembership: null,
                         Treasury: org.executorContract ? {
@@ -309,17 +360,13 @@ export const POProvider = ({ children }) => {
     const loading = orgLookupLoading || orgDataLoading;
     const error = orgLookupError || orgDataError;
 
-    // Handle case where org not found
-    useEffect(() => {
-        if (orgLookupData && !orgLookupData.organizations?.[0] && !orgLookupLoading) {
-            console.warn(`Organization "${poName}" not found in subgraph`);
-            dispatch({ type: 'SET_LOADING', payload: false });
-        }
-    }, [orgLookupData, orgLookupLoading, poName]);
+    // Note: "org not found" is handled inline in the parallel fetch above
 
     const contextValue = useMemo(() => ({
         // Organization info
         orgId: state.orgId,
+        orgChainId: state.orgChainId,
+        subgraphUrl,
         poDescription: state.poDescription,
         poLinks: state.poLinks,
         logoHash: state.logoHash,
@@ -359,7 +406,7 @@ export const POProvider = ({ children }) => {
         creatorHatIds: state.creatorHatIds,
         educationHubEnabled: state.educationHubEnabled,
         roleNames: state.roleNames,
-    }), [state, loading, error, leaderboardDisplayData]);
+    }), [state, loading, error, leaderboardDisplayData, subgraphUrl]);
 
     return (
         <POContext.Provider value={contextValue}>

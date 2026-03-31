@@ -195,13 +195,15 @@ const Navbar = () => {
             <Button
               as={NextLink}
               href={`/user/?userDAO=${userDAO}`}
-              bg="green.500"
+              bgGradient="linear(to-r, green.400, teal.400)"
               color="white"
-              borderRadius="xl"
-              size="sm"
+              borderRadius="full"
+              size="md"
+              px={6}
               fontWeight="600"
-              _hover={{ bg: 'green.600', transform: 'translateY(-1px)', boxShadow: 'md' }}
-              _active={{ bg: 'green.700', transform: 'translateY(0)' }}
+              fontSize="md"
+              _hover={{ bgGradient: 'linear(to-r, green.500, teal.500)', transform: 'translateY(-1px)', boxShadow: 'lg' }}
+              _active={{ bgGradient: 'linear(to-r, green.600, teal.600)', transform: 'translateY(0)' }}
             >
               Join or Sign In
             </Button>
@@ -278,13 +280,13 @@ const Navbar = () => {
                     href={`/user/?userDAO=${userDAO}`}
                     onClick={onClose}
                     w="100%"
-                    bg="green.500"
+                    bgGradient="linear(to-r, green.400, teal.400)"
                     color="white"
-                    borderRadius="xl"
+                    borderRadius="full"
                     size="lg"
                     fontWeight="600"
-                    _hover={{ bg: 'green.600' }}
-                    _active={{ bg: 'green.700' }}
+                    _hover={{ bgGradient: 'linear(to-r, green.500, teal.500)' }}
+                    _active={{ bgGradient: 'linear(to-r, green.600, teal.600)' }}
                   >
                     Join or Sign In
                   </Button>

@@ -1,82 +1,92 @@
 /**
- * Token configuration for bounty payments
- * These are the supported ERC-20 tokens for task bounties on the POP protocol
+ * Token configuration for bounty payments.
+ * Addresses are sourced from network config (per-chain).
+ * Only tokens with real deployed addresses on the current chain are available.
  */
 
-// Hoodi testnet token addresses
-// TODO: Replace with mainnet addresses when deploying to production
-export const BOUNTY_TOKENS = {
-    // Native participation token payout (address zero means PT payout)
-    NONE: {
-        address: '0x0000000000000000000000000000000000000000',
-        symbol: 'PT',
-        name: 'Participation Token',
-        decimals: 18,
-        isDefault: true,
-    },
-    // BREAD token - Hoodi testnet
-    BREAD: {
-        address: '0x0000000000000000000000000000000000000001', // TODO: Add actual BREAD address
-        symbol: 'BREAD',
-        name: 'BREAD',
-        decimals: 18,
-        isDefault: false,
-    },
-    // USDC stablecoin
-    USDC: {
-        address: '0x0000000000000000000000000000000000000002', // TODO: Add actual USDC address
-        symbol: 'USDC',
-        name: 'USD Coin',
-        decimals: 6,
-        isDefault: false,
-    },
-    // DAI stablecoin
-    DAI: {
-        address: '0x0000000000000000000000000000000000000003', // TODO: Add actual DAI address
-        symbol: 'DAI',
-        name: 'Dai Stablecoin',
-        decimals: 18,
-        isDefault: false,
-    },
+import { NETWORKS } from '../config/networks';
+
+// Token metadata (chain-independent)
+const TOKEN_META = {
+  USDC:  { symbol: 'USDC',  name: 'USD Coin', decimals: 6 },
+  DAI:   { symbol: 'DAI',   name: 'Dai Stablecoin', decimals: 18 },
+  BREAD: { symbol: 'BREAD', name: 'Breadchain', decimals: 18 },
+  WXDAI: { symbol: 'WXDAI', name: 'Wrapped xDAI', decimals: 18 },
 };
 
-// Array of tokens for dropdown selectors
-export const BOUNTY_TOKEN_OPTIONS = Object.values(BOUNTY_TOKENS);
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
-// Get token info by address
-export function getTokenByAddress(address) {
-    if (!address || address === '0x0000000000000000000000000000000000000000') {
-        return BOUNTY_TOKENS.NONE;
+// Sentinel for "no bounty token" (PT-only payout)
+export const NO_BOUNTY_TOKEN = {
+  address: ZERO_ADDRESS,
+  symbol: 'PT',
+  name: 'Participation Token',
+  decimals: 18,
+  isDefault: true,
+};
+
+// Build flat address→token lookup across all chains (addresses are globally unique)
+const ADDRESS_LOOKUP = {};
+for (const network of Object.values(NETWORKS)) {
+  if (!network.bountyTokens) continue;
+  for (const [symbol, addr] of Object.entries(network.bountyTokens)) {
+    const meta = TOKEN_META[symbol];
+    if (meta && addr) {
+      ADDRESS_LOOKUP[addr.toLowerCase()] = { address: addr, ...meta, isDefault: false };
     }
-    const normalizedAddress = address.toLowerCase();
-    return BOUNTY_TOKEN_OPTIONS.find(
-        token => token.address.toLowerCase() === normalizedAddress
-    ) || {
-        address: address,
-        symbol: 'UNKNOWN',
-        name: 'Unknown Token',
-        decimals: 18,
-        isDefault: false,
-    };
+  }
 }
 
-// Get token info by symbol
-export function getTokenBySymbol(symbol) {
-    return BOUNTY_TOKENS[symbol.toUpperCase()] || BOUNTY_TOKENS.NONE;
+/**
+ * Get the list of available bounty tokens for a given chain.
+ * Returns only tokens with real deployed addresses on that chain.
+ */
+export function getBountyTokenOptions(chainId) {
+  const network = Object.values(NETWORKS).find(n => n.chainId === chainId);
+  if (!network?.bountyTokens) return [];
+  return Object.entries(network.bountyTokens)
+    .filter(([symbol, addr]) => addr && TOKEN_META[symbol])
+    .map(([symbol, addr]) => ({ address: addr, ...TOKEN_META[symbol], isDefault: false }));
 }
 
-// Format token amount based on decimals
-export function formatBountyAmount(amount, tokenAddress) {
-    const token = getTokenByAddress(tokenAddress);
-    const divisor = Math.pow(10, token.decimals);
-    const formatted = (Number(amount) / divisor).toFixed(token.decimals === 6 ? 2 : 4);
-    return `${formatted} ${token.symbol}`;
+/**
+ * Look up token info by on-chain address. Works across all configured chains.
+ */
+export function getTokenByAddress(address) {
+  if (!address || address === ZERO_ADDRESS) return NO_BOUNTY_TOKEN;
+  return ADDRESS_LOOKUP[address.toLowerCase()] || {
+    address,
+    symbol: 'ERC20',
+    name: 'Unknown Token',
+    decimals: 18,
+    isDefault: false,
+  };
 }
 
-// Check if bounty is set (non-zero address and amount)
+/**
+ * Check if a task has a bounty configured (non-zero token and amount).
+ */
 export function hasBounty(bountyToken, bountyAmount) {
-    return bountyToken &&
-           bountyToken !== '0x0000000000000000000000000000000000000000' &&
-           bountyAmount &&
-           Number(bountyAmount) > 0;
+  return bountyToken &&
+    bountyToken !== ZERO_ADDRESS &&
+    bountyAmount &&
+    Number(bountyAmount) > 0;
 }
+
+/**
+ * Format a raw wei bounty amount to human-readable using the token's decimals.
+ */
+export function formatBountyAmount(weiAmount, tokenAddress) {
+  if (!weiAmount || weiAmount === '0') return '0';
+  const token = getTokenByAddress(tokenAddress);
+  const divisor = Math.pow(10, token.decimals);
+  const displayDecimals = token.decimals <= 6 ? 2 : 4;
+  const formatted = (Number(weiAmount) / divisor).toFixed(displayDecimals);
+  return `${formatted} ${token.symbol}`;
+}
+
+// --- Legacy exports (used by AddTaskModal, EditTaskModal) ---
+// BOUNTY_TOKENS.NONE is still needed as the "no bounty" sentinel.
+// BOUNTY_TOKEN_OPTIONS is replaced by getBountyTokenOptions(chainId) in components.
+export const BOUNTY_TOKENS = { NONE: NO_BOUNTY_TOKEN };
+export const BOUNTY_TOKEN_OPTIONS = Object.values(ADDRESS_LOOKUP);

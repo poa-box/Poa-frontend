@@ -112,12 +112,13 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks = [], tokenAddress }) => {
-  const { leaderboardData } = usePOContext();
+  const { leaderboardData, subgraphUrl } = usePOContext();
 
   // Fetch token requests
   const { data: requestsData, loading: requestsLoading } = useQuery(FETCH_ALL_TOKEN_REQUESTS, {
     variables: { tokenAddress: tokenAddress?.toLowerCase() },
     skip: !tokenAddress || !isOpen,
+    context: { subgraphUrl },
   });
 
   // Get approved token requests

@@ -236,7 +236,7 @@ function groupMembersByRole(users, roles) {
  * @returns {Object} Org structure data and utilities
  */
 export function useOrgStructure() {
-  const { orgId, roleHatIds, topHatId } = usePOContext();
+  const { orgId, roleHatIds, topHatId, subgraphUrl } = usePOContext();
   const { safeFetchFromIpfs, safeFetchImageFromIpfs } = useIPFScontext();
 
   // State for IPFS metadata
@@ -254,6 +254,7 @@ export function useOrgStructure() {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
+    context: { subgraphUrl },
   });
 
   const org = data?.organization;
@@ -346,11 +347,11 @@ export function useOrgStructure() {
     return {
       hybridVoting: org?.hybridVoting ? {
         id: org.hybridVoting.id,
-        quorum: org.hybridVoting.quorum,
+        quorum: org.hybridVoting.thresholdPct,
       } : null,
       directDemocracyVoting: org?.directDemocracyVoting ? {
         id: org.directDemocracyVoting.id,
-        quorumPercentage: org.directDemocracyVoting.quorumPercentage,
+        quorumPercentage: org.directDemocracyVoting.thresholdPct,
       } : null,
     };
   }, [org?.hybridVoting, org?.directDemocracyVoting]);
