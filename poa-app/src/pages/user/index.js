@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useWeb3, useOrgStructure, useClaimRole, useVouches, useVouchFirstOnboarding } from "@/hooks";
 import { usePOContext } from "@/context/POContext";
 import { useUserContext } from "@/context/UserContext";
+import { findUsernameAcrossChains } from "@/util/crossChainUsername";
 import { useRouter } from 'next/router';
 import {
   VStack,
@@ -86,6 +87,16 @@ const User = () => {
     return roles.some(r => r.vouchingEnabled);
   }, [roles]);
 
+  // Cross-chain username: check if user already has a username on any chain
+  const [crossChainUsername, setCrossChainUsername] = useState(null);
+  useEffect(() => {
+    const addr = accountAddress || address;
+    if (!addr) return;
+    findUsernameAcrossChains(addr).then(({ username }) => {
+      if (username) setCrossChainUsername(username);
+    }).catch(() => {});
+  }, [accountAddress, address]);
+
   const [newUsername, setNewUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [dispaly, setDispaly] = useState(true);
@@ -115,6 +126,8 @@ const User = () => {
   const vouchFirstHook = useVouchFirstOnboarding({
     orgName: userDAO,
     refetchVouches,
+    eligibilityModuleAddress,
+    existingUsername: crossChainUsername,
   });
 
   // Compute vouch progress for the pending credential (if any)
@@ -694,20 +707,28 @@ const User = () => {
                       {/* Complete Join button — shown when quorum met AND quorum is actually known */}
                       {vouchFirstPendingProgress?.isComplete && vouchFirstPendingProgress.quorum > 0 ? (
                         <VStack spacing={3}>
-                          <InputGroup size={isMobile ? "md" : "lg"}>
-                            <Input
-                              placeholder="Choose a username"
-                              value={newUsername}
-                              onChange={(e) => setNewUsername(e.target.value)}
-                              bg={inputBg}
-                              borderColor={inputBorderColor}
-                              _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
-                              ref={usernameInputRef}
-                            />
-                            <InputRightElement width="4.5rem">
-                              <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
-                            </InputRightElement>
-                          </InputGroup>
+                          {crossChainUsername ? (
+                            /* User already has a username on another chain — show it, skip input */
+                            <Text fontSize="sm" color={hintColor}>
+                              Joining as <strong>{crossChainUsername}</strong>
+                            </Text>
+                          ) : (
+                            /* New user — ask for username */
+                            <InputGroup size={isMobile ? "md" : "lg"}>
+                              <Input
+                                placeholder="Choose a username"
+                                value={newUsername}
+                                onChange={(e) => setNewUsername(e.target.value)}
+                                bg={inputBg}
+                                borderColor={inputBorderColor}
+                                _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
+                                ref={usernameInputRef}
+                              />
+                              <InputRightElement width="4.5rem">
+                                <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
+                              </InputRightElement>
+                            </InputGroup>
+                          )}
                           <Button
                             colorScheme="teal"
                             size="lg"
@@ -715,10 +736,10 @@ const User = () => {
                             height={buttonHeight}
                             isLoading={vouchFirstHook.phase === VouchFirstPhase.COMPLETING}
                             loadingText={vouchFirstHook.stepMessage || "Completing..."}
-                            onClick={() => vouchFirstHook.completeOnboarding(newUsername.trim())}
-                            isDisabled={!newUsername.trim()}
+                            onClick={() => vouchFirstHook.completeOnboarding(crossChainUsername || newUsername.trim())}
+                            isDisabled={!crossChainUsername && !newUsername.trim()}
                             leftIcon={<FaCheck />}
-                            animation={newUsername ? `${pulse} 2s infinite` : undefined}
+                            animation={(crossChainUsername || newUsername) ? `${pulse} 2s infinite` : undefined}
                           >
                             Complete Join
                           </Button>
