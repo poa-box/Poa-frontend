@@ -8,9 +8,7 @@ import { startAuthentication, bufferToBase64URLString } from '@simplewebauthn/br
 import { keccak256, encodePacked } from 'viem';
 import { computeCredentialId } from './passkeyUtils';
 import { findPendingCredentialByCredentialId } from './passkeyStorage';
-import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
-
-const SUBGRAPH_URL = NETWORKS[DEFAULT_NETWORK].subgraphUrl;
+import { getAllSubgraphUrls } from '../../../config/networks';
 
 /**
  * Trigger WebAuthn discoverable authentication and look up the account from the subgraph.
@@ -45,7 +43,7 @@ export async function discoverPasskeyCredential() {
     keccak256(encodePacked(['bytes32', 'string'], [credentialId, 'poa-salt-v1']))
   ).toString();
 
-  // Look up the account address from the subgraph
+  // Look up the account address across ALL chain subgraphs
   const accountAddress = await lookupAccountByCredentialId(credentialId);
   if (accountAddress) {
     return { credentialId, rawCredentialId, accountAddress, salt };
@@ -66,8 +64,8 @@ export async function discoverPasskeyCredential() {
 }
 
 /**
- * Query the subgraph to find the account address for a given credentialId.
- * Retries up to 3 times with short delays to handle indexing lag.
+ * Query ALL chain subgraphs to find the account address for a given credentialId.
+ * Accounts may be deployed on any chain, so we query all mainnet subgraphs in parallel.
  */
 async function lookupAccountByCredentialId(credentialId) {
   const query = `
@@ -80,25 +78,25 @@ async function lookupAccountByCredentialId(credentialId) {
     }
   `;
 
-  const MAX_RETRIES = 3;
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      const response = await fetch(SUBGRAPH_URL, {
+  const sources = getAllSubgraphUrls();
+
+  // Query all chains in parallel for fast resolution
+  const results = await Promise.allSettled(
+    sources.map(async (source) => {
+      const response = await fetch(source.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ query, variables: { credentialId } }),
       });
-
       const { data } = await response.json();
       const credential = data?.passkeyCredentials?.[0];
-      if (credential?.account?.id) return credential.account.id;
-    } catch (err) {
-      console.warn(`[passkeyDiscover] Subgraph lookup attempt ${attempt + 1} failed:`, err.message);
-    }
+      return credential?.account?.id || null;
+    })
+  );
 
-    // Wait before retry (1s, 2s)
-    if (attempt < MAX_RETRIES - 1) {
-      await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value) {
+      return result.value;
     }
   }
 
