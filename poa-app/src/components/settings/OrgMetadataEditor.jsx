@@ -259,17 +259,18 @@ export default function OrgMetadataEditor({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Update form when props change
+  // Update form when props change (e.g., after successful save + subgraph re-index).
+  // Do NOT reset logoURL here — it's set by user actions (upload/remove) only.
+  // Resetting it would clobber an in-progress upload with the old CID.
   useEffect(() => {
     setName(currentName || '');
     setDescription(currentDescription || '');
-    setLogoURL(currentLogoHash || '');
     setLinks(
       Array.isArray(currentLinks)
         ? currentLinks
         : Object.entries(currentLinks || {}).map(([name, url]) => ({ name, url }))
     );
-  }, [currentName, currentDescription, currentLinks, currentLogoHash]);
+  }, [currentName, currentDescription, currentLinks]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
