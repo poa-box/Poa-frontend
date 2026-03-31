@@ -707,27 +707,10 @@ const User = () => {
                       {/* Complete Join button — shown when quorum met AND quorum is actually known */}
                       {vouchFirstPendingProgress?.isComplete && vouchFirstPendingProgress.quorum > 0 ? (
                         <VStack spacing={3}>
-                          {crossChainUsername ? (
-                            /* User already has a username on another chain — show it, skip input */
+                          {crossChainUsername && (
                             <Text fontSize="sm" color={hintColor}>
                               Joining as <strong>{crossChainUsername}</strong>
                             </Text>
-                          ) : (
-                            /* New user — ask for username */
-                            <InputGroup size={isMobile ? "md" : "lg"}>
-                              <Input
-                                placeholder="Choose a username"
-                                value={newUsername}
-                                onChange={(e) => setNewUsername(e.target.value)}
-                                bg={inputBg}
-                                borderColor={inputBorderColor}
-                                _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
-                                ref={usernameInputRef}
-                              />
-                              <InputRightElement width="4.5rem">
-                                <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
-                              </InputRightElement>
-                            </InputGroup>
                           )}
                           <Button
                             colorScheme="teal"
@@ -736,10 +719,9 @@ const User = () => {
                             height={buttonHeight}
                             isLoading={vouchFirstHook.phase === VouchFirstPhase.COMPLETING}
                             loadingText={vouchFirstHook.stepMessage || "Completing..."}
-                            onClick={() => vouchFirstHook.completeOnboarding(crossChainUsername || newUsername.trim())}
-                            isDisabled={!crossChainUsername && !newUsername.trim()}
+                            onClick={() => vouchFirstHook.completeOnboarding(crossChainUsername || '')}
                             leftIcon={<FaCheck />}
-                            animation={(crossChainUsername || newUsername) ? `${pulse} 2s infinite` : undefined}
+                            animation={`${pulse} 2s infinite`}
                           >
                             Complete Join
                           </Button>

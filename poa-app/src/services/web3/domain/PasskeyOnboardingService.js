@@ -174,57 +174,21 @@ export class PasskeyOnboardingService {
    * @returns {string} Encoded callData for the UserOp (batch execute)
    */
   async _buildVouchClaimCallData(credential, accountAddress, username, onStep) {
-    const { credentialId, publicKeyX, publicKeyY, salt, rawCredentialId } = credential;
-
-    // Build the claimVouchedHat call
+    // Vouch-claim path: just claim the hat via EligibilityModule.
+    // Username registration is handled separately (either the user already has one
+    // from another chain, or it's registered via the solidarity onboarding path).
+    // We can't batch registry calls with the hat claim because the org's paymaster
+    // rules only whitelist org contracts, not the global UniversalAccountRegistry.
     const claimData = encodeFunctionData({
       abi: EligibilityModuleABI,
       functionName: 'claimVouchedHat',
       args: [BigInt(this.hatId)],
     });
 
-    // If user already has a username on another chain, just claim the hat (single call)
-    if (this.existingUsername) {
-      return encodeFunctionData({
-        abi: PasskeyAccountABI,
-        functionName: 'execute',
-        args: [this.eligibilityModuleAddress, 0n, claimData],
-      });
-    }
-
-    // Otherwise: register username + claim hat in a batch call
-    const nonce = await this._getRegistryNonce(accountAddress);
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + REGISTRATION_DEADLINE_SECONDS);
-
-    // Compute and sign the EIP-712 registration challenge
-    const challengeHash = computeRegistrationChallenge({
-      accountAddress,
-      username,
-      nonce,
-      deadline,
-      chainId: this.chainId,
-      registryAddress: this.registryAddress,
-    });
-
-    onStep(OnboardingStep.SIGNING_REGISTRATION);
-    const auth = await signRegistrationChallenge(challengeHash, rawCredentialId);
-
-    // Build registerAccountByPasskeySig call
-    const registerData = encodeFunctionData({
-      abi: UniversalAccountRegistryABI,
-      functionName: 'registerAccountByPasskeySig',
-      args: [credentialId, publicKeyX, publicKeyY, salt, username, deadline, nonce, auth],
-    });
-
-    // Batch: [registerUsername, claimVouchedHat]
     return encodeFunctionData({
       abi: PasskeyAccountABI,
-      functionName: 'executeBatch',
-      args: [
-        [this.registryAddress, this.eligibilityModuleAddress],
-        [0n, 0n],
-        [registerData, claimData],
-      ],
+      functionName: 'execute',
+      args: [this.eligibilityModuleAddress, 0n, claimData],
     });
   }
 
