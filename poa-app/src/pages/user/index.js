@@ -261,7 +261,7 @@ const User = () => {
 
     // Determine the hat to claim from vouch progress
     const vouchedHatId = authenticatedUserVouchProgress?.hatId
-      || pendingApplicationProgress?.isComplete && pendingVouchApplication?.hatId
+      || (pendingApplicationProgress?.isComplete ? pendingVouchApplication?.hatId : null)
       || null;
 
     let joinFn;
@@ -311,7 +311,7 @@ const User = () => {
 
     // Determine the hat to claim from vouch progress
     const vouchedHatId = authenticatedUserVouchProgress?.hatId
-      || pendingApplicationProgress?.isComplete && pendingVouchApplication?.hatId
+      || (pendingApplicationProgress?.isComplete ? pendingVouchApplication?.hatId : null)
       || null;
 
     let joinFn;
@@ -332,11 +332,12 @@ const User = () => {
       }
 
       if (vouchedHatId) {
-        // Vouched passkey: registerAndClaimHatsWithPasskey via OrganizationService
-        // (This goes through the same registerAndJoinNewUser path but with claim hats)
-        // For passkey, the onboarding service handles this in _buildVouchClaimCallData
-        joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
+        // Vouched passkey: registerAndClaimHatsWithPasskey (register + claim specific hat)
+        const claimHatIds = [BigInt(vouchedHatId)];
+        console.log('[Join] Vouched passkey: register + claim hat', vouchedHatId);
+        joinFn = () => organization.registerAndClaimHatsNewUser(quickJoinContractAddress, newUsername, credential, claimHatIds);
       } else {
+        // Standard passkey: registerAndQuickJoinWithPasskey (register + mint memberHatIds)
         joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
       }
     } else {
