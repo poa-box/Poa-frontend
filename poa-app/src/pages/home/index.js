@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import styled, { keyframes, css } from 'styled-components';
 import {
   Box,
   Flex,
@@ -8,552 +7,386 @@ import {
   Text,
   Button,
   VStack,
-  Container,
   Image,
-  Link,
-  useBreakpointValue,
   HStack,
-  IconButton,
-  useDisclosure,
-  Drawer,
-  DrawerBody,
-  DrawerHeader,
-  DrawerOverlay,
-  DrawerContent,
-  DrawerCloseButton,
-  useColorModeValue,
-  Divider,
-  Badge,
-  chakra,
+  Icon,
+  SimpleGrid,
 } from "@chakra-ui/react";
-import { HamburgerIcon } from '@chakra-ui/icons';
-import Link2 from "next/link";
+import { motion } from "framer-motion";
+import { FaLink, FaUsers, FaSearch, FaArrowRight, FaExternalLinkAlt } from "react-icons/fa";
+import { FiUsers, FiActivity, FiCheckCircle } from "react-icons/fi";
+import Link from "next/link";
 import { usePOContext } from "@/context/POContext";
 import { useIPFScontext } from "@/context/ipfsContext";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 
-// CSS for the wave animation (slowed down and more subtle)
-const waveAnimation = keyframes`
-  0% {
-    transform: translateX(0) translateY(0);
+// Same gradient generator as the explore/browser page
+const getOrgGradient = (name) => {
+  let hash = 2166136261;
+  for (let i = 0; i < name.length; i++) {
+    hash ^= name.charCodeAt(i);
+    hash = (hash * 16777619) | 0;
   }
-  50% {
-    transform: translateX(-50px) translateY(15px);
-  }
-  100% {
-    transform: translateX(0) translateY(0);
-  }
-`;
+  const colors = [
+    ["#9055E8", "#E85D85"],
+    ["#E85D85", "#F06543"],
+    ["#6366F1", "#06B6D4"],
+    ["#F06543", "#FACC15"],
+    ["#7C3AED", "#3B82F6"],
+    ["#EC4899", "#F06543"],
+    ["#06B6D4", "#9055E8"],
+    ["#3B82F6", "#6366F1"],
+  ];
+  const angles = [135, 150, 120, 160, 140, 125, 155, 130];
+  const idx = Math.abs(hash) % colors.length;
+  const angle = angles[Math.abs(hash >> 4) % angles.length];
+  return `linear-gradient(${angle}deg, ${colors[idx][0]} 0%, ${colors[idx][1]} 100%)`;
+};
 
-// CSS for the floating effect
-const floatingAnimation = keyframes`
-  0% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-10px);
-  }
-  100% {
-    transform: translateY(0);
-  }
-`;
+const AVATAR_SIZE = { base: "140px", md: "180px" };
 
-// Subtle pulse animation for buttons and interactive elements
-const pulseAnimation = keyframes`
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.03);
-  }
-  100% {
-    transform: scale(1);
-  }
-`;
+const cardStyle = {
+  bg: "rgba(255, 255, 255, 0.04)",
+  border: "1px solid rgba(255, 255, 255, 0.08)",
+  borderRadius: "2xl",
+};
 
-// Fade-in animation for content
-const fadeIn = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-`;
-
-// Improved wave background with peach/pink gradient but transparent base
-const WaveBackground = styled.div`
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1;
-  background: transparent;
-  overflow: hidden;
-  pointer-events: none;
-  
-  &::before, &::after {
-    content: '';
-    position: absolute;
-    width: 150%;
-    height: 150%;
-    top: -25%;
-    left: -25%;
-    background: transparent; 
-    animation: ${waveAnimation} 15s ease-in-out infinite;
-    pointer-events: none;
-  }
-  
-  &::after {
-    top: 30%;
-    left: 20%;
-    background: radial-gradient(ellipse at center, rgba(232, 161, 232, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
-    animation-delay: -5s;
-    animation-duration: 20s;
-  }
-  
-  @media (max-width: 768px) {
-    height: 100%;
-    &::before, &::after {
-      opacity: 0.8;
-    }
-  }
-`;
-
-// Styled components with animations
-const AnimatedBox = styled(Box)`
-  animation: ${fadeIn} 0.8s ease-out forwards;
-  animation-delay: ${props => props.delay || '0s'};
-  opacity: 0;
-`;
-
-const PulseButton = styled(Button)`
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease;
-  
-  &:hover {
-    animation: ${pulseAnimation} 2s infinite;
-    box-shadow: 0 0 15px rgba(91, 212, 199, 0.5);
-  }
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(
-      90deg,
-      transparent,
-      rgba(255, 255, 255, 0.2),
-      transparent
-    );
-    transition: 0.5s;
-  }
-  
-  &:hover::before {
-    left: 100%;
-  }
-`;
-
-// Enhanced hovering badge with subtle animation
-const EnhancedBadge = styled(Box)`
-  background: rgba(15, 15, 15, 0.7);
-  color: white;
-  border-radius: 20px;
-  font-size: 0.8rem;
-  font-weight: 500;
-  padding: 0.35em 0.8em;
-  letter-spacing: 0.5px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-    background: rgba(30, 30, 30, 0.8);
-    border-color: rgba(255, 255, 255, 0.2);
-  }
-`;
-
-// Artistic Card with refined glass effect
-const GlassCard = styled(Box)`
-  background: rgba(35, 30, 25, 0.85);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  transform: perspective(1000px) translateZ(0);
-  overflow: hidden;
-  position: relative;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.2), transparent);
-  }
-  
-  &:hover {
-    transform: perspective(1000px) translateZ(10px);
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.15) inset;
-    border: 1px solid rgba(255, 255, 255, 0.25);
-  }
-  
-  @media (max-width: 768px) {
-    width: 92%;
-    margin: 0 auto;
-    background: rgba(35, 30, 25, 0.9);
-  }
-`;
-
-// Dark artistic card
-const DarkGlassCard = styled(Box)`
-  background: rgba(10, 10, 10, 0.9);
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset;
-  transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  transform: perspective(1000px) translateZ(0);
-  overflow: hidden;
-  position: relative;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 1px;
-    background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.1), transparent);
-  }
-  
-  &:hover {
-    transform: perspective(1000px) translateZ(10px);
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.1) inset;
-    border: 1px solid rgba(255, 255, 255, 0.15);
-  }
-  
-  @media (max-width: 768px) {
-    width: 92%;
-    margin: 0 auto;
-    background: rgba(10, 10, 10, 0.95);
-  }
-`;
-
-// Refined button with animation and style
-const ArtisticButton = styled(Button)`
-  background: linear-gradient(135deg, #65B891 0%, #4C9A7A 100%);
-  color: white;
-  border-radius: 30px;
-  border: none;
-  padding: 0.7em 1.8em;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  position: relative;
-  overflow: hidden;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease;
-  
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-    transition: 0.5s;
-  }
-  
-  &:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
-    background: linear-gradient(135deg, #59A583 0%, #3E8C6C 100%);
-    
-    &::before {
-      left: 100%;
-    }
-  }
-  
-  &:active {
-    transform: translateY(1px);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-  }
-`;
+const GradientAvatar = ({ name, orgGradient }) => (
+  <Flex
+    w={AVATAR_SIZE}
+    h={AVATAR_SIZE}
+    borderRadius="2xl"
+    background={orgGradient}
+    align="center"
+    justify="center"
+    boxShadow="0 8px 32px rgba(0, 0, 0, 0.25)"
+  >
+    <Text
+      fontSize={{ base: "5xl", md: "6xl" }}
+      fontWeight="700"
+      color="white"
+      textTransform="uppercase"
+      userSelect="none"
+    >
+      {name ? name.charAt(0) : ""}
+    </Text>
+  </Flex>
+);
 
 const Home = () => {
-  const{logoHash, poDescription, poLinks} = usePOContext();
-
+  const { logoHash, poDescription, poLinks, poMembers, activeTaskAmount, completedTaskAmount } = usePOContext();
   const router = useRouter();
   const { userDAO } = router.query;
-
   const { fetchImageFromIpfs } = useIPFScontext();
 
   const [image, setImage] = useState(null);
-  const isMobile = useBreakpointValue({ base: true, md: false });
-  const [isLoaded, setIsLoaded] = useState(false);
-
-  // This ensures navbar gets rendered only after userDAO is available
+  const [imageError, setImageError] = useState(false);
   const [isNavbarReady, setIsNavbarReady] = useState(false);
 
-  // Check and log poLinks to debug
   useEffect(() => {
-    console.log('poLinks type:', typeof poLinks, poLinks);
-  }, [poLinks]);
-
-  useEffect(() => {
-    // Set navbar ready when userDAO is available
-    if (userDAO) {
-      setIsNavbarReady(true);
-    }
+    if (userDAO) setIsNavbarReady(true);
   }, [userDAO]);
 
   useEffect(() => {
     const fetchImage = async () => {
-      console.log('logoHash', logoHash);
       if (logoHash) {
-        const imageUrl = await fetchImageFromIpfs(logoHash);
-        setImage(imageUrl);
+        try {
+          const imageUrl = await fetchImageFromIpfs(logoHash);
+          setImage(imageUrl);
+        } catch {
+          setImageError(true);
+        }
       }
     };
-
     fetchImage();
-    
-    // Set loaded state after a short delay for animations
-    const timer = setTimeout(() => {
-      setIsLoaded(true);
-    }, 100);
-    
-    return () => clearTimeout(timer);
   }, [logoHash]);
+
+  const orgGradient = userDAO ? getOrgGradient(userDAO) : "linear-gradient(135deg, #9055E8, #E85D85)";
+  const showImage = image && !imageError;
+  const hasLinks = Array.isArray(poLinks) && poLinks.length > 0;
 
   return (
     <>
-      {/* Only render Navbar after userDAO is available to prevent undefined props */}
       {isNavbarReady && <Navbar userDAO={userDAO} />}
-      
-      <WaveBackground />
-      
-      <Box 
-        pt={{ base: "80px", md: "100px" }} /* Increased to ensure content is below navbar */
-        position="relative" 
+
+      {/* Page background */}
+      <Box
+        position="fixed"
+        top={0}
+        left={0}
+        right={0}
+        bottom={0}
+        bg="#2b2b33"
+        zIndex={-2}
+      />
+
+      {/* Ambient glow from org gradient */}
+      <Box
+        position="fixed"
+        top="-5%"
+        left="50%"
+        transform="translateX(-50%)"
+        w={{ base: "600px", md: "900px" }}
+        h={{ base: "600px", md: "800px" }}
+        background={orgGradient}
+        opacity={0.12}
+        filter="blur(120px)"
+        pointerEvents="none"
+        borderRadius="50%"
+        zIndex={-1}
+      />
+
+      <Box
+        pt={{ base: "100px", md: "120px" }}
+        pb={{ base: 12, md: 20 }}
+        position="relative"
         minH="100vh"
         display="flex"
         flexDirection="column"
         alignItems="center"
         justifyContent="center"
-        zIndex={1} /* Ensure content is above background but below navbar */
+        zIndex={1}
       >
-        <VStack 
-          spacing={{ base: 8, md: 12 }} 
-          w="100%" 
-          px={4} 
-          py={{ base: 6, md: 10 }}
-          maxW="1200px"
+        <VStack
+          spacing={{ base: 6, md: 8 }}
+          w="100%"
+          px={4}
+          maxW="640px"
           mx="auto"
         >
-          <AnimatedBox 
-            delay="0.1s" 
-            width={{ base: "92%", md: "65%" }}
-            display={isLoaded ? "block" : "none"}
-            transform="translateZ(0)"
+          {/* Avatar */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
           >
-            <GlassCard p={{ base: 6, md: 8 }}>
-              <VStack spacing={5} align="center">
-                <Heading 
-                  as="h1" 
-                  fontSize={{ base: "2xl", md: "4xl" }} 
-                  color="white" 
-                  textAlign="center"
-                  letterSpacing="tight"
-                  fontWeight="extrabold"
-                  textShadow="0 2px 4px rgba(0,0,0,0.3)"
-                  bgGradient="linear(to-r, white, #f0f0f0)"
-                  bgClip="text"
-                >
-              Welcome to {userDAO} 
-            </Heading>
-                
-                <Text 
-                  fontSize={{ base: "md", md: "lg" }} 
-                  color="white" 
-                  textAlign="center"
-                  px={{ base: 1, md: 6 }}
-                  lineHeight="tall"
-                  fontWeight="medium"
-                  letterSpacing="0.3px"
-                  maxW="760px"
-                  mx="auto"
-                >
-                  An organization built with Poa. Fully owned and controlled
-                  by the {userDAO} community itself. Learn more about how to build your
-                  own censorship-resistant, fully community-owned organization at
-                </Text>
-                
-                <Link2 href="https://poa.community">
-                  <Text 
-                    color="#79dcba" 
-                    textAlign="center" 
-                    fontSize={{ base: "md", md: "md" }}
-                    fontWeight="bold"
-                    textDecoration="underline"
-                    _hover={{ color: "#8FEFD9", textDecoration: "none" }}
-                    transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
-                    letterSpacing="0.5px"
-                  >
-                    poa.community
-            </Text>
-                </Link2>
-                
-            <Link2 href={`/user/?userDAO=${userDAO}`}>
-                  <ArtisticButton
-                    size={{ base: "md", md: "lg" }}
-                    mt={4}
-                    mb={2}
+            {showImage ? (
+              <Box
+                w={AVATAR_SIZE}
+                h={AVATAR_SIZE}
+                borderRadius="2xl"
+                overflow="hidden"
+                boxShadow="0 8px 32px rgba(0, 0, 0, 0.25)"
               >
-                Join or Login
-                  </ArtisticButton>
-            </Link2>
-                
-                <HStack mt={3} spacing={3} wrap="wrap" justify="center">
-                  <EnhancedBadge>
-                    <Box as="span" mr={1} fontSize="0.9em">🔗</Box> Decentralized
-                  </EnhancedBadge>
-                  <EnhancedBadge>
-                    <Box as="span" mr={1} fontSize="0.9em">👥</Box> Community-Owned
-                  </EnhancedBadge>
-                  <EnhancedBadge>
-                    <Box as="span" mr={1} fontSize="0.9em">🔍</Box> Transparent
-                  </EnhancedBadge>
-                </HStack>
-              </VStack>
-            </GlassCard>
-          </AnimatedBox>
+                <Image
+                  src={image}
+                  alt="Organization Logo"
+                  w="100%"
+                  h="100%"
+                  objectFit="cover"
+                  onError={() => setImageError(true)}
+                />
+              </Box>
+            ) : (
+              <GradientAvatar name={userDAO} orgGradient={orgGradient} />
+            )}
+          </motion.div>
 
-          <AnimatedBox 
-            delay="0.3s" 
-            width={{ base: "92%", md: "65%" }}
-            display={isLoaded ? "block" : "none"}
-            transform="translateZ(0)"
+          {/* Org name and description */}
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
+            style={{ width: "100%", textAlign: "center" }}
           >
-            <DarkGlassCard p={{ base: 6, md: 8 }}>
-              <VStack spacing={5} align="center">
-                <Heading 
-                  as="h2" 
-                  fontSize={{ base: "xl", md: "2xl" }} 
-                  color="white"
-                  textAlign="center"
-                  fontWeight="bold"
-                  letterSpacing="wide"
-                  bgGradient="linear(to-r, white, #f0f0f0)"
-                  bgClip="text"
-                >
-              About {userDAO}
-            </Heading>
-                
-            <Text
-                  fontSize={{ base: "md", md: "md" }}
-                  color="white"
-              textAlign="left"
-                  lineHeight="tall"
-                  fontWeight="medium"
-                  letterSpacing="0.3px"
-                  maxW="760px"
-                  mx="auto"
+            <Heading
+              as="h1"
+              fontSize={{ base: "3xl", md: "4xl" }}
+              color="white"
+              fontWeight="700"
+              letterSpacing="-0.02em"
+              mb={3}
             >
-              {poDescription}
-            </Text>
-                
-                {image && (
-                  <Box 
-                    bg="rgba(255, 255, 255, 0.05)" 
-                    p={4} 
-                    borderRadius="xl" 
-                    width={{ base: "70%", md: "50%" }}
-                    mx="auto"
-                    mt={4}
-                    border="1px solid rgba(255, 255, 255, 0.1)"
-                    transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
-                    boxShadow="0 4px 12px rgba(0, 0, 0, 0.2)"
-                    _hover={{
-                      transform: "scale(1.02) translateY(-5px)",
-                      boxShadow: "0 15px 30px rgba(0, 0, 0, 0.2)",
-                      border: "1px solid rgba(255, 255, 255, 0.2)"
-                    }}
+              {userDAO || ""}
+            </Heading>
+
+            {poDescription && (
+              <Text
+                fontSize={{ base: "md", md: "lg" }}
+                color="whiteAlpha.700"
+                lineHeight="1.7"
+                fontWeight="500"
+                maxW="480px"
+                mx="auto"
+              >
+                {poDescription}
+              </Text>
+            )}
+          </motion.div>
+
+          {/* Stats Card */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            style={{ width: "100%" }}
+          >
+            <Box {...cardStyle} p={{ base: 4, md: 6 }}>
+              <SimpleGrid columns={3} spacing={{ base: 2, md: 4 }}>
+                {[
+                  { icon: FiUsers, value: poMembers || "0", label: "Members", color: "purple.300" },
+                  { icon: FiActivity, value: activeTaskAmount || "0", label: "Active Tasks", color: "blue.300" },
+                  { icon: FiCheckCircle, value: completedTaskAmount || "0", label: "Completed", color: "green.300" },
+                ].map((stat) => (
+                  <VStack key={stat.label} spacing={1}>
+                    <Icon as={stat.icon} color={stat.color} boxSize={{ base: 4, md: 5 }} />
+                    <Text
+                      fontSize={{ base: "xl", md: "2xl" }}
+                      fontWeight="700"
+                      color="white"
+                    >
+                      {stat.value}
+                    </Text>
+                    <Text
+                      fontSize="xs"
+                      color="whiteAlpha.500"
+                      fontWeight="500"
+                    >
+                      {stat.label}
+                    </Text>
+                  </VStack>
+                ))}
+              </SimpleGrid>
+            </Box>
+          </motion.div>
+
+          {/* CTA */}
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+          >
+            <Link href={`/user/?userDAO=${userDAO}`} passHref legacyBehavior>
+              <Button
+                as="a"
+                size="lg"
+                bg="white"
+                color="gray.900"
+                borderRadius="full"
+                fontWeight="600"
+                px={8}
+                rightIcon={<Icon as={FaArrowRight} boxSize={3} />}
+                _hover={{
+                  transform: "translateY(-1px)",
+                  boxShadow: "0 4px 24px rgba(255, 255, 255, 0.15)",
+                }}
+                _active={{
+                  transform: "translateY(0)",
+                }}
+                transition="all 0.2s ease"
+              >
+                Join or Sign In
+              </Button>
+            </Link>
+          </motion.div>
+
+          {/* Org Links */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+          >
+            <HStack spacing={2} wrap="wrap" justify="center">
+              {hasLinks ? (
+                poLinks.map((link, i) => (
+                  <Button
+                    key={i}
+                    size="sm"
+                    variant="ghost"
+                    color="whiteAlpha.600"
+                    _hover={{ color: "white", bg: "whiteAlpha.100" }}
+                    leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
+                    fontWeight="500"
+                    borderRadius="full"
+                    onClick={() => window.open(link.url, "_blank")}
                   >
-            <Image
-              src={image}
-              alt="Organization Logo"
-                      width="100%"
-              height="auto"
-                      borderRadius="md"
-                    />
-                  </Box>
-                )}
-                
-                {/* Social links or quick access buttons */}
-                <HStack spacing={4} mt={2} wrap="wrap" justify="center">
+                    {link.name}
+                  </Button>
+                ))
+              ) : (
+                <>
                   <Button
                     size="sm"
-                    variant="outline"
-                    color="white"
-                    borderColor="rgba(255, 255, 255, 0.2)"
-                    bg="rgba(255, 255, 255, 0.05)"
-                    _hover={{ bg: "rgba(255, 255, 255, 0.1)", borderColor: "rgba(255, 255, 255, 0.3)" }}
-                    leftIcon={<span>🌐</span>}
-                    fontWeight="medium"
+                    variant="ghost"
+                    color="whiteAlpha.600"
+                    _hover={{ color: "white", bg: "whiteAlpha.100" }}
+                    leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
+                    fontWeight="500"
                     borderRadius="full"
-                    boxShadow="0 2px 5px rgba(0,0,0,0.2)"
-                    onClick={() => window.open(`https://poa.community`, '_blank')}
+                    onClick={() => window.open("https://poa.community", "_blank")}
                   >
                     Website
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
-                    color="white"
-                    borderColor="rgba(255, 255, 255, 0.2)"
-                    bg="rgba(255, 255, 255, 0.05)"
-                    _hover={{ bg: "rgba(255, 255, 255, 0.1)", borderColor: "rgba(255, 255, 255, 0.3)" }}
-                    leftIcon={<span>📖</span>}
-                    fontWeight="medium"
+                    variant="ghost"
+                    color="whiteAlpha.600"
+                    _hover={{ color: "white", bg: "whiteAlpha.100" }}
+                    leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
+                    fontWeight="500"
                     borderRadius="full"
-                    boxShadow="0 2px 5px rgba(0,0,0,0.2)"
-                    onClick={() => window.open(`https://docs.poa.community`, '_blank')}
+                    onClick={() => window.open("https://docs.poa.community", "_blank")}
                   >
                     Docs
                   </Button>
-                </HStack>
-              </VStack>
-            </DarkGlassCard>
-          </AnimatedBox>
-          
-          <Text 
-            fontSize="xs" 
-            color="rgba(0, 0, 0, 0.7)" 
-            fontWeight="medium"
-            textAlign="center"
-            mt={8}
-            display={isLoaded ? "block" : "none"}
-            letterSpacing="0.5px"
-            transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
-            _hover={{ color: "rgba(0, 0, 0, 0.9)" }}
+                </>
+              )}
+            </HStack>
+          </motion.div>
+
+          {/* Badges */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.5, delay: 0.35 }}
           >
-            Powered by Poa • Built on Blockchain • Designed for Community
+            <HStack spacing={2} wrap="wrap" justify="center">
+              {[
+                { icon: FaLink, label: "Decentralized" },
+                { icon: FaUsers, label: "Community-Owned" },
+                { icon: FaSearch, label: "Transparent" },
+              ].map((badge) => (
+                <Flex
+                  key={badge.label}
+                  align="center"
+                  bg="whiteAlpha.100"
+                  border="1px solid"
+                  borderColor="whiteAlpha.200"
+                  borderRadius="full"
+                  px={3}
+                  py={1}
+                >
+                  <Icon
+                    as={badge.icon}
+                    color="whiteAlpha.600"
+                    boxSize={2.5}
+                    mr={1.5}
+                  />
+                  <Text
+                    fontSize="xs"
+                    fontWeight="500"
+                    color="whiteAlpha.700"
+                  >
+                    {badge.label}
+                  </Text>
+                </Flex>
+              ))}
+            </HStack>
+          </motion.div>
+
+          {/* Footer */}
+          <Text
+            fontSize="xs"
+            color="whiteAlpha.300"
+            fontWeight="400"
+            textAlign="center"
+            mt={4}
+            letterSpacing="0.03em"
+          >
+            Powered by Poa
           </Text>
         </VStack>
-        </Box>
+      </Box>
     </>
   );
 };
