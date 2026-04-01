@@ -119,6 +119,7 @@ const initialState = {
     votingContractAddress: '',
     educationHubAddress: '',
     executorContractAddress: '',
+    eligibilityModuleAddress: '',
     participationTokenAddress: '',
 
     // Derived data
@@ -326,6 +327,7 @@ export const POProvider = ({ children }) => {
                     educationHubAddress: eduHubId,
                     educationHubEnabled: !!(eduHubId && eduHubId !== ZERO_ADDRESS),
                     executorContractAddress: org.executorContract?.id || '',
+                    eligibilityModuleAddress: org.eligibilityModule?.id || '',
                     participationTokenAddress: org.participationToken?.id || '',
                     participationVotingContractAddress: org.hybridVoting?.id || '',
                     votingContractAddress: org.hybridVoting?.id || '',
@@ -460,6 +462,7 @@ export const POProvider = ({ children }) => {
         votingContractAddress: state.votingContractAddress,
         educationHubAddress: state.educationHubAddress,
         executorContractAddress: state.executorContractAddress,
+        eligibilityModuleAddress: state.eligibilityModuleAddress,
         participationTokenAddress: state.participationTokenAddress,
 
         // Derived data

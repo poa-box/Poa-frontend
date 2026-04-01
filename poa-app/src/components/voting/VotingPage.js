@@ -41,9 +41,11 @@ const VotingPage = () => {
     votingContractAddress,
     taskManagerContractAddress,
     executorContractAddress,
+    eligibilityModuleAddress,
     participationTokenAddress,
     poContextLoading,
     roleNames,
+    leaderboardData,
   } = usePOContext();
 
   const {
@@ -118,12 +120,12 @@ const VotingPage = () => {
       hatIds: proposalData.hatIds || [],
     };
 
-    // Setter proposals use HybridVoting (main governance) which triggers Executor
+    // Setter and election proposals use HybridVoting (main governance) which triggers Executor
     // Executor has onlyExecutor permission on all contracts, so it can call any setter
-    const isSetterProposal = proposalData.type === 'setter';
+    const isExecutionProposal = proposalData.type === 'setter' || proposalData.type === 'election';
 
     const result = await executeWithNotification(
-      () => isSetterProposal
+      () => isExecutionProposal
         ? voting.createHybridProposal(votingContractAddress, proposalParams)
         : voting.createDDProposal(directDemocracyVotingContractAddress, proposalParams),
       {
@@ -146,9 +148,6 @@ const VotingPage = () => {
     handleProposalTypeChange,
     handleTransferAddressChange,
     handleTransferAmountChange,
-    handleElectionRoleChange,
-    addCandidate,
-    removeCandidate,
     handleRestrictedToggle,
     toggleRestrictedRole,
     handleSetterChange,
@@ -168,9 +167,8 @@ const VotingPage = () => {
 
   // Wrapper for handleSubmit that passes eligibilityModule and contract addresses
   const handlePollCreated = useCallback(() => {
-    // Use executor as eligibility module for setter proposals (or pass actual eligibility module)
-    return handleSubmit(executorContractAddress, contractAddresses);
-  }, [handleSubmit, executorContractAddress, contractAddresses]);
+    return handleSubmit(eligibilityModuleAddress, contractAddresses);
+  }, [handleSubmit, eligibilityModuleAddress, contractAddresses]);
 
   // Handle tab changes with pagination reset
   const handleTabsChange = useCallback((index) => {
@@ -282,9 +280,6 @@ const VotingPage = () => {
             handleProposalTypeChange={handleProposalTypeChange}
             handleTransferAddressChange={handleTransferAddressChange}
             handleTransferAmountChange={handleTransferAmountChange}
-            handleElectionRoleChange={handleElectionRoleChange}
-            addCandidate={addCandidate}
-            removeCandidate={removeCandidate}
             handleRestrictedToggle={handleRestrictedToggle}
             toggleRestrictedRole={toggleRestrictedRole}
             handleSetterChange={handleSetterChange}
@@ -292,6 +287,7 @@ const VotingPage = () => {
             loadingSubmit={loadingSubmit}
             roleNames={roleNames}
             votingClasses={votingClasses}
+            leaderboardData={leaderboardData}
           />
 
           <PollModal

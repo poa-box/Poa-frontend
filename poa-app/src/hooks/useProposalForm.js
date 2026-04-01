@@ -25,8 +25,9 @@ const defaultProposal = {
   transferAddress: "",
   transferAmount: "",
   // Election fields
-  electionCandidates: [], // Array of { name, address }
-  electionRoleId: "",     // Hat ID for the role being elected
+  electionCandidates: [],      // Array of { name, address }
+  electionRoleId: "",          // Hat ID for the role being elected
+  electionCurrentHolders: [],  // Array of { name, address } - current holders of the elected role
   // Voting restriction fields
   isRestricted: false,    // Whether to restrict who can vote
   restrictedHatIds: [],   // Hat IDs that can vote (if restricted)
@@ -59,7 +60,16 @@ export function useProposalForm({ onSubmit }) {
   }, []);
 
   const handleProposalTypeChange = useCallback((e) => {
-    setProposal(prev => ({ ...prev, type: e.target.value }));
+    const newType = e.target.value;
+    setProposal(prev => ({
+      ...prev,
+      type: newType,
+      ...(newType !== 'election' ? {
+        electionRoleId: '',
+        electionCandidates: [],
+        electionCurrentHolders: [],
+      } : {}),
+    }));
   }, []);
 
   const handleTransferAddressChange = useCallback((e) => {
@@ -400,26 +410,52 @@ export function useProposalForm({ onSubmit }) {
       optionNames = ["Yes", "No"];
     } else if (proposal.type === "election") {
       // Election proposal - each candidate is an option
-      // When they win, the execution batch mints the role to them
+      // When they win: revoke hat from current holders who lost, mint to winner
       numOptions = proposal.electionCandidates.length;
       optionNames = proposal.electionCandidates.map(c => c.name);
 
-      // Build execution batch for each candidate winning
-      // Uses mintHatToAddress(uint256 hatId, address wearer) on EligibilityModule
       const iface = new utils.Interface([
-        "function mintHatToAddress(uint256 hatId, address wearer)"
+        "function mintHatToAddress(uint256 hatId, address wearer)",
+        "function setWearerEligibility(address wearer, uint256 hatId, bool eligible, bool standing)"
       ]);
 
+      const currentHolders = proposal.electionCurrentHolders || [];
+
       batches = proposal.electionCandidates.map(candidate => {
-        const mintCall = {
-          target: eligibilityModuleAddress,
-          value: "0",
-          data: iface.encodeFunctionData("mintHatToAddress", [
-            proposal.electionRoleId,
-            candidate.address
-          ]),
-        };
-        return [mintCall];
+        const batch = [];
+
+        // Revoke hat from all current holders who are NOT this candidate
+        currentHolders.forEach(holder => {
+          if (holder.address.toLowerCase() !== candidate.address.toLowerCase()) {
+            batch.push({
+              target: eligibilityModuleAddress,
+              value: "0",
+              data: iface.encodeFunctionData("setWearerEligibility", [
+                holder.address,
+                proposal.electionRoleId,
+                false,
+                false,
+              ]),
+            });
+          }
+        });
+
+        // Mint hat to candidate if they don't already hold it
+        const candidateAlreadyHolds = currentHolders.some(
+          h => h.address.toLowerCase() === candidate.address.toLowerCase()
+        );
+        if (!candidateAlreadyHolds) {
+          batch.push({
+            target: eligibilityModuleAddress,
+            value: "0",
+            data: iface.encodeFunctionData("mintHatToAddress", [
+              proposal.electionRoleId,
+              candidate.address,
+            ]),
+          });
+        }
+
+        return batch;
       });
     } else if (proposal.type === "setter") {
       // Setter proposal - call contract setter function(s)
