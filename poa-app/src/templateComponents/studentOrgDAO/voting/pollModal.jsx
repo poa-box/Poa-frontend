@@ -56,7 +56,7 @@ const PollModal = ({
   const router = useRouter();
   const { userDAO } = router.query;
   const { accountAddress: address } = useAuth();
-  const { getRoleNamesString, allRoles } = useRoleNames();
+  const { getRoleNamesString, votingEligibleRoles } = useRoleNames();
   const {
     membershipPower,
     contributionPower,
@@ -69,7 +69,9 @@ const PollModal = ({
   // Get role names for restricted voting
   const restrictedRolesText = selectedPoll?.isHatRestricted && selectedPoll?.restrictedHatIds?.length > 0
     ? getRoleNamesString(selectedPoll.restrictedHatIds)
-    : allRoles?.[0]?.name || "All Members";
+    : votingEligibleRoles?.length > 0
+      ? votingEligibleRoles.map(r => r.name).join(", ")
+      : "All Members";
 
   // Weighted voting state (for Hybrid voting)
   const [isWeightedMode, setIsWeightedMode] = useState(false);
@@ -213,7 +215,7 @@ const PollModal = ({
                 </HStack>
                 {selectedPoll?.quorum > 0 && (
                   <Tooltip
-                    label="The winning option must receive enough support to be considered valid"
+                    label="Percentage of eligible voters that must participate for the vote to be valid"
                     placement="top"
                     hasArrow
                     bg="gray.700"
@@ -221,6 +223,21 @@ const PollModal = ({
                     <HStack spacing={1} cursor="help">
                       <Text fontSize="sm" color="gray.400">
                         {selectedPoll.quorum}% participation needed
+                      </Text>
+                      <InfoOutlineIcon boxSize={3} color="gray.500" />
+                    </HStack>
+                  </Tooltip>
+                )}
+                {selectedPoll?.thresholdPct > 0 && (
+                  <Tooltip
+                    label="Percentage of votes the winning option must receive to pass"
+                    placement="top"
+                    hasArrow
+                    bg="gray.700"
+                  >
+                    <HStack spacing={1} cursor="help">
+                      <Text fontSize="sm" color="gray.400">
+                        {selectedPoll.thresholdPct}% support to pass
                       </Text>
                       <InfoOutlineIcon boxSize={3} color="gray.500" />
                     </HStack>
@@ -386,11 +403,11 @@ const PollModal = ({
                   <VStack align="flex-start">
                     {selectedPoll?.options?.map((option, index) => (
                       <Radio size="lg" key={index} value={String(index)}>
-                        {option.name}{" "}
-                        {selectedPoll.type === "Hybrid" ? (
-                          `(${option.currentPercentage || 0}%)`
-                        ) : (
-                          `(${option.votes || 0} votes)`
+                        {option.name}
+                        {hasVoted && (
+                          selectedPoll.type === "Hybrid"
+                            ? ` (${option.currentPercentage || 0}%)`
+                            : ` (${option.votes || 0} votes)`
                         )}
                       </Radio>
                     ))}

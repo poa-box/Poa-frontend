@@ -133,6 +133,7 @@ const initialState = {
     educationHubEnabled: false,
     hideTreasury: false,
     roleNames: {},
+    roleCanVoteMap: {},
 };
 
 function poReducer(state, action) {
@@ -259,14 +260,17 @@ export const POProvider = ({ children }) => {
         if (orgData?.organization) {
             const org = orgData.organization;
 
-            // Build role names map from roles data
+            // Build role names map and canVote map from roles data
             const roleNamesMap = {};
+            const roleCanVoteMap = {};
             if (org.roles && Array.isArray(org.roles)) {
                 org.roles.forEach((role, index) => {
                     const hatId = role.hatId;
                     const name = role.name || role.hat?.name || `Role ${index + 1}`;
                     roleNamesMap[hatId] = name;
                     roleNamesMap[String(hatId)] = name;
+                    roleCanVoteMap[hatId] = role.canVote !== false;
+                    roleCanVoteMap[String(hatId)] = role.canVote !== false;
                 });
             }
 
@@ -320,6 +324,7 @@ export const POProvider = ({ children }) => {
                     metadataAdminHatId: adminHat && adminHat !== '0' ? adminHat : null,
                     creatorHatIds: org.taskManager?.creatorHatIds || [],
                     roleNames: roleNamesMap,
+                    roleCanVoteMap: roleCanVoteMap,
                     quickJoinContractAddress: org.quickJoin?.id || '',
                     taskManagerContractAddress: org.taskManager?.id || '',
                     hybridVotingContractAddress: org.hybridVoting?.id || '',
@@ -481,6 +486,7 @@ export const POProvider = ({ children }) => {
         educationHubEnabled: state.educationHubEnabled,
         hideTreasury: state.hideTreasury,
         roleNames: state.roleNames,
+        roleCanVoteMap: state.roleCanVoteMap,
     }), [state, loading, error, leaderboardDisplayData, subgraphUrl]);
 
     return (
