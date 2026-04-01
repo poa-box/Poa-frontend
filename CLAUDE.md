@@ -92,20 +92,15 @@ services/web3/core/    → ContractFactory, TransactionManager, SmartAccountTran
 services/web3/domain/  → UserService, VotingService, TaskService, EducationService, etc.
 ```
 
-Components use hooks (`useWeb3Services`, `useWeb3`) to get services. Services use
-ContractFactory for ABI encoding and the appropriate TransactionManager for execution.
+Components use hooks (`useWeb3Services`, `useWeb3`) to get services. Use
+`useTransactionWithNotification().executeWithNotification()` for the pending → success/error
+notification flow.
 
 ### RefreshContext for cross-context data updates
 
 After a transaction, emit a `RefreshEvent` (e.g., `TASK_CREATED`, `PROPOSAL_VOTED`).
 Other contexts subscribe via `useRefreshSubscription`. Do NOT import contexts into
 each other to trigger refetches — that creates circular dependencies.
-
-### Transaction notifications
-
-Use `useTransactionWithNotification().executeWithNotification()` for the
-pending → success/error notification flow. Do not manually manage toast states
-for contract transactions.
 
 ### Error handling
 
@@ -123,18 +118,13 @@ Config in `src/config/networks.js`. Never hardcode chain IDs.
 
 ### Chakra UI theme
 
-Custom warm palettes: `coral`, `rose`, `amethyst`, `warmGray` — not standard Chakra colors.
-Custom variants: `glass` (glassmorphism), `elevated`, `primary`. Use these over inline styles.
-Theme is defined inline in `_app.js`, not in a separate theme file.
+Custom palettes: `coral`, `rose`, `amethyst`, `warmGray` — not standard Chakra colors.
+Custom variants: `glass`, `elevated`, `primary`. Theme is defined inline in `_app.js`.
 
 ### Provider nesting order matters
 
-16 providers nested in `_app.js` (11 custom contexts + 5 library providers). Inner contexts
-depend on outer ones. Outermost → innermost:
-WagmiProvider → AuthProvider → ApolloProvider → QueryClientProvider → RainbowKitProvider →
-RefreshProvider → IPFSprovider → ProfileHubProvider → POProvider → VotingProvider →
-ProjectProvider → UserProvider → NotificationProvider → Web3Provider → DataBaseProvider →
-ChakraProvider
+16 providers nested in `_app.js`. Inner contexts depend on outer ones — check `_app.js`
+before adding or reordering providers.
 
 ### Task permissions
 
@@ -143,28 +133,11 @@ Hat-based permission system matching `TaskPerm.sol`. Check permissions with
 convenience wrappers (`userCanCreateTask`, `userCanClaimTask`, `userCanReviewTask`,
 `userCanAssignTask`) from `src/util/permissions.js`.
 
-### Hooks barrel export
-
-All hooks re-export from `src/hooks/index.js`. Prefer importing from there:
-`import { useWeb3Services, useProposalForm } from '@/hooks'`
-
-### Deployer is a self-contained feature module
-
-`src/features/deployer/` has its own context, reducer, validation (Zod), utilities,
-and components. Import from the barrel: `import { useDeployer, DeployerWizard } from '@/features/deployer'`.
-Do not import individual files from inside the module.
-
 ### Glass morphism styling
 
 Use `glassLayerStyle` / `glassLayerLightStyle` from `@/components/shared/glassStyles`.
 These are used in 40+ files. Do NOT use `backdrop-filter: blur()` — it was removed
 for Safari CPU performance. The constants use opacity-based fallbacks instead.
-
-### Setter definitions for governance proposals
-
-`src/config/setterDefinitions.js` defines all governance proposal templates. Template IDs
-(e.g., `"change-threshold-hybrid"`) are hardcoded strings — changing them breaks existing
-proposal creation flows. Each setter maps to a specific contract function and address.
 
 ## Environment Variables
 
