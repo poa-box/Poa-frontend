@@ -1,12 +1,14 @@
 import React from 'react';
-import { Box, useDisclosure, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon } from '@chakra-ui/react';
+import { Box, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon } from '@chakra-ui/react';
 import { useDrag } from 'react-dnd';
 import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
 import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 
-const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId, submission, claimedBy, claimerUsername, onEditTask, moveTask, projectId, Payout, bountyToken, bountyPayout, isMobile, rejectionCount, rejectionReason, rejections }) => {
+const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
+  const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, rejectionCount, requiresApplication, applicants } = task;
+
   const router = useRouter();
   const { userDAO } = router.query;
   // Use the stable isMobile prop from parent (passed through TaskColumn)
@@ -24,13 +26,11 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'task',
-    item: { id, index, columnId, name, description, difficulty, estHours, claimedBy, claimerUsername, Payout, submission, projectId },
+    item: { id, columnId, name, description, difficulty, estHours, claimedBy, claimerUsername, Payout, submission: task.submission, projectId },
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
   }));
-
-  const { isOpen, onOpen, onClose } = useDisclosure();
 
   const truncateDescription = (desc, maxLength) => {
     if (!desc) return '';
@@ -47,7 +47,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
     hard: 'orange',
     veryhard: 'red'
   };
-  
+
   // Difficulty scores for better visualization
   const difficultyScore = {
     easy: 1,
@@ -55,7 +55,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
     hard: 3,
     veryhard: 4
   };
-  
+
   // Get user initials for avatars
   const getUserInitials = (username) => {
     if (!username) return "?";
@@ -66,8 +66,8 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
   const mobileCardStyle = {
     background: 'rgba(255, 255, 255, 0.98)',
     borderRadius: '12px',
-    boxShadow: isDragging 
-      ? '0 10px 25px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(128, 90, 213, 0.4)' 
+    boxShadow: isDragging
+      ? '0 10px 25px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(128, 90, 213, 0.4)'
       : '0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)',
     padding: '14px',
     marginBottom: '14px',
@@ -126,8 +126,8 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
         role="group"
       >
         {/* Task title with better typography */}
-        <Text 
-          fontWeight="700" 
+        <Text
+          fontWeight="700"
           fontSize={isCardMobile ? "0.95rem" : "0.85rem"}
           color="#2D3748" // gray.700
           mb={isCardMobile ? 2 : 1.5}
@@ -138,9 +138,9 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
         >
           {name}
         </Text>
-        
+
         {/* Improved description section */}
-        <Text 
+        <Text
           fontSize={isCardMobile ? "0.8rem" : "0.75rem"}
           color="#4A5568" // gray.600
           mb={isCardMobile ? 3 : 2}
@@ -149,7 +149,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
         >
           {truncateDescription(description, isCardMobile ? 80 : 50)}
         </Text>
-        
+
         {/* Info and tags with better layout */}
         <Flex direction="column" gap={2}>
           {/* Difficulty and time indicators */}
@@ -158,11 +158,11 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
               <Flex align="center">
                 <HStack spacing={1}>
                   {[...Array(difficultyScore[difficulty.toLowerCase().replace(" ", "")] || 1)].map((_, i) => (
-                    <Box 
-                      key={i} 
-                      w={1.5} 
-                      h={1.5} 
-                      borderRadius="full" 
+                    <Box
+                      key={i}
+                      w={1.5}
+                      h={1.5}
+                      borderRadius="full"
                       bg={getDifficultyColor(difficulty)}
                     />
                   ))}
@@ -172,7 +172,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
                 </Text>
               </Flex>
             )}
-            
+
             <HStack spacing={1} align="center">
               <TimeIcon boxSize={3} color="gray.400" />
               <Text fontSize="xs" color="gray.500" fontWeight="medium">
@@ -180,7 +180,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
               </Text>
             </HStack>
           </Flex>
-          
+
           {/* Reward and assigned user */}
           <Flex justify="space-between" align="center" mt={1}>
             <HStack spacing={1}>
@@ -204,19 +204,19 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
                 </Tooltip>
               )}
             </HStack>
-            
+
             {claimerUsername && (
               <Tooltip label={`Assigned to: ${claimerUsername}`} placement="top">
-                <Avatar 
-                  size="xs" 
-                  name={claimerUsername} 
+                <Avatar
+                  size="xs"
+                  name={claimerUsername}
                   getInitials={getUserInitials}
                   bg="purple.500"
                   color="white"
                 />
               </Tooltip>
             )}
-            
+
             {columnId === 'completed' && (
               <Badge colorScheme="green" {...badgeStyle}>
                 <CheckIcon mr={1} boxSize={2} />
@@ -232,17 +232,23 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
                 </Badge>
               </Tooltip>
             )}
+
+            {requiresApplication && columnId === 'open' && applicants?.length > 0 && (
+              <Tooltip label={`${applicants.length} applicant${applicants.length > 1 ? 's' : ''}`} placement="top">
+                <Badge colorScheme="purple" {...badgeStyle}>
+                  <InfoIcon mr={1} boxSize={2} />
+                  {applicants.length} Applied
+                </Badge>
+              </Tooltip>
+            )}
           </Flex>
         </Flex>
       </Box>
-      
+
       <TaskCardModal
-        isOpen={isOpen}
-        onClose={onClose}
-        task={{ id, name, description, difficulty, estHours, Payout, submission, claimedBy, claimerUsername, projectId, bountyToken, bountyPayout, rejectionCount, rejectionReason, rejections }}
+        task={task}
         columnId={columnId}
         onEditTask={onEditTask}
-        moveTask={moveTask}
       />
     </>
   );
