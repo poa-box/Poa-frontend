@@ -86,7 +86,7 @@ const OrgAvatar = ({ name, size = "110px" }) => (
   </Flex>
 );
 
-const OrgBanner = ({ name, logoHash }) => {
+const OrgBanner = ({ name, logoHash, logoCid }) => {
   const { safeFetchFromIpfs, safeFetchImageFromIpfs } = useIPFScontext();
   const [imageUrl, setImageUrl] = useState(null);
   const [imgError, setImgError] = useState(false);
@@ -94,11 +94,16 @@ const OrgBanner = ({ name, logoHash }) => {
   useEffect(() => {
     let cancelled = false;
     async function loadLogo() {
-      if (!logoHash) return;
       try {
-        const metadata = await safeFetchFromIpfs(logoHash);
-        if (cancelled || !metadata?.logo) return;
-        const blobUrl = await safeFetchImageFromIpfs(metadata.logo);
+        let cid = logoCid;
+        // If subgraph didn't provide the logo CID, fall back to IPFS metadata fetch
+        if (!cid && logoHash) {
+          const metadata = await safeFetchFromIpfs(logoHash);
+          if (cancelled || !metadata?.logo) return;
+          cid = metadata.logo;
+        }
+        if (!cid) return;
+        const blobUrl = await safeFetchImageFromIpfs(cid);
         if (!cancelled && blobUrl) setImageUrl(blobUrl);
       } catch (e) {
         // fall back to gradient
@@ -106,7 +111,7 @@ const OrgBanner = ({ name, logoHash }) => {
     }
     loadLogo();
     return () => { cancelled = true; };
-  }, [logoHash]);
+  }, [logoHash, logoCid]);
 
   const showImage = imageUrl && !imgError;
 
@@ -604,7 +609,7 @@ const BrowserPage = () => {
                       >
                         <Link href={`/home?userDAO=${po.id}`} passHref>
                           <Box as="a">
-                            <OrgBanner name={po.id} logoHash={po.logoHash} />
+                            <OrgBanner name={po.id} logoHash={po.logoHash} logoCid={po.logoCid} />
                           </Box>
                         </Link>
 

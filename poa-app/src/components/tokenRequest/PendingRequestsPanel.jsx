@@ -61,22 +61,24 @@ const PendingRequestsPanel = () => {
 
   const pendingRequests = data?.tokenRequests || [];
 
-  // Fetch IPFS metadata for requests
+  // Fetch IPFS metadata for requests — only as fallback when subgraph hasn't indexed
   useEffect(() => {
     const fetchMetadata = async () => {
       if (!fetchFromIpfs || !pendingRequests.length) return;
 
       for (const request of pendingRequests) {
-        if (request.ipfsHash && !metadataCache[request.ipfsHash]) {
-          try {
-            const metadata = await fetchFromIpfs(request.ipfsHash);
-            setMetadataCache(prev => ({
-              ...prev,
-              [request.ipfsHash]: metadata,
-            }));
-          } catch (err) {
-            console.error('Error fetching IPFS metadata:', err);
-          }
+        // Skip if subgraph already has metadata or if already cached
+        if (request.metadata || metadataCache[request.ipfsHash]) continue;
+        if (!request.ipfsHash) continue;
+
+        try {
+          const metadata = await fetchFromIpfs(request.ipfsHash);
+          setMetadataCache(prev => ({
+            ...prev,
+            [request.ipfsHash]: metadata,
+          }));
+        } catch (err) {
+          console.error('Error fetching IPFS metadata:', err);
         }
       }
     };
@@ -195,7 +197,7 @@ const PendingRequestsPanel = () => {
 
       <Accordion allowMultiple>
         {pendingRequests.map((request) => {
-          const metadata = metadataCache[request.ipfsHash];
+          const metadata = request.metadata || metadataCache[request.ipfsHash];
           const isOwnRequest = address && request.requester?.toLowerCase() === address.toLowerCase();
           const isLoading = loadingRequestId === request.requestId;
 
