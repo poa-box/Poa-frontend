@@ -51,6 +51,9 @@ export const RefreshEvent = {
   ROLE_APPLICATION_SUBMITTED: 'role:application-submitted',
   ROLE_APPLICATION_WITHDRAWN: 'role:application-withdrawn',
 
+  // Treasury events
+  TREASURY_DEPOSITED: 'treasury:deposited',
+
   // User events
   USER_CREATED: 'user:created',
   USERNAME_CHANGED: 'user:username_changed',

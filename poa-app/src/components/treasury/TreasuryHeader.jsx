@@ -11,7 +11,7 @@ import {
   Tooltip,
   Icon,
 } from '@chakra-ui/react';
-import { FiUsers, FiDollarSign, FiTrendingUp, FiPlus } from 'react-icons/fi';
+import { FiUsers, FiDollarSign, FiTrendingUp, FiPlus, FiDownload } from 'react-icons/fi';
 import { formatTokenAmount } from '@/util/formatToken';
 
 const StatCard = ({ icon, label, value, tooltip }) => (
@@ -41,6 +41,7 @@ const TreasuryHeader = ({
   distributionCount = 0,
   isAdmin = false,
   onCreateDistribution,
+  onDeposit,
   refetch,
 }) => {
   const isMobile = useBreakpointValue({ base: true, md: false });
@@ -68,16 +69,29 @@ const TreasuryHeader = ({
           </Text>
         </VStack>
 
-        {isAdmin && (
-          <Button
-            leftIcon={<FiPlus />}
-            colorScheme="purple"
-            size={{ base: 'sm', md: 'md' }}
-            onClick={onCreateDistribution}
-          >
-            Create Distribution
-          </Button>
-        )}
+        <HStack spacing={2}>
+          {onDeposit && (
+            <Button
+              leftIcon={<FiDownload />}
+              colorScheme="purple"
+              variant="outline"
+              size={{ base: 'sm', md: 'md' }}
+              onClick={onDeposit}
+            >
+              Deposit
+            </Button>
+          )}
+          {isAdmin && (
+            <Button
+              leftIcon={<FiPlus />}
+              colorScheme="purple"
+              size={{ base: 'sm', md: 'md' }}
+              onClick={onCreateDistribution}
+            >
+              Create Distribution
+            </Button>
+          )}
+        </HStack>
       </Flex>
 
       <Flex

@@ -121,6 +121,11 @@ const REVERT_PATTERNS = {
   'Insufficient balance': 'Insufficient token balance for this operation.',
   'Transfer failed': 'Token transfer failed.',
 
+  // PaymentManager errors
+  'InsufficientFunds': 'The treasury has insufficient funds for this operation.',
+  'TransferFailed': 'Token transfer failed. Please check your token approval.',
+  'SafeERC20FailedOperation': 'Token transfer failed. The token contract rejected the operation.',
+
   // General errors
   'Paused': 'This contract is currently paused.',
   'Not owner': 'Only the owner can perform this action.',

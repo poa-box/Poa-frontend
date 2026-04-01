@@ -12,8 +12,8 @@ import TokenBalanceCard from './TokenBalanceCard';
  * All data comes from the FETCH_TREASURY_DATA GraphQL query via props.
  * No direct RPC calls to avoid CORS issues and rate limiting.
  */
-const TokenBalancesGrid = ({ totalSupply, onPTClick, isLoading }) => {
-  // Build token list using only subgraph data
+const TokenBalancesGrid = ({ totalSupply, onPTClick, isLoading, erc20Balances = [] }) => {
+  // Build token list: PT first, then ERC20 treasury balances
   const tokenList = [
     {
       symbol: 'Participation Token',
@@ -24,12 +24,20 @@ const TokenBalancesGrid = ({ totalSupply, onPTClick, isLoading }) => {
       isClickable: true,
       onClick: onPTClick,
     },
+    ...erc20Balances.map(token => ({
+      symbol: token.symbol,
+      name: token.name,
+      balance: token.balance || '0',
+      decimals: token.decimals,
+      tokenType: 'ERC-20',
+      isClickable: false,
+    })),
   ];
 
-  if (!totalSupply && !isLoading) {
+  if (!totalSupply && erc20Balances.length === 0 && !isLoading) {
     return (
       <VStack py={4}>
-        <Text color="gray.400">No participation token configured</Text>
+        <Text color="gray.400">No treasury balances found</Text>
       </VStack>
     );
   }

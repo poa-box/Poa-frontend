@@ -34,6 +34,7 @@ import { TaskService, createTaskService } from '../services/web3/domain/TaskServ
 import { EducationService, createEducationService } from '../services/web3/domain/EducationService';
 import { EligibilityService, createEligibilityService } from '../services/web3/domain/EligibilityService';
 import { TokenRequestService, createTokenRequestService } from '../services/web3/domain/TokenRequestService';
+import { TreasuryService, createTreasuryService } from '../services/web3/domain/TreasuryService';
 
 /**
  * Hook to access all Web3 services
@@ -230,6 +231,7 @@ export function useWeb3Services(options = {}) {
         education: null,
         eligibility: null,
         tokenRequest: null,
+        treasury: null,
       };
     }
 
@@ -241,6 +243,7 @@ export function useWeb3Services(options = {}) {
       education: createEducationService(factory, txManager, ipfsService),
       eligibility: createEligibilityService(factory, txManager),
       tokenRequest: createTokenRequestService(factory, txManager, ipfsService),
+      treasury: createTreasuryService(factory, txManager),
     };
   }, [factory, txManager, ipfsService, registryAddress, effectiveChainId]);
 
