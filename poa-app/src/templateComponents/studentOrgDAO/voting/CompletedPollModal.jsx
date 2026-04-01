@@ -37,12 +37,14 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
   const router = useRouter();
   const { userDAO } = router.query;
   const [processedOptions, setProcessedOptions] = useState([]);
-  const { getRoleNamesString, allRoles } = useRoleNames();
+  const { getRoleNamesString, votingEligibleRoles } = useRoleNames();
 
   // Get role names for restricted voting
   const restrictedRolesText = selectedPoll?.isHatRestricted && selectedPoll?.restrictedHatIds?.length > 0
     ? getRoleNamesString(selectedPoll.restrictedHatIds)
-    : allRoles?.[0]?.name || "All Members";
+    : votingEligibleRoles?.length > 0
+      ? votingEligibleRoles.map(r => r.name).join(", ")
+      : "All Members";
 
   // Determine if this proposal had executable actions
   const hasExecutableActions = selectedPoll?.executionBatchId || selectedPoll?.executedCallsCount > 0;
@@ -198,6 +200,11 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
               {selectedPoll?.quorum > 0 && (
                 <Text fontSize="xs" color="gray.400">
                   {selectedPoll.quorum}% participation needed
+                </Text>
+              )}
+              {selectedPoll?.thresholdPct > 0 && (
+                <Text fontSize="xs" color="gray.400">
+                  {selectedPoll.thresholdPct}% support to pass
                 </Text>
               )}
 

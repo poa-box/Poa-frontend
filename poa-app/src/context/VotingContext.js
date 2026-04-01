@@ -10,7 +10,7 @@ const VotingContext = createContext();
 
 export const useVotingContext = () => useContext(VotingContext);
 
-function transformProposal(proposal, votingTypeId, type, quorum = 0) {
+function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quorum = 0) {
     const currentTime = Math.floor(Date.now() / 1000);
     const endTime = parseInt(proposal.endTimestamp) || 0;
     // A proposal is "ongoing" if it's still Active (needs voting or winner announcement)
@@ -103,6 +103,7 @@ function transformProposal(proposal, votingTypeId, type, quorum = 0) {
         votes: proposal.votes || [],
         votingTypeId,
         type,
+        thresholdPct,
         quorum,
         isHatRestricted: proposal.isHatRestricted,
         restrictedHatIds: proposal.restrictedHatIds || [],
@@ -158,9 +159,10 @@ export const VotingProvider = ({ children }) => {
 
             // Process Hybrid Voting proposals and classes
             if (org.hybridVoting) {
-                const hybridQuorum = org.hybridVoting.thresholdPct || 0;
+                const hybridThreshold = org.hybridVoting.thresholdPct || 0;
+                const hybridQuorum = org.hybridVoting.quorum || 0;
                 hybridProposals = (org.hybridVoting.proposals || []).map(p =>
-                    transformProposal(p, org.hybridVoting.id, 'Hybrid', hybridQuorum)
+                    transformProposal(p, org.hybridVoting.id, 'Hybrid', hybridThreshold, hybridQuorum)
                 );
                 setHybridVotingOngoing(hybridProposals.filter(p => p.isOngoing));
                 // Sort completed proposals by endTimestamp descending (most recently finished first)
@@ -187,9 +189,10 @@ export const VotingProvider = ({ children }) => {
 
             // Process Direct Democracy Voting proposals
             if (org.directDemocracyVoting) {
-                const ddQuorum = org.directDemocracyVoting.thresholdPct || 0;
+                const ddThreshold = org.directDemocracyVoting.thresholdPct || 0;
+                const ddQuorum = org.directDemocracyVoting.quorum || 0;
                 ddProposals = (org.directDemocracyVoting.ddvProposals || []).map(p =>
-                    transformProposal(p, org.directDemocracyVoting.id, 'Direct Democracy', ddQuorum)
+                    transformProposal(p, org.directDemocracyVoting.id, 'Direct Democracy', ddThreshold, ddQuorum)
                 );
                 setDemocracyVotingOngoing(ddProposals.filter(p => p.isOngoing));
                 // Sort completed proposals by endTimestamp descending (most recently finished first)

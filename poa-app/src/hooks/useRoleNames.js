@@ -32,7 +32,7 @@ function getFallbackRoleName(index) {
  * @returns {Object} { roleNames, getRoleName, isLoading }
  */
 export function useRoleNames() {
-  const { roleHatIds, roleNames: contextRoleNames } = usePOContext();
+  const { roleHatIds, roleNames: contextRoleNames, roleCanVoteMap } = usePOContext();
 
   // Build normalized role names map from POContext data
   const roleNames = useMemo(() => {
@@ -109,12 +109,19 @@ export function useRoleNames() {
     }));
   }, [roleHatIds, getRoleName]);
 
+  // Roles that have canVote === true
+  const votingEligibleRoles = useMemo(() => {
+    if (!allRoles?.length) return [];
+    return allRoles.filter(role => roleCanVoteMap?.[role.hatId] !== false);
+  }, [allRoles, roleCanVoteMap]);
+
   return {
     roleNames,
     getRoleName,
     getRoleNames,
     getRoleNamesString,
     allRoles,
+    votingEligibleRoles,
     isLoading: false,
   };
 }
