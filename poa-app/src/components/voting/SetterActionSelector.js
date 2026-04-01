@@ -431,7 +431,9 @@ const SetterActionSelector = ({
             <>
               <Divider borderColor="rgba(148, 115, 220, 0.2)" />
               <Text fontSize="xs" color="gray.500" fontFamily="mono">
-                {selectedRawFunction.signature}
+                {typeof selectedRawFunction.signature === 'string'
+                  ? selectedRawFunction.signature
+                  : `function ${selectedRawFunction.name}(...)`}
               </Text>
               <SetterParamInputs
                 inputs={selectedRawFunction.params}
