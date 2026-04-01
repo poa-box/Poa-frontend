@@ -221,9 +221,11 @@ export function useVotingPower() {
       const membershipShare = totalMembershipPower > 0
         ? (membershipPower / totalMembershipPower)
         : 0;
+      // When no one has tokens, everyone is equally powerful in the contribution class
+      const memberCount = userPowers.length || 1;
       const contributionShare = totalContributionPower > 0
         ? (contributionPower / totalContributionPower)
-        : 0;
+        : (1 / memberCount);
 
       orgStats.totalOrgPower = totalRawPower;
       orgStats.averagePower = totalRawPower / userPowers.length;
