@@ -57,20 +57,19 @@ const Navbar = () => {
         maxW="100%"
         justifyContent="space-between"
       >
-        {/* Left side - Logo (desktop) or Home icon (mobile) */}
+        {/* Left side - Home icon */}
         <Box h="100%" w={{ base: "40%", md: "12%" }} mr={{ base: "2", md: "4" }}>
           <Link as={NextLink} href={`/home/?userDAO=${userDAO}`} passHref>
-            {/* Desktop Logo */}
-            <Box display={{ base: 'none', md: 'block' }} height="100%" position="relative">
-              <NextImage
-                src="/images/high_res_poa.png"
-                alt="PoA Logo"
-                width={60}
-                height={60}
-                priority
-                style={{ objectFit: 'contain', height: '100%', width: 'auto' }}
-              />
-            </Box>
+            {/* Desktop Home Icon */}
+            <IconButton
+              icon={<FaHome size="28px" />}
+              aria-label="Home"
+              variant="ghost"
+              color="white"
+              display={{ base: 'none', md: 'flex' }}
+              _hover={{ bg: "whiteAlpha.200" }}
+              size="md"
+            />
             {/* Mobile Home Icon */}
             <IconButton
               icon={<FaHome size="34px" />}
