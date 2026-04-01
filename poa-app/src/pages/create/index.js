@@ -236,6 +236,7 @@ function DeployerPageContent() {
         })),
         template: state.organization.template || 'default',
         logo: state.organization.logoURL || null,
+        hideTreasury: state.features.hideTreasury || false,
       };
 
       console.log('[DEPLOY] Preparing IPFS metadata:', jsonData);

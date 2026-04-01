@@ -18,7 +18,7 @@ import {
   Icon,
   useColorModeValue,
 } from '@chakra-ui/react';
-import { PiGraduationCap, PiHandshake, PiGlobe, PiIdentificationCard } from 'react-icons/pi';
+import { PiGraduationCap, PiHandshake, PiGlobe, PiIdentificationCard, PiVault } from 'react-icons/pi';
 import { NETWORKS, DEFAULT_DEPLOY_CHAIN_ID } from '../../../config/networks';
 import { useDeployer } from '../context/DeployerContext';
 import { StepHeader, NavigationButtons } from '../components/common';
@@ -107,6 +107,13 @@ export function SettingsStep() {
               description="Run elections for leadership positions within your organization"
               isEnabled={state.features.electionHubEnabled}
               onChange={(value) => actions.toggleFeature('electionHubEnabled', value)}
+            />
+            <FeatureToggle
+              icon={PiVault}
+              name="Hide Treasury"
+              description="Hide the treasury page from your organization's navigation"
+              isEnabled={state.features.hideTreasury}
+              onChange={(value) => actions.toggleFeature('hideTreasury', value)}
             />
           </VStack>
         </Box>

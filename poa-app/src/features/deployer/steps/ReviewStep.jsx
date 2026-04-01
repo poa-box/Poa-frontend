@@ -50,6 +50,7 @@ import {
   PiGear,
   PiGraduationCap,
   PiHandshake,
+  PiVault,
   PiImage,
   PiSparkle,
   PiInfo,
@@ -1273,6 +1274,12 @@ export function ReviewStep({
                 description="Run elections for leadership positions"
                 icon={PiHandshake}
                 isEnabled={state.features.electionHubEnabled}
+              />
+              <FeatureCard
+                name="Hide Treasury"
+                description="Treasury page hidden from navigation"
+                icon={PiVault}
+                isEnabled={state.features.hideTreasury}
               />
             </Flex>
           </VStack>
