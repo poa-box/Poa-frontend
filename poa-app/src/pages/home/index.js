@@ -287,49 +287,49 @@ const Home = () => {
                     label: "Dashboard",
                     description: "View org activity and stats",
                     path: `/dashboard/?userDAO=${userDAO}`,
-                    color: "purple.500",
+                    color: "purple.300",
                   },
                   {
                     icon: FiCheckSquare,
                     label: "Tasks",
                     description: "Browse and claim tasks",
                     path: `/tasks/?userDAO=${userDAO}`,
-                    color: "blue.500",
+                    color: "blue.300",
                   },
                   {
                     icon: FiBarChart2,
                     label: "Voting",
                     description: "Vote on active proposals",
                     path: `/voting/?userDAO=${userDAO}`,
-                    color: "green.500",
+                    color: "green.300",
                   },
                   {
                     icon: FiUser,
                     label: "Profile Hub",
                     description: "Manage your profile and roles",
                     path: `/profileHub/?userDAO=${userDAO}`,
-                    color: "coral.500",
+                    color: "coral.300",
                   },
                 ].map((item) => (
                   <Link key={item.label} href={item.path} passHref legacyBehavior>
                     <Box
                       as="a"
-                      {...cardStyle}
+                      {...darkCardStyle}
                       p={4}
                       cursor="pointer"
-                      transition="all 0.2s ease"
+                      transition="all 0.3s ease"
                       _hover={{
                         transform: "translateY(-2px)",
-                        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.08)",
-                        bg: "rgba(255, 255, 255, 0.95)",
+                        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.25)",
+                        borderColor: "rgba(148, 115, 220, 0.3)",
                       }}
                     >
                       <VStack spacing={2} align="start">
                         <Icon as={item.icon} color={item.color} boxSize={5} />
-                        <Text fontWeight="600" fontSize="sm" color="warmGray.800">
+                        <Text fontWeight="600" fontSize="sm" color="white">
                           {item.label}
                         </Text>
-                        <Text fontSize="xs" color="warmGray.500" lineHeight="1.4">
+                        <Text fontSize="xs" color="whiteAlpha.600" lineHeight="1.4">
                           {item.description}
                         </Text>
                       </VStack>
