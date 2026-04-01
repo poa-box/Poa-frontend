@@ -30,17 +30,23 @@ import {
   Icon,
 } from '@chakra-ui/react';
 import { CheckIcon } from '@chakra-ui/icons';
+import { useAccount, useSwitchChain } from 'wagmi';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { usePOContext } from '@/context/POContext';
+import { useAuth } from '@/context/AuthContext';
 import { useWeb3 } from '@/hooks';
 import { useUserContext } from '@/context/UserContext';
+import { getNetworkByChainId } from '@/config/networks';
 import QuizModal from '@/components/eduHub/QuizModal';
 import { useRouter } from 'next/router';
 
 const EducationHub = () => {
-  const { poContextLoading, educationModules, educationHubAddress, educationHubEnabled } = usePOContext();
+  const { poContextLoading, educationModules, educationHubAddress, educationHubEnabled, orgChainId } = usePOContext();
   const { completedModules, hasExecRole, userDataLoading } = useUserContext();
   const { education, executeWithNotification } = useWeb3();
+  const { isPasskeyUser } = useAuth();
+  const { chain: connectedChain } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const router = useRouter();
@@ -72,6 +78,29 @@ const EducationHub = () => {
 
     setIsSubmitting(true);
 
+    // Ensure EOA wallet is on the org's chain before transacting
+    try {
+      if (!isPasskeyUser && orgChainId && connectedChain?.id !== orgChainId) {
+        const networkName = getNetworkByChainId(orgChainId)?.name || 'the correct network';
+        toast({
+          title: 'Switching network',
+          description: `Switching to ${networkName}...`,
+          status: 'info',
+          duration: 3000,
+        });
+        await switchChainAsync({ chainId: orgChainId });
+      }
+    } catch (e) {
+      toast({
+        title: 'Network switch failed',
+        description: 'Please switch to the correct network and try again.',
+        status: 'error',
+        duration: 5000,
+      });
+      setIsSubmitting(false);
+      return;
+    }
+
     // Reset form immediately and close modal
     const formData = {
       name: moduleTitle,
@@ -102,18 +131,18 @@ const EducationHub = () => {
     );
 
     setIsSubmitting(false);
-  }, [education, executeWithNotification, educationHubAddress, moduleTitle, moduleDescription, moduleLink, moduleQuestion, answers, correctAnswerIndex, payout, onClose]);
+  }, [education, executeWithNotification, educationHubAddress, moduleTitle, moduleDescription, moduleLink, moduleQuestion, answers, correctAnswerIndex, payout, onClose, isPasskeyUser, orgChainId, connectedChain, switchChainAsync, toast]);
 
 
   const totalModules = educationModules.length;
-  const completedModuleIds = completedModules?.map((module) => module.id) || [];
+  const completedModuleIds = completedModules?.map((m) => m.moduleId) || [];
   const modulesCompletedCount = completedModules?.length || 0;
   const progressPercentage = totalModules ? (modulesCompletedCount / totalModules) * 100 : 0;
 
   // Sort modules: uncompleted first
   const sortedModules = [...educationModules].sort((a, b) => {
-    const aCompleted = completedModuleIds.includes(a.id);
-    const bCompleted = completedModuleIds.includes(b.id);
+    const aCompleted = completedModuleIds.includes(a.moduleId);
+    const bCompleted = completedModuleIds.includes(b.moduleId);
     if (aCompleted && !bCompleted) {
       return 1; 
     } else if (!aCompleted && bCompleted) {
@@ -294,7 +323,7 @@ const EducationHub = () => {
               gap={8}
             >
               {sortedModules.map((module) => {
-                const isCompleted = completedModuleIds.includes(module.id);
+                const isCompleted = completedModuleIds.includes(module.moduleId);
                 return (
                   <GridItem
                     key={module.id}
