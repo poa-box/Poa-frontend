@@ -189,6 +189,8 @@ export function useVotingPower() {
       maxPower: 0,
       totalOrgPower: 0,
       userRank: 0,
+      membershipPercent: 0,
+      contributionPercent: 0,
       percentOfTotal: 0,
       aboveAverage: false,
     };
@@ -236,7 +238,9 @@ export function useVotingPower() {
       orgStats.totalOrgPower = totalRawPower;
       orgStats.averagePower = totalRawPower / userPowers.length;
       orgStats.maxPower = Math.max(...userPowers.map(p => p.total));
-      orgStats.percentOfTotal = (membershipShare * democracyWeight) + (contributionShare * contributionWeight);
+      orgStats.membershipPercent = membershipShare * democracyWeight;
+      orgStats.contributionPercent = contributionShare * contributionWeight;
+      orgStats.percentOfTotal = orgStats.membershipPercent + orgStats.contributionPercent;
       orgStats.aboveAverage = totalPower > orgStats.averagePower;
 
       const sortedPowers = [...userPowers.map(p => p.total)].sort((a, b) => b - a);

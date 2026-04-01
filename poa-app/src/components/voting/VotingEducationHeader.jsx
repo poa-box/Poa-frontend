@@ -28,6 +28,7 @@ import {
   Skeleton,
   keyframes,
 } from "@chakra-ui/react";
+import { InfoOutlineIcon } from "@chakra-ui/icons";
 
 // Breathing animation for official governance indicator
 const breathe = keyframes`
@@ -54,16 +55,6 @@ const glassLayerStyle = {
   backgroundColor: "rgba(0, 0, 0, .85)",
   boxShadow: "inset 0 0 15px rgba(148, 115, 220, 0.15)",
   border: "1px solid rgba(148, 115, 220, 0.2)",
-};
-
-/**
- * Formats a large number with appropriate suffix (K, M, etc.)
- */
-const formatPowerNumber = (num) => {
-  if (num === 0) return "0";
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
-  return num.toFixed(0);
 };
 
 /**
@@ -198,13 +189,10 @@ const LearnMoreDropdown = ({ classWeights, classConfig }) => {
  * Visual component showing the "Two Voices" voting power breakdown
  * with actual numerical values and class weights
  */
-const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classConfig, isLoading, status, message, hasMemberRole }) => {
+const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, isLoading, hasMemberRole }) => {
   const totalPower = membershipPower + contributionPower;
   const democracyWeight = classWeights?.democracy ?? 50;
   const contributionWeight = classWeights?.contribution ?? 50;
-
-  // Determine if quadratic voting is enabled (strategy is string enum: 'DIRECT' or 'ERC20_BAL')
-  const isQuadratic = classConfig?.some(c => c.strategy === 'ERC20_BAL' && c.quadratic) ?? false;
 
   // If loading, show skeleton
   if (isLoading) {
@@ -218,37 +206,25 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
   }
 
   // Don't show the voting power bar if user has no voting power
-  // (LearnMoreDropdown is now shown separately for all users)
   if (totalPower === 0 || !hasMemberRole) {
     return null;
   }
 
   return (
     <VStack spacing={3} w="100%" maxW="500px">
-      <HStack spacing={2}>
-        <Text fontSize="sm" color="gray.300" fontWeight="semibold">
-          Your Personal Voting Power
-        </Text>
-        {isQuadratic && (
-          <Badge colorScheme="blue" variant="subtle" fontSize="2xs">
-            Quadratic
-          </Badge>
-        )}
-      </HStack>
+      <Text fontSize="sm" color="gray.300" fontWeight="semibold">
+        Your Personal Voting Power
+      </Text>
 
-      {/* The two-voice bar with actual percentages */}
+      {/* Class weight bar */}
       <Box w="100%" position="relative">
         <Flex w="100%" h="36px" borderRadius="full" overflow="hidden" bg="gray.700" boxShadow="inner">
-          {/* Membership Voice */}
+          {/* Membership class */}
           <Tooltip
             label={
               <VStack spacing={1} align="start" p={1}>
-                <Text fontWeight="bold">Membership Voice</Text>
-                <Text fontSize="xs">Your base power: {membershipPower} points</Text>
-                <Text fontSize="xs">Weight in final decision: {democracyWeight}%</Text>
-                <Text fontSize="xs" color="gray.300" fontStyle="italic">
-                  Equal for all members
-                </Text>
+                <Text fontWeight="bold">Membership</Text>
+                <Text fontSize="xs">Equal vote for every member — {democracyWeight}% of the final decision.</Text>
               </VStack>
             }
             placement="top"
@@ -263,33 +239,26 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
               align="center"
               justify="center"
               cursor="help"
-              transition="transform 0.3s, box-shadow 0.3s, background 0.3s, border-color 0.3s"
+              transition="filter 0.3s"
               _hover={{ filter: "brightness(1.15)" }}
-              position="relative"
             >
-              <VStack spacing={0}>
+              <HStack spacing={1}>
                 <Text fontSize="sm" fontWeight="bold" color="white">
                   {democracyWeight}%
                 </Text>
                 <Text fontSize="2xs" color="whiteAlpha.800">
-                  {membershipPower} pts
+                  membership
                 </Text>
-              </VStack>
+              </HStack>
             </Flex>
           </Tooltip>
 
-          {/* Contribution Voice */}
+          {/* Contribution class */}
           <Tooltip
             label={
               <VStack spacing={1} align="start" p={1}>
-                <Text fontWeight="bold">Work Voice</Text>
-                <Text fontSize="xs">Your contribution power: {formatPowerNumber(contributionPower)} points</Text>
-                <Text fontSize="xs">Weight in final decision: {contributionWeight}%</Text>
-                {isQuadratic && (
-                  <Text fontSize="xs" color="blue.200" fontStyle="italic">
-                    Quadratic voting: sqrt(tokens) × 100
-                  </Text>
-                )}
+                <Text fontWeight="bold">Contribution</Text>
+                <Text fontSize="xs">Based on your participation tokens — {contributionWeight}% of the final decision.</Text>
               </VStack>
             }
             placement="top"
@@ -304,17 +273,17 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
               align="center"
               justify="center"
               cursor="help"
-              transition="transform 0.3s, box-shadow 0.3s, background 0.3s, border-color 0.3s"
+              transition="filter 0.3s"
               _hover={{ filter: "brightness(1.15)" }}
             >
-              <VStack spacing={0}>
+              <HStack spacing={1}>
                 <Text fontSize="sm" fontWeight="bold" color="white">
                   {contributionWeight}%
                 </Text>
                 <Text fontSize="2xs" color="whiteAlpha.800">
-                  {formatPowerNumber(contributionPower)} pts
+                  contribution
                 </Text>
-              </VStack>
+              </HStack>
             </Flex>
           </Tooltip>
         </Flex>
@@ -325,14 +294,18 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
 };
 
 /**
- * Stats panel showing user's voting power metrics
+ * Stats panel showing user's effective voting share breakdown by class
  */
-const VotingPowerStats = ({ membershipPower, contributionPower, classWeights, ptBalance, poMembers, orgStats }) => {
-  const totalPower = membershipPower + contributionPower;
+const VotingPowerStats = ({ classWeights, poMembers, orgStats }) => {
+  const membershipPct = orgStats?.membershipPercent ?? 0;
+  const contributionPct = orgStats?.contributionPercent ?? 0;
+  const totalPct = orgStats?.percentOfTotal ?? 0;
+  const democracyWeight = classWeights?.democracy ?? 50;
+  const contributionWeight = classWeights?.contribution ?? 50;
 
   return (
     <VStack spacing={3} w="100%" maxW="500px">
-      {/* Compact power breakdown */}
+      {/* Effective percentage breakdown: membership + contribution = total */}
       <HStack
         spacing={0}
         w="100%"
@@ -344,37 +317,64 @@ const VotingPowerStats = ({ membershipPower, contributionPower, classWeights, pt
         borderColor="whiteAlpha.100"
       >
         <VStack spacing={0} flex={1}>
-          <Text fontSize="md" fontWeight="bold" color="purple.300">{membershipPower}</Text>
+          <Text fontSize="md" fontWeight="bold" color="purple.300">
+            {membershipPct.toFixed(1)}%
+          </Text>
           <Text fontSize="2xs" color="gray.500">membership</Text>
         </VStack>
         <Text color="gray.600" fontSize="xs">+</Text>
         <VStack spacing={0} flex={1}>
-          <Text fontSize="md" fontWeight="bold" color="blue.300">{formatPowerNumber(contributionPower)}</Text>
-          <Text fontSize="2xs" color="gray.500">{ptBalance || 0} tokens</Text>
+          <Text fontSize="md" fontWeight="bold" color="blue.300">
+            {contributionPct.toFixed(1)}%
+          </Text>
+          <Text fontSize="2xs" color="gray.500">contribution</Text>
         </VStack>
         <Text color="gray.600" fontSize="xs">=</Text>
         <VStack spacing={0} flex={1}>
-          <Text fontSize="md" fontWeight="bold" color="green.300">{formatPowerNumber(totalPower)}</Text>
-          <Text fontSize="2xs" color="gray.500">total</Text>
+          <HStack spacing={1} justify="center">
+            <Text fontSize="md" fontWeight="bold" color="green.300">
+              {totalPct.toFixed(1)}%
+            </Text>
+            <Tooltip
+              label={
+                <VStack spacing={2} align="start" p={1}>
+                  <Text fontWeight="bold" fontSize="sm">How your voting power works</Text>
+                  <Text fontSize="xs">
+                    Your effective share is the sum of two weighted class scores:
+                  </Text>
+                  <VStack spacing={1} align="start" pl={2}>
+                    <Text fontSize="xs" color="purple.200">
+                      Membership ({democracyWeight}% weight): Your equal share among {poMembers} members
+                    </Text>
+                    <Text fontSize="xs" color="blue.200">
+                      Contribution ({contributionWeight}% weight): Your share based on participation tokens
+                    </Text>
+                  </VStack>
+                  <Text fontSize="xs" color="gray.300" fontStyle="italic">
+                    Each class is scored independently, then combined by weight to determine your total influence.
+                  </Text>
+                </VStack>
+              }
+              placement="top"
+              hasArrow
+              bg="gray.700"
+              p={3}
+              maxW="300px"
+            >
+              <Box as="span" display="inline-flex" cursor="help">
+                <InfoOutlineIcon color="gray.500" boxSize="12px" />
+              </Box>
+            </Tooltip>
+          </HStack>
+          <Text fontSize="2xs" color="gray.500">your share</Text>
         </VStack>
-        {orgStats?.percentOfTotal != null && (
-          <>
-            <Divider orientation="vertical" h="28px" borderColor="whiteAlpha.200" />
-            <VStack spacing={0} flex={1}>
-              <Text fontSize="md" fontWeight="bold" color="yellow.300">
-                {orgStats.percentOfTotal.toFixed(0)}%
-              </Text>
-              <Text fontSize="2xs" color="gray.500">your share</Text>
-            </VStack>
-          </>
-        )}
       </HStack>
 
       {/* Compact org context */}
       {orgStats && orgStats.totalOrgPower > 0 && (
         <HStack spacing={3} justify="center" flexWrap="wrap">
           <Text fontSize="2xs" color="gray.500">
-            {poMembers} members · avg {formatPowerNumber(orgStats.averagePower)} pts
+            {poMembers} members
           </Text>
           <Badge
             colorScheme={orgStats.aboveAverage ? "green" : "gray"}
@@ -400,11 +400,8 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
     classWeights,
     classConfig,
     orgStats,
-    isHybrid,
     hasVotingPower,
-    message,
     isLoading,
-    status,
   } = useVotingPower();
 
   const headingSize = useBreakpointValue({ base: "lg", md: "xl" });
@@ -435,7 +432,6 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
     }
   };
 
-  // Get user's participation token balance
   const ptBalance = userData?.participationTokenBalance || "0";
 
   return (
@@ -558,20 +554,14 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
               membershipPower={membershipPower}
               contributionPower={contributionPower}
               classWeights={classWeights}
-              classConfig={classConfig}
               isLoading={isLoading}
-              status={status}
-              message={message}
               hasMemberRole={hasMemberRole}
             />
 
             {/* Voting Power Stats Grid */}
             {hasVotingPower && !isLoading && (
               <VotingPowerStats
-                membershipPower={membershipPower}
-                contributionPower={contributionPower}
                 classWeights={classWeights}
-                ptBalance={ptBalance}
                 poMembers={poMembers}
                 orgStats={orgStats}
               />
