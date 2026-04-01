@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAccount } from 'wagmi';
 import { useAuth } from './AuthContext';
@@ -29,6 +29,11 @@ export const UserProvider = ({ children }) => {
     const [userProposals, setUserProposals] = useState([]);
     const [completedModules, setCompletedModules] = useState([]);
     const [userDataLoading, setUserDataLoading] = useState(true);
+
+    // Optimistic lock: prevents stale subgraph data from overwriting optimistic join state.
+    // Mirrors the pattern in TaskBoardContext.js.
+    const optimisticLockRef = useRef(null);
+    const OPTIMISTIC_GRACE_PERIOD = 15000; // 15s — covers 8s scheduled refetch + margin
 
     const [account, setAccount] = useState(null);
 
@@ -94,6 +99,21 @@ export const UserProvider = ({ children }) => {
 
     useEffect(() => {
         if (data) {
+            // Optimistic lock: if optimisticJoin was recently called, check whether the
+            // subgraph has caught up before accepting its data.
+            if (optimisticLockRef.current) {
+                const elapsed = Date.now() - optimisticLockRef.current;
+                if (elapsed < OPTIMISTIC_GRACE_PERIOD) {
+                    const serverHatIds = data.user?.currentHatIds || [];
+                    if (serverHatIds.length === 0) {
+                        // Subgraph hasn't indexed the join yet — keep optimistic state
+                        return;
+                    }
+                }
+                // Server caught up or grace period expired — clear lock
+                optimisticLockRef.current = null;
+            }
+
             const { user, account: accountData } = data;
 
             setGraphUsername(accountData?.username || '');
@@ -206,6 +226,7 @@ export const UserProvider = ({ children }) => {
      */
     const optimisticJoin = useCallback(({ address: userAddr, hatIds, username }) => {
         const lowerAddr = userAddr?.toLowerCase();
+        optimisticLockRef.current = Date.now();
         if (username) setGraphUsername(username);
         setHasMemberRole(true);
         // Optimistically set exec role if the claimed hat matches the exec hat (index 1).

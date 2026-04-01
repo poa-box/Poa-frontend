@@ -65,7 +65,7 @@ const User = () => {
   const { hasMemberRole, graphUsername, optimisticJoin } = useUserContext();
   const { address } = useAccount();
   const { isAuthenticated, isPasskeyUser, accountAddress } = useAuth();
-  const { quickJoinContractAddress, poDescription, logoHash } = usePOContext();
+  const { quickJoinContractAddress, poDescription, logoHash, roleHatIds } = usePOContext();
   const { organization, executeWithNotification, signer } = useWeb3();
   const router = useRouter();
   const { userDAO, vouch: vouchAddress, hatId: vouchHatId } = router.query;
@@ -299,10 +299,16 @@ const User = () => {
 
     if (result.success) {
       setPendingVouchApplication(null);
+      const addr = accountAddress || address;
+      optimisticJoin({
+        address: addr,
+        hatIds: vouchedHatId ? [vouchedHatId] : (roleHatIds?.[0] ? [roleHatIds[0]] : []),
+        username: crossChainUsername || graphUsername || '',
+      });
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, accountAddress, address, roleHatIds, crossChainUsername, graphUsername]);
 
   const handleJoinNewUser = useCallback(async () => {
     if (!organization) return;
@@ -390,10 +396,16 @@ const User = () => {
 
     if (result.success) {
       setPendingVouchApplication(null);
+      const addr = accountAddress || address;
+      optimisticJoin({
+        address: addr,
+        hatIds: vouchedHatId ? [vouchedHatId] : (roleHatIds?.[0] ? [roleHatIds[0]] : []),
+        username: newUsername.trim(),
+      });
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, roleHatIds, address]);
 
   const handleApplyAndJoin = useCallback(async () => {
     if (!selectedHatId) {
@@ -1451,8 +1463,13 @@ const User = () => {
         <PasskeyOnboardingModal
           isOpen={isCreateOpen}
           onClose={onCreateClose}
-          onSuccess={() => {
+          onSuccess={(result) => {
             if (!hasVouchGatedRoles) {
+              optimisticJoin({
+                address: result?.accountAddress,
+                hatIds: roleHatIds?.[0] ? [roleHatIds[0]] : [],
+                username: '',
+              });
               router.push(`/dashboard/?userDAO=${userDAO}`);
             }
             // For vouch-gated orgs: stay on page so user can apply for a role
