@@ -106,6 +106,7 @@ const initialState = {
     topHatId: null,
     creatorHatIds: [],
     educationHubEnabled: false,
+    hideTreasury: false,
     roleNames: {},
 };
 
@@ -335,11 +336,11 @@ export const POProvider = ({ children }) => {
         }
     }, [orgData]);
 
-    // Fetch logo CID from IPFS metadata JSON
-    // The subgraph OrgMetadata entity doesn't index the 'logo' field,
-    // so we extract it from IPFS directly.
+    // Fetch logo and hideTreasury from IPFS metadata.
+    // The subgraph OrgMetadata entity indexes these after redeployment,
+    // but we keep the IPFS fallback for resilience and backward compatibility.
     useEffect(() => {
-        async function fetchLogoFromMetadata() {
+        async function fetchMetadataFromIpfs() {
             const org = orgData?.organization;
             if (!org?.metadataHash) {
                 dispatch({ type: 'SET_LOGO_URL', payload: '' });
@@ -348,12 +349,13 @@ export const POProvider = ({ children }) => {
             try {
                 const metadata = await safeFetchFromIpfs(org.metadataHash);
                 dispatch({ type: 'SET_LOGO_URL', payload: metadata?.logo || '' });
+                dispatch({ type: 'SET_ORG_DATA', payload: { hideTreasury: metadata?.hideTreasury === true } });
             } catch (e) {
-                console.warn('[POContext] Failed to fetch logo from IPFS metadata:', e);
+                console.warn('[POContext] Failed to fetch metadata from IPFS:', e);
                 dispatch({ type: 'SET_LOGO_URL', payload: '' });
             }
         }
-        fetchLogoFromMetadata();
+        fetchMetadataFromIpfs();
     }, [orgData, safeFetchFromIpfs]);
 
     // Fetch IPFS content for education modules (description, quiz, answers, link)
@@ -447,6 +449,7 @@ export const POProvider = ({ children }) => {
         topHatId: state.topHatId,
         creatorHatIds: state.creatorHatIds,
         educationHubEnabled: state.educationHubEnabled,
+        hideTreasury: state.hideTreasury,
         roleNames: state.roleNames,
     }), [state, loading, error, leaderboardDisplayData, subgraphUrl]);
 
