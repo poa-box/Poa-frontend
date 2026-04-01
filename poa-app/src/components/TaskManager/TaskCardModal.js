@@ -429,7 +429,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
 
   const handleButtonClick = async () => {
     // For tasks requiring application, open the application modal instead
-    if (columnId === 'open' && task.requiresApplication && !hasExecRole) {
+    if (columnId === 'open' && task.requiresApplication) {
       if (hasApplied) {
         toast({
           title: 'Already Applied',
@@ -561,7 +561,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     switch (columnId) {
       case 'open':
         // Show "Apply" / "Applied" for tasks requiring application (unless exec who can bypass)
-        if (task.requiresApplication && !hasExecRole) {
+        if (task.requiresApplication) {
           return hasApplied ? 'Applied' : 'Apply';
         }
         return 'Claim';
@@ -744,7 +744,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                   )}
 
                   {/* Already applied status for members */}
-                  {columnId === 'open' && task.requiresApplication && hasApplied && !hasExecRole && (
+                  {columnId === 'open' && task.requiresApplication && hasApplied && (
                     <Box w="100%" p={4} bg="green.900" borderRadius="md" borderLeft="4px solid" borderColor="green.400">
                       <HStack>
                         <CheckIcon color="green.300" />
@@ -908,7 +908,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                   Reject
                 </Button>
               )}
-              <Button onClick={handleButtonClick} colorScheme="teal" isDisabled={task.isIndexing || (columnId === 'open' && hasApplied && !hasExecRole)}>
+              <Button onClick={handleButtonClick} colorScheme="teal" isDisabled={task.isIndexing || (columnId === 'open' && task.requiresApplication && hasApplied)}>
                 {buttonText()}
               </Button>
             </Box>
