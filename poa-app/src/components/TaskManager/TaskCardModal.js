@@ -277,7 +277,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   };
 
   // Handle approving an application (requires ASSIGN permission)
-  const handleApproveApplication = async (applicantAddress) => {
+  const handleApproveApplication = async (applicantAddress, applicantUsername) => {
     if (!canAssign) {
       toast({
         title: 'Permission Required',
@@ -290,15 +290,11 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
       return;
     }
 
+    // Close the modal before the transaction — optimistic UI will move the task
+    await handleCloseModal();
+
     try {
-      await approveApplication(task.id, applicantAddress);
-      toast({
-        title: 'Application Approved',
-        description: 'The applicant has been assigned to this task.',
-        status: 'success',
-        duration: 3000,
-        isClosable: true,
-      });
+      await approveApplication(task.id, applicantAddress, applicantUsername);
     } catch (error) {
       console.error('Error approving application:', error);
       toast({
@@ -800,7 +796,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                                 <Button
                                   size="sm"
                                   colorScheme="green"
-                                  onClick={() => handleApproveApplication(applicant.address)}
+                                  onClick={() => handleApproveApplication(applicant.address, applicant.username)}
                                 >
                                   Approve
                                 </Button>

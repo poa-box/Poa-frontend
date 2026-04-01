@@ -480,11 +480,37 @@ export const TaskBoardProvider = ({
   /**
    * Approve an application for a task
    */
-  const approveApplication = useCallback(async (taskId, applicantAddress) => {
+  const approveApplication = useCallback(async (taskId, applicantAddress, applicantUsername) => {
     if (!isReady || !taskService) {
       addNotification('Web3 not ready. Please connect your wallet.', 'error');
       return { success: false };
     }
+
+    // Save previous state for rollback
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+
+    // Lock to prevent poll-interval from overwriting this optimistic update
+    optimisticLockRef.current = Date.now();
+
+    // Optimistically move task from open to inProgress
+    const newTaskColumns = [...taskColumns];
+    const openColumn = newTaskColumns.find(col => col.id === 'open');
+    const inProgressColumn = newTaskColumns.find(col => col.id === 'inProgress');
+
+    if (openColumn && inProgressColumn) {
+      const taskIndex = openColumn.tasks.findIndex(t => t.id === taskId);
+      if (taskIndex > -1) {
+        const [task] = openColumn.tasks.splice(taskIndex, 1);
+        inProgressColumn.tasks.push({
+          ...task,
+          claimedBy: applicantAddress,
+          claimerUsername: applicantUsername || '',
+          status: 'Assigned',
+        });
+      }
+    }
+
+    setTaskColumns(newTaskColumns);
 
     const notifId = addNotification('Approving application...', 'loading');
 
@@ -498,6 +524,11 @@ export const TaskBoardProvider = ({
       if (result.success) {
         updateNotification(notifId, 'Application approved successfully!', 'success');
         emit(RefreshEvent.TASK_APPLICATION_APPROVED, { taskId, applicantAddress });
+
+        if (onUpdateColumns) {
+          onUpdateColumns(newTaskColumns);
+        }
+
         return { success: true };
       } else {
         throw new Error(result.error?.userMessage || 'Failed to approve application');
@@ -505,9 +536,12 @@ export const TaskBoardProvider = ({
     } catch (error) {
       console.error('Error approving application:', error);
       updateNotification(notifId, error.message || 'Error approving application', 'error');
+      // Rollback optimistic update on failure
+      optimisticLockRef.current = null;
+      setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit]);
+  }, [taskColumns, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns]);
 
   /**
    * Assign a task to a specific user
