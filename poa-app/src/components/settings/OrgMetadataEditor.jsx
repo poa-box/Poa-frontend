@@ -27,6 +27,7 @@ import {
   Divider,
   Alert,
   AlertIcon,
+  Switch,
 } from '@chakra-ui/react';
 import { CloseIcon, AddIcon } from '@chakra-ui/icons';
 import { PiImage } from 'react-icons/pi';
@@ -231,6 +232,7 @@ export default function OrgMetadataEditor({
   currentDescription,
   currentLinks,
   currentLogoHash,
+  currentHideTreasury,
 }) {
   const toast = useToast();
   const { addToIpfs } = useIPFScontext();
@@ -266,6 +268,7 @@ export default function OrgMetadataEditor({
       : Object.entries(currentLinks || {}).map(([name, url]) => ({ name, url }))
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hideTreasury, setHideTreasury] = useState(currentHideTreasury || false);
 
   // Update form when props change (e.g., after successful save + subgraph re-index).
   // Do NOT reset logoURL here — it's set by user actions (upload/remove) only.
@@ -278,7 +281,8 @@ export default function OrgMetadataEditor({
         ? currentLinks
         : Object.entries(currentLinks || {}).map(([name, url]) => ({ name, url }))
     );
-  }, [currentName, currentDescription, currentLinks]);
+    setHideTreasury(currentHideTreasury || false);
+  }, [currentName, currentDescription, currentLinks, currentHideTreasury]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -323,6 +327,7 @@ export default function OrgMetadataEditor({
         links: validLinks,
         template: 'default',
         logo: logoURL || null,
+        hideTreasury,
       };
 
       // 2. Upload metadata to IPFS
@@ -501,6 +506,21 @@ export default function OrgMetadataEditor({
               Links
             </FormLabel>
             <LinksEditor links={links} onChange={setLinks} />
+          </FormControl>
+
+          <Divider borderColor="warmGray.100" />
+
+          {/* Hide Treasury Toggle */}
+          <FormControl display="flex" alignItems="center" justifyContent="space-between">
+            <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={0} htmlFor="hide-treasury">
+              Hide Treasury
+            </FormLabel>
+            <Switch
+              id="hide-treasury"
+              isChecked={hideTreasury}
+              onChange={(e) => setHideTreasury(e.target.checked)}
+              colorScheme="coral"
+            />
           </FormControl>
 
           <Divider borderColor="warmGray.100" />

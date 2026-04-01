@@ -16,7 +16,7 @@ const Navbar = () => {
   const { isPasskeyUser, accountAddress, isAuthenticated } = useAuth();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
-  const { educationHubEnabled, orgId } = usePOContext();
+  const { educationHubEnabled, hideTreasury, orgId } = usePOContext();
 
   // Check if user is an org admin (for showing Settings link)
   // Use AuthContext's unified address so passkey users get admin check too
@@ -27,7 +27,7 @@ const Navbar = () => {
     { name: 'Dashboard', path: `/dashboard/?userDAO=${userDAO}` },
     { name: 'Tasks', path: `/tasks/?userDAO=${userDAO}` },
     { name: 'Voting', path: `/voting/?userDAO=${userDAO}` },
-    { name: 'Treasury', path: `/treasury/?userDAO=${userDAO}` },
+    ...(!hideTreasury ? [{ name: 'Treasury', path: `/treasury/?userDAO=${userDAO}` }] : []),
     ...(educationHubEnabled ? [{ name: 'Learn & Earn', path: `/edu-Hub/?userDAO=${userDAO}` }] : []),
     ...(isAdmin ? [{ name: 'Settings', path: `/settings/?userDAO=${userDAO}` }] : []),
   ];
@@ -151,16 +151,18 @@ const Navbar = () => {
           >
             Voting
           </Link>
-          <Link
-            as={NextLink}
-            href={`/treasury/?userDAO=${userDAO}`}
-            color="white"
-            fontWeight="extrabold"
-            fontSize="xl"
-            mx={"2%"}
-          >
-            Treasury
-          </Link>
+          {!hideTreasury && (
+            <Link
+              as={NextLink}
+              href={`/treasury/?userDAO=${userDAO}`}
+              color="white"
+              fontWeight="extrabold"
+              fontSize="xl"
+              mx={"2%"}
+            >
+              Treasury
+            </Link>
+          )}
           {educationHubEnabled && (
             <Link
               as={NextLink}

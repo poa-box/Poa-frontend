@@ -35,6 +35,7 @@ const SettingsPage = () => {
     poDescription,
     poLinks,
     logoUrl,
+    hideTreasury,
     poContextLoading,
     error: contextError,
   } = usePOContext();
@@ -134,6 +135,7 @@ const SettingsPage = () => {
             currentDescription={poDescription}
             currentLinks={poLinks}
             currentLogoHash={logoUrl}
+            currentHideTreasury={hideTreasury}
           />
         </VStack>
       </Box>

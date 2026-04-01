@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import {
   Box,
   VStack,
@@ -41,8 +41,16 @@ const TreasuryPage = () => {
     poMembers,
     participationTokenAddress,
     subgraphUrl,
+    hideTreasury,
   } = usePOContext();
   const { hasExecRole } = useUserContext();
+
+  // Redirect to dashboard if treasury is hidden
+  useEffect(() => {
+    if (hideTreasury && !poContextLoading) {
+      router.replace(`/dashboard/?userDAO=${userDAO}`);
+    }
+  }, [hideTreasury, poContextLoading, router, userDAO]);
 
   // Modal state for PT stats
   const { isOpen: isPTModalOpen, onOpen: onPTModalOpen, onClose: onPTModalClose } = useDisclosure();
