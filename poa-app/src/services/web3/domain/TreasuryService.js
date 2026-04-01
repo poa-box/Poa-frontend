@@ -5,6 +5,7 @@
 
 import { ethers } from 'ethers';
 import PaymentManagerABI from '../../../../abi/PaymentManager.json';
+import ERC20ABI from '../../../../abi/ERC20.json';
 import { requireAddress, requirePositiveNumber } from '../utils/validation';
 
 /**
@@ -18,6 +19,76 @@ export class TreasuryService {
   constructor(contractFactory, transactionManager) {
     this.factory = contractFactory;
     this.txManager = transactionManager;
+  }
+
+  // ============================================
+  // Deposit Functions
+  // ============================================
+
+  /**
+   * Approve an ERC20 token for spending by the PaymentManager
+   * @param {string} tokenAddress - ERC20 token contract address
+   * @param {string} spenderAddress - Address to approve (PaymentManager)
+   * @param {string} amount - Amount to approve (in wei)
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async approveToken(tokenAddress, spenderAddress, amount, options = {}) {
+    requireAddress(tokenAddress, 'Token address');
+    requireAddress(spenderAddress, 'Spender address');
+    requirePositiveNumber(amount, 'Approval amount');
+
+    const contract = this.factory.createWritable(tokenAddress, ERC20ABI);
+    return this.txManager.execute(contract, 'approve', [spenderAddress, amount], options);
+  }
+
+  /**
+   * Deposit ERC20 tokens into the PaymentManager treasury
+   * @param {string} contractAddress - PaymentManager contract address
+   * @param {string} tokenAddress - ERC20 token to deposit
+   * @param {string} amount - Amount to deposit (in wei)
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async depositERC20(contractAddress, tokenAddress, amount, options = {}) {
+    requireAddress(contractAddress, 'PaymentManager contract address');
+    requireAddress(tokenAddress, 'Token address');
+    requirePositiveNumber(amount, 'Deposit amount');
+
+    const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
+    return this.txManager.execute(contract, 'payERC20', [tokenAddress, amount], options);
+  }
+
+  /**
+   * Get current ERC20 allowance
+   * @param {string} tokenAddress - ERC20 token contract address
+   * @param {string} ownerAddress - Token owner address
+   * @param {string} spenderAddress - Approved spender address
+   * @returns {Promise<string>} Current allowance in wei
+   */
+  async getAllowance(tokenAddress, ownerAddress, spenderAddress) {
+    requireAddress(tokenAddress, 'Token address');
+    requireAddress(ownerAddress, 'Owner address');
+    requireAddress(spenderAddress, 'Spender address');
+
+    const contract = this.factory.createReadOnly(tokenAddress, ERC20ABI);
+    const allowance = await contract.allowance(ownerAddress, spenderAddress);
+    return allowance.toString();
+  }
+
+  /**
+   * Get ERC20 token balance for an account
+   * @param {string} tokenAddress - ERC20 token contract address
+   * @param {string} accountAddress - Account to check balance of
+   * @returns {Promise<string>} Balance in wei
+   */
+  async getTokenBalance(tokenAddress, accountAddress) {
+    requireAddress(tokenAddress, 'Token address');
+    requireAddress(accountAddress, 'Account address');
+
+    const contract = this.factory.createReadOnly(tokenAddress, ERC20ABI);
+    const balance = await contract.balanceOf(accountAddress);
+    return balance.toString();
   }
 
   // ============================================

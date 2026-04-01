@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import {
   Box,
   VStack,
@@ -14,14 +14,18 @@ import { useRouter } from 'next/router';
 import { useQuery } from '@apollo/client';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
+import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { FETCH_TREASURY_DATA } from '@/util/queries';
+import { getBountyTokenOptions } from '@/util/tokens';
+import { createChainClients } from '@/services/web3/utils/chainClients';
 import TreasuryHeader from './TreasuryHeader';
 import TokenBalancesGrid from './TokenBalancesGrid';
 import CurrentDistributions from './CurrentDistributions';
 import DistributionHistory from './DistributionHistory';
 import HistoricalOverview from './HistoricalOverview';
 import ParticipationTokenModal from './ParticipationTokenModal';
+import DepositModal from './DepositModal';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -31,6 +35,16 @@ const glassLayerStyle = {
   borderRadius: 'inherit',
   backgroundColor: 'rgba(0, 0, 0, .79)',
 };
+
+const BALANCE_OF_ABI = [
+  {
+    type: 'function',
+    name: 'balanceOf',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+];
 
 const TreasuryPage = () => {
   const router = useRouter();
@@ -42,6 +56,7 @@ const TreasuryPage = () => {
     participationTokenAddress,
     subgraphUrl,
     hideTreasury,
+    orgChainId,
   } = usePOContext();
   const { hasExecRole } = useUserContext();
 
@@ -52,8 +67,9 @@ const TreasuryPage = () => {
     }
   }, [hideTreasury, poContextLoading, router, userDAO]);
 
-  // Modal state for PT stats
+  // Modal state
   const { isOpen: isPTModalOpen, onOpen: onPTModalOpen, onClose: onPTModalClose } = useDisclosure();
+  const { isOpen: isDepositOpen, onOpen: onDepositOpen, onClose: onDepositClose } = useDisclosure();
 
   // Responsive design
   const sectionHeadingSize = useBreakpointValue({ base: 'lg', md: 'xl' });
@@ -88,6 +104,60 @@ const TreasuryPage = () => {
       sum + BigInt(d.totalAmount || 0), BigInt(0));
     return { activeDistributions: active, completedDistributions: completed, totalDistributed: total };
   }, [distributions]);
+
+  // ERC20 treasury balance fetching
+  const [erc20Balances, setErc20Balances] = useState([]);
+  const [balancesLoading, setBalancesLoading] = useState(false);
+
+  const fetchErc20Balances = useCallback(async () => {
+    if (!paymentManager?.id || !orgChainId) return;
+
+    const tokens = getBountyTokenOptions(orgChainId);
+    if (tokens.length === 0) return;
+
+    const clients = createChainClients(orgChainId);
+    const client = clients?.publicClient;
+    if (!client) return;
+
+    setBalancesLoading(true);
+    try {
+      const balances = await Promise.all(
+        tokens.map(async (token) => {
+          try {
+            const balance = await client.readContract({
+              address: token.address,
+              abi: BALANCE_OF_ABI,
+              functionName: 'balanceOf',
+              args: [paymentManager.id],
+            });
+            return { ...token, balance: balance.toString() };
+          } catch (e) {
+            console.warn(`Failed to fetch balance for ${token.symbol}:`, e.message);
+            return { ...token, balance: '0' };
+          }
+        })
+      );
+      setErc20Balances(balances);
+    } catch (e) {
+      console.error('Failed to fetch treasury balances:', e);
+    } finally {
+      setBalancesLoading(false);
+    }
+  }, [paymentManager?.id, orgChainId]);
+
+  // Fetch balances on initial load
+  useEffect(() => {
+    fetchErc20Balances();
+  }, [fetchErc20Balances]);
+
+  // Refetch balances after treasury deposit
+  // Pass fetchErc20Balances as dep so the subscription captures the latest callback
+  // (on mount, paymentManager.id is null and fetchErc20Balances early-returns)
+  useRefreshSubscription(RefreshEvent.TREASURY_DEPOSITED, () => {
+    refetch();
+    // Delay balance refetch slightly to allow chain state to update
+    setTimeout(fetchErc20Balances, 2000);
+  }, [fetchErc20Balances]);
 
   return (
     <>
@@ -138,6 +208,7 @@ const TreasuryPage = () => {
                   distributionCount={distributions.length}
                   isAdmin={hasExecRole}
                   onCreateDistribution={() => {/* TODO: Open modal */}}
+                  onDeposit={onDepositOpen}
                   refetch={refetch}
                 />
               </Box>
@@ -164,7 +235,8 @@ const TreasuryPage = () => {
                   <TokenBalancesGrid
                     totalSupply={totalSupply}
                     onPTClick={onPTModalOpen}
-                    isLoading={treasuryLoading}
+                    isLoading={treasuryLoading || balancesLoading}
+                    erc20Balances={erc20Balances}
                   />
                 </Box>
               </Box>
@@ -257,6 +329,14 @@ const TreasuryPage = () => {
         totalSupply={totalSupply}
         completedTasks={completedTasks}
         tokenAddress={participationTokenAddress}
+      />
+
+      {/* Deposit Modal */}
+      <DepositModal
+        isOpen={isDepositOpen}
+        onClose={onDepositClose}
+        paymentManagerAddress={paymentManager?.id}
+        orgChainId={orgChainId}
       />
     </>
   );
