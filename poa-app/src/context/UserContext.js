@@ -217,6 +217,14 @@ export const UserProvider = ({ children }) => {
         }
     }, [account, loading]);
 
+    // If the user-data query errors (subgraph down, timeout, etc.), clear the
+    // loading flag so pages aren't stuck on an infinite spinner.
+    useEffect(() => {
+        if (error && !loading) {
+            setUserDataLoading(false);
+        }
+    }, [error, loading]);
+
     /**
      * Optimistically set user state after a successful join transaction.
      * This allows immediate redirect to profileHub without waiting for subgraph indexing.

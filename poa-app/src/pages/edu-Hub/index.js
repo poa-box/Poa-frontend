@@ -42,7 +42,7 @@ import { useRouter } from 'next/router';
 
 const EducationHub = () => {
   const { poContextLoading, educationModules, educationHubAddress, educationHubEnabled, orgChainId } = usePOContext();
-  const { completedModules, hasExecRole, userDataLoading } = useUserContext();
+  const { completedModules, hasExecRole } = useUserContext();
   const { education, executeWithNotification } = useWeb3();
   const { isPasskeyUser } = useAuth();
   const { chain: connectedChain } = useAccount();
@@ -71,7 +71,6 @@ const EducationHub = () => {
 
   // Executive status comes from UserContext (Hats-based check)
   const isExecutive = hasExecRole;
-  const isLoadingExecCheck = userDataLoading;
 
   const handleAddModule = useCallback(async () => {
     if (!education) return;
@@ -155,7 +154,7 @@ const EducationHub = () => {
   return (
     <>
       <Navbar />
-      {poContextLoading || isLoadingExecCheck ? (
+      {poContextLoading ? (
         <Center height="90vh">
           <Spinner size="xl" />
         </Center>
