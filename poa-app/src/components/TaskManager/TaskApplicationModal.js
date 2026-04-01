@@ -27,18 +27,18 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  backgroundColor: 'rgba(15, 10, 25, 0.97)',
   boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
   border: '1px solid rgba(148, 115, 220, 0.3)',
 };
 
 const inputStyles = {
-  bg: 'whiteAlpha.50',
+  bg: 'whiteAlpha.100',
   border: '1px solid',
-  borderColor: 'whiteAlpha.200',
+  borderColor: 'whiteAlpha.300',
   color: 'white',
-  _placeholder: { color: 'gray.500' },
-  _hover: { borderColor: 'whiteAlpha.300' },
+  _placeholder: { color: 'gray.400' },
+  _hover: { borderColor: 'whiteAlpha.400' },
   _focus: {
     borderColor: 'purple.400',
     boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
@@ -102,7 +102,7 @@ const TaskApplicationModal = ({ isOpen, onClose, onApply, task }) => {
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="xl" isCentered>
-      <ModalOverlay bg="blackAlpha.700" />
+      <ModalOverlay bg="blackAlpha.800" />
       <ModalContent
         bg="transparent"
         borderRadius="xl"
@@ -188,7 +188,7 @@ const TaskApplicationModal = ({ isOpen, onClose, onApply, task }) => {
 
               <VStack spacing={4} align="stretch">
                 <FormControl isRequired>
-                  <FormLabel color="gray.300" fontSize="sm">
+                  <FormLabel color="gray.200" fontSize="sm">
                     Why do you want to work on this task?
                   </FormLabel>
                   <Textarea
@@ -201,7 +201,7 @@ const TaskApplicationModal = ({ isOpen, onClose, onApply, task }) => {
                 </FormControl>
 
                 <FormControl>
-                  <FormLabel color="gray.300" fontSize="sm">
+                  <FormLabel color="gray.200" fontSize="sm">
                     Relevant Experience (Optional)
                   </FormLabel>
                   <Textarea

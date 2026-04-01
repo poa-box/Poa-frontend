@@ -39,18 +39,18 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  backgroundColor: 'rgba(15, 10, 25, 0.97)',
   boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
   border: '1px solid rgba(148, 115, 220, 0.3)',
 };
 
 const inputStyles = {
-  bg: 'whiteAlpha.50',
+  bg: 'whiteAlpha.100',
   border: '1px solid',
-  borderColor: 'whiteAlpha.200',
+  borderColor: 'whiteAlpha.300',
   color: 'white',
-  _placeholder: { color: 'gray.500' },
-  _hover: { borderColor: 'whiteAlpha.300' },
+  _placeholder: { color: 'gray.400' },
+  _hover: { borderColor: 'whiteAlpha.400' },
   _focus: {
     borderColor: 'purple.400',
     boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
@@ -151,7 +151,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="xl" isCentered>
-      <ModalOverlay bg="blackAlpha.700" />
+      <ModalOverlay bg="blackAlpha.800" />
       <ModalContent
         bg="transparent"
         borderRadius="xl"
@@ -182,7 +182,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
               </Text>
               <VStack spacing={4} align="stretch">
                 <FormControl id="task-name">
-                  <FormLabel color="gray.300" fontSize="sm">
+                  <FormLabel color="gray.200" fontSize="sm">
                     Task Name
                   </FormLabel>
                   <Input
@@ -194,7 +194,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                   />
                 </FormControl>
                 <FormControl id="task-description">
-                  <FormLabel color="gray.300" fontSize="sm">
+                  <FormLabel color="gray.200" fontSize="sm">
                     Description
                   </FormLabel>
                   <Textarea
@@ -223,7 +223,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
 
               <SimpleGrid columns={2} spacing={4} mb={4}>
                 <FormControl id="task-difficulty">
-                  <FormLabel color="gray.300" fontSize="sm">
+                  <FormLabel color="gray.200" fontSize="sm">
                     Difficulty
                   </FormLabel>
                   <Select
@@ -239,7 +239,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                 </FormControl>
 
                 <FormControl id="task-estimated-hours">
-                  <FormLabel color="gray.300" fontSize="sm">
+                  <FormLabel color="gray.200" fontSize="sm">
                     Estimated Hours
                   </FormLabel>
                   <Input
@@ -263,7 +263,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
               {/* Live Payout Preview */}
               <Box
                 p={4}
-                bg="rgba(0, 0, 0, 0.3)"
+                bg="whiteAlpha.50"
                 borderRadius="lg"
                 border="1px solid rgba(148, 115, 220, 0.3)"
               >
@@ -324,7 +324,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
               {hasBounty && (
                 <Box
                   p={4}
-                  bg="rgba(0, 0, 0, 0.3)"
+                  bg="whiteAlpha.50"
                   borderRadius="lg"
                   border="1px solid rgba(148, 115, 220, 0.2)"
                 >
