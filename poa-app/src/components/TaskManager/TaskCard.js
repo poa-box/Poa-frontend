@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import { Box, useDisclosure, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon } from '@chakra-ui/react';
 import { useDrag } from 'react-dnd';
 import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
 import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
+import { useTextTruncation } from '../../hooks/usePretext';
 
 const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId, submission, claimedBy, claimerUsername, onEditTask, moveTask, projectId, Payout, bountyToken, bountyPayout, isMobile, rejectionCount, rejectionReason, rejections }) => {
   const router = useRouter();
@@ -32,13 +33,16 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
 
   const { isOpen, onOpen, onClose } = useDisclosure();
 
-  const truncateDescription = (desc, maxLength) => {
-    if (!desc) return '';
-    if (desc.length > maxLength) {
-      return desc.substring(0, maxLength) + '...';
-    }
-    return desc;
-  };
+  // Use Pretext for width-aware truncation instead of arbitrary character limits.
+  // The font/width values approximate the rendered card description text.
+  const descFont = isCardMobile ? '12.8px system-ui' : '12px system-ui';
+  const descWidth = isCardMobile ? 260 : 200; // approximate card content width
+  const truncatedDescription = useTextTruncation(description || '', {
+    font: descFont,
+    maxWidth: descWidth,
+    maxLines: 2,
+    lineHeight: isCardMobile ? 18 : 17,
+  });
 
   // Define the color for the difficulty badge
   const difficultyColorScheme = {
@@ -139,15 +143,15 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
           {name}
         </Text>
         
-        {/* Improved description section */}
-        <Text 
+        {/* Description — truncated via Pretext width-aware measurement */}
+        <Text
           fontSize={isCardMobile ? "0.8rem" : "0.75rem"}
           color="#4A5568" // gray.600
           mb={isCardMobile ? 3 : 2}
           noOfLines={2}
           lineHeight="1.4"
         >
-          {truncateDescription(description, isCardMobile ? 80 : 50)}
+          {truncatedDescription}
         </Text>
         
         {/* Info and tags with better layout */}

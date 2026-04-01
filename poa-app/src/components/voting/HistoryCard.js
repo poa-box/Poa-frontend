@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text, Flex, VStack, HStack, Progress } from "@chakra-ui/react";
 import { CheckCircleIcon, WarningIcon } from "@chakra-ui/icons";
+import { useTextTruncation } from "../../hooks/usePretext";
 
 const glassLayerStyle = {
   position: "absolute",
@@ -92,12 +93,14 @@ const HistoryCard = ({ proposal, onPollClick }) => {
     hasWinner = true;
   }
 
-  // Truncate description to first 100 characters
-  const truncatedDescription = proposal.description
-    ? proposal.description.length > 100
-      ? proposal.description.substring(0, 100) + "..."
-      : proposal.description
-    : "";
+  // Width-aware truncation using Pretext instead of arbitrary character limits.
+  // Card maxWidth is 380px minus padding (16px each side) = ~348px usable width.
+  const truncatedDescription = useTextTruncation(proposal.description || '', {
+    font: '12px system-ui',
+    maxWidth: 340,
+    maxLines: 2,
+    lineHeight: 17,
+  });
 
   return (
     <Box
