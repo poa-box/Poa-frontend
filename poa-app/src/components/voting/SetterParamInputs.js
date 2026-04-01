@@ -210,7 +210,7 @@ const ParameterInput = ({ param, value, onChange, allRoles, allProjects }) => {
         <Input
           value={value || ''}
           onChange={(e) => handleChange(e.target.value)}
-          placeholder={`Enter ${param.label || param.name}`}
+          placeholder={param.placeholder || `Enter ${param.label || param.name}`}
           {...inputStyles}
         />
       );

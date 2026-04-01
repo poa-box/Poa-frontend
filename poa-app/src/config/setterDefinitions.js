@@ -36,6 +36,12 @@ export const SETTER_CATEGORIES = {
     icon: 'FiClipboard',
     color: 'green',
     description: 'Project permissions and bounty settings'
+  },
+  tokenSettings: {
+    name: 'Token Settings',
+    icon: 'FiTag',
+    color: 'teal',
+    description: 'Participation token name and symbol'
   }
 };
 
@@ -58,6 +64,11 @@ export const CONTRACT_MAP = {
     contextKey: 'taskManagerContractAddress',
     displayName: 'Task Manager',
     description: 'Project and task management'
+  },
+  participationToken: {
+    contextKey: 'participationTokenAddress',
+    displayName: 'Participation Token',
+    description: 'Organization participation token'
   }
 };
 
@@ -426,6 +437,60 @@ export const SETTER_TEMPLATES = [
       const action = values.allowed === 'Grant' ? 'Allow' : 'Revoke';
       return `${action} "${roleName}" to create tasks globally`;
     }
+  },
+
+  // ===== TOKEN SETTINGS =====
+  {
+    id: 'change-token-metadata',
+    category: 'tokenSettings',
+    name: 'Change Token Name & Symbol',
+    description: 'Update the participation token name, symbol, or both via governance vote',
+    contract: 'participationToken',
+    inputs: [
+      {
+        name: 'tokenName',
+        label: 'New Token Name',
+        type: 'string',
+        placeholder: 'e.g. Reputation Points',
+        helpText: 'Leave empty to keep the current name',
+        optional: true,
+      },
+      {
+        name: 'tokenSymbol',
+        label: 'New Token Symbol',
+        type: 'string',
+        placeholder: 'e.g. REP',
+        helpText: 'Leave empty to keep the current symbol',
+        optional: true,
+      }
+    ],
+    buildCalls: (values, contractAddress) => {
+      const calls = [];
+      if (values.tokenName && values.tokenName.trim()) {
+        const iface = new utils.Interface(['function setName(string newName)']);
+        calls.push({
+          target: contractAddress,
+          value: '0',
+          data: iface.encodeFunctionData('setName', [values.tokenName.trim()]),
+        });
+      }
+      if (values.tokenSymbol && values.tokenSymbol.trim()) {
+        const iface = new utils.Interface(['function setSymbol(string newSymbol)']);
+        calls.push({
+          target: contractAddress,
+          value: '0',
+          data: iface.encodeFunctionData('setSymbol', [values.tokenSymbol.trim()]),
+        });
+      }
+      return calls;
+    },
+    preview: (values) => {
+      const parts = [];
+      if (values.tokenName && values.tokenName.trim()) parts.push(`name to "${values.tokenName.trim()}"`);
+      if (values.tokenSymbol && values.tokenSymbol.trim()) parts.push(`symbol to "${values.tokenSymbol.trim()}"`);
+      if (parts.length === 0) return 'No changes specified';
+      return `Change token ${parts.join(' and ')}`;
+    }
   }
 ];
 
@@ -534,6 +599,24 @@ export const RAW_FUNCTIONS = {
         { name: 'mask', type: 'uint8', label: 'Permission Mask (1=CREATE, 2=CLAIM, 4=REVIEW, 8=ASSIGN)' }
       ],
       description: 'Set role permissions for a project'
+    }
+  ],
+  participationToken: [
+    {
+      name: 'setName',
+      signature: 'function setName(string newName)',
+      params: [
+        { name: 'newName', type: 'string', label: 'New Token Name' }
+      ],
+      description: 'Change the participation token name'
+    },
+    {
+      name: 'setSymbol',
+      signature: 'function setSymbol(string newSymbol)',
+      params: [
+        { name: 'newSymbol', type: 'string', label: 'New Token Symbol' }
+      ],
+      description: 'Change the participation token symbol'
     }
   ]
 };
