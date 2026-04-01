@@ -1,0 +1,5 @@
+{
+    "scripts": {
+        "archive": "rm -rf poa-app/node_modules poa-app/.next node_modules .next"
+    }
+}
