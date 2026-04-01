@@ -24,7 +24,6 @@ import {
   Tooltip,
   Badge,
   SimpleGrid,
-  Divider,
   Skeleton,
   keyframes,
 } from "@chakra-ui/react";
@@ -42,7 +41,7 @@ const breathe = keyframes`
   }
 `;
 import { ChevronDownIcon, ChevronUpIcon } from "@chakra-ui/icons";
-import { useVotingPower, useRoleNames } from "@/hooks";
+import { useVotingPower } from "@/hooks";
 import { useUserContext } from "@/context/UserContext";
 import { usePOContext } from "@/context/POContext";
 
@@ -62,9 +61,6 @@ const glassLayerStyle = {
  */
 const LearnMoreDropdown = ({ classWeights, classConfig }) => {
   const [isExpanded, setIsExpanded] = useState(false);
-  const { allRoles } = useRoleNames();
-  const memberRole = allRoles?.[0]?.name || "Member";
-
   const democracyWeight = classWeights?.democracy ?? 50;
   const contributionWeight = classWeights?.contribution ?? 50;
   const isQuadratic = classConfig?.some(c => c.strategy === 'ERC20_BAL' && c.quadratic) ?? false;
@@ -93,22 +89,17 @@ const LearnMoreDropdown = ({ classWeights, classConfig }) => {
           borderColor="whiteAlpha.100"
         >
           <VStack spacing={4} align="stretch">
-            {/* Introduction */}
             <VStack align="start" spacing={2}>
               <Heading size="sm" color="white">
-                Two Voices, One Decision
+                How Hybrid Voting Works
               </Heading>
               <Text fontSize="sm" color="gray.300">
-                Hybrid voting combines the fairness of democracy with recognition for those who
-                contribute the most. Every vote has two components that blend together.
+                Two factors determine your voting power:
               </Text>
             </VStack>
 
-            <Divider borderColor="whiteAlpha.200" />
-
-            {/* The Two Voices Explained */}
             <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
-              {/* Membership Voice */}
+              {/* Membership */}
               <Box
                 p={3}
                 bg="rgba(128, 90, 213, 0.1)"
@@ -120,20 +111,20 @@ const LearnMoreDropdown = ({ classWeights, classConfig }) => {
                   <HStack>
                     <Box w="12px" h="12px" borderRadius="full" bg="purple.400" />
                     <Text fontWeight="bold" color="purple.300" fontSize="sm">
-                      Membership Voice
+                      Membership
                     </Text>
                     <Badge colorScheme="purple" variant="subtle" fontSize="2xs">
                       {democracyWeight}%
                     </Badge>
                   </HStack>
                   <Text fontSize="xs" color="gray.300">
-                    As a {memberRole}, you receive <strong>100 base points</strong> — the same
-                    as every other member. This ensures democratic equality.
+                    Every member gets an equal share of this portion. If there
+                    are 6 members, each gets 1/6 of the membership weight.
                   </Text>
                 </VStack>
               </Box>
 
-              {/* Work Voice */}
+              {/* Contribution */}
               <Box
                 p={3}
                 bg="rgba(49, 130, 206, 0.1)"
@@ -145,37 +136,47 @@ const LearnMoreDropdown = ({ classWeights, classConfig }) => {
                   <HStack>
                     <Box w="12px" h="12px" borderRadius="full" bg="blue.400" />
                     <Text fontWeight="bold" color="blue.300" fontSize="sm">
-                      Work Voice
+                      Contribution
                     </Text>
                     <Badge colorScheme="blue" variant="subtle" fontSize="2xs">
                       {contributionWeight}%
                     </Badge>
                   </HStack>
                   <Text fontSize="xs" color="gray.300">
-                    Your participation tokens represent completed work. The more you contribute,
-                    the more voting power you earn.
-                    {isQuadratic && " Uses quadratic scaling for fairness."}
+                    Your share of this portion is based on participation tokens,
+                    earned by completing tasks. More tokens = more influence.
+                    {isQuadratic && " Uses quadratic scaling so no single person can dominate."}
                   </Text>
                 </VStack>
               </Box>
             </SimpleGrid>
 
-            {/* Why Hybrid Voting - compact version */}
+            {/* Worked example */}
             <Box
               p={3}
-              bg="linear-gradient(135deg, rgba(128, 90, 213, 0.1) 0%, rgba(49, 130, 206, 0.1) 100%)"
+              bg="whiteAlpha.50"
               borderRadius="lg"
-              borderLeft="3px solid"
-              borderColor="purple.400"
+              border="1px solid"
+              borderColor="whiteAlpha.100"
             >
-              <VStack align="start" spacing={1}>
+              <VStack align="start" spacing={2}>
                 <Text fontWeight="bold" color="white" fontSize="sm">
-                  Why Hybrid Voting?
+                  Example
                 </Text>
                 <Text fontSize="xs" color="gray.300">
-                  Every member has a meaningful voice while contributors earn greater influence.
-                  No single person can dominate, and active participation is rewarded.
+                  Say there are 6 members and 100 total tokens. You hold 10 tokens.
                 </Text>
+                <VStack align="start" spacing={1} pl={2}>
+                  <Text fontSize="xs" color="purple.200">
+                    Membership: 1/6 of {democracyWeight}% = {(democracyWeight / 6).toFixed(1)}%
+                  </Text>
+                  <Text fontSize="xs" color="blue.200">
+                    Contribution: 10/100 of {contributionWeight}% = {(contributionWeight * 10 / 100).toFixed(1)}%
+                  </Text>
+                  <Text fontSize="xs" color="green.200" fontWeight="semibold">
+                    Your total voting power: {((democracyWeight / 6) + (contributionWeight * 10 / 100)).toFixed(1)}%
+                  </Text>
+                </VStack>
               </VStack>
             </Box>
           </VStack>
@@ -212,8 +213,8 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, isLoad
 
   return (
     <VStack spacing={3} w="100%" maxW="500px">
-      <Text fontSize="sm" color="gray.300" fontWeight="semibold">
-        Your Personal Voting Power
+      <Text fontSize="xs" color="gray.500">
+        How votes are weighted
       </Text>
 
       {/* Class weight bar */}
@@ -296,7 +297,7 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, isLoad
 /**
  * Stats panel showing user's effective voting share breakdown by class
  */
-const VotingPowerStats = ({ classWeights, poMembers, orgStats }) => {
+const VotingPowerStats = ({ classWeights, orgStats, poMembers }) => {
   const membershipPct = orgStats?.membershipPercent ?? 0;
   const contributionPct = orgStats?.contributionPercent ?? 0;
   const totalPct = orgStats?.percentOfTotal ?? 0;
@@ -305,6 +306,10 @@ const VotingPowerStats = ({ classWeights, poMembers, orgStats }) => {
 
   return (
     <VStack spacing={3} w="100%" maxW="500px">
+      <Text fontSize="sm" color="gray.300" fontWeight="semibold">
+        Your Personal Voting Power
+      </Text>
+
       {/* Effective percentage breakdown: membership + contribution = total */}
       <HStack
         spacing={0}
@@ -369,22 +374,6 @@ const VotingPowerStats = ({ classWeights, poMembers, orgStats }) => {
           <Text fontSize="2xs" color="gray.500">your share</Text>
         </VStack>
       </HStack>
-
-      {/* Compact org context */}
-      {orgStats && orgStats.totalOrgPower > 0 && (
-        <HStack spacing={3} justify="center" flexWrap="wrap">
-          <Text fontSize="2xs" color="gray.500">
-            {poMembers} members
-          </Text>
-          <Badge
-            colorScheme={orgStats.aboveAverage ? "green" : "gray"}
-            variant="subtle"
-            fontSize="2xs"
-          >
-            {orgStats.aboveAverage ? "above avg" : "below avg"}
-          </Badge>
-        </HStack>
-      )}
     </VStack>
   );
 };
