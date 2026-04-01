@@ -356,6 +356,48 @@ export const POProvider = ({ children }) => {
         fetchLogoFromMetadata();
     }, [orgData, safeFetchFromIpfs]);
 
+    // Fetch IPFS content for education modules (description, quiz, answers, link)
+    // The subgraph only stores title + contentHash; the rest lives in IPFS.
+    useEffect(() => {
+        async function fetchModuleContent() {
+            const modules = state.educationModules;
+            if (!modules || modules.length === 0) return;
+
+            const modulesNeedingFetch = modules.filter(m => m.ipfsHash && !m._ipfsFetched);
+            if (modulesNeedingFetch.length === 0) return;
+
+            const updated = await Promise.all(
+                modules.map(async (module) => {
+                    if (!module.ipfsHash || module._ipfsFetched) return module;
+                    try {
+                        const content = await safeFetchFromIpfs(module.ipfsHash);
+                        if (!content) return { ...module, _ipfsFetched: true };
+                        return {
+                            ...module,
+                            description: content.description || module.description,
+                            link: content.link || '',
+                            question: content.quiz?.[0] || '',
+                            answers: (content.answers?.[0] || []).map((ans, i) => ({
+                                index: i,
+                                answer: ans,
+                            })),
+                            _ipfsFetched: true,
+                        };
+                    } catch (e) {
+                        console.warn('[POContext] Failed to fetch education module IPFS content:', e);
+                        return { ...module, _ipfsFetched: true };
+                    }
+                })
+            );
+
+            dispatch({
+                type: 'SET_ORG_DATA',
+                payload: { educationModules: updated },
+            });
+        }
+        fetchModuleContent();
+    }, [state.educationModules, safeFetchFromIpfs]);
+
     // Combined loading and error states
     const loading = orgLookupLoading || orgDataLoading;
     const error = orgLookupError || orgDataError;
