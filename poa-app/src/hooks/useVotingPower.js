@@ -12,6 +12,7 @@ import { useMemo } from 'react';
 import { usePOContext } from '../context/POContext';
 import { useUserContext } from '../context/UserContext';
 import { useVotingContext } from '../context/VotingContext';
+import { formatTokenAmount } from '../util/formatToken';
 
 // Voting strategy constants (matching subgraph enum)
 const VOTING_STRATEGY = {
@@ -164,8 +165,9 @@ export function useVotingPower() {
         const rawBalance = userData?.participationTokenBalance || '0';
         const balance = parseTokenBalance(rawBalance);
 
-        // Check minimum balance
-        const minBalance = BigInt(cls.minBalance || '0');
+        // Check minimum balance — convert minBalance from wei to human-readable
+        // units to match balance (which was already formatted by formatTokenAmount)
+        const minBalance = parseTokenBalance(formatTokenAmount(cls.minBalance || '0'));
         if (balance < minBalance) {
           contributionPower = 0;
         } else {
@@ -201,10 +203,14 @@ export function useVotingPower() {
 
         const contribClass = classConfig.find(c => c.strategy === VOTING_STRATEGY.ERC20_BAL);
         if (contribClass) {
-          if (contribClass.quadratic) {
-            userContrib = Number(sqrt(userBalance) * 100n);
-          } else {
-            userContrib = Number(userBalance * 100n);
+          // Apply same minBalance check as personal power calculation
+          const minBal = parseTokenBalance(formatTokenAmount(contribClass.minBalance || '0'));
+          if (userBalance >= minBal) {
+            if (contribClass.quadratic) {
+              userContrib = Number(sqrt(userBalance) * 100n);
+            } else {
+              userContrib = Number(userBalance * 100n);
+            }
           }
         }
 
