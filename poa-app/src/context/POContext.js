@@ -47,6 +47,30 @@ function transformEducationModules(modules) {
     return modules.map(module => {
         // Convert bytes32 contentHash to CID format for IPFS gateway URLs
         const ipfsCid = module.contentHash ? bytes32ToIpfsCid(module.contentHash) : null;
+
+        // Use subgraph-indexed metadata when available
+        const meta = module.metadata;
+        let description = 'Module content loading from IPFS...';
+        let link = '';
+        let question = '';
+        let answers = [];
+        let ipfsFetched = false;
+
+        if (meta) {
+            description = meta.description || 'No description available';
+            link = meta.link || '';
+            question = (meta.quiz && meta.quiz.length > 0) ? meta.quiz[0] : '';
+            if (meta.answersJson) {
+                try {
+                    const parsed = JSON.parse(meta.answersJson);
+                    answers = (parsed[0] || []).map((ans, i) => ({ index: i, answer: ans }));
+                } catch (e) {
+                    // Fall back to empty answers if JSON parsing fails
+                }
+            }
+            ipfsFetched = true;
+        }
+
         return {
             id: module.id,
             moduleId: module.moduleId,
@@ -56,15 +80,15 @@ function transformEducationModules(modules) {
             contentHashBytes32: module.contentHash,
             payout: formatTokenAmount(module.payout || '0'),
             status: module.status,
-            // Content from IPFS needs to be fetched separately
             isIndexing: !module.contentHash,
-            description: 'Module content loading from IPFS...',
-            link: '',
-            question: '',
-            answers: [],
+            description,
+            link,
+            question,
+            answers,
             completions: module.completions || [],
             // For backward compatibility
             completetions: module.completions || [],
+            _ipfsFetched: ipfsFetched,
         };
     });
 }
@@ -286,6 +310,8 @@ export const POProvider = ({ children }) => {
                 type: 'SET_ORG_DATA',
                 payload: {
                     logoHash: org.metadataHash || '',
+                    logoUrl: org.metadata?.logo || '',
+                    hideTreasury: org.metadata?.hideTreasury === true,
                     poMembers: org.users?.length || 0,
                     ptTokenBalance: formatTokenAmount(org.participationToken?.totalSupply || '0'),
                     topHatId: org.topHatId,
@@ -336,14 +362,16 @@ export const POProvider = ({ children }) => {
         }
     }, [orgData]);
 
-    // Fetch logo and hideTreasury from IPFS metadata.
-    // The subgraph OrgMetadata entity indexes these after redeployment,
-    // but we keep the IPFS fallback for resilience and backward compatibility.
+    // Fetch logo and hideTreasury from IPFS metadata — only as fallback
+    // when the subgraph hasn't indexed org metadata yet.
     useEffect(() => {
         async function fetchMetadataFromIpfs() {
             const org = orgData?.organization;
             if (!org?.metadataHash) {
-                dispatch({ type: 'SET_LOGO_URL', payload: '' });
+                return;
+            }
+            // Skip IPFS fetch if subgraph already has metadata indexed
+            if (org.metadata) {
                 return;
             }
             try {
@@ -352,7 +380,6 @@ export const POProvider = ({ children }) => {
                 dispatch({ type: 'SET_ORG_DATA', payload: { hideTreasury: metadata?.hideTreasury === true } });
             } catch (e) {
                 console.warn('[POContext] Failed to fetch metadata from IPFS:', e);
-                dispatch({ type: 'SET_LOGO_URL', payload: '' });
             }
         }
         fetchMetadataFromIpfs();

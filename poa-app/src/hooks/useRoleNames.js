@@ -1,13 +1,12 @@
 /**
  * useRoleNames - Hook for mapping role hat IDs to human-readable names
  *
- * Fetches role names from IPFS metadata and provides a mapping function
- * with fallback to "Role X" format if names aren't available.
+ * Sources role names from POContext (which gets them from the subgraph's
+ * Role.name and Hat.name fields) instead of fetching from IPFS.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { usePOContext } from '../context/POContext';
-import { useIPFScontext } from '../context/ipfsContext';
 
 /**
  * Normalize a hat ID to a string for consistent comparison
@@ -33,46 +32,19 @@ function getFallbackRoleName(index) {
  * @returns {Object} { roleNames, getRoleName, isLoading }
  */
 export function useRoleNames() {
-  const { roleHatIds, logoHash, orgId } = usePOContext();
-  const { safeFetchFromIpfs } = useIPFScontext();
+  const { roleHatIds, roleNames: contextRoleNames } = usePOContext();
 
-  const [roleNames, setRoleNames] = useState({});
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Fetch role names from IPFS metadata
-  useEffect(() => {
-    async function fetchRoleNames() {
-      if (!logoHash || !roleHatIds?.length) {
-        setIsLoading(false);
-        return;
-      }
-
-      setIsLoading(true);
-
-      try {
-        const metadata = await safeFetchFromIpfs(logoHash);
-
-        if (metadata?.roles && Array.isArray(metadata.roles)) {
-          const names = {};
-          metadata.roles.forEach((role, index) => {
-            if (role.name && roleHatIds[index]) {
-              const normalizedId = normalizeHatId(roleHatIds[index]);
-              names[normalizedId] = role.name;
-              // Also store with original ID for flexible lookup
-              names[String(roleHatIds[index])] = role.name;
-            }
-          });
-          setRoleNames(names);
-        }
-      } catch (err) {
-        console.error('Failed to fetch role names from IPFS:', err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchRoleNames();
-  }, [logoHash, roleHatIds, safeFetchFromIpfs]);
+  // Build normalized role names map from POContext data
+  const roleNames = useMemo(() => {
+    if (!contextRoleNames || typeof contextRoleNames !== 'object') return {};
+    const names = {};
+    Object.entries(contextRoleNames).forEach(([key, value]) => {
+      const normalizedKey = normalizeHatId(key);
+      names[normalizedKey] = value;
+      names[String(key)] = value;
+    });
+    return names;
+  }, [contextRoleNames]);
 
   /**
    * Get the display name for a role by its hat ID
@@ -143,7 +115,7 @@ export function useRoleNames() {
     getRoleNames,
     getRoleNamesString,
     allRoles,
-    isLoading,
+    isLoading: false,
   };
 }
 

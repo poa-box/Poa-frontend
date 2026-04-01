@@ -188,13 +188,13 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     fetchIpfsMetadata();
   }, [isOpen, task, safeFetchFromIpfs, taskMetadata, submissionMetadata, rejectionMetadata]);
 
-  // Fetch application content from IPFS for all applicants
+  // Fetch application content from IPFS — only for applicants without subgraph-indexed metadata
   useEffect(() => {
     const fetchApplicationContents = async () => {
       if (!isOpen || !task?.applicants?.length) return;
 
       const hashesToFetch = task.applicants.filter(
-        a => a.applicationHash && !applicationContents[a.address]
+        a => a.applicationHash && !a.metadata && !applicationContents[a.address]
       );
       if (hashesToFetch.length === 0) return;
 
@@ -772,7 +772,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                       </Text>
                       <VStack spacing={3} align="stretch">
                         {task.applicants.map((applicant, index) => {
-                          const appContent = applicationContents[applicant.address];
+                          const appContent = applicant.metadata || applicationContents[applicant.address];
                           return (
                             <Box
                               key={index}

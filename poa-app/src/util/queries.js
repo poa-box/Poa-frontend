@@ -146,6 +146,8 @@ export const FETCH_ORG_FULL_DATA = gql`
         id
         description
         template
+        logo
+        hideTreasury
         links {
           name
           url
@@ -192,6 +194,12 @@ export const FETCH_ORG_FULL_DATA = gql`
           moduleId
           title
           contentHash
+          metadata {
+            description
+            link
+            quiz
+            answersJson
+          }
           payout
           status
           completions {
@@ -378,6 +386,10 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
               applicant
               applicantUsername
               applicationHash
+              metadata {
+                notes
+                experience
+              }
               approved
               approver
               approverUsername
@@ -450,6 +462,12 @@ export const FETCH_EDUCATION_DATA = gql`
           moduleId
           title
           contentHash
+          metadata {
+            description
+            link
+            quiz
+            answersJson
+          }
           payout
           status
           createdAt
@@ -475,6 +493,8 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
         id
         description
         template
+        logo
+        hideTreasury
         links {
           name
           url
@@ -725,6 +745,10 @@ export const FETCH_PENDING_TOKEN_REQUESTS = gql`
       requester
       amount
       ipfsHash
+      metadata {
+        reason
+        submittedAt
+      }
       status
       createdAt
       createdAtBlock
@@ -746,6 +770,10 @@ export const FETCH_USER_TOKEN_REQUESTS = gql`
       requestId
       amount
       ipfsHash
+      metadata {
+        reason
+        submittedAt
+      }
       status
       createdAt
       approvedAt
@@ -770,6 +798,10 @@ export const FETCH_ALL_TOKEN_REQUESTS = gql`
       requester
       amount
       ipfsHash
+      metadata {
+        reason
+        submittedAt
+      }
       status
       createdAt
       approvedAt
