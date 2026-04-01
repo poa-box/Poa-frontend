@@ -203,8 +203,20 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
   // Map roles
   const contractRoles = roles.map((role, idx) => mapRole(role, idx, roles.length));
 
-  // Map voting classes
-  const hybridClasses = mapVotingClasses(voting.classes);
+  // Map voting classes.
+  // Safety check: if democracyWeight exists and classes don't match it
+  // (e.g., APPLY_VARIATION updated the weight but not classes), rebuild from the weight.
+  let votingClasses = voting.classes;
+  if (voting.democracyWeight !== undefined && votingClasses && votingClasses.length === 2) {
+    const directClass = votingClasses.find(c => c.strategy === 0 || c.strategy === 'DIRECT');
+    if (directClass && directClass.slicePct !== voting.democracyWeight) {
+      console.warn('[DeployMapper] Voting classes out of sync with democracyWeight. Rebuilding.',
+        { classSlice: directClass.slicePct, democracyWeight: voting.democracyWeight });
+      const { sliderToVotingConfig } = require('../utils/philosophyMapper');
+      votingClasses = sliderToVotingConfig(voting.democracyWeight).classes;
+    }
+  }
+  const hybridClasses = mapVotingClasses(votingClasses);
 
   // Build role assignments
   const roleAssignments = buildRoleAssignments(permissions);

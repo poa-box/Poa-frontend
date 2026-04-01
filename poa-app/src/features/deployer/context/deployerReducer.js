@@ -14,6 +14,15 @@
 import { v4 as uuidv4 } from 'uuid';
 import { DEFAULT_DEPLOY_CHAIN_ID, NETWORKS, DEFAULT_DEPLOY_NETWORK, getNetworkByChainId } from '../../../config/networks';
 
+// Lazy import to avoid circular dependency (philosophyMapper imports VOTING_STRATEGY from this file)
+let _sliderToVotingConfig;
+function getSliderToVotingConfig() {
+  if (!_sliderToVotingConfig) {
+    _sliderToVotingConfig = require('../utils/philosophyMapper').sliderToVotingConfig;
+  }
+  return _sliderToVotingConfig;
+}
+
 // Step constants - New flow
 export const STEPS = {
   TEMPLATE: 0,        // Template selection (Simple mode)
@@ -485,8 +494,11 @@ export function deployerReducer(state, action) {
       // Payload contains the template defaults from getTemplateDefaults()
       const { roles, permissions, voting, features, governancePhilosophy, metadataAdminRoleIndex } = action.payload;
 
-      // Map governancePhilosophy to slider value
-      const sliderValue = governancePhilosophy === 'democratic' ? 85
+      // Derive slider from the template's actual democracyWeight (source of truth),
+      // falling back to governancePhilosophy string for legacy templates without democracyWeight.
+      const sliderValue = voting?.democracyWeight !== undefined
+        ? voting.democracyWeight
+        : governancePhilosophy === 'democratic' ? 85
         : governancePhilosophy === 'delegated' ? 15
         : 50;
 
@@ -735,6 +747,10 @@ export function deployerReducer(state, action) {
       // Update philosophy slider based on democracy weight
       const sliderValue = democracyWeight !== undefined ? democracyWeight : state.philosophy.slider;
 
+      // Rebuild voting.classes from the new slider value so they stay in sync.
+      // Without this, the slider shows 70 but classes stay at the template's 50/50.
+      const newVotingConfig = getSliderToVotingConfig()(sliderValue);
+
       // Apply feature overrides if present
       const newFeatures = featureOverrides
         ? { ...state.features, ...featureOverrides }
@@ -752,11 +768,9 @@ export function deployerReducer(state, action) {
           slider: sliderValue,
         },
         voting: {
-          ...state.voting,
-          democracyWeight: democracyWeight ?? state.voting.democracyWeight,
-          participationWeight: participationWeight ?? state.voting.participationWeight,
-          hybridQuorum: quorum ?? state.voting.hybridQuorum,
-          ddQuorum: quorum ?? state.voting.ddQuorum,
+          ...newVotingConfig,
+          hybridQuorum: quorum ?? newVotingConfig.hybridQuorum,
+          ddQuorum: quorum ?? newVotingConfig.ddQuorum,
         },
         features: newFeatures,
         permissions: newPermissions,
