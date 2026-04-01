@@ -25,9 +25,10 @@ const defaultProposal = {
   transferAddress: "",
   transferAmount: "",
   // Election fields
-  electionCandidates: [],      // Array of { name, address }
-  electionRoleId: "",          // Hat ID for the role being elected
-  electionCurrentHolders: [],  // Array of { name, address } - current holders of the elected role
+  electionCandidates: [],           // Array of { name, address }
+  electionRoleId: "",               // Hat ID for the role being elected
+  electionCurrentHolders: [],       // Array of { name, address } - all holders of the elected hat
+  electionSelectedIncumbents: [],   // Array of { name, address } - holders whose hat is at stake
   // Voting restriction fields
   isRestricted: false,    // Whether to restrict who can vote
   restrictedHatIds: [],   // Hat IDs that can vote (if restricted)
@@ -68,6 +69,7 @@ export function useProposalForm({ onSubmit }) {
         electionRoleId: '',
         electionCandidates: [],
         electionCurrentHolders: [],
+        electionSelectedIncumbents: [],
       } : {}),
     }));
   }, []);
@@ -419,19 +421,22 @@ export function useProposalForm({ onSubmit }) {
         "function setWearerEligibility(address wearer, uint256 hatId, bool eligible, bool standing)"
       ]);
 
-      const currentHolders = proposal.electionCurrentHolders || [];
+      // Only revoke from the specific incumbents the user selected — not all holders
+      const selectedIncumbents = proposal.electionSelectedIncumbents || [];
+      // All holders is used to check if candidate already holds the hat
+      const allHolders = proposal.electionCurrentHolders || [];
 
       batches = proposal.electionCandidates.map(candidate => {
         const batch = [];
 
-        // Revoke hat from all current holders who are NOT this candidate
-        currentHolders.forEach(holder => {
-          if (holder.address.toLowerCase() !== candidate.address.toLowerCase()) {
+        // Revoke hat from selected incumbents who are NOT this candidate
+        selectedIncumbents.forEach(incumbent => {
+          if (incumbent.address.toLowerCase() !== candidate.address.toLowerCase()) {
             batch.push({
               target: eligibilityModuleAddress,
               value: "0",
               data: iface.encodeFunctionData("setWearerEligibility", [
-                holder.address,
+                incumbent.address,
                 proposal.electionRoleId,
                 false,
                 false,
@@ -441,7 +446,7 @@ export function useProposalForm({ onSubmit }) {
         });
 
         // Mint hat to candidate if they don't already hold it
-        const candidateAlreadyHolds = currentHolders.some(
+        const candidateAlreadyHolds = allHolders.some(
           h => h.address.toLowerCase() === candidate.address.toLowerCase()
         );
         if (!candidateAlreadyHolds) {
