@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Button,
-  FormControl,
-  FormLabel,
   Input,
   Modal,
   ModalBody,
@@ -21,13 +19,8 @@ import {
   Text,
   Badge,
   HStack,
-  Divider,
-  IconButton,
-  Tooltip,
-  InputGroup,
-  InputRightElement,
 } from '@chakra-ui/react';
-import { CheckIcon, ExternalLinkIcon, WarningIcon } from '@chakra-ui/icons';
+import { CheckIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import EditTaskModal from './EditTaskModal';
 import TaskApplicationModal from './TaskApplicationModal';
@@ -43,13 +36,41 @@ import { userCanReviewTask, userCanAssignTask } from '../../util/permissions';
 
 
 const glassLayerStyle = {
-  position: "absolute",
-  height: "100%",
-  width: "100%",
+  position: 'absolute',
+  height: '100%',
+  width: '100%',
   zIndex: -1,
-  borderRadius: "inherit",
-  backgroundColor: "rgba(33, 33, 33, 0.97)",
+  borderRadius: 'inherit',
+  backgroundColor: 'rgba(15, 10, 25, 0.97)',
+  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
+  border: '1px solid rgba(148, 115, 220, 0.3)',
 };
+
+const inputStyles = {
+  bg: 'whiteAlpha.100',
+  border: '1px solid',
+  borderColor: 'whiteAlpha.300',
+  color: 'white',
+  _placeholder: { color: 'gray.400' },
+  _hover: { borderColor: 'whiteAlpha.400' },
+  _focus: {
+    borderColor: 'purple.400',
+    boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
+  },
+};
+
+const SectionHeader = ({ children }) => (
+  <Text
+    fontSize="xs"
+    fontWeight="bold"
+    color="purple.300"
+    textTransform="uppercase"
+    letterSpacing="wide"
+    mb={2}
+  >
+    {children}
+  </Text>
+);
 
 const TaskCardModal = ({ task, columnId, onEditTask }) => {
   const [submission, setSubmission] = useState('');
@@ -629,71 +650,98 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
 
   return task ? (
     <>
-      <Modal isOpen={isOpen} onClose={handleCloseModal} size="3xl">
-        <ModalOverlay />
-        <ModalContent bg="transparent" textColor="white">
-          <div className="glass" style={glassLayerStyle} />
-          <ModalCloseButton />
-          <Box pt={4} borderTopRadius="2xl" bg="transparent" boxShadow="lg" position="relative" zIndex={-1}>
-            <div className="glass" style={glassLayerStyle} />
-            <Text ml="6" fontSize="2xl" fontWeight="bold">{task.isIndexing ? 'Indexing Task Data...' : task.name}</Text>
-          </Box>
-          <ModalBody>
-            <VStack spacing={4} align="start">
+      <Modal isOpen={isOpen} onClose={handleCloseModal} size="2xl" isCentered>
+        <ModalOverlay bg="blackAlpha.800" />
+        <ModalContent
+          bg="transparent"
+          borderRadius="xl"
+          position="relative"
+          boxShadow="dark-lg"
+          mx={4}
+          color="white"
+        >
+          <Box style={glassLayerStyle} />
+          <ModalHeader color="white" fontSize="xl" fontWeight="bold" pb={2}>
+            {task.isIndexing ? 'Indexing Task Data...' : task.name}
+          </ModalHeader>
+          <ModalCloseButton color="white" />
+          <ModalBody pb={6}>
+            <VStack spacing={5} align="stretch">
               {task.isIndexing ? (
-                <Box w="100%" p={4} bg="purple.100" borderRadius="md">
-                  <Text color="purple.800" fontWeight="bold">
+                <Box w="100%" p={4} bg="whiteAlpha.50" borderRadius="lg" border="1px solid rgba(148, 115, 220, 0.3)">
+                  <Text color="purple.200" fontWeight="bold">
                     Task information is being indexed from IPFS
                   </Text>
-                  <Text color="purple.700" fontSize="sm" mt={2}>
-                    This task was recently created and its data is still being indexed from IPFS to the subgraph.
-                    Please check back in a few moments when indexing is complete.
+                  <Text color="gray.400" fontSize="sm" mt={2}>
+                    This task was recently created and its data is still being indexed.
+                    Please check back in a few moments.
                   </Text>
                 </Box>
               ) : (
                 <>
+                  {/* Task Details Section */}
                   <Box>
-                    <Text mb="4" mt="4" lineHeight="6" fontSize="md" fontWeight="bold" style={{ whiteSpace: 'pre-wrap' }}>
-                      {metadataLoading ? 'Loading task details...' : (task.description || taskMetadata?.description || 'No description available')}
-                    </Text>
-                  </Box>
-                  <HStack width="100%">
-                    <Badge colorScheme={difficultyColorScheme[(task.difficulty || taskMetadata?.difficulty)?.toLowerCase()?.replace(" ", "") || 'easy']}>
-                      {task.difficulty || taskMetadata?.difficulty || 'Unknown'}
-                    </Badge>
-                    <Badge colorScheme="blue">{task.estHours || taskMetadata?.estHours || '0'} hrs</Badge>
-                    <Spacer />
-                    {task.claimedBy && (
-                      <Text fontSize="sm" mr={4}>
-                        Claimed By: {task.claimerUsername}
+                    <SectionHeader>Task Details</SectionHeader>
+                    <Box
+                      p={4}
+                      bg="whiteAlpha.50"
+                      borderRadius="lg"
+                      border="1px solid"
+                      borderColor="whiteAlpha.100"
+                    >
+                      <Text fontSize="sm" lineHeight="6" color="gray.200" style={{ whiteSpace: 'pre-wrap' }}>
+                        {metadataLoading ? 'Loading task details...' : (task.description || taskMetadata?.description || 'No description available')}
                       </Text>
-                    )}
-                  </HStack>
+                    </Box>
+                    <HStack mt={3} spacing={3}>
+                      <Badge colorScheme={difficultyColorScheme[(task.difficulty || taskMetadata?.difficulty)?.toLowerCase()?.replace(" ", "") || 'easy']}>
+                        {task.difficulty || taskMetadata?.difficulty || 'Unknown'}
+                      </Badge>
+                      <Badge colorScheme="blue">{task.estHours || taskMetadata?.estHours || '0'} hrs</Badge>
+                      <Spacer />
+                      {task.claimedBy && (
+                        <Text fontSize="sm" color="gray.400">
+                          Claimed by <Text as="span" color="white" fontWeight="medium">{task.claimerUsername}</Text>
+                        </Text>
+                      )}
+                    </HStack>
+                  </Box>
+
+                  {/* Submission Input (In Progress) */}
                   {columnId === 'inProgress' && (
-                    <FormControl>
-                      <FormLabel fontWeight="bold" fontSize="lg">
-                        Submission:
-                      </FormLabel>
+                    <Box>
+                      <SectionHeader>Submission</SectionHeader>
                       <Textarea
                         height="200px"
                         placeholder="Type your submission here"
                         value={submission}
                         onChange={(e) => setSubmission(e.target.value)}
+                        {...inputStyles}
                       />
-                    </FormControl>
-                  )}
-                  {(columnId === 'inReview' || columnId === 'completed') && (
-                    <Box>
-                      <Text color="gray" fontWeight="bold" fontSize="lg">
-                        Submission:
-                      </Text>
-                      <Text style={{ whiteSpace: 'pre-wrap' }}>
-                        {metadataLoading ? 'Loading submission...' : (task.submission || submissionMetadata?.submission || 'No submission available')}
-                      </Text>
                     </Box>
                   )}
+
+                  {/* Submission Display (In Review / Completed) */}
+                  {(columnId === 'inReview' || columnId === 'completed') && (
+                    <Box>
+                      <SectionHeader>Submission</SectionHeader>
+                      <Box
+                        p={4}
+                        bg="whiteAlpha.50"
+                        borderRadius="lg"
+                        border="1px solid"
+                        borderColor="whiteAlpha.100"
+                      >
+                        <Text fontSize="sm" color="gray.200" style={{ whiteSpace: 'pre-wrap' }}>
+                          {metadataLoading ? 'Loading submission...' : (task.submission || submissionMetadata?.submission || 'No submission available')}
+                        </Text>
+                      </Box>
+                    </Box>
+                  )}
+
+                  {/* Rejection Alert */}
                   {task.rejectionCount > 0 && (
-                    <Box w="100%" p={4} bg="red.900" borderRadius="md" borderLeft="4px solid" borderColor="red.400">
+                    <Box w="100%" p={4} bg="rgba(127, 29, 29, 0.5)" borderRadius="lg" borderLeft="4px solid" borderColor="red.400">
                       <HStack mb={2}>
                         <WarningIcon color="red.300" />
                         <Text fontWeight="bold" color="red.200" fontSize="md">
@@ -718,30 +766,46 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                       )}
                     </Box>
                   )}
+
+                  {/* Rejection Reason Input (In Review) */}
                   {columnId === 'inReview' && canReviewTask && (
-                    <FormControl mt={3}>
-                      <FormLabel fontWeight="bold" fontSize="lg">
-                        Rejection Reason:
-                      </FormLabel>
+                    <Box>
+                      <SectionHeader>Rejection Reason</SectionHeader>
                       <Textarea
                         height="100px"
                         placeholder="Explain why this submission is being rejected..."
                         value={rejectionReason}
                         onChange={(e) => setRejectionReason(e.target.value)}
+                        {...inputStyles}
                       />
-                    </FormControl>
+                      <Text fontSize="xs" color="gray.500" mt={1}>
+                        Required only if you choose to reject
+                      </Text>
+                    </Box>
                   )}
 
-                  {/* Show requiresApplication badge */}
+                  {/* Application Required Info */}
                   {columnId === 'open' && task.requiresApplication && (
-                    <Badge colorScheme="purple" fontSize="sm">
-                      Application Required
-                    </Badge>
+                    <Box
+                      p={3}
+                      bg="whiteAlpha.50"
+                      borderRadius="lg"
+                      border="1px solid"
+                      borderColor="purple.500"
+                      w="100%"
+                    >
+                      <HStack>
+                        <Badge colorScheme="purple" fontSize="xs">Application Required</Badge>
+                        <Text fontSize="xs" color="gray.400">
+                          Members must apply and be approved before claiming
+                        </Text>
+                      </HStack>
+                    </Box>
                   )}
 
-                  {/* Already applied status for members */}
+                  {/* Already Applied Status */}
                   {columnId === 'open' && task.requiresApplication && hasApplied && (
-                    <Box w="100%" p={4} bg="green.900" borderRadius="md" borderLeft="4px solid" borderColor="green.400">
+                    <Box w="100%" p={4} bg="rgba(20, 83, 45, 0.5)" borderRadius="lg" borderLeft="4px solid" borderColor="green.400">
                       <HStack>
                         <CheckIcon color="green.300" />
                         <Text fontWeight="bold" color="green.200" fontSize="sm">
@@ -757,19 +821,10 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                     </Box>
                   )}
 
-                  {/* Rich applicants section for users with ASSIGN permission */}
+                  {/* Applicants Section */}
                   {columnId === 'open' && task.requiresApplication && canAssign && task.applicants && task.applicants.length > 0 && (
-                    <Box w="100%" p={4} bg="whiteAlpha.50" borderRadius="md" border="1px solid" borderColor="whiteAlpha.100">
-                      <Text
-                        fontSize="xs"
-                        fontWeight="bold"
-                        color="purple.300"
-                        textTransform="uppercase"
-                        letterSpacing="wide"
-                        mb={3}
-                      >
-                        Applicants ({task.applicants.length})
-                      </Text>
+                    <Box w="100%" p={4} bg="whiteAlpha.50" borderRadius="lg" border="1px solid" borderColor="whiteAlpha.100">
+                      <SectionHeader>Applicants ({task.applicants.length})</SectionHeader>
                       <VStack spacing={3} align="stretch">
                         {task.applicants.map((applicant, index) => {
                           const appContent = applicant.metadata || applicationContents[applicant.address];
@@ -796,6 +851,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                                 <Button
                                   size="sm"
                                   colorScheme="green"
+                                  variant="outline"
                                   onClick={() => handleApproveApplication(applicant.address, applicant.username)}
                                 >
                                   Approve
@@ -833,19 +889,17 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                     </Box>
                   )}
 
-                  {/* Assign section for executives */}
+                  {/* Assign Section (Executives) */}
                   {columnId === 'open' && hasExecRole && showAssignSection && (
-                    <Box w="100%" p={4} bg="whiteAlpha.100" borderRadius="md">
-                      <Text fontWeight="bold" fontSize="md" mb={2}>
-                        Assign Task
-                      </Text>
+                    <Box w="100%" p={4} bg="whiteAlpha.50" borderRadius="lg" border="1px solid" borderColor="whiteAlpha.100">
+                      <SectionHeader>Assign Task</SectionHeader>
                       <HStack>
                         <Input
                           placeholder="Username or wallet address (0x...)"
                           value={assignAddress}
                           onChange={(e) => setAssignAddress(e.target.value)}
                           size="sm"
-                          bg="whiteAlpha.100"
+                          {...inputStyles}
                         />
                         <Button
                           size="sm"
@@ -857,7 +911,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                           Assign
                         </Button>
                       </HStack>
-                      <Text fontSize="xs" color="gray.400" mt={1}>
+                      <Text fontSize="xs" color="gray.500" mt={2}>
                         Enter a username or full wallet address
                       </Text>
                     </Box>
@@ -866,48 +920,84 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
               )}
             </VStack>
           </ModalBody>
-          <ModalFooter borderTop="1.5px solid" borderColor="gray.200" py={2}>
-            <Box flexGrow={1}>
-              <VStack align="start" spacing={0}>
-                <Text fontWeight="bold" fontSize="m">
-                  Reward: {task.Payout} PT
-                </Text>
-                {checkHasBounty(task.bountyToken, task.bountyPayout) && (
-                  <Text fontWeight="bold" fontSize="sm" color="green.400">
-                    + {task.bountyPayout} {getTokenByAddress(task.bountyToken).symbol} Bounty
-                  </Text>
-                )}
-              </VStack>
-            </Box>
-            <Box>
-              <Button textColor={"white"} variant="outline" onClick={copyLinkToClipboard} mr={2}>
-                Share
-              </Button>
-              {!task.isIndexing && columnId === 'open' && hasExecRole && (
+          <ModalFooter borderTop="1px solid" borderColor="whiteAlpha.200" pt={4}>
+            <HStack spacing={3} w="100%" justify="space-between" align="center">
+              {/* Reward Display */}
+              <Box
+                p={3}
+                bg="whiteAlpha.50"
+                borderRadius="lg"
+                border="1px solid rgba(148, 115, 220, 0.2)"
+              >
+                <VStack align="start" spacing={0}>
+                  <Text fontSize="xs" color="gray.400">Reward</Text>
+                  <HStack spacing={1} align="baseline">
+                    <Text fontSize="lg" fontWeight="bold" color="white">
+                      {task.Payout}
+                    </Text>
+                    <Text fontSize="sm" color="purple.300">PT</Text>
+                  </HStack>
+                  {checkHasBounty(task.bountyToken, task.bountyPayout) && (
+                    <Text fontSize="xs" color="green.400" fontWeight="bold">
+                      + {task.bountyPayout} {getTokenByAddress(task.bountyToken).symbol}
+                    </Text>
+                  )}
+                </VStack>
+              </Box>
+
+              {/* Action Buttons */}
+              <HStack spacing={2}>
                 <Button
-                  textColor={"white"}
-                  variant="outline"
-                  onClick={() => setShowAssignSection(!showAssignSection)}
-                  mr={2}
-                  colorScheme={showAssignSection ? "purple" : undefined}
+                  variant="ghost"
+                  onClick={copyLinkToClipboard}
+                  color="gray.400"
+                  _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                  size="sm"
                 >
-                  {showAssignSection ? 'Cancel Assign' : 'Assign'}
+                  Share
                 </Button>
-              )}
-              {!task.isIndexing && columnId === 'open' && (
-                <Button textColor={"white"} variant="outline" onClick={handleOpenEditTaskModal} mr={2}>
-                  Edit
+                {!task.isIndexing && columnId === 'open' && hasExecRole && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => setShowAssignSection(!showAssignSection)}
+                    color={showAssignSection ? "purple.300" : "gray.400"}
+                    _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                    size="sm"
+                  >
+                    {showAssignSection ? 'Cancel Assign' : 'Assign'}
+                  </Button>
+                )}
+                {!task.isIndexing && columnId === 'open' && (
+                  <Button
+                    variant="ghost"
+                    onClick={handleOpenEditTaskModal}
+                    color="gray.400"
+                    _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
+                    size="sm"
+                  >
+                    Edit
+                  </Button>
+                )}
+                {!task.isIndexing && columnId === 'inReview' && canReviewTask && (
+                  <Button
+                    colorScheme="red"
+                    variant="outline"
+                    onClick={handleRejectTask}
+                    size="sm"
+                  >
+                    Reject
+                  </Button>
+                )}
+                <Button
+                  onClick={handleButtonClick}
+                  colorScheme="purple"
+                  isDisabled={task.isIndexing || (columnId === 'open' && task.requiresApplication && hasApplied)}
+                  size="sm"
+                >
+                  {buttonText()}
                 </Button>
-              )}
-              {!task.isIndexing && columnId === 'inReview' && canReviewTask && (
-                <Button colorScheme="red" variant="outline" onClick={handleRejectTask} mr={2}>
-                  Reject
-                </Button>
-              )}
-              <Button onClick={handleButtonClick} colorScheme="teal" isDisabled={task.isIndexing || (columnId === 'open' && task.requiresApplication && hasApplied)}>
-                {buttonText()}
-              </Button>
-            </Box>
+              </HStack>
+            </HStack>
           </ModalFooter>
         </ModalContent>
       </Modal>
