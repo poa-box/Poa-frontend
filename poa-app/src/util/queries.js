@@ -202,6 +202,9 @@ export const FETCH_ORG_FULL_DATA = gql`
       executorContract {
         id
       }
+      eligibilityModule {
+        id
+      }
       users(orderBy: participationTokenBalance, orderDirection: desc, first: 100) {
         id
         address
