@@ -223,23 +223,25 @@ const PerpetualOrgDashboard = () => {
                         )}
                       </Wrap>
                     </Box>
-                    <Tooltip label={hasCopied ? 'Copied!' : 'Copy invite link to clipboard'} closeOnClick={false} hasArrow>
-                      <Button
-                        onClick={onCopy}
-                        size="sm"
-                        variant="outline"
-                        colorScheme={hasCopied ? 'green' : 'purple'}
-                        leftIcon={<Icon as={hasCopied ? FiCheck : FiCopy} />}
-                        borderColor={hasCopied ? 'green.400' : 'purple.400'}
-                        color={hasCopied ? 'green.300' : 'purple.300'}
-                        _hover={{ bg: hasCopied ? 'green.900' : 'purple.900' }}
-                        transition="all 0.2s"
-                      >
-                        {hasCopied ? 'Copied!' : 'Copy Invite Link'}
-                      </Button>
-                    </Tooltip>
                   </VStack>
                 </Flex>
+                <Box display="flex" justifyContent="flex-end" px={{ base: 3, md: 4 }} pb={{ base: 3, md: 4 }}>
+                  <Tooltip label={hasCopied ? 'Copied!' : 'Copy invite link to clipboard'} closeOnClick={false} hasArrow>
+                    <Button
+                      onClick={onCopy}
+                      size="sm"
+                      variant="outline"
+                      colorScheme={hasCopied ? 'green' : 'purple'}
+                      leftIcon={<Icon as={hasCopied ? FiCheck : FiCopy} />}
+                      borderColor={hasCopied ? 'green.400' : 'purple.400'}
+                      color={hasCopied ? 'green.300' : 'purple.300'}
+                      _hover={{ bg: hasCopied ? 'green.900' : 'purple.900' }}
+                      transition="all 0.2s"
+                    >
+                      {hasCopied ? 'Copied!' : 'Copy Invite Link'}
+                    </Button>
+                  </Tooltip>
+                </Box>
               </Box>
             </GridItem>
 
