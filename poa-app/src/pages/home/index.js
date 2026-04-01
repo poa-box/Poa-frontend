@@ -13,7 +13,7 @@ import {
   SimpleGrid,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
-import { FaArrowRight, FaExternalLinkAlt } from "react-icons/fa";
+import { FaExternalLinkAlt } from "react-icons/fa";
 import { FiUsers, FiActivity, FiCheckCircle, FiGrid, FiCheckSquare, FiBarChart2, FiUser } from "react-icons/fi";
 import Link from "next/link";
 import { usePOContext } from "@/context/POContext";
@@ -51,6 +51,14 @@ const cardStyle = {
   border: "1px solid",
   borderColor: "rgba(255, 255, 255, 0.18)",
   boxShadow: "0 4px 30px rgba(0, 0, 0, 0.05)",
+  borderRadius: "2xl",
+};
+
+const darkCardStyle = {
+  bg: "rgba(0, 0, 0, 0.73)",
+  border: "1px solid",
+  borderColor: "rgba(148, 115, 220, 0.15)",
+  boxShadow: "0 4px 30px rgba(0, 0, 0, 0.15)",
   borderRadius: "2xl",
 };
 
@@ -117,14 +125,14 @@ const Home = () => {
       {isNavbarReady && <Navbar userDAO={userDAO} />}
 
       <Box
-        pt={{ base: "100px", md: "120px" }}
+        pt={{ base: "80px", md: "100px" }}
         pb={{ base: 12, md: 20 }}
         position="relative"
         minH="100vh"
         display="flex"
         flexDirection="column"
         alignItems="center"
-        justifyContent="center"
+        justifyContent="flex-start"
         zIndex={1}
       >
         <VStack
@@ -201,25 +209,25 @@ const Home = () => {
             transition={{ duration: 0.5, delay: 0.15 }}
             style={{ width: "100%" }}
           >
-            <Box {...cardStyle} p={{ base: 4, md: 6 }}>
+            <Box {...darkCardStyle} p={{ base: 4, md: 6 }}>
               <SimpleGrid columns={3} spacing={{ base: 2, md: 4 }}>
                 {[
-                  { icon: FiUsers, value: poMembers || "0", label: "Members", color: "purple.500" },
-                  { icon: FiActivity, value: activeTaskAmount || "0", label: "Active Tasks", color: "blue.500" },
-                  { icon: FiCheckCircle, value: completedTaskAmount || "0", label: "Completed", color: "green.500" },
+                  { icon: FiUsers, value: poMembers || "0", label: "Members", color: "purple.300" },
+                  { icon: FiActivity, value: activeTaskAmount || "0", label: "Active Tasks", color: "blue.300" },
+                  { icon: FiCheckCircle, value: completedTaskAmount || "0", label: "Completed", color: "green.300" },
                 ].map((stat) => (
                   <VStack key={stat.label} spacing={1}>
                     <Icon as={stat.icon} color={stat.color} boxSize={{ base: 4, md: 5 }} />
                     <Text
                       fontSize={{ base: "xl", md: "2xl" }}
                       fontWeight="700"
-                      color="warmGray.900"
+                      color="white"
                     >
                       {stat.value}
                     </Text>
                     <Text
                       fontSize="xs"
-                      color="warmGray.500"
+                      color="whiteAlpha.500"
                       fontWeight="500"
                     >
                       {stat.label}
@@ -241,19 +249,19 @@ const Home = () => {
                 <Button
                   as="a"
                   size="lg"
-                  bg="coral.500"
+                  bgGradient="linear(to-r, green.400, teal.400)"
                   color="white"
                   borderRadius="full"
                   fontWeight="600"
                   px={8}
-                  rightIcon={<Icon as={FaArrowRight} boxSize={3} />}
+                  fontSize="lg"
                   _hover={{
-                    bg: "coral.600",
+                    bgGradient: "linear(to-r, green.500, teal.500)",
                     transform: "translateY(-1px)",
-                    boxShadow: "0 4px 24px rgba(240, 101, 67, 0.25)",
+                    boxShadow: "lg",
                   }}
                   _active={{
-                    bg: "coral.700",
+                    bgGradient: "linear(to-r, green.600, teal.600)",
                     transform: "translateY(0)",
                   }}
                   transition="all 0.2s ease"
@@ -279,49 +287,49 @@ const Home = () => {
                     label: "Dashboard",
                     description: "View org activity and stats",
                     path: `/dashboard/?userDAO=${userDAO}`,
-                    color: "purple.500",
+                    color: "purple.300",
                   },
                   {
                     icon: FiCheckSquare,
                     label: "Tasks",
                     description: "Browse and claim tasks",
                     path: `/tasks/?userDAO=${userDAO}`,
-                    color: "blue.500",
+                    color: "blue.300",
                   },
                   {
                     icon: FiBarChart2,
                     label: "Voting",
                     description: "Vote on active proposals",
                     path: `/voting/?userDAO=${userDAO}`,
-                    color: "green.500",
+                    color: "green.300",
                   },
                   {
                     icon: FiUser,
                     label: "Profile Hub",
                     description: "Manage your profile and roles",
                     path: `/profileHub/?userDAO=${userDAO}`,
-                    color: "coral.500",
+                    color: "coral.300",
                   },
                 ].map((item) => (
                   <Link key={item.label} href={item.path} passHref legacyBehavior>
                     <Box
                       as="a"
-                      {...cardStyle}
+                      {...darkCardStyle}
                       p={4}
                       cursor="pointer"
-                      transition="all 0.2s ease"
+                      transition="all 0.3s ease"
                       _hover={{
                         transform: "translateY(-2px)",
-                        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.08)",
-                        bg: "rgba(255, 255, 255, 0.95)",
+                        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.25)",
+                        borderColor: "rgba(148, 115, 220, 0.3)",
                       }}
                     >
                       <VStack spacing={2} align="start">
                         <Icon as={item.icon} color={item.color} boxSize={5} />
-                        <Text fontWeight="600" fontSize="sm" color="warmGray.800">
+                        <Text fontWeight="600" fontSize="sm" color="white">
                           {item.label}
                         </Text>
-                        <Text fontSize="xs" color="warmGray.500" lineHeight="1.4">
+                        <Text fontSize="xs" color="whiteAlpha.600" lineHeight="1.4">
                           {item.description}
                         </Text>
                       </VStack>

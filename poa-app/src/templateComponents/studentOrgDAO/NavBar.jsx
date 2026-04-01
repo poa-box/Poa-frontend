@@ -58,17 +58,17 @@ const Navbar = () => {
         justifyContent="space-between"
       >
         {/* Left side - Home icon */}
-        <Box h="100%" w={{ base: "40%", md: "12%" }} mr={{ base: "2", md: "4" }}>
+        <Flex h="100%" w={{ base: "40%", md: "auto" }} mr={{ base: "2", md: "4" }} align="center">
           <Link as={NextLink} href={`/home/?userDAO=${userDAO}`} passHref>
             {/* Desktop Home Icon */}
             <IconButton
-              icon={<FaHome size="28px" />}
+              icon={<FaHome size="34px" />}
               aria-label="Home"
               variant="ghost"
               color="white"
               display={{ base: 'none', md: 'flex' }}
               _hover={{ bg: "whiteAlpha.200" }}
-              size="md"
+              size="lg"
             />
             {/* Mobile Home Icon */}
             <IconButton
@@ -83,7 +83,7 @@ const Navbar = () => {
               mt={1}
             />
           </Link>
-        </Box>
+        </Flex>
         
         {/* Center Logo for Mobile only */}
         <Flex 
