@@ -442,9 +442,11 @@ const ElectionConfigurator = ({
               <AlertIcon color="yellow.300" />
               <Text fontSize="sm" color="yellow.200">
                 {selectedIncumbents.length === 1
-                  ? `${selectedIncumbents[0].name} will lose the hat if they don't win.`
-                  : `${selectedIncumbents.length} selected holders will lose the hat if they don't win.`}
-                {' '}Add them as candidates if they should be eligible to keep it.
+                  ? `${selectedIncumbents[0].name} will lose ${selectedRoleName} if they don't win`
+                  : `${selectedIncumbents.length} selected holders will lose ${selectedRoleName} if they don't win`}
+                {proposal.electionFallbackRoleId
+                  ? ` and be downgraded to ${fallbackRoleName}.`
+                  : '. Add them as candidates if they should be eligible to keep it.'}
               </Text>
             </Alert>
           )}
