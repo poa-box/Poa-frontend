@@ -51,6 +51,7 @@ const VotingPage = () => {
     democracyVotingOngoing,
     democracyVotingCompleted,
     votingType: PTVoteType,
+    votingClasses,
   } = useVotingContext();
 
   // Poll navigation and selection
@@ -288,6 +289,7 @@ const VotingPage = () => {
             handlePollCreated={handlePollCreated}
             loadingSubmit={loadingSubmit}
             roleNames={roleNames}
+            votingClasses={votingClasses}
           />
 
           <PollModal
