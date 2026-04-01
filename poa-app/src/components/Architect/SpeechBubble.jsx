@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
 import { Box, Text, Heading, Link, ListItem, OrderedList, UnorderedList, Code, Divider, Spinner, VStack } from "@chakra-ui/react";
+import { measureTextHeight } from "../../hooks/usePretext";
 
 // Utility to help with debugging
 const debugLog = (message, condition = true) => {
@@ -93,7 +94,7 @@ const ChakraUIRenderer = {
   ),
 };
 
-// Simple Typing Animation Component
+// Simple Typing Animation Component — uses Pretext to pre-size container
 const TypingAnimation = ({ text, isPreTyped, onComplete, containerRef, isLastMessage }) => {
   const [displayedText, setDisplayedText] = useState(isPreTyped ? text : '');
   const timeoutRef = useRef(null);
@@ -101,37 +102,52 @@ const TypingAnimation = ({ text, isPreTyped, onComplete, containerRef, isLastMes
   const typingRef = useRef(false);
   const idRef = useRef(`typing-${Math.random().toString(36).substring(2, 9)}`);
   const isInitialMount = useRef(true);
-  
+  const boxRef = useRef(null);
+
+  // Pre-calculate the final text height using Pretext so we can reserve space
+  // and avoid layout thrashing during character-by-character typing.
+  // Uses "16px system-ui" as an approximation of the rendered markdown body font.
+  const estimatedHeight = useMemo(() => {
+    if (!text) return 0;
+    // Measure at a reasonable container width (subtract padding)
+    const width = typeof window !== 'undefined'
+      ? Math.min(window.innerWidth - 64, 800)
+      : 600;
+    const { height } = measureTextHeight(text, '16px system-ui', width, 24);
+    // Add a buffer for markdown elements (headings, code blocks, spacing)
+    return height > 0 ? height + 32 : 0;
+  }, [text]);
+
   // Debug on mount and updates
   useEffect(() => {
     debugLog(`[${idRef.current}] Mounting TypingAnimation: text=${text?.substring(0, 15)}..., isPreTyped=${isPreTyped}`);
-    
+
     // Force start typing immediately on initial mount
     if (isInitialMount.current && text && text.length > 0 && !isPreTyped) {
       isInitialMount.current = false;
       setDisplayedText('');
       typingRef.current = false; // Reset typing flag to allow starting
-      
+
       // Start typing immediately
       setTimeout(() => {
         startTyping();
       }, 0);
     }
-    
+
     return () => {
       debugLog(`[${idRef.current}] Unmounting TypingAnimation`);
     };
   }, []);
-  
+
   // Function to start typing - separated to allow immediate invocation
   const startTyping = () => {
     if (typingRef.current || !text || displayedText === text) return;
-    
+
     debugLog(`[${idRef.current}] Starting typing animation for: ${text.substring(0, 15)}...`);
     typingRef.current = true;
     let index = displayedText.length;
     const speed = 8; // slightly faster typing
-    
+
     const type = () => {
       if (index < text.length) {
         setDisplayedText(text.substring(0, index + 1));
@@ -143,11 +159,11 @@ const TypingAnimation = ({ text, isPreTyped, onComplete, containerRef, isLastMes
         if (onComplete) onComplete();
       }
     };
-    
+
     // Start typing without delay
     type();
   };
-  
+
   useEffect(() => {
     // If pre-typed, show full text immediately
     if (isPreTyped) {
@@ -156,61 +172,58 @@ const TypingAnimation = ({ text, isPreTyped, onComplete, containerRef, isLastMes
       if (onComplete) onComplete();
       return;
     }
-    
+
     // Skip empty text
     if (!text || text.length === 0) {
       debugLog(`[${idRef.current}] Empty text, nothing to type`);
       return;
     }
-    
+
     // Early return if we already have the complete text displayed
     if (displayedText === text) {
       debugLog(`[${idRef.current}] Text already complete: ${text.substring(0, 15)}...`);
       if (onComplete && !typingRef.current) onComplete();
       return;
     }
-    
+
     // If text has changed, reset
     if (text !== textRef.current) {
       debugLog(`[${idRef.current}] Text changed, resetting`);
       textRef.current = text;
       setDisplayedText('');
     }
-    
+
     // Don't start a new typing animation if one is already in progress
     if (typingRef.current) {
       debugLog(`[${idRef.current}] Typing already in progress`);
       return;
     }
-    
+
     // Start typing immediately
     startTyping();
-    
-    // Scroll to bottom as we type
-    const scrollToBottom = () => {
-      if (containerRef?.current) {
-        containerRef.current.scrollTop = containerRef.current.scrollHeight + 100;
-      }
-    };
-    
-    // Initial scroll
-    scrollToBottom();
-    
-    // Set up scroll interval during typing
-    const scrollInterval = setInterval(scrollToBottom, 100);
-    
+
+    // Scroll to bottom once at the start — the pre-sized container (via Pretext
+    // estimatedHeight) means the final height is already reserved, so a single
+    // scroll is sufficient instead of polling every 100ms.
+    if (containerRef?.current) {
+      containerRef.current.scrollTop = containerRef.current.scrollHeight + 100;
+    }
+
     // Cleanup
     return () => {
       if (timeoutRef.current) {
         debugLog(`[${idRef.current}] Cleaning up typing animation`);
         clearTimeout(timeoutRef.current);
       }
-      clearInterval(scrollInterval);
     };
   }, [text, isPreTyped, onComplete, containerRef, displayedText]);
-  
+
   return (
-    <Box className="markdown-content">
+    <Box
+      ref={boxRef}
+      className="markdown-content"
+      minHeight={estimatedHeight > 0 && displayedText !== text ? `${estimatedHeight}px` : undefined}
+    >
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkRehype]}
         components={ChakraUIRenderer}
@@ -221,28 +234,38 @@ const TypingAnimation = ({ text, isPreTyped, onComplete, containerRef, isLastMes
   );
 };
 
-// A simplified typing animation as backup
+// A simplified typing animation as backup — pre-sized with Pretext
 const SimpleTypingAnimation = ({ text, isPreTyped }) => {
   const [displayedText, setDisplayedText] = useState(isPreTyped ? text : '');
   const mountedRef = useRef(false);
-  
+
+  // Pre-calculate final height so container doesn't reflow on each character
+  const estimatedHeight = useMemo(() => {
+    if (!text) return 0;
+    const width = typeof window !== 'undefined'
+      ? Math.min(window.innerWidth - 64, 800)
+      : 600;
+    const { height } = measureTextHeight(text, '16px system-ui', width, 24, 'pre-wrap');
+    return height > 0 ? height + 8 : 0;
+  }, [text]);
+
   useEffect(() => {
     // Mark component as mounted
     mountedRef.current = true;
-    
+
     if (isPreTyped) {
       setDisplayedText(text);
       return;
     }
-    
+
     // Start right away
     setDisplayedText('');
     let i = 0;
-    
+
     // Faster typing speed (10ms)
     const timer = setInterval(() => {
       if (!mountedRef.current) return; // Prevent state updates if unmounted
-      
+
       if (i <= text.length) {
         setDisplayedText(text.substring(0, i));
         i++;
@@ -250,15 +273,20 @@ const SimpleTypingAnimation = ({ text, isPreTyped }) => {
         clearInterval(timer);
       }
     }, 10);
-    
+
     return () => {
       mountedRef.current = false;
       clearInterval(timer);
     };
   }, [text, isPreTyped]);
-  
+
   return (
-    <Text fontSize="md" whiteSpace="pre-wrap" lineHeight={1.5}>
+    <Text
+      fontSize="md"
+      whiteSpace="pre-wrap"
+      lineHeight={1.5}
+      minHeight={estimatedHeight > 0 && displayedText !== text ? `${estimatedHeight}px` : undefined}
+    >
       {displayedText}
     </Text>
   );

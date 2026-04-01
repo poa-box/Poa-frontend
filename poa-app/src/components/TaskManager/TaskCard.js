@@ -5,6 +5,7 @@ import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
 import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
+import { useTextTruncation } from '../../hooks/usePretext';
 
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, rejectionCount, requiresApplication, applicants } = task;
@@ -32,13 +33,15 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
     }),
   }));
 
-  const truncateDescription = (desc, maxLength) => {
-    if (!desc) return '';
-    if (desc.length > maxLength) {
-      return desc.substring(0, maxLength) + '...';
-    }
-    return desc;
-  };
+  // Use Pretext for width-aware truncation instead of arbitrary character limits.
+  const descFont = isCardMobile ? '12.8px system-ui' : '12px system-ui';
+  const descWidth = isCardMobile ? 260 : 200; // approximate card content width
+  const truncatedDescription = useTextTruncation(description || '', {
+    font: descFont,
+    maxWidth: descWidth,
+    maxLines: 2,
+    lineHeight: isCardMobile ? 18 : 17,
+  });
 
   // Define the color for the difficulty badge
   const difficultyColorScheme = {
@@ -139,7 +142,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
           {name}
         </Text>
 
-        {/* Improved description section */}
+        {/* Description — truncated via Pretext width-aware measurement */}
         <Text
           fontSize={isCardMobile ? "0.8rem" : "0.75rem"}
           color="#4A5568" // gray.600
@@ -147,7 +150,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
           noOfLines={2}
           lineHeight="1.4"
         >
-          {truncateDescription(description, isCardMobile ? 80 : 50)}
+          {truncatedDescription}
         </Text>
 
         {/* Info and tags with better layout */}

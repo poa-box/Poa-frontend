@@ -14,6 +14,18 @@ import {
 } from '@chakra-ui/react';
 import { FiArrowRight, FiUsers, FiActivity } from 'react-icons/fi';
 import Link from 'next/link';
+import { useTextTruncation } from '../../hooks/usePretext';
+
+// Small component to enable Pretext hook inside a .map()
+function RoleBadgeLabel({ name }) {
+  const label = useTextTruncation(name || 'Role', {
+    font: '12px system-ui',
+    maxWidth: 90, // badge max content width
+    maxLines: 1,
+    lineHeight: 16,
+  });
+  return label;
+}
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -142,9 +154,7 @@ export function OrgStructureCard({
                   border="1px solid"
                   borderColor="whiteAlpha.200"
                 >
-                  {role.name?.length > 12
-                    ? `${role.name.slice(0, 12)}...`
-                    : role.name || 'Role'}
+                  <RoleBadgeLabel name={role.name} />
                 </Badge>
               </WrapItem>
             ))}

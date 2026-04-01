@@ -1,26 +1,50 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useMemo } from "react";
 import { VStack, Box } from "@chakra-ui/react";
 import SpeechBubble from "./SpeechBubble";
+import { measureTextHeight } from "../../hooks/usePretext";
 
 const ConversationLog = ({ messages, selectionHeight }) => {
   const containerRef = useRef(null);
   const isInitialRenderRef = useRef(true);
+  const prevMessageCountRef = useRef(0);
+
+  // Pre-calculate estimated total content height using Pretext.
+  // This lets us scroll to the correct position without waiting for
+  // the DOM to lay out, avoiding forced reflow via scrollHeight.
+  const estimatedTotalHeight = useMemo(() => {
+    if (!messages?.length) return 0;
+    const width = typeof window !== 'undefined'
+      ? Math.min(window.innerWidth - 80, 800) // account for padding
+      : 600;
+    return messages.reduce((total, msg) => {
+      if (!msg.text) return total + 60; // loading/typing placeholder height
+      const font = msg.speaker === 'User' ? '16px system-ui' : '16px system-ui';
+      const { height } = measureTextHeight(msg.text, font, width, 24);
+      // Add padding for bubble chrome (speaker label, margins, padding)
+      return total + height + 72;
+    }, 0);
+  }, [messages]);
 
   // Handle auto-scrolling when messages change
   useEffect(() => {
     if (containerRef.current) {
-      // Scroll immediately on initial render
+      // Use Pretext-estimated height for immediate scroll on initial render,
+      // then fall back to scrollHeight for subsequent updates (after DOM paint)
       if (isInitialRenderRef.current) {
-        containerRef.current.scrollTop = containerRef.current.scrollHeight;
+        // Use the Pretext estimate for instant scroll — no reflow needed
+        containerRef.current.scrollTop = estimatedTotalHeight;
         isInitialRenderRef.current = false;
       } else {
-        // For subsequent updates, use a short timeout to ensure content is rendered
-        setTimeout(() => {
-          containerRef.current.scrollTop = containerRef.current.scrollHeight;
-        }, 10);
+        // For subsequent messages, use a rAF to batch with the next paint
+        requestAnimationFrame(() => {
+          if (containerRef.current) {
+            containerRef.current.scrollTop = containerRef.current.scrollHeight;
+          }
+        });
       }
+      prevMessageCountRef.current = messages.length;
     }
-  }, [messages]);
+  }, [messages, estimatedTotalHeight]);
 
   return (
     <Box

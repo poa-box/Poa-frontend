@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text, Button, HStack, VStack, Flex, useBreakpointValue } from "@chakra-ui/react";
 import { TimeIcon } from "@chakra-ui/icons";
 import CountDown from "@/templateComponents/studentOrgDAO/voting/countDown";
+import { useTextTruncation } from "../../hooks/usePretext";
 
 const glassLayerStyle = {
   position: "absolute",
@@ -29,12 +30,13 @@ const VoteCard = ({
   const cardHeight = useBreakpointValue({ base: "180px", sm: "200px" });
   const cardPadding = useBreakpointValue({ base: 3, sm: 4 });
 
-  // Truncate description to first 100 characters
-  const truncatedDescription = proposal.description
-    ? proposal.description.length > 100
-      ? proposal.description.substring(0, 100) + "..."
-      : proposal.description
-    : "";
+  // Width-aware truncation using Pretext measurement
+  const truncatedDescription = useTextTruncation(proposal.description || '', {
+    font: '12px system-ui',
+    maxWidth: 340,
+    maxLines: 2,
+    lineHeight: 17,
+  });
 
   return (
     <Box
