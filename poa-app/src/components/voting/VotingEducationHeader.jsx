@@ -179,6 +179,11 @@ const LearnMoreDropdown = ({ classWeights, classConfig }) => {
                 </VStack>
               </VStack>
             </Box>
+
+            <Text fontSize="xs" color="gray.400">
+              This means every member always has a voice, while those who
+              contribute the most earn greater influence over decisions.
+            </Text>
           </VStack>
         </Box>
       </Collapse>
