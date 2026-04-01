@@ -203,8 +203,20 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
   // Map roles
   const contractRoles = roles.map((role, idx) => mapRole(role, idx, roles.length));
 
-  // Map voting classes
-  const hybridClasses = mapVotingClasses(voting.classes);
+  // Map voting classes.
+  // Safety check: if democracyWeight exists and classes don't match it
+  // (e.g., APPLY_VARIATION updated the weight but not classes), rebuild from the weight.
+  let votingClasses = voting.classes;
+  if (voting.democracyWeight !== undefined && votingClasses && votingClasses.length === 2) {
+    const directClass = votingClasses.find(c => c.strategy === 0 || c.strategy === 'DIRECT');
+    if (directClass && directClass.slicePct !== voting.democracyWeight) {
+      console.warn('[DeployMapper] Voting classes out of sync with democracyWeight. Rebuilding.',
+        { classSlice: directClass.slicePct, democracyWeight: voting.democracyWeight });
+      const { sliderToVotingConfig } = require('../utils/philosophyMapper');
+      votingClasses = sliderToVotingConfig(voting.democracyWeight).classes;
+    }
+  }
+  const hybridClasses = mapVotingClasses(votingClasses);
 
   // Build role assignments
   const roleAssignments = buildRoleAssignments(permissions);
@@ -229,7 +241,12 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     roleAssignments,
     // Metadata admin: which role's hat gets metadata-admin privilege.
     // ethers.constants.MaxUint256 = skip (topHat fallback in contract).
-    metadataAdminRoleIndex: options.metadataAdminRoleIndex ?? ethers.constants.MaxUint256,
+    // Priority: explicit option > state value > MaxUint256 (skip/topHat fallback).
+    metadataAdminRoleIndex: options.metadataAdminRoleIndex != null
+      ? ethers.BigNumber.from(options.metadataAdminRoleIndex)
+      : (state.metadataAdminRoleIndex !== null && state.metadataAdminRoleIndex !== undefined
+        ? ethers.BigNumber.from(state.metadataAdminRoleIndex)
+        : ethers.constants.MaxUint256),
     // Passkey support - enabled by default for all new orgs
     passkeyEnabled: true,
     // Education hub configuration
@@ -358,6 +375,13 @@ export function validateDeploymentConfig(state) {
       errors.push(`Role "${role.name}" cannot be its own admin`);
     }
   });
+
+  // Metadata admin validation
+  if (state.metadataAdminRoleIndex !== null && state.metadataAdminRoleIndex !== undefined) {
+    if (state.metadataAdminRoleIndex >= state.roles.length) {
+      errors.push('Metadata admin role index is out of range');
+    }
+  }
 
   // Paymaster validation
   if (state.paymaster?.enabled) {

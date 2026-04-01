@@ -6,10 +6,12 @@
  * poll for vouches → once quorum met → deploy + join in single UserOp.
  */
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAuth } from '../context/AuthContext';
 import { usePOContext } from '../context/POContext';
+import { DEFAULT_CHAIN_ID } from '../config/networks';
+import { createChainClients } from '../services/web3/utils/chainClients';
 import { createPasskeyCredential } from '../services/web3/passkey/passkeyCreate';
 import {
   createPasskeyOnboardingService,
@@ -45,16 +47,42 @@ export const VouchFirstPhase = {
 export function useVouchFirstOnboarding({
   orgName,
   refetchVouches,
+  eligibilityModuleAddress,
+  existingUsername,
 }) {
-  const { publicClient, bundlerClient, activatePasskey } = useAuth();
-  const { quickJoinContractAddress, orgId } = usePOContext();
+  const { publicClient: homePublicClient, bundlerClient: homeBundlerClient, activatePasskey } = useAuth();
+  const { quickJoinContractAddress, orgId, subgraphUrl, orgChainId } = usePOContext();
 
-  // Infrastructure addresses
-  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
+  // Create chain-specific clients when org is on a different chain
+  const isCrossChain = orgChainId && orgChainId !== DEFAULT_CHAIN_ID;
+  const { publicClient, bundlerClient, chainId } = useMemo(() => {
+    if (!isCrossChain) {
+      return { publicClient: homePublicClient, bundlerClient: homeBundlerClient, chainId: DEFAULT_CHAIN_ID };
+    }
+    const clients = createChainClients(orgChainId);
+    if (!clients) return { publicClient: homePublicClient, bundlerClient: homeBundlerClient, chainId: DEFAULT_CHAIN_ID };
+    return { publicClient: clients.publicClient, bundlerClient: clients.bundlerClient, chainId: orgChainId };
+  }, [isCrossChain, orgChainId, homePublicClient, homeBundlerClient]);
+
+  // Infrastructure addresses — routed to org's chain subgraph.
+  // Skip until subgraphUrl is resolved by POContext to avoid querying the default
+  // (Arbitrum) subgraph and getting wrong-chain addresses (e.g. registry on Arbitrum
+  // instead of Gnosis).
+  // MUST use no-cache: Apollo caches by query+variables (not endpoint), so queries
+  // against different subgraphs can return poisoned cache results.
+  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
+    context: { subgraphUrl },
+    fetchPolicy: 'no-cache',
+    skip: !subgraphUrl,
+  });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
   const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
-  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS);
+  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
+    context: { subgraphUrl },
+    fetchPolicy: 'no-cache',
+    skip: !subgraphUrl,
+  });
   const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
   // State
@@ -78,12 +106,12 @@ export function useVouchFirstOnboarding({
     }
   }, [orgName]);
 
-  // Poll for vouches while awaiting
+  // Poll for vouches while awaiting (safety net — useVouches already refetches on vouch events)
   useEffect(() => {
     if (phase === VouchFirstPhase.AWAITING_VOUCHES && refetchVouches) {
       pollIntervalRef.current = setInterval(() => {
         refetchVouches();
-      }, 15000);
+      }, 45000);
       return () => clearInterval(pollIntervalRef.current);
     }
     return () => clearInterval(pollIntervalRef.current);
@@ -175,9 +203,12 @@ export function useVouchFirstOnboarding({
         factoryAddress,
         registryAddress,
         quickJoinAddress: quickJoinContractAddress,
+        eligibilityModuleAddress,
         paymasterAddress,
         orgId,
         hatId: pendingCredential.selectedHatId,
+        chainId,
+        existingUsername: existingUsername || null,
       });
 
       const credential = {
@@ -230,8 +261,11 @@ export function useVouchFirstOnboarding({
     factoryAddress,
     registryAddress,
     quickJoinContractAddress,
+    eligibilityModuleAddress,
     paymasterAddress,
     orgId,
+    chainId,
+    existingUsername,
     activatePasskey,
   ]);
 
@@ -259,6 +293,9 @@ export function useVouchFirstOnboarding({
     createCredentialAndLink,
     completeOnboarding,
     reset,
+    // Expose for optimistic cache update after join
+    existingUsername: existingUsername || null,
+    vouchedHatId: pendingCredential?.selectedHatId || null,
   };
 }
 

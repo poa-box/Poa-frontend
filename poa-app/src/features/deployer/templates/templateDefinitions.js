@@ -75,8 +75,8 @@ const WORKER_COOP_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 2,
-          voucherRoleIndex: 1, // Stewards vouch for new workers
-          combineWithHierarchy: false,
+          voucherRoleIndex: 0, // Workers vouch for other Workers
+          combineWithHierarchy: true,
         },
         defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: 1 }, // Managed by Steward
@@ -93,12 +93,12 @@ const WORKER_COOP_TEMPLATE = {
         image: '',
         canVote: true,
         vouching: {
-          enabled: false,
-          quorum: 0,
-          voucherRoleIndex: 0,
-          combineWithHierarchy: false,
+          enabled: true,
+          quorum: 1,
+          voucherRoleIndex: 1, // Stewards vouch for other Stewards
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: null }, // Top-level
         distribution: {
           mintToDeployer: true,
@@ -148,6 +148,9 @@ const WORKER_COOP_TEMPLATE = {
       electionHubEnabled: true,
     },
 
+    // Governance Only - democratic orgs should vote on metadata changes
+    metadataAdminRoleIndex: null,
+
     governancePhilosophy: 'democratic',
   },
 
@@ -189,8 +192,8 @@ const OPEN_SOURCE_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 1,
-          voucherRoleIndex: 1, // Maintainers vouch
-          combineWithHierarchy: false,
+          voucherRoleIndex: 0, // Contributors vouch for other Contributors
+          combineWithHierarchy: true,
         },
         defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: 1 }, // Managed by Maintainer
@@ -207,12 +210,12 @@ const OPEN_SOURCE_TEMPLATE = {
         image: '',
         canVote: true,
         vouching: {
-          enabled: false,
-          quorum: 0,
-          voucherRoleIndex: 0,
-          combineWithHierarchy: false,
+          enabled: true,
+          quorum: 1,
+          voucherRoleIndex: 1, // Maintainers vouch for other Maintainers
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: null }, // Top-level
         distribution: {
           mintToDeployer: true,
@@ -271,6 +274,9 @@ const OPEN_SOURCE_TEMPLATE = {
       electionHubEnabled: true,
     },
 
+    // Maintainers manage the project page - they ship releases and manage docs
+    metadataAdminRoleIndex: 1,
+
     governancePhilosophy: 'hybrid',
   },
 
@@ -312,8 +318,8 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 2,
-          voucherRoleIndex: 1, // Curators vouch for new artists
-          combineWithHierarchy: false,
+          voucherRoleIndex: 0, // Artists vouch for other Artists
+          combineWithHierarchy: true,
         },
         defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: 1 }, // Managed by Curator
@@ -330,12 +336,12 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
         image: '',
         canVote: true,
         vouching: {
-          enabled: false,
-          quorum: 0,
-          voucherRoleIndex: 0,
-          combineWithHierarchy: false,
+          enabled: true,
+          quorum: 1,
+          voucherRoleIndex: 1, // Curators vouch for other Curators
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: null }, // Top-level
         distribution: {
           mintToDeployer: true,
@@ -385,6 +391,9 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
       electionHubEnabled: false,
     },
 
+    // Governance Only - flat structure, collective decisions
+    metadataAdminRoleIndex: null,
+
     governancePhilosophy: 'democratic',
   },
 
@@ -426,8 +435,8 @@ const COMMUNITY_DAO_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 1,
-          voucherRoleIndex: 1, // Delegates vouch
-          combineWithHierarchy: false,
+          voucherRoleIndex: 0, // Neighbors vouch for other Neighbors
+          combineWithHierarchy: true,
         },
         defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: 1 }, // Managed by Delegate
@@ -444,12 +453,12 @@ const COMMUNITY_DAO_TEMPLATE = {
         image: '',
         canVote: true,
         vouching: {
-          enabled: false,
-          quorum: 0,
-          voucherRoleIndex: 0,
-          combineWithHierarchy: false,
+          enabled: true,
+          quorum: 1,
+          voucherRoleIndex: 1, // Delegates vouch for other Delegates
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: null }, // Top-level
         distribution: {
           mintToDeployer: true,
@@ -508,6 +517,9 @@ const COMMUNITY_DAO_TEMPLATE = {
       electionHubEnabled: true,
     },
 
+    // Delegates handle admin operations as elected representatives
+    metadataAdminRoleIndex: 1,
+
     governancePhilosophy: 'hybrid',
   },
 
@@ -549,8 +561,8 @@ const STUDENT_ORG_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 1,
-          voucherRoleIndex: 1, // Executives vouch for members
-          combineWithHierarchy: false,
+          voucherRoleIndex: 1, // Executives vouch for new Members
+          combineWithHierarchy: true,
         },
         defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: 1 }, // Managed by Executive
@@ -567,12 +579,12 @@ const STUDENT_ORG_TEMPLATE = {
         image: '',
         canVote: true,
         vouching: {
-          enabled: false,
-          quorum: 0,
-          voucherRoleIndex: 0,
-          combineWithHierarchy: false,
+          enabled: true,
+          quorum: 1,
+          voucherRoleIndex: 1, // Executives vouch for other Executives
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: null }, // Top-level
         distribution: {
           mintToDeployer: true, // Deployer becomes first executive
@@ -630,6 +642,9 @@ const STUDENT_ORG_TEMPLATE = {
       educationHubEnabled: true,   // Education hub for training
       electionHubEnabled: true,    // For democratic executive elections
     },
+
+    // Executives handle day-to-day ops including org profile updates
+    metadataAdminRoleIndex: 1,
 
     governancePhilosophy: 'hybrid',
   },
@@ -743,6 +758,9 @@ const CUSTOM_TEMPLATE = {
       educationHubEnabled: false,
       electionHubEnabled: false,
     },
+
+    // Governance Only - safe default, user can override
+    metadataAdminRoleIndex: null,
 
     governancePhilosophy: 'democratic',
   },

@@ -41,12 +41,13 @@ import { useIPFScontext } from '@/context/ipfsContext';
 /**
  * Preview Badge - Shows logo, name, and description as user types
  */
-function PreviewBadge({ name, logoURL, description }) {
+function PreviewBadge({ name, logoURL, logoPreviewUrl, description }) {
   const placeholderBg = useColorModeValue('amethyst.50', 'warmGray.700');
   const placeholderColor = useColorModeValue('amethyst.300', 'warmGray.500');
   const descriptionColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   const hasContent = name || logoURL || description;
+  const logoSrc = logoPreviewUrl || (logoURL ? `https://ipfs.io/ipfs/${logoURL}` : null);
 
   return (
     <Box
@@ -88,9 +89,9 @@ function PreviewBadge({ name, logoURL, description }) {
         border="2px dashed"
         borderColor={logoURL ? 'transparent' : 'amethyst.200'}
       >
-        {logoURL ? (
+        {logoSrc ? (
           <Image
-            src={`https://ipfs.io/ipfs/${logoURL}`}
+            src={logoSrc}
             alt="Logo"
             objectFit="cover"
             w="100%"
@@ -136,7 +137,7 @@ function PreviewBadge({ name, logoURL, description }) {
 /**
  * Inline Logo Upload with drag-drop
  */
-function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
+function InlineLogoUpload({ logoURL, logoPreviewUrl, onUpload, onRemove }) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
   const { addToIpfs } = useIPFScontext();
@@ -147,6 +148,9 @@ function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
   const bgColor = useColorModeValue('warmGray.50', 'warmGray.800');
   const hoverBgColor = useColorModeValue('amethyst.50', 'rgba(144, 85, 232, 0.1)');
 
+  // Prefer local blob URL for instant preview, fall back to IPFS gateway
+  const displaySrc = logoPreviewUrl || (logoURL ? `https://ipfs.io/ipfs/${logoURL}` : null);
+
   const onDrop = useCallback(async (acceptedFiles) => {
     const file = acceptedFiles[0];
     if (!file) return;
@@ -154,10 +158,13 @@ function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
     setIsUploading(true);
     setError(null);
 
+    // Create a local blob URL for instant preview
+    const previewUrl = URL.createObjectURL(file);
+
     try {
       const addedData = await addToIpfs(file);
       const ipfsUrl = addedData.path;
-      onUpload(ipfsUrl);
+      onUpload({ url: ipfsUrl, previewUrl });
       toast({
         title: 'Logo uploaded!',
         status: 'success',
@@ -165,6 +172,8 @@ function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
         isClosable: true,
       });
     } catch (err) {
+      // Clean up the blob URL on failure
+      URL.revokeObjectURL(previewUrl);
       console.error('Error uploading logo:', err);
       setError('Upload failed. Please try again.');
       toast({
@@ -198,7 +207,7 @@ function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
           borderColor="amethyst.200"
         >
           <Image
-            src={`https://ipfs.io/ipfs/${logoURL}`}
+            src={displaySrc}
             alt="Logo"
             objectFit="cover"
             w="100%"
@@ -454,8 +463,8 @@ export function IdentityStep() {
     }
   };
 
-  const handleLogoUpload = (logoURL) => {
-    actions.setLogoURL(logoURL);
+  const handleLogoUpload = (logoData) => {
+    actions.setLogoURL(logoData);
   };
 
   const handleLogoRemove = () => {
@@ -482,6 +491,7 @@ export function IdentityStep() {
         url: link.url,
       })),
       template: state.ui.selectedTemplate || 'default',
+      logo: organization.logoURL || null,
     };
 
     try {
@@ -623,6 +633,7 @@ export function IdentityStep() {
                   </HStack>
                   <InlineLogoUpload
                     logoURL={organization.logoURL}
+                    logoPreviewUrl={organization.logoPreviewUrl}
                     onUpload={handleLogoUpload}
                     onRemove={handleLogoRemove}
                   />
@@ -730,6 +741,7 @@ export function IdentityStep() {
             <PreviewBadge
               name={organization.name}
               logoURL={organization.logoURL}
+              logoPreviewUrl={organization.logoPreviewUrl}
               description={organization.description}
             />
           </GridItem>

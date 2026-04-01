@@ -23,7 +23,7 @@ import ExecutiveMenuModal from '@/components/profileHub/ExecutiveMenuModal';
 import { useOrgStructure } from '@/hooks';
 import { useVouches } from '@/hooks/useVouches';
 import WelcomeClaimPage from '@/components/profileHub/WelcomeClaimPage';
-import { useAccount } from 'wagmi';
+import { useAuth } from '@/context/AuthContext';
 
 // Profile hub components
 import ProfileHeader from '@/components/profileHub/ProfileHeader';
@@ -173,7 +173,7 @@ function RecommendedTasksCompact({ tasks, userDAO }) {
 const UserprofileHub = () => {
   const router = useRouter();
   const { userDAO } = router.query;
-  const { address: userAddress } = useAccount();
+  const { accountAddress: userAddress } = useAuth();
 
   const { ongoingPolls } = useVotingContext();
   const { recommendedTasks } = useProjectContext();

@@ -74,7 +74,7 @@ const initialState = {
     orgId: null,
     orgChainId: null,
     poDescription: 'No description provided or IPFS content still being indexed',
-    poLinks: {},
+    poLinks: [],
     logoHash: '',
     logoUrl: '',
     metadataAdminHatId: null,
@@ -208,10 +208,10 @@ export const POProvider = ({ children }) => {
     // Handle refresh events from Web3 transactions
     const handleRefresh = useCallback(() => {
         if (state.orgId && refetchOrgData) {
-            // Small delay to allow subgraph to index the new data
+            // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
             setTimeout(() => {
                 refetchOrgData();
-            }, 2000);
+            }, 5000);
         }
     }, [state.orgId, refetchOrgData]);
 
@@ -267,15 +267,14 @@ export const POProvider = ({ children }) => {
             const adminHat = org.metadataAdminHatId;
 
             let poDescription = 'No description provided or IPFS content still being indexed';
-            let poLinks = {};
+            let poLinks = [];
             if (org.metadata) {
                 poDescription = org.metadata.description || 'No description provided';
                 if (org.metadata.links && org.metadata.links.length > 0) {
-                    const linksObj = {};
-                    org.metadata.links.forEach(link => {
-                        linksObj[link.name] = link.url;
-                    });
-                    poLinks = linksObj;
+                    poLinks = org.metadata.links.map(link => ({
+                        name: link.name,
+                        url: link.url,
+                    }));
                 }
             } else if (org.metadataHash) {
                 poDescription = 'Organization description loading from IPFS...';
@@ -356,6 +355,48 @@ export const POProvider = ({ children }) => {
         }
         fetchLogoFromMetadata();
     }, [orgData, safeFetchFromIpfs]);
+
+    // Fetch IPFS content for education modules (description, quiz, answers, link)
+    // The subgraph only stores title + contentHash; the rest lives in IPFS.
+    useEffect(() => {
+        async function fetchModuleContent() {
+            const modules = state.educationModules;
+            if (!modules || modules.length === 0) return;
+
+            const modulesNeedingFetch = modules.filter(m => m.ipfsHash && !m._ipfsFetched);
+            if (modulesNeedingFetch.length === 0) return;
+
+            const updated = await Promise.all(
+                modules.map(async (module) => {
+                    if (!module.ipfsHash || module._ipfsFetched) return module;
+                    try {
+                        const content = await safeFetchFromIpfs(module.ipfsHash);
+                        if (!content) return { ...module, _ipfsFetched: true };
+                        return {
+                            ...module,
+                            description: content.description || module.description,
+                            link: content.link || '',
+                            question: content.quiz?.[0] || '',
+                            answers: (content.answers?.[0] || []).map((ans, i) => ({
+                                index: i,
+                                answer: ans,
+                            })),
+                            _ipfsFetched: true,
+                        };
+                    } catch (e) {
+                        console.warn('[POContext] Failed to fetch education module IPFS content:', e);
+                        return { ...module, _ipfsFetched: true };
+                    }
+                })
+            );
+
+            dispatch({
+                type: 'SET_ORG_DATA',
+                payload: { educationModules: updated },
+            });
+        }
+        fetchModuleContent();
+    }, [state.educationModules, safeFetchFromIpfs]);
 
     // Combined loading and error states
     const loading = orgLookupLoading || orgDataLoading;

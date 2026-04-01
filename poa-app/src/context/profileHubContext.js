@@ -63,14 +63,14 @@ export const ProfileHubProvider = ({ children }) => {
         let cancelled = false;
 
         async function fetchAll() {
-            const entries = Object.values(NETWORKS);
+            const entries = Object.values(NETWORKS).filter(n => !n.isTestnet);
             const results = await Promise.all(
                 entries.map(net => fetchOrgsFromSource(net.subgraphUrl, net))
             );
             if (!cancelled) {
-                // Flatten, sort by deployedAt descending
+                // Flatten, sort by deployedAt ascending (oldest first)
                 const merged = results.flat().sort((a, b) =>
-                    Number(b.deployedAt || 0) - Number(a.deployedAt || 0)
+                    Number(a.deployedAt || 0) - Number(b.deployedAt || 0)
                 );
                 setAllOrgs(merged);
                 setLoading(false);

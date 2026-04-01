@@ -18,15 +18,17 @@ import { CloseIcon } from "@chakra-ui/icons";
 import { useQuery } from "@apollo/client";
 import LogoDropzoneModal from "@/components/Architect/LogoDropzoneModal";
 import LinksModal from "@/components/Architect/LinksModal";
-import { useAccount, useDisconnect, useSwitchChain } from "wagmi";
-import { useEthersSigner } from "@/components/ProviderConverter";
+import { useAccount, useDisconnect, useSwitchChain, useConfig } from "wagmi";
+import { getConnectorClient } from "wagmi/actions";
+import { useEthersSigner, clientToSigner } from "@/components/ProviderConverter";
 import { useAuth } from "@/context/AuthContext";
 import { useIPFScontext } from "@/context/ipfsContext";
 import { main, buildDeployCalldata } from "../../../scripts/newDeployment";
 import { useRouter } from "next/router";
-import { FETCH_INFRASTRUCTURE_ADDRESSES } from "@/util/queries";
+import { FETCH_INFRASTRUCTURE_ADDRESSES, FETCH_USERNAME_NEW } from "@/util/queries";
 import { ipfsCidToBytes32 } from "@/services/web3/utils/encoding";
-import { signRegistration, getSkipRegistrationDefaults, fetchExistingUsername } from "@/services/web3/utils/registrySigner";
+import { signRegistration, getSkipRegistrationDefaults } from "@/services/web3/utils/registrySigner";
+import { ethers } from 'ethers';
 
 // New deployer imports
 import {
@@ -43,11 +45,14 @@ import { resolveRoleUsernames } from "@/features/deployer/utils/usernameResolver
 import { encodeFunctionData, createPublicClient, http, defineChain } from "viem";
 import { createPimlicoClient } from "permissionless/clients/pimlico";
 import PasskeyAccountABI from "../../../abi/PasskeyAccount.json";
+import PasskeyAccountFactoryABI from "../../../abi/PasskeyAccountFactory.json";
+import UniversalAccountRegistryABI from "../../../abi/UniversalAccountRegistry.json";
 import { buildUserOp, getUserOpHash } from "@/services/web3/passkey/userOpBuilder";
 import { signUserOpWithPasskey } from "@/services/web3/passkey/passkeySign";
 import { encodeOrgDeployPaymasterData } from "@/services/web3/passkey/paymasterData";
 import { getBundlerUrl, ENTRY_POINT_ADDRESS } from "@/config/passkey";
 import { DEFAULT_DEPLOY_CHAIN_ID, getNetworkByChainId, getSubgraphUrl } from "@/config/networks";
+import { FETCH_PASSKEY_FACTORY_ADDRESS } from "@/util/passkeyQueries";
 
 /**
  * Inner component that has access to DeployerContext
@@ -57,6 +62,7 @@ function DeployerPageContent() {
   const { switchChainAsync } = useSwitchChain();
   const { passkeyState } = useAuth();
   const signer = useEthersSigner();
+  const wagmiConfig = useConfig();
 
   const { disconnect } = useDisconnect();
 
@@ -65,13 +71,21 @@ function DeployerPageContent() {
   // Uses a ref so we only disconnect once (the first auto-reconnect), not after user-initiated connects.
   const hasDisconnectedAutoReconnect = useRef(false);
   const [walletUserConnected, setWalletUserConnected] = useState(false);
+  const isPasskeyUser = !!passkeyState?.accountAddress;
 
   useEffect(() => {
     if (!hasDisconnectedAutoReconnect.current && (status === 'reconnecting' || status === 'connected')) {
       hasDisconnectedAutoReconnect.current = true;
-      disconnect();
+      // Only force auth choice when the user has a passkey — wallet-only users
+      // shouldn't be disconnected because re-triggering connect can stall
+      // in some wallet extensions (e.g. Brave) that consider the dapp already authorized.
+      if (isPasskeyUser) {
+        disconnect();
+      } else {
+        setWalletUserConnected(true);
+      }
     }
-  }, [status, disconnect]);
+  }, [status, disconnect, isPasskeyUser]);
   useEffect(() => {
     if (status === 'connecting') setWalletUserConnected(true);
     if (status === 'disconnected') setWalletUserConnected(false);
@@ -84,12 +98,33 @@ function DeployerPageContent() {
   // Fetch infrastructure addresses from the target deploy chain's subgraph
   const deployChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
   const deploySubgraphUrl = getSubgraphUrl(deployChainId);
+  // IMPORTANT: Use 'no-cache' for ALL cross-chain subgraph queries to prevent Apollo
+  // from returning cached Arbitrum results when querying Gnosis (same query, different endpoint).
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    fetchPolicy: 'network-only',
+    fetchPolicy: 'no-cache',
     context: { subgraphUrl: deploySubgraphUrl },
     skip: !deploySubgraphUrl,
   });
 
+  // Fetch passkey factory address on deploy chain (needed for cross-chain account creation)
+  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
+    fetchPolicy: 'no-cache',
+    context: { subgraphUrl: deploySubgraphUrl },
+    skip: !deploySubgraphUrl || !isPasskeyUser,
+  });
+  const deployChainFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
+
+  // Check if deployer already has a username on the deploy chain (via subgraph)
+  // IMPORTANT: Use 'no-cache' to prevent Apollo from returning cached Arbitrum results
+  // for the same account ID queried against the Gnosis subgraph endpoint.
+  const deployerAddr = passkeyState?.accountAddress || address;
+  const { data: deployChainAccountData } = useQuery(FETCH_USERNAME_NEW, {
+    variables: { id: deployerAddr?.toLowerCase() },
+    fetchPolicy: 'no-cache',
+    context: { subgraphUrl: deploySubgraphUrl },
+    skip: !deployerAddr || !deploySubgraphUrl,
+  });
+  const deployChainHasUsername = !!deployChainAccountData?.account?.username;
 
   // Extract addresses from subgraph data
   const infrastructureAddresses = useMemo(() => {
@@ -145,9 +180,13 @@ function DeployerPageContent() {
   const handleDeployStart = async (config) => {
     setIsDeploying(true);
 
-    // Switch to the selected chain before deploying
+    // Passkey deploys use chain-specific viem/bundler clients — they never
+    // touch the wallet provider, so we skip chain switching and signer refresh.
     const targetChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
-    if (connectedChainId && connectedChainId !== targetChainId) {
+    const isPasskeyDeployer = !!passkeyState?.accountAddress;
+    const needsChainSwitch = !isPasskeyDeployer && connectedChainId && connectedChainId !== targetChainId;
+
+    if (needsChainSwitch) {
       try {
         await switchChainAsync({ chainId: targetChainId });
       } catch (e) {
@@ -161,6 +200,21 @@ function DeployerPageContent() {
         });
         setIsDeploying(false);
         return;
+      }
+    }
+
+    // After a chain switch the signer from useEthersSigner() is stale (captured
+    // at render time with the old chain's transport/network). Fetch a fresh
+    // connector client for the target chain so RPC calls and signatures use the
+    // correct chain.
+    let deploySigner = signer;
+    if (needsChainSwitch) {
+      try {
+        const freshClient = await getConnectorClient(wagmiConfig, { chainId: targetChainId });
+        deploySigner = clientToSigner(freshClient);
+        console.log('[DEPLOY] Got fresh signer for target chain', targetChainId);
+      } catch (e) {
+        console.warn('[DEPLOY] Could not get fresh signer, using hook signer:', e.message);
       }
     }
 
@@ -181,6 +235,7 @@ function DeployerPageContent() {
           url: link.url,
         })),
         template: state.organization.template || 'default',
+        logo: state.organization.logoURL || null,
       };
 
       console.log('[DEPLOY] Preparing IPFS metadata:', jsonData);
@@ -273,30 +328,20 @@ function DeployerPageContent() {
         });
       });
 
-      // === EIP-712 Registration Signature ===
-      // Determine whether we need to sign for username registration during deploy.
-      // The contract's HatsTreeSetup checks: accountRegistry != 0 && username.length > 0
-      // && regSignature.length > 0. If any condition fails it silently skips registration.
+      // === EIP-712 Registration Signature (EOA only) ===
+      // The deploy contract's HatsTreeSetup calls registerAccountBySig atomically.
+      // It checks: registryAddr != 0 && username.length > 0 && regSignature.length > 0
+      // and is idempotent (skips if user already has a username on-chain).
+      // We use the subgraph to avoid signing when the user already has a username,
+      // and a public RPC provider for on-chain reads (nonce, block) so they work
+      // reliably after a chain switch.
       let regSignatureData = getSkipRegistrationDefaults();
-
-      // When a passkey account is set it takes priority as deployer address (line 398).
-      // We can only produce a valid ECDSA signature when the EOA IS the deployer,
-      // because the contract checks that the recovered signer matches deployerAddress.
-      const isPasskeyDeployer = !!passkeyState?.accountAddress;
       const hasNewUsername = deployerUsername && deployerUsername.trim().length > 0;
 
-      if (!isPasskeyDeployer && signer && hasNewUsername) {
-        try {
-          console.log('[DEPLOY] Checking on-chain username for', address);
-          const registryAddress = infrastructureAddresses.registryAddress;
-          const existingOnChainUsername = await fetchExistingUsername(
-            registryAddress,
-            address,
-            signer.provider
-          );
-
-          if (!existingOnChainUsername || existingOnChainUsername.trim().length === 0) {
-            console.log('[DEPLOY] No existing username — requesting EIP-712 signature...');
+      if (!isPasskeyDeployer && deploySigner && hasNewUsername && !deployChainHasUsername) {
+        const registryAddress = infrastructureAddresses.registryAddress;
+        if (registryAddress) {
+          try {
             toast({
               title: 'Signature Required',
               description: 'Please sign the message in your wallet to register your username.',
@@ -305,11 +350,21 @@ function DeployerPageContent() {
               isClosable: true,
             });
 
+            // Use a public RPC provider for reads — the wallet provider can be stale
+            // after switchChainAsync (transport/network metadata not yet updated).
+            const targetNetwork = getNetworkByChainId(targetChainId);
+            const readProvider = new ethers.providers.JsonRpcProvider(
+              targetNetwork.rpcUrl,
+              { chainId: targetChainId, name: targetNetwork.name }
+            );
+
             const sigResult = await signRegistration({
-              signer,
+              signer: deploySigner,
               registryAddress,
               username: deployerUsername,
               deadlineSeconds: 300,
+              chainId: targetChainId,
+              readProvider,
             });
 
             regSignatureData = {
@@ -323,24 +378,52 @@ function DeployerPageContent() {
               nonce: sigResult.nonce.toString(),
               signatureLength: sigResult.signature.length,
             });
-          } else {
-            console.log('[DEPLOY] User already has on-chain username:', existingOnChainUsername, '— skipping signature');
+          } catch (sigError) {
+            if (sigError.code === 4001 || sigError.code === 'ACTION_REJECTED') {
+              throw new Error('Username registration signature was rejected. Deployment cancelled.');
+            }
+            // Retry once after a brief delay — chain switch may not have fully propagated
+            console.warn('[DEPLOY] EIP-712 signing failed, retrying after delay...', sigError.message);
+            try {
+              await new Promise(r => setTimeout(r, 2000));
+              // Re-fetch fresh signer in case the first one was stale
+              const retryClient = await getConnectorClient(wagmiConfig, { chainId: targetChainId });
+              const retrySigner = clientToSigner(retryClient);
+              const sigResult = await signRegistration({
+                signer: retrySigner,
+                registryAddress,
+                username: deployerUsername,
+                deadlineSeconds: 300,
+                chainId: targetChainId,
+                readProvider,
+              });
+              regSignatureData = {
+                regDeadline: sigResult.deadline,
+                regNonce: sigResult.nonce,
+                regSignature: sigResult.signature,
+              };
+              console.log('[DEPLOY] EIP-712 signature obtained on retry');
+            } catch (retryError) {
+              if (retryError.code === 4001 || retryError.code === 'ACTION_REJECTED') {
+                throw new Error('Username registration signature was rejected. Deployment cancelled.');
+              }
+              console.error('[DEPLOY] EIP-712 signing failed on retry, deploying without registration:', retryError);
+              toast({
+                title: 'Username registration skipped',
+                description: 'Could not prepare the username signature. Your org will deploy without on-chain username registration. You can register your username later.',
+                status: 'warning',
+                duration: 8000,
+                isClosable: true,
+              });
+            }
           }
-        } catch (sigError) {
-          if (sigError.code === 4001 || sigError.code === 'ACTION_REJECTED') {
-            throw new Error('Username registration signature was rejected. Deployment cancelled.');
-          }
-          console.error('[DEPLOY] EIP-712 signing failed, continuing with defaults:', sigError);
-          toast({
-            title: 'Username registration skipped',
-            description: 'Could not prepare the username signature. Your org will deploy without on-chain username registration. You can register your username later.',
-            status: 'warning',
-            duration: 8000,
-            isClosable: true,
-          });
         }
-      } else {
-        console.log('[DEPLOY] Skipping EIP-712 signing:', { isPasskeyDeployer, hasSigner: !!signer, hasNewUsername });
+      } else if (!isPasskeyDeployer) {
+        console.log('[DEPLOY] Skipping EIP-712 signing:', {
+          hasSigner: !!deploySigner,
+          hasNewUsername,
+          deployChainHasUsername,
+        });
       }
 
       // Call the deployment function
@@ -382,12 +465,13 @@ function DeployerPageContent() {
           infrastructureAddresses,
           regSignatureData,
           paymasterConfig,
+          metadataAdminRoleIndex: state.metadataAdminRoleIndex,
         });
 
         const fundingBigInt = paymasterFundingWei.gt(0) ? BigInt(paymasterFundingWei.toString()) : 0n;
 
         // Create chain-specific clients for deployment target.
-        // AuthContext clients are pinned to Sepolia for login/reconnect flows.
+        // AuthContext clients are pinned to the home chain for login/reconnect flows.
         const targetNetwork = getNetworkByChainId(targetChainId);
         const targetChain = defineChain({
           id: targetNetwork.chainId,
@@ -406,25 +490,142 @@ function DeployerPageContent() {
           entryPoint: { address: ENTRY_POINT_ADDRESS, version: '0.7' },
         });
 
+        // --- Cross-chain account handling ---
+        // Check if the passkey smart account exists on the target chain.
+        // If not, include initCode so the EntryPoint deploys it via the factory.
+        let initCode = '0x';
+        const accountBytecode = await deployPublicClient.getBytecode({
+          address: passkeyState.accountAddress,
+        });
+        const accountExistsOnTargetChain = accountBytecode && accountBytecode !== '0x';
+
+        if (!accountExistsOnTargetChain) {
+          if (!deployChainFactoryAddress) {
+            throw new Error(
+              `Passkey account factory not found on ${targetNetwork.name}. ` +
+              `The protocol infrastructure may not be deployed on this chain yet.`
+            );
+          }
+
+          // Verify the target chain's factory produces the same address as our home-chain account.
+          // CREATE2 address depends on factory address, so if factories differ across chains
+          // the account address would differ — causing AA14 (initCode must return sender).
+          const targetAccountAddress = await deployPublicClient.readContract({
+            address: deployChainFactoryAddress,
+            abi: PasskeyAccountFactoryABI,
+            functionName: 'getAddress',
+            args: [
+              passkeyState.credentialId,
+              passkeyState.publicKeyX,
+              passkeyState.publicKeyY,
+              BigInt(passkeyState.salt),
+            ],
+          });
+
+          if (targetAccountAddress.toLowerCase() !== passkeyState.accountAddress.toLowerCase()) {
+            throw new Error(
+              `Account address mismatch: home chain account is ${passkeyState.accountAddress} ` +
+              `but ${targetNetwork.name} factory would create ${targetAccountAddress}. ` +
+              `Cross-chain deployment is not supported for this configuration.`
+            );
+          }
+
+          const factoryCallData = encodeFunctionData({
+            abi: PasskeyAccountFactoryABI,
+            functionName: 'createAccount',
+            args: [
+              passkeyState.credentialId,
+              passkeyState.publicKeyX,
+              passkeyState.publicKeyY,
+              BigInt(passkeyState.salt),
+            ],
+          });
+          initCode = deployChainFactoryAddress + factoryCallData.slice(2);
+          console.log('[DEPLOY] Account not found on target chain — initCode will deploy it');
+        }
+
+        // Check if the deployer's username is registered on the target chain's registry.
+        // The home chain (Arbitrum) has the username, but this chain's registry may not.
+        let needsUsernameRegistration = false;
+        const registryAddress = infrastructureAddresses.registryAddress;
+        if (deployerUsername && registryAddress) {
+          try {
+            const existingName = await deployPublicClient.readContract({
+              address: registryAddress,
+              abi: UniversalAccountRegistryABI,
+              functionName: 'getUsername',
+              args: [passkeyState.accountAddress],
+            });
+            needsUsernameRegistration = !existingName || existingName.trim().length === 0;
+            console.log('[DEPLOY] Username on target chain:', existingName || '(none)');
+          } catch {
+            // If account doesn't exist yet, getUsername will revert — treat as unregistered
+            needsUsernameRegistration = true;
+            console.log('[DEPLOY] Could not read username on target chain — will register');
+          }
+        }
+
+        // Build the UserOp callData:
+        // - If username needs registration: executeBatch([registerAccount, deployFullOrg])
+        // - Otherwise: single execute(deployFullOrg) (existing behavior)
+        let sponsoredCallData;
+        let selfFundedCallData;
+
+        if (needsUsernameRegistration && registryAddress) {
+          const registerCallData = encodeFunctionData({
+            abi: UniversalAccountRegistryABI,
+            functionName: 'registerAccount',
+            args: [deployerUsername],
+          });
+
+          sponsoredCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'executeBatch',
+            args: [
+              [registryAddress, orgDeployerAddress],
+              [0n, 0n],
+              [registerCallData, calldata],
+            ],
+          });
+
+          selfFundedCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'executeBatch',
+            args: [
+              [registryAddress, orgDeployerAddress],
+              [0n, fundingBigInt],
+              [registerCallData, calldata],
+            ],
+          });
+
+          console.log('[DEPLOY] Using executeBatch: registerAccount + deployFullOrg');
+        } else {
+          sponsoredCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'execute',
+            args: [orgDeployerAddress, 0n, calldata],
+          });
+
+          selfFundedCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'execute',
+            args: [orgDeployerAddress, fundingBigInt, calldata],
+          });
+        }
+
         // Try sponsored deployment first (solidarity fund pays gas via PaymasterHub),
         // then fall back to self-funded if sponsorship is unavailable.
-        // Sponsored path requires execute(orgDeployer, 0, ...) per PaymasterHub contract.
         let userOp;
         const paymasterHubAddress = infrastructureAddresses.paymasterHubProxy;
 
         if (paymasterHubAddress) {
           try {
-            const sponsoredCallData = encodeFunctionData({
-              abi: PasskeyAccountABI,
-              functionName: 'execute',
-              args: [orgDeployerAddress, 0n, calldata],
-            });
-
             userOp = await buildUserOp({
               sender: passkeyState.accountAddress,
               callData: sponsoredCallData,
               bundlerClient: deployBundlerClient,
               publicClient: deployPublicClient,
+              initCode,
               paymasterAddress: paymasterHubAddress,
               paymasterData: encodeOrgDeployPaymasterData(),
             });
@@ -447,17 +648,12 @@ function DeployerPageContent() {
 
         if (!userOp) {
           // Self-funded: account pays gas, can include ETH for org paymaster funding
-          const selfFundedCallData = encodeFunctionData({
-            abi: PasskeyAccountABI,
-            functionName: 'execute',
-            args: [orgDeployerAddress, fundingBigInt, calldata],
-          });
-
           userOp = await buildUserOp({
             sender: passkeyState.accountAddress,
             callData: selfFundedCallData,
             bundlerClient: deployBundlerClient,
             publicClient: deployPublicClient,
+            initCode,
           });
 
           console.log('[DEPLOY] UserOp built self-funded (account pays gas)');
@@ -514,13 +710,14 @@ function DeployerPageContent() {
           state.voting.ddQuorum,
           state.voting.hybridQuorum,
           deployerUsername,
-          signer,
+          deploySigner,
           customRoles,
           infrastructureAddresses,
           regSignatureData,
           undefined, // overrideDeployerAddress
           paymasterConfig,
-          paymasterFundingWei
+          paymasterFundingWei,
+          state.metadataAdminRoleIndex
         );
       }
 

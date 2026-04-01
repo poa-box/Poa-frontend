@@ -20,8 +20,28 @@ export function getBundlerUrl(chainId = DEFAULT_CHAIN_ID) {
 // WebAuthn Relying Party configuration
 export const WEBAUTHN_RP_NAME = 'Perpetual Organization Architect';
 
+// Fixed RP ID scoped to the registrable domain so passkeys created on www.poa.box
+// (or any subdomain) can later be used on custom domains via Related Origin Requests.
+// See https://w3c.github.io/webauthn/#sctn-related-origins
+export const WEBAUTHN_RP_ID = 'poa.box';
+
+/**
+ * Return the RP ID to use for WebAuthn operations.
+ *
+ * Uses WEBAUTHN_RP_ID when the current hostname is (or is a subdomain of) that
+ * domain — this is the WebAuthn "registrable domain suffix" rule. Falls back to
+ * the raw hostname otherwise (e.g. localhost during development).
+ */
+export function getWebAuthnRpId() {
+  const hostname = window.location.hostname;
+  if (hostname === WEBAUTHN_RP_ID || hostname.endsWith('.' + WEBAUTHN_RP_ID)) {
+    return WEBAUTHN_RP_ID;
+  }
+  return hostname;
+}
+
 // Gas estimation buffer percentage (applied on top of bundler estimates)
-export const GAS_BUFFER_PERCENT = 20n;
+export const GAS_BUFFER_PERCENT = 10n;
 
 // Maximum total gas per UserOp — Pimlico bundler rejects ops above 15M.
 // Leave headroom for bundler-side overhead calculations.

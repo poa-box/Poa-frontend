@@ -41,6 +41,7 @@ const VotingPage = () => {
     votingContractAddress,
     taskManagerContractAddress,
     executorContractAddress,
+    participationTokenAddress,
     poContextLoading,
     roleNames,
   } = usePOContext();
@@ -51,6 +52,7 @@ const VotingPage = () => {
     democracyVotingOngoing,
     democracyVotingCompleted,
     votingType: PTVoteType,
+    votingClasses,
   } = useVotingContext();
 
   // Poll navigation and selection
@@ -161,6 +163,7 @@ const VotingPage = () => {
     directDemocracyVotingContractAddress,
     taskManagerContractAddress,
     executorContractAddress,
+    participationTokenAddress,
   };
 
   // Wrapper for handleSubmit that passes eligibilityModule and contract addresses
@@ -288,6 +291,7 @@ const VotingPage = () => {
             handlePollCreated={handlePollCreated}
             loadingSubmit={loadingSubmit}
             roleNames={roleNames}
+            votingClasses={votingClasses}
           />
 
           <PollModal

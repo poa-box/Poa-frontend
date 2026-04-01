@@ -6,7 +6,8 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import apolloClient from '@/util/apolloClient';
-import { FETCH_USERNAME_NEW, GET_ACCOUNT_BY_USERNAME } from '@/util/queries';
+import { FETCH_USERNAME_NEW } from '@/util/queries';
+import { findUserByUsernameAcrossChains } from '@/util/crossChainUsername';
 
 // Username validation regex (alphanumeric + underscore, 3-32 chars)
 const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
@@ -94,18 +95,12 @@ export function useUserSearch({ debounceMs = 500 } = {}) {
           });
           setError(null);
         } else {
-          // Search by username - find the address
-          const { data } = await apolloClient.query({
-            query: GET_ACCOUNT_BY_USERNAME,
-            variables: { username: searchQuery.trim().toLowerCase() },
-            fetchPolicy: 'network-only',
-          });
-
-          const account = data?.accounts?.[0];
-          if (account) {
+          // Search by username across ALL chains
+          const result = await findUserByUsernameAcrossChains(searchQuery.trim());
+          if (result.address) {
             setSearchResult({
-              address: account.id,
-              username: account.username,
+              address: result.address,
+              username: result.username,
             });
             setError(null);
           } else {

@@ -10,7 +10,7 @@ import {
   useToast,
   Tooltip,
 } from '@chakra-ui/react';
-import { useAccount } from 'wagmi';
+import { useAuth } from '@/context/AuthContext';
 import { formatTokenAmount } from '@/util/formatToken';
 import { getTokenByAddress } from '@/util/tokens';
 
@@ -21,7 +21,7 @@ const DistributionCard = ({
   onClaim,
 }) => {
   const [isClaiming, setIsClaiming] = useState(false);
-  const { address } = useAccount();
+  const { accountAddress: address } = useAuth();
   const toast = useToast();
 
   const token = getTokenByAddress(distribution.payoutToken);

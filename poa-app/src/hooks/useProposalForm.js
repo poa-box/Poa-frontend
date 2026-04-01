@@ -234,7 +234,34 @@ export function useProposalForm({ onSubmit }) {
       // Validate required inputs have values
       for (const input of template.inputs || []) {
         const value = proposal.setterValues?.[input.name];
-        if (value === undefined || value === '' || value === null) {
+
+        // Special validation for voting class weights
+        if (input.type === 'votingClassWeights') {
+          if (!Array.isArray(value) || value.length === 0) {
+            toast({
+              title: "No Voting Classes",
+              description: "At least one voting class is required.",
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            return false;
+          }
+          const totalPct = value.reduce((sum, cls) => sum + Number(cls.slicePct), 0);
+          if (totalPct !== 100) {
+            toast({
+              title: "Invalid Weights",
+              description: `Voting class weights must sum to 100% (currently ${totalPct}%).`,
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            return false;
+          }
+          continue;
+        }
+
+        if (!input.optional && (value === undefined || value === '' || value === null)) {
           toast({
             title: "Missing Value",
             description: `Please provide a value for "${input.label || input.name}".`,
@@ -243,6 +270,11 @@ export function useProposalForm({ onSubmit }) {
             isClosable: true,
           });
           return false;
+        }
+
+        // Skip further validation for optional empty inputs
+        if (input.optional && (value === undefined || value === '' || value === null)) {
+          continue;
         }
 
         // Validate number ranges
@@ -268,6 +300,26 @@ export function useProposalForm({ onSubmit }) {
             });
             return false;
           }
+        }
+      }
+
+      // For templates where all inputs are optional, ensure at least one has a value
+      const allOptional = (template.inputs || []).every(input => input.optional);
+      if (allOptional && template.inputs?.length > 0) {
+        const hasAnyValue = (template.inputs || []).some(input => {
+          const val = proposal.setterValues?.[input.name];
+          if (typeof val === 'string') return val.trim() !== '';
+          return val !== undefined && val !== '' && val !== null;
+        });
+        if (!hasAnyValue) {
+          toast({
+            title: "No Changes",
+            description: "Please provide at least one value to change.",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+          return false;
         }
       }
     } else {
@@ -370,11 +422,11 @@ export function useProposalForm({ onSubmit }) {
         return [mintCall];
       });
     } else if (proposal.type === "setter") {
-      // Setter proposal - call a contract setter function
-      let setterCall;
+      // Setter proposal - call contract setter function(s)
+      let setterCalls = [];
 
       if (proposal.setterMode === 'template' && proposal.setterTemplate) {
-        // Template mode: use template's encode function
+        // Template mode
         const template = getTemplateById(proposal.setterTemplate);
         if (template) {
           const contractKey = template.contract;
@@ -382,16 +434,22 @@ export function useProposalForm({ onSubmit }) {
           const contractAddress = contractAddresses?.[contextKey];
 
           if (contractAddress) {
-            const funcDef = RAW_FUNCTIONS[contractKey]?.find(f => f.name === template.functionName);
-            if (funcDef) {
-              const iface = new utils.Interface([funcDef.signature]);
-              const encodedArgs = template.encode(proposal.setterValues);
+            if (template.buildCalls) {
+              // Multi-call template (e.g. token name + symbol in one proposal)
+              setterCalls = template.buildCalls(proposal.setterValues, contractAddress);
+            } else {
+              // Single-call template: use functionName + encode
+              const funcDef = RAW_FUNCTIONS[contractKey]?.find(f => f.name === template.functionName);
+              if (funcDef) {
+                const iface = new utils.Interface([funcDef.signature]);
+                const encodedArgs = template.encode(proposal.setterValues);
 
-              setterCall = {
-                target: contractAddress,
-                value: "0",
-                data: iface.encodeFunctionData(template.functionName, encodedArgs),
-              };
+                setterCalls = [{
+                  target: contractAddress,
+                  value: "0",
+                  data: iface.encodeFunctionData(template.functionName, encodedArgs),
+                }];
+              }
             }
           }
         }
@@ -406,18 +464,18 @@ export function useProposalForm({ onSubmit }) {
         if (funcDef && contractAddress) {
           const iface = new utils.Interface([funcDef.signature]);
 
-          setterCall = {
+          setterCalls = [{
             target: contractAddress,
             value: "0",
             data: iface.encodeFunctionData(proposal.setterFunction, proposal.setterParams),
-          };
+          }];
         }
       }
 
-      if (setterCall) {
+      if (setterCalls.length > 0) {
         batches = [
-          [setterCall], // Yes wins: execute setter
-          [],           // No wins: do nothing
+          setterCalls, // Yes wins: execute setter(s)
+          [],          // No wins: do nothing
         ];
       } else {
         batches = [[], []];

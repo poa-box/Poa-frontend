@@ -31,6 +31,7 @@ const SettingsPage = () => {
 
   const {
     orgId,
+    orgChainId,
     poDescription,
     poLinks,
     logoUrl,
@@ -44,12 +45,12 @@ const SettingsPage = () => {
   // Loading state
   if (poContextLoading || adminLoading) {
     return (
-      <Box minH="100vh" bg="gray.900">
+      <Box minH="100vh">
         <Navbar />
         <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
           <VStack spacing={4}>
-            <Spinner size="xl" color="blue.400" thickness="4px" />
-            <Text color="gray.400">Loading settings...</Text>
+            <Spinner size="xl" color="coral.500" thickness="4px" />
+            <Text color="warmGray.500">Loading settings...</Text>
           </VStack>
         </Center>
       </Box>
@@ -59,10 +60,10 @@ const SettingsPage = () => {
   // Error state
   if (contextError || adminError) {
     return (
-      <Box minH="100vh" bg="gray.900">
+      <Box minH="100vh">
         <Navbar />
         <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
-          <Alert status="error" maxW="lg" borderRadius="md">
+          <Alert status="error" maxW="lg" borderRadius="xl" bg="red.50">
             <AlertIcon />
             <Box>
               <AlertTitle>Error loading settings</AlertTitle>
@@ -77,10 +78,10 @@ const SettingsPage = () => {
   // Not authenticated state
   if (!isAuthenticated) {
     return (
-      <Box minH="100vh" bg="gray.900">
+      <Box minH="100vh">
         <Navbar />
         <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
-          <Alert status="warning" maxW="lg" borderRadius="md">
+          <Alert status="warning" maxW="lg" borderRadius="xl" bg="orange.50">
             <AlertIcon />
             <Box>
               <AlertTitle>Not signed in</AlertTitle>
@@ -95,10 +96,10 @@ const SettingsPage = () => {
   // Not admin state
   if (!isAdmin) {
     return (
-      <Box minH="100vh" bg="gray.900">
+      <Box minH="100vh">
         <Navbar />
         <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
-          <Alert status="warning" maxW="lg" borderRadius="md">
+          <Alert status="warning" maxW="lg" borderRadius="xl" bg="orange.50">
             <AlertIcon />
             <Box>
               <AlertTitle>Access Denied</AlertTitle>
@@ -113,21 +114,22 @@ const SettingsPage = () => {
   }
 
   return (
-    <Box minH="100vh" bg="gray.900">
+    <Box minH="100vh">
       <Navbar />
-      <Box maxW="4xl" mx="auto" px={4} pt={{ base: "80px", md: 8 }} pb={8}>
+      <Box maxW="2xl" mx="auto" px={4} pt={{ base: "80px", md: 10 }} pb={12}>
         <VStack spacing={8} align="stretch">
           <Box>
-            <Heading size="lg" color="white" mb={2}>
+            <Heading size="lg" color="warmGray.800" mb={2} fontWeight="600">
               Organization Settings
             </Heading>
-            <Text color="gray.400">
+            <Text color="warmGray.500" fontSize="md">
               Edit your organization&apos;s name, description, logo, and links
             </Text>
           </Box>
 
           <OrgMetadataEditor
             orgId={orgId}
+            orgChainId={orgChainId}
             currentName={userDAO}
             currentDescription={poDescription}
             currentLinks={poLinks}

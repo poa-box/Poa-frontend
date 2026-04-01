@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { useQuery } from '@apollo/client';
 import { FETCH_VOTING_DATA_NEW } from '../util/queries';
 import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
+import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 
@@ -118,7 +118,7 @@ export const VotingProvider = ({ children }) => {
     const [votingType, setVotingType] = useState('Hybrid');
     const [votingClasses, setVotingClasses] = useState([]);
 
-    const { address } = useAccount();
+    const { accountAddress: address } = useAuth();
     const router = useRouter();
     const { orgId, subgraphUrl } = usePOContext();
 
@@ -132,13 +132,14 @@ export const VotingProvider = ({ children }) => {
     // Memoize refetch handler for stable reference
     const handleRefresh = useCallback(() => {
         if (orgId) {
-            refetch();
+            // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
+            setTimeout(() => refetch(), 5000);
         }
     }, [orgId, refetch]);
 
-    // Subscribe to refresh events from Web3Context
+    // Subscribe only to voting-specific events (not ALL, which fires on every event)
     useRefreshSubscription(
-        [RefreshEvent.ALL, RefreshEvent.PROPOSAL_CREATED, RefreshEvent.PROPOSAL_VOTED, RefreshEvent.PROPOSAL_COMPLETED],
+        [RefreshEvent.PROPOSAL_CREATED, RefreshEvent.PROPOSAL_VOTED, RefreshEvent.PROPOSAL_COMPLETED],
         handleRefresh,
         [handleRefresh]
     );

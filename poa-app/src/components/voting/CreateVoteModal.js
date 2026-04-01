@@ -65,6 +65,7 @@ const CreateVoteModal = ({
   allProjects = [],
   roleNames = {},
   projectNames = {},
+  votingClasses = [],
 }) => {
   const { allRoles } = useRoleNames();
   const { orgChainId } = usePOContext();
@@ -396,6 +397,7 @@ const CreateVoteModal = ({
                 allRoles={allRoles}
                 allProjects={allProjects}
                 roleNames={roleNames}
+                votingClasses={votingClasses}
                 projectNames={projectNames}
               />
             )}

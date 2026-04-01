@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useWeb3, useOrgStructure, useClaimRole, useVouches, useVouchFirstOnboarding } from "@/hooks";
 import { usePOContext } from "@/context/POContext";
 import { useUserContext } from "@/context/UserContext";
+import { findUsernameAcrossChains } from "@/util/crossChainUsername";
 import { useRouter } from 'next/router';
 import {
   VStack,
@@ -61,10 +62,10 @@ const pulse = keyframes`
 `;
 
 const User = () => {
-  const { hasMemberRole, graphUsername } = useUserContext();
+  const { hasMemberRole, graphUsername, optimisticJoin } = useUserContext();
   const { address } = useAccount();
   const { isAuthenticated, isPasskeyUser, accountAddress } = useAuth();
-  const { quickJoinContractAddress, poDescription, logoHash } = usePOContext();
+  const { quickJoinContractAddress, poDescription, logoHash, roleHatIds } = usePOContext();
   const { organization, executeWithNotification, signer } = useWeb3();
   const router = useRouter();
   const { userDAO, vouch: vouchAddress, hatId: vouchHatId } = router.query;
@@ -85,6 +86,16 @@ const User = () => {
     if (!roles || roles.length === 0) return false;
     return roles.some(r => r.vouchingEnabled);
   }, [roles]);
+
+  // Cross-chain username: check if user already has a username on any chain
+  const [crossChainUsername, setCrossChainUsername] = useState(null);
+  useEffect(() => {
+    const addr = accountAddress || address;
+    if (!addr) return;
+    findUsernameAcrossChains(addr).then(({ username }) => {
+      if (username) setCrossChainUsername(username);
+    }).catch(() => {});
+  }, [accountAddress, address]);
 
   const [newUsername, setNewUsername] = useState("");
   const [loading, setLoading] = useState(false);
@@ -115,6 +126,8 @@ const User = () => {
   const vouchFirstHook = useVouchFirstOnboarding({
     orgName: userDAO,
     refetchVouches,
+    eligibilityModuleAddress,
+    existingUsername: crossChainUsername,
   });
 
   // Compute vouch progress for the pending credential (if any)
@@ -198,11 +211,24 @@ const User = () => {
     }
   }, [hasMemberRole, address, vouchAddress]);
 
-  // Redirect on vouch-first success
+  // Redirect on vouch-first success — optimistically update UserContext and redirect
+  // immediately. The subgraph data will replace the optimistic data on the next refetch.
   useEffect(() => {
-    if (vouchFirstHook.phase === VouchFirstPhase.SUCCESS) {
-      router.push(`/profileHub/?userDAO=${userDAO}`);
-    }
+    if (vouchFirstHook.phase !== VouchFirstPhase.SUCCESS) return;
+
+    const addr = accountAddress || address;
+    const hatId = vouchFirstHook.vouchedHatId;
+    // Username: prefer cross-chain existing username, fall back to input field, then subgraph
+    const username = crossChainUsername || newUsername?.trim() || graphUsername || '';
+
+    // Optimistically mark the user as a member so profileHub renders correctly
+    optimisticJoin({
+      address: addr,
+      hatIds: hatId ? [hatId] : [],
+      username,
+    });
+
+    router.push(`/profileHub/?userDAO=${userDAO}`);
   }, [vouchFirstHook.phase]);
 
   // Sync pendingVouchApplication to sessionStorage
@@ -245,8 +271,25 @@ const User = () => {
     if (!organization) return;
 
     setLoading(true);
+
+    // Determine the hat to claim from vouch progress
+    const vouchedHatId = authenticatedUserVouchProgress?.hatId
+      || (pendingApplicationProgress?.isComplete ? pendingVouchApplication?.hatId : null)
+      || null;
+
+    let joinFn;
+    if (vouchedHatId) {
+      // Vouched flow: claim specific hat(s) via claimHatsWithUser
+      const claimHatIds = [BigInt(vouchedHatId)];
+      console.log('[Join] Vouched flow: claiming hat', vouchedHatId);
+      joinFn = () => organization.claimHatsWithUser(quickJoinContractAddress, claimHatIds);
+    } else {
+      // Standard flow: quickJoinWithUser (mints memberHatIds)
+      joinFn = () => organization.quickJoinWithUser(quickJoinContractAddress);
+    }
+
     const result = await executeWithNotification(
-      () => organization.quickJoinWithUser(quickJoinContractAddress),
+      joinFn,
       {
         pendingMessage: 'Joining organization...',
         successMessage: 'Successfully joined! Redirecting...',
@@ -256,10 +299,16 @@ const User = () => {
 
     if (result.success) {
       setPendingVouchApplication(null);
+      const addr = accountAddress || address;
+      optimisticJoin({
+        address: addr,
+        hatIds: vouchedHatId ? [vouchedHatId] : (roleHatIds?.[0] ? [roleHatIds[0]] : []),
+        username: crossChainUsername || graphUsername || '',
+      });
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, accountAddress, address, roleHatIds, crossChainUsername, graphUsername]);
 
   const handleJoinNewUser = useCallback(async () => {
     if (!organization) return;
@@ -279,9 +328,14 @@ const User = () => {
 
     setLoading(true);
 
+    // Determine the hat to claim from vouch progress
+    const vouchedHatId = authenticatedUserVouchProgress?.hatId
+      || (pendingApplicationProgress?.isComplete ? pendingVouchApplication?.hatId : null)
+      || null;
+
     let joinFn;
     if (isPasskeyUser) {
-      // Passkey: get credential and call registerAndQuickJoinWithPasskey
+      // Passkey: get credential
       const credential = accountAddress ? getAllCredentials()[accountAddress.toLowerCase()] : null;
       if (!credential) {
         toast({
@@ -295,9 +349,18 @@ const User = () => {
         setLoading(false);
         return;
       }
-      joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
+
+      if (vouchedHatId) {
+        // Vouched passkey: registerAndClaimHatsWithPasskey (register + claim specific hat)
+        const claimHatIds = [BigInt(vouchedHatId)];
+        console.log('[Join] Vouched passkey: register + claim hat', vouchedHatId);
+        joinFn = () => organization.registerAndClaimHatsNewUser(quickJoinContractAddress, newUsername, credential, claimHatIds);
+      } else {
+        // Standard passkey: registerAndQuickJoinWithPasskey (register + mint memberHatIds)
+        joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
+      }
     } else {
-      // EOA: use EIP-712 signature and call registerAndQuickJoin
+      // EOA path
       if (!signer) {
         toast({
           title: "Wallet not connected",
@@ -310,7 +373,16 @@ const User = () => {
         setLoading(false);
         return;
       }
-      joinFn = () => organization.registerAndJoinEOA(quickJoinContractAddress, newUsername, signer);
+
+      if (vouchedHatId) {
+        // Vouched EOA: registerAndClaimHats (register + claim specific hat)
+        const claimHatIds = [BigInt(vouchedHatId)];
+        console.log('[Join] Vouched EOA: register + claim hat', vouchedHatId);
+        joinFn = () => organization.registerAndClaimHatsEOA(quickJoinContractAddress, newUsername, claimHatIds, signer);
+      } else {
+        // Standard EOA: registerAndQuickJoin (register + mint memberHatIds)
+        joinFn = () => organization.registerAndJoinEOA(quickJoinContractAddress, newUsername, signer);
+      }
     }
 
     const result = await executeWithNotification(
@@ -324,10 +396,16 @@ const User = () => {
 
     if (result.success) {
       setPendingVouchApplication(null);
+      const addr = accountAddress || address;
+      optimisticJoin({
+        address: addr,
+        hatIds: vouchedHatId ? [vouchedHatId] : (roleHatIds?.[0] ? [roleHatIds[0]] : []),
+        username: newUsername.trim(),
+      });
       router.push(`/profileHub/?userDAO=${userDAO}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, roleHatIds, address]);
 
   const handleApplyAndJoin = useCallback(async () => {
     if (!selectedHatId) {
@@ -694,20 +772,28 @@ const User = () => {
                       {/* Complete Join button — shown when quorum met AND quorum is actually known */}
                       {vouchFirstPendingProgress?.isComplete && vouchFirstPendingProgress.quorum > 0 ? (
                         <VStack spacing={3}>
-                          <InputGroup size={isMobile ? "md" : "lg"}>
-                            <Input
-                              placeholder="Choose a username"
-                              value={newUsername}
-                              onChange={(e) => setNewUsername(e.target.value)}
-                              bg={inputBg}
-                              borderColor={inputBorderColor}
-                              _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
-                              ref={usernameInputRef}
-                            />
-                            <InputRightElement width="4.5rem">
-                              <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
-                            </InputRightElement>
-                          </InputGroup>
+                          {crossChainUsername ? (
+                            /* User already has a username on another chain — show it, skip input */
+                            <Text fontSize="sm" color={hintColor}>
+                              Joining as <strong>{crossChainUsername}</strong>
+                            </Text>
+                          ) : (
+                            /* New user — ask for username */
+                            <InputGroup size={isMobile ? "md" : "lg"}>
+                              <Input
+                                placeholder="Choose a username"
+                                value={newUsername}
+                                onChange={(e) => setNewUsername(e.target.value)}
+                                bg={inputBg}
+                                borderColor={inputBorderColor}
+                                _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
+                                ref={usernameInputRef}
+                              />
+                              <InputRightElement width="4.5rem">
+                                <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
+                              </InputRightElement>
+                            </InputGroup>
+                          )}
                           <Button
                             colorScheme="teal"
                             size="lg"
@@ -715,10 +801,10 @@ const User = () => {
                             height={buttonHeight}
                             isLoading={vouchFirstHook.phase === VouchFirstPhase.COMPLETING}
                             loadingText={vouchFirstHook.stepMessage || "Completing..."}
-                            onClick={() => vouchFirstHook.completeOnboarding(newUsername.trim())}
-                            isDisabled={!newUsername.trim()}
+                            onClick={() => vouchFirstHook.completeOnboarding(crossChainUsername || newUsername.trim())}
+                            isDisabled={!crossChainUsername && !newUsername.trim()}
                             leftIcon={<FaCheck />}
-                            animation={newUsername ? `${pulse} 2s infinite` : undefined}
+                            animation={(crossChainUsername || newUsername) ? `${pulse} 2s infinite` : undefined}
                           >
                             Complete Join
                           </Button>
@@ -1377,8 +1463,13 @@ const User = () => {
         <PasskeyOnboardingModal
           isOpen={isCreateOpen}
           onClose={onCreateClose}
-          onSuccess={() => {
+          onSuccess={(result) => {
             if (!hasVouchGatedRoles) {
+              optimisticJoin({
+                address: result?.accountAddress,
+                hatIds: roleHatIds?.[0] ? [roleHatIds[0]] : [],
+                username: '',
+              });
               router.push(`/dashboard/?userDAO=${userDAO}`);
             }
             // For vouch-gated orgs: stay on page so user can apply for a role

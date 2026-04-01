@@ -7,7 +7,7 @@ import CreateProjectModal from './CreateProjectModal';
 import { TaskBoardProvider } from '../../context/TaskBoardContext';
 import { useDataBaseContext} from '../../context/dataBaseContext';
 import { useIPFScontext } from '../../context/ipfsContext';
-import { useAccount } from 'wagmi';
+import { useAuth } from '../../context/AuthContext';
 import { useWeb3 } from '../../hooks';
 import { usePOContext } from '@/context/POContext';
 import { useRouter } from 'next/router';
@@ -33,7 +33,7 @@ const MainLayout = () => {
     handleUpdateColumns,
   } = useDataBaseContext();
 
-  const { address: account } = useAccount();
+  const { accountAddress: account } = useAuth();
   const { task: taskService, executeWithNotification } = useWeb3();
   const { taskManagerContractAddress, roleHatIds, roleNames, creatorHatIds } = usePOContext();
   const { addToIpfs } = useIPFScontext();

@@ -16,8 +16,6 @@ import { encodeHatPaymasterData } from '../passkey/paymasterData';
 import { ENTRY_POINT_ADDRESS } from '../../../config/passkey';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
-const networkConfig = NETWORKS[DEFAULT_NETWORK];
-
 /**
  * ERC-4337 error code mappings
  */
@@ -51,8 +49,10 @@ export class SmartAccountTransactionManager {
    * @param {string} params.paymasterAddress - PaymasterHub proxy address
    * @param {string} [params.orgId] - Current org ID (bytes32) for paymaster data
    * @param {string[]} [params.hatIds] - User's hat IDs for hat-scoped paymaster budget (tries each before self-pay)
+   * @param {number} [params.chainId] - Chain ID for UserOp hash (defaults to home chain)
+   * @param {string} [params.initCode='0x'] - initCode for cross-chain account deployment
    */
-  constructor({ accountAddress, rawCredentialId, publicClient, bundlerClient, paymasterAddress, orgId = null, hatIds = null }) {
+  constructor({ accountAddress, rawCredentialId, publicClient, bundlerClient, paymasterAddress, orgId = null, hatIds = null, chainId = null, initCode = '0x' }) {
     this.accountAddress = accountAddress;
     this.rawCredentialId = rawCredentialId;
     this.publicClient = publicClient;
@@ -60,7 +60,8 @@ export class SmartAccountTransactionManager {
     this.paymasterAddress = paymasterAddress;
     this.orgId = orgId;
     this.hatIds = hatIds;
-    this.chainId = networkConfig.chainId;
+    this.chainId = chainId || NETWORKS[DEFAULT_NETWORK].chainId;
+    this.initCode = initCode;
   }
 
   /**
@@ -74,7 +75,7 @@ export class SmartAccountTransactionManager {
    * @returns {Promise<TransactionResult>}
    */
   async execute(contract, method, args = [], options = {}) {
-    const { onStateChange } = options;
+    const { onStateChange, paymasterHatIds: overrideHatIds } = options;
 
     try {
       // State: Estimating
@@ -92,7 +93,7 @@ export class SmartAccountTransactionManager {
       });
 
       // 3. Build UserOp — try with paymaster first, fall back to self-funded
-      const userOp = await this._buildUserOpWithFallback(callData);
+      const userOp = await this._buildUserOpWithFallback(callData, overrideHatIds);
 
       // State: Awaiting signature (biometric prompt)
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
@@ -237,21 +238,43 @@ export class SmartAccountTransactionManager {
    * Build a UserOp with paymaster-first-then-self-funded fallback.
    * Nonce + gas prices are fetched once; only estimation is retried on paymaster rejection.
    */
-  async _buildUserOpWithFallback(callData) {
-    // Paymaster requires orgId AND at least one hatId (hat-scoped budget set by OrgDeployer)
-    const hasPaymaster = this.paymasterAddress && this.orgId && this.hatIds?.length > 0;
+  async _buildUserOpWithFallback(callData, overrideHatIds = null) {
+    // Use override hat IDs if provided (e.g., target hat for first role claim),
+    // otherwise fall back to the user's current hats.
+    const effectiveHatIds = overrideHatIds?.length > 0 ? overrideHatIds : this.hatIds;
+    const hasPaymaster = this.paymasterAddress && this.orgId && effectiveHatIds?.length > 0;
 
     console.log('[SmartAccountTxMgr] Paymaster check:', {
       hasPaymaster,
       paymasterAddress: this.paymasterAddress,
       orgId: this.orgId,
-      hatIds: this.hatIds,
+      hatIds: effectiveHatIds,
       accountAddress: this.accountAddress,
     });
 
+    // Determine initCode: only include if account doesn't exist on-chain yet.
+    // This handles cross-chain joins where the passkey account needs deployment.
+    // Always check bytecode so we can provide a clear error when the account
+    // isn't deployed and no initCode is available.
+    let initCode = '0x';
+    const bytecode = await this.publicClient.getBytecode({ address: this.accountAddress });
+    const accountDeployed = bytecode && bytecode !== '0x';
+
+    if (!accountDeployed) {
+      if (this.initCode && this.initCode !== '0x') {
+        initCode = this.initCode;
+        console.log('[SmartAccountTxMgr] Cross-chain: including initCode for account deployment');
+      } else {
+        throw Object.assign(
+          new Error('Smart account is not deployed on this chain and no deployment data is available. Please try again in a moment — the app may still be loading cross-chain data.'),
+          { category: 'account_not_deployed' }
+        );
+      }
+    }
+
     // Build paymaster data for each hat ID so the builder can try them all
     const paymasterDataEntries = hasPaymaster
-      ? this.hatIds.map((hatId) => encodeHatPaymasterData({ hatId, orgId: this.orgId }))
+      ? effectiveHatIds.map((hatId) => encodeHatPaymasterData({ hatId, orgId: this.orgId }))
       : [];
 
     const userOp = await buildUserOpWithFallback({
@@ -259,6 +282,7 @@ export class SmartAccountTransactionManager {
       callData,
       bundlerClient: this.bundlerClient,
       publicClient: this.publicClient,
+      initCode,
       ...(hasPaymaster ? {
         paymasterAddress: this.paymasterAddress,
         paymasterDataEntries,

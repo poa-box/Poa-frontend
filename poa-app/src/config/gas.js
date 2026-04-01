@@ -1,6 +1,10 @@
 /**
  * Gas Configuration
- * Centralizes gas-related constants and utilities
+ * Centralizes gas-related constants and utilities.
+ *
+ * On mainnet (Arbitrum / Gnosis) we do NOT hardcode a gas price —
+ * ethers.js queries the network and uses EIP-1559 automatically,
+ * which produces correct pricing on both L2s.
  */
 
 import { ethers } from 'ethers';
@@ -9,15 +13,11 @@ import { ethers } from 'ethers';
  * Gas configuration constants
  */
 export const GAS_CONFIG = {
-  // Default gas price in gwei (fallback if dynamic pricing fails)
-  // Increased to 3 gwei for faster transaction confirmation
-  defaultGasPriceGwei: '3',
+  // Gas limit multiplier as percentage (115 = 15% buffer)
+  gasLimitMultiplier: 115,
 
-  // Gas limit multiplier as percentage (130 = 30% buffer for faster inclusion)
-  gasLimitMultiplier: 130,
-
-  // Higher multiplier for delete/cancel operations (140 = 40% buffer)
-  deleteGasMultiplier: 140,
+  // Higher multiplier for delete/cancel operations (120 = 20% buffer)
+  deleteGasMultiplier: 120,
 
   // Divisor for percentage calculation
   gasLimitDivisor: 100,
@@ -26,15 +26,17 @@ export const GAS_CONFIG = {
   maxGasPriceGwei: '50',
 
   // Minimum gas price (in gwei)
-  minGasPriceGwei: '0.1',
+  minGasPriceGwei: '0.01',
 };
 
 /**
- * Get the default gas price as a BigNumber
+ * Get the default gas price as a BigNumber.
+ * Kept for backward compatibility but should not be used —
+ * let the provider determine gas pricing via EIP-1559.
  * @returns {BigNumber} Gas price in wei
  */
 export function getDefaultGasPrice() {
-  return ethers.utils.parseUnits(GAS_CONFIG.defaultGasPriceGwei, 'gwei');
+  return ethers.utils.parseUnits('0.1', 'gwei');
 }
 
 /**
@@ -60,19 +62,20 @@ export function calculateGasLimit(estimate, isDelete = false) {
 }
 
 /**
- * Create gas options object for a transaction
+ * Create gas options object for a transaction.
+ * Only sets gasLimit — gas price is left to the provider (EIP-1559)
+ * so it works correctly on Arbitrum, Gnosis, and other L2s.
+ *
  * @param {BigNumber} gasEstimate - Gas estimate from contract
  * @param {Object} [options={}] - Additional options
  * @param {boolean} [options.isDelete=false] - Whether this is a delete operation
- * @param {BigNumber} [options.gasPrice] - Override gas price
  * @returns {Object} Gas options for transaction
  */
 export function createGasOptions(gasEstimate, options = {}) {
-  const { isDelete = false, gasPrice } = options;
+  const { isDelete = false } = options;
 
   return {
     gasLimit: calculateGasLimit(gasEstimate, isDelete),
-    gasPrice: gasPrice || getDefaultGasPrice(),
   };
 }
 

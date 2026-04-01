@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from '
 import { useQuery } from '@apollo/client';
 import { FETCH_PROJECTS_DATA_NEW } from '../util/queries';
 import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
+import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { getTokenByAddress } from '../util/tokens';
@@ -23,18 +23,18 @@ export const ProjectProvider = ({ children }) => {
     const [projectsData, setProjectsData] = useState([]);
     const [taskCount, setTaskCount] = useState(0);
     const [recommendedTasks, setRecommendedTasks] = useState([]);
-    const { address } = useAccount();
+    const { accountAddress: address } = useAuth();
     const { orgId, subgraphUrl } = usePOContext();
 
     const router = useRouter();
 
-    // pollInterval replaces graph-client's @live directive — polls every 5s
-    // to keep task data fresh. cache-and-network shows cached data instantly.
+    // pollInterval keeps task data fresh. cache-and-network shows cached data instantly.
+    // 40s balances liveness against The Graph Studio rate limits.
     const { data, loading, error } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-and-network',
-        pollInterval: 5000,
+        pollInterval: 40000,
         context: { subgraphUrl },
     });
 

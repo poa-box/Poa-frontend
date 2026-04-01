@@ -32,6 +32,19 @@
   },
   {
     "type": "function",
+    "name": "claimHatsWithUser",
+    "inputs": [
+      {
+        "name": "claimHatIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "executor",
     "inputs": [],
     "outputs": [
@@ -219,6 +232,142 @@
       }
     ],
     "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerAndClaimHats",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "username",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "claimHatIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "registerAndClaimHatsWithPasskey",
+    "inputs": [
+      {
+        "name": "passkey",
+        "type": "tuple",
+        "internalType": "struct QuickJoin.PasskeyEnrollment",
+        "components": [
+          {
+            "name": "credentialId",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "publicKeyX",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "publicKeyY",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "salt",
+            "type": "uint256",
+            "internalType": "uint256"
+          }
+        ]
+      },
+      {
+        "name": "username",
+        "type": "string",
+        "internalType": "string"
+      },
+      {
+        "name": "deadline",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "nonce",
+        "type": "uint256",
+        "internalType": "uint256"
+      },
+      {
+        "name": "auth",
+        "type": "tuple",
+        "internalType": "struct WebAuthnLib.WebAuthnAuth",
+        "components": [
+          {
+            "name": "authenticatorData",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "clientDataJSON",
+            "type": "bytes",
+            "internalType": "bytes"
+          },
+          {
+            "name": "challengeIndex",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "typeIndex",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "r",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          },
+          {
+            "name": "s",
+            "type": "bytes32",
+            "internalType": "bytes32"
+          }
+        ]
+      },
+      {
+        "name": "claimHatIds",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
     "stateMutability": "nonpayable"
   },
   {
@@ -574,6 +723,25 @@
   },
   {
     "type": "event",
+    "name": "HatsClaimed",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "claimHatIds",
+        "type": "uint256[]",
+        "indexed": false,
+        "internalType": "uint256[]"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "Initialized",
     "inputs": [
       {
@@ -666,6 +834,62 @@
       },
       {
         "name": "hatIds",
+        "type": "uint256[]",
+        "indexed": false,
+        "internalType": "uint256[]"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RegisterAndClaimedHats",
+    "inputs": [
+      {
+        "name": "user",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "username",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "claimHatIds",
+        "type": "uint256[]",
+        "indexed": false,
+        "internalType": "uint256[]"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RegisterAndClaimedHatsWithPasskey",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "credentialId",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "username",
+        "type": "string",
+        "indexed": false,
+        "internalType": "string"
+      },
+      {
+        "name": "claimHatIds",
         "type": "uint256[]",
         "indexed": false,
         "internalType": "uint256[]"

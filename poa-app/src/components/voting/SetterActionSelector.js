@@ -25,6 +25,7 @@ import {
   FiUsers,
   FiAlertTriangle,
   FiClipboard,
+  FiTag,
   FiChevronRight,
   FiArrowLeft,
 } from 'react-icons/fi';
@@ -43,6 +44,7 @@ const categoryIcons = {
   permissions: FiUsers,
   emergency: FiAlertTriangle,
   tasks: FiClipboard,
+  tokenSettings: FiTag,
 };
 
 const inputStyles = {
@@ -170,6 +172,7 @@ const SetterActionSelector = ({
   allProjects = [],
   roleNames = {},
   projectNames = {},
+  votingClasses = [],
 }) => {
   const [mode, setMode] = useState('template');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -203,15 +206,21 @@ const SetterActionSelector = ({
   // Handle template selection
   const handleTemplateSelect = (templateId) => {
     const template = getTemplateById(templateId);
+    const initialValues = template?.inputs?.reduce((acc, input) => {
+      if (input.type === 'votingClassWeights') {
+        // Initialize with current on-chain voting classes
+        acc[input.name] = votingClasses.length > 0 ? votingClasses.map(c => ({ ...c })) : [];
+      } else {
+        acc[input.name] = input.default || '';
+      }
+      return acc;
+    }, {}) || {};
     onChange({
       setterMode: 'template',
       setterTemplate: templateId,
       setterContract: template?.contract || '',
       setterFunction: template?.functionName || '',
-      setterValues: template?.inputs?.reduce((acc, input) => {
-        acc[input.name] = input.default || '';
-        return acc;
-      }, {}) || {},
+      setterValues: initialValues,
       setterParams: [],
     });
   };
@@ -356,7 +365,11 @@ const SetterActionSelector = ({
               )}
 
               <SetterParamInputs
-                inputs={selectedTemplate.inputs}
+                inputs={selectedTemplate.inputs.map(input =>
+                  input.type === 'votingClassWeights'
+                    ? { ...input, currentClasses: votingClasses }
+                    : input
+                )}
                 values={proposal.setterValues || {}}
                 onChange={(values) => onChange({ setterValues: values })}
                 allRoles={allRoles}
@@ -418,7 +431,9 @@ const SetterActionSelector = ({
             <>
               <Divider borderColor="rgba(148, 115, 220, 0.2)" />
               <Text fontSize="xs" color="gray.500" fontFamily="mono">
-                {selectedRawFunction.signature}
+                {typeof selectedRawFunction.signature === 'string'
+                  ? selectedRawFunction.signature
+                  : `function ${selectedRawFunction.name}(...)`}
               </Text>
               <SetterParamInputs
                 inputs={selectedRawFunction.params}

@@ -21,6 +21,7 @@ import {
   HStack,
   Badge,
 } from '@chakra-ui/react';
+import VotingClassWeightsInput from './VotingClassWeightsInput';
 
 const inputStyles = {
   bg: 'whiteAlpha.100',
@@ -146,6 +147,15 @@ const ParameterInput = ({ param, value, onChange, allRoles, allProjects }) => {
         </CheckboxGroup>
       );
 
+    case 'votingClassWeights':
+      return (
+        <VotingClassWeightsInput
+          currentClasses={param.currentClasses || []}
+          value={value}
+          onChange={(newClasses) => handleChange(newClasses)}
+        />
+      );
+
     case 'bool':
       return (
         <HStack>
@@ -200,7 +210,7 @@ const ParameterInput = ({ param, value, onChange, allRoles, allProjects }) => {
         <Input
           value={value || ''}
           onChange={(e) => handleChange(e.target.value)}
-          placeholder={`Enter ${param.label || param.name}`}
+          placeholder={param.placeholder || `Enter ${param.label || param.name}`}
           {...inputStyles}
         />
       );

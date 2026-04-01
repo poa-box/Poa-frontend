@@ -73,8 +73,8 @@ export async function buildUserOp({
     callGasLimit: 500_000n,
     verificationGasLimit: 1_500_000n,
     preVerificationGas: 100_000n,
-    maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 3_000_000_000n,
-    maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 1_500_000_000n,
+    maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 500_000_000n,
+    maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 100_000_000n,
     ...(paymasterAddress ? {
       paymaster: paymasterAddress,
       paymasterVerificationGasLimit: 200_000n,
@@ -150,8 +150,8 @@ export async function buildUserOpWithFallback({
     callGasLimit: 500_000n,
     verificationGasLimit: 1_500_000n,
     preVerificationGas: 100_000n,
-    maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 3_000_000_000n,
-    maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 1_500_000_000n,
+    maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 500_000_000n,
+    maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 100_000_000n,
     signature: DUMMY_SIGNATURE,
   };
 
@@ -214,7 +214,10 @@ async function estimateGas(userOp, bundlerClient) {
     // or ~3k with the RIP-7212 precompile. The bundler's gas estimation uses a dummy
     // signature that quick-fails, causing it to underestimate the real verification cost.
     // Enforce a minimum to prevent AA23 (validateUserOp OOG) errors.
-    const MIN_VERIFICATION_GAS = 500_000n;
+    // When initCode is present (cross-chain account creation), account deployment +
+    // P-256 verification needs more gas than subsequent calls.
+    const hasInitCode = userOp.factory && userOp.factoryData;
+    const MIN_VERIFICATION_GAS = hasInitCode ? 1_000_000n : 500_000n;
     const estimatedVerification = applyBuffer(gasEstimate.verificationGasLimit);
     userOp.verificationGasLimit = estimatedVerification < MIN_VERIFICATION_GAS
       ? MIN_VERIFICATION_GAS
