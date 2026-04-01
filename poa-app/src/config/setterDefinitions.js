@@ -143,6 +143,45 @@ export const SETTER_TEMPLATES = [
     preview: (values) => `Change hybrid voting quorum to ${values.quorum} voters`
   },
   {
+    id: 'change-voting-split',
+    category: 'voting',
+    name: 'Change Voting Class Weights',
+    description: 'Adjust the voting power split between democracy and participation token classes',
+    contract: 'hybridVoting',
+    functionName: 'setClasses',
+    inputs: [
+      {
+        name: 'classWeights',
+        label: 'Voting Class Weights',
+        type: 'votingClassWeights',
+        helpText: 'Adjust the percentage split between voting classes (must sum to 100%)'
+      }
+    ],
+    requiresContext: 'votingClasses',
+    encode: (values) => {
+      const classConfigs = (values.classWeights || []).map(cls => {
+        const strategyNum = (cls.strategy === 'DIRECT' || cls.strategy === 0) ? 0 : 1;
+        return {
+          strategy: strategyNum,
+          slicePct: Number(cls.slicePct),
+          quadratic: Boolean(cls.quadratic),
+          minBalance: cls.minBalance?.toString() || '0',
+          asset: cls.asset || '0x0000000000000000000000000000000000000000',
+          hatIds: (cls.hatIds || []).map(h => h.toString()),
+        };
+      });
+      return [classConfigs];
+    },
+    preview: (values) => {
+      const classes = values.classWeights || [];
+      const parts = classes.map(cls => {
+        const label = (cls.strategy === 'DIRECT' || cls.strategy === 0) ? 'Democracy' : 'Participation';
+        return `${label}: ${cls.slicePct}%`;
+      });
+      return `Change voting split to ${parts.join(', ')}`;
+    }
+  },
+  {
     id: 'change-quorum-dd',
     category: 'voting',
     name: 'Change Direct Democracy Quorum',
@@ -409,10 +448,36 @@ export const RAW_FUNCTIONS = {
       name: 'setConfig',
       signature: 'function setConfig(uint8 key, bytes calldata value)',
       params: [
-        { name: 'key', type: 'uint8', label: 'Config Key (0=QUORUM, 1=TARGET_ALLOWED, 2=EXECUTOR)' },
+        { name: 'key', type: 'uint8', label: 'Config Key (0=THRESHOLD, 1=TARGET_ALLOWED, 2=EXECUTOR, 3=QUORUM)' },
         { name: 'value', type: 'bytes', label: 'Encoded Value' }
       ],
       description: 'Set a configuration value'
+    },
+    {
+      name: 'setClasses',
+      // Use JSON ABI fragment for safe tuple[] encoding
+      signature: {
+        type: 'function',
+        name: 'setClasses',
+        inputs: [{
+          name: 'newClasses',
+          type: 'tuple[]',
+          components: [
+            { name: 'strategy', type: 'uint8' },
+            { name: 'slicePct', type: 'uint8' },
+            { name: 'quadratic', type: 'bool' },
+            { name: 'minBalance', type: 'uint256' },
+            { name: 'asset', type: 'address' },
+            { name: 'hatIds', type: 'uint256[]' }
+          ]
+        }],
+        outputs: [],
+        stateMutability: 'nonpayable'
+      },
+      params: [
+        { name: 'newClasses', type: 'tuple[]', label: 'Class Configuration Array' }
+      ],
+      description: 'Replace all voting class configurations (slices must sum to 100%)'
     },
     {
       name: 'pause',
@@ -432,7 +497,7 @@ export const RAW_FUNCTIONS = {
       name: 'setConfig',
       signature: 'function setConfig(uint8 key, bytes calldata value)',
       params: [
-        { name: 'key', type: 'uint8', label: 'Config Key (0=QUORUM, 1=EXECUTOR, 2=TARGET_ALLOWED, 3=HAT_ALLOWED)' },
+        { name: 'key', type: 'uint8', label: 'Config Key (0=THRESHOLD, 1=EXECUTOR, 2=TARGET_ALLOWED, 3=HAT_ALLOWED, 4=QUORUM)' },
         { name: 'value', type: 'bytes', label: 'Encoded Value' }
       ],
       description: 'Set a configuration value'

@@ -234,6 +234,33 @@ export function useProposalForm({ onSubmit }) {
       // Validate required inputs have values
       for (const input of template.inputs || []) {
         const value = proposal.setterValues?.[input.name];
+
+        // Special validation for voting class weights
+        if (input.type === 'votingClassWeights') {
+          if (!Array.isArray(value) || value.length === 0) {
+            toast({
+              title: "No Voting Classes",
+              description: "At least one voting class is required.",
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            return false;
+          }
+          const totalPct = value.reduce((sum, cls) => sum + Number(cls.slicePct), 0);
+          if (totalPct !== 100) {
+            toast({
+              title: "Invalid Weights",
+              description: `Voting class weights must sum to 100% (currently ${totalPct}%).`,
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            return false;
+          }
+          continue;
+        }
+
         if (value === undefined || value === '' || value === null) {
           toast({
             title: "Missing Value",
