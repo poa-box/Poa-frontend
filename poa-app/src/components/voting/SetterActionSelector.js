@@ -49,10 +49,15 @@ const categoryIcons = {
 
 const inputStyles = {
   bg: 'whiteAlpha.100',
-  border: '1px solid rgba(148, 115, 220, 0.3)',
+  border: '1px solid',
+  borderColor: 'whiteAlpha.300',
   color: 'white',
-  _hover: { borderColor: 'purple.400' },
-  _focus: { borderColor: 'purple.500', boxShadow: '0 0 0 1px rgba(148, 115, 220, 0.6)' },
+  _placeholder: { color: 'gray.400' },
+  _hover: { borderColor: 'whiteAlpha.400' },
+  _focus: {
+    borderColor: 'purple.400',
+    boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
+  },
 };
 
 /**

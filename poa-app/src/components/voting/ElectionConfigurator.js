@@ -36,6 +36,19 @@ import {
 import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
 import { utils } from 'ethers';
 
+const inputStyles = {
+  bg: 'whiteAlpha.100',
+  border: '1px solid',
+  borderColor: 'whiteAlpha.300',
+  color: 'white',
+  _placeholder: { color: 'gray.400' },
+  _hover: { borderColor: 'whiteAlpha.400' },
+  _focus: {
+    borderColor: 'purple.400',
+    boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
+  },
+};
+
 /**
  * Derive current holders of a hat from leaderboard data
  */
@@ -320,7 +333,7 @@ const ElectionConfigurator = ({
           {allHolders.length > 0 && (
             <Box
               p={3}
-              bg="rgba(148, 115, 220, 0.1)"
+              bg="whiteAlpha.50"
               borderRadius="md"
               border="1px solid rgba(148, 115, 220, 0.3)"
             >
@@ -415,11 +428,7 @@ const ElectionConfigurator = ({
                 placeholder="Search members by name or address..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                bg="whiteAlpha.100"
-                border="1px solid rgba(148, 115, 220, 0.3)"
-                color="white"
-                _hover={{ borderColor: 'purple.400' }}
-                _focus={{ borderColor: 'purple.500' }}
+                {...inputStyles}
               />
             </InputGroup>
 
@@ -533,25 +542,17 @@ const ElectionConfigurator = ({
                   placeholder="Name"
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
-                  bg="whiteAlpha.100"
-                  border="1px solid rgba(148, 115, 220, 0.3)"
-                  color="white"
                   size="sm"
                   flex="1"
-                  _hover={{ borderColor: 'purple.400' }}
-                  _focus={{ borderColor: 'purple.500' }}
+                  {...inputStyles}
                 />
                 <Input
                   placeholder="0x..."
                   value={manualAddress}
                   onChange={(e) => setManualAddress(e.target.value)}
-                  bg="whiteAlpha.100"
-                  border="1px solid rgba(148, 115, 220, 0.3)"
-                  color="white"
                   size="sm"
                   flex="2"
-                  _hover={{ borderColor: 'purple.400' }}
-                  _focus={{ borderColor: 'purple.500' }}
+                  {...inputStyles}
                 />
                 <IconButton
                   icon={<AddIcon />}
@@ -573,9 +574,9 @@ const ElectionConfigurator = ({
           {candidates.length > 0 && (
             <Box
               p={4}
-              bg="rgba(148, 115, 220, 0.05)"
+              bg="whiteAlpha.50"
               borderRadius="md"
-              border="1px solid rgba(148, 115, 220, 0.2)"
+              border="1px solid rgba(148, 115, 220, 0.3)"
             >
               <Text fontSize="sm" color="gray.300" fontWeight="medium" mb={3}>
                 Candidates ({candidates.length})
