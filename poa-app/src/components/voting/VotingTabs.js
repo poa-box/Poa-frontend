@@ -7,7 +7,6 @@ import {
   Box,
   useBreakpointValue,
   Tooltip,
-  VStack,
   HStack,
   Text,
   Badge,
@@ -43,8 +42,8 @@ const VotingTabs = ({
 }) => {
   // Use responsive sizing based on breakpoints
   const tabFontSize = useBreakpointValue({ base: "md", sm: "xl", md: "2xl" });
-  const tabPadding = useBreakpointValue({ base: 2, sm: 3, md: 4 });
-  const listPadding = useBreakpointValue({ base: 3, sm: 4, md: 6 });
+  const tabPadding = useBreakpointValue({ base: 2, sm: 2, md: 3 });
+  const listPadding = useBreakpointValue({ base: 2, sm: 3, md: 4 });
   
   return (
     <Tabs
@@ -111,18 +110,16 @@ const VotingTabs = ({
             flex="1"
             minW={0}
           >
-            <VStack spacing={1}>
-              <HStack spacing={2}>
-                <Box
-                  w="8px"
-                  h="8px"
-                  borderRadius="full"
-                  bg="linear-gradient(135deg, #F6AD55 0%, #ED8936 100%)"
-                  boxShadow="0 0 6px rgba(237, 137, 54, 0.5)"
-                  animation={`${breathe} 2.5s ease-in-out infinite`}
-                />
-                <Text>{PTVoteType}</Text>
-              </HStack>
+            <HStack spacing={2}>
+              <Box
+                w="8px"
+                h="8px"
+                borderRadius="full"
+                bg="linear-gradient(135deg, #F6AD55 0%, #ED8936 100%)"
+                boxShadow="0 0 6px rgba(237, 137, 54, 0.5)"
+                animation={`${breathe} 2.5s ease-in-out infinite`}
+              />
+              <Text>{PTVoteType}</Text>
               <Badge
                 fontSize="2xs"
                 fontWeight="medium"
@@ -136,7 +133,7 @@ const VotingTabs = ({
               >
                 Official Governance
               </Badge>
-            </VStack>
+            </HStack>
           </Tab>
         </Tooltip>
         <Tooltip
@@ -166,17 +163,15 @@ const VotingTabs = ({
             flex="1"
             minW={0}
           >
-            <VStack spacing={1}>
-              <HStack spacing={2}>
-                <Box
-                  w="8px"
-                  h="8px"
-                  borderRadius="full"
-                  bg="blue.400"
-                  boxShadow="0 0 6px rgba(66, 153, 225, 0.5)"
-                />
-                <Text>Democracy</Text>
-              </HStack>
+            <HStack spacing={2}>
+              <Box
+                w="8px"
+                h="8px"
+                borderRadius="full"
+                bg="blue.400"
+                boxShadow="0 0 6px rgba(66, 153, 225, 0.5)"
+              />
+              <Text>Democracy</Text>
               <Badge
                 fontSize="2xs"
                 fontWeight="medium"
@@ -189,7 +184,7 @@ const VotingTabs = ({
               >
                 Informal Poll
               </Badge>
-            </VStack>
+            </HStack>
           </Tab>
         </Tooltip>
       </TabList>
