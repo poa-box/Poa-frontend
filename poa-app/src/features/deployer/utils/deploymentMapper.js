@@ -285,6 +285,7 @@ export function createDeploymentConfig(state, deployerAddress, options = {}) {
     features: {
       educationHubEnabled: state.features.educationHubEnabled,
       electionHubEnabled: state.features.electionHubEnabled,
+      hideTreasury: state.features.hideTreasury,
     },
     summary: {
       orgName: state.organization.name,

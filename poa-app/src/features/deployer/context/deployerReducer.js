@@ -265,6 +265,7 @@ export const initialState = {
   features: {
     educationHubEnabled: false,
     electionHubEnabled: false,
+    hideTreasury: false,
   },
 
   // Paymaster configuration (optional - all zeros = skip)
@@ -507,7 +508,7 @@ export function deployerReducer(state, action) {
         roles,
         permissions,
         voting,
-        features,
+        features: { ...initialState.features, ...features },
         metadataAdminRoleIndex: metadataAdminRoleIndex ?? null,
         philosophy: {
           ...state.philosophy,
