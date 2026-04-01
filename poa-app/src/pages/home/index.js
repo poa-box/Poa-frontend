@@ -13,12 +13,13 @@ import {
   SimpleGrid,
 } from "@chakra-ui/react";
 import { motion } from "framer-motion";
-import { FaLink, FaUsers, FaSearch, FaArrowRight, FaExternalLinkAlt } from "react-icons/fa";
-import { FiUsers, FiActivity, FiCheckCircle } from "react-icons/fi";
+import { FaArrowRight, FaExternalLinkAlt } from "react-icons/fa";
+import { FiUsers, FiActivity, FiCheckCircle, FiGrid, FiCheckSquare, FiBarChart2, FiUser } from "react-icons/fi";
 import Link from "next/link";
 import { usePOContext } from "@/context/POContext";
 import { useIPFScontext } from "@/context/ipfsContext";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
+import { useAuth } from "@/context/AuthContext";
 
 // Same gradient generator as the explore/browser page
 const getOrgGradient = (name) => {
@@ -46,8 +47,10 @@ const getOrgGradient = (name) => {
 const AVATAR_SIZE = { base: "140px", md: "180px" };
 
 const cardStyle = {
-  bg: "rgba(255, 255, 255, 0.04)",
-  border: "1px solid rgba(255, 255, 255, 0.08)",
+  bg: "rgba(255, 255, 255, 0.8)",
+  border: "1px solid",
+  borderColor: "rgba(255, 255, 255, 0.18)",
+  boxShadow: "0 4px 30px rgba(0, 0, 0, 0.05)",
   borderRadius: "2xl",
 };
 
@@ -59,7 +62,7 @@ const GradientAvatar = ({ name, orgGradient }) => (
     background={orgGradient}
     align="center"
     justify="center"
-    boxShadow="0 8px 32px rgba(0, 0, 0, 0.25)"
+    boxShadow="0 8px 32px rgba(0, 0, 0, 0.1)"
   >
     <Text
       fontSize={{ base: "5xl", md: "6xl" }}
@@ -79,9 +82,13 @@ const Home = () => {
   const { userDAO } = router.query;
   const { fetchImageFromIpfs } = useIPFScontext();
 
+  const { isPasskeyUser, isAuthenticated } = useAuth();
   const [image, setImage] = useState(null);
   const [imageError, setImageError] = useState(false);
   const [isNavbarReady, setIsNavbarReady] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+  const isSignedIn = mounted && (isPasskeyUser || isAuthenticated);
 
   useEffect(() => {
     if (userDAO) setIsNavbarReady(true);
@@ -108,33 +115,6 @@ const Home = () => {
   return (
     <>
       {isNavbarReady && <Navbar userDAO={userDAO} />}
-
-      {/* Page background */}
-      <Box
-        position="fixed"
-        top={0}
-        left={0}
-        right={0}
-        bottom={0}
-        bg="#2b2b33"
-        zIndex={-2}
-      />
-
-      {/* Ambient glow from org gradient */}
-      <Box
-        position="fixed"
-        top="-5%"
-        left="50%"
-        transform="translateX(-50%)"
-        w={{ base: "600px", md: "900px" }}
-        h={{ base: "600px", md: "800px" }}
-        background={orgGradient}
-        opacity={0.12}
-        filter="blur(120px)"
-        pointerEvents="none"
-        borderRadius="50%"
-        zIndex={-1}
-      />
 
       <Box
         pt={{ base: "100px", md: "120px" }}
@@ -166,7 +146,7 @@ const Home = () => {
                 h={AVATAR_SIZE}
                 borderRadius="2xl"
                 overflow="hidden"
-                boxShadow="0 8px 32px rgba(0, 0, 0, 0.25)"
+                boxShadow="0 8px 32px rgba(0, 0, 0, 0.1)"
               >
                 <Image
                   src={image}
@@ -192,7 +172,7 @@ const Home = () => {
             <Heading
               as="h1"
               fontSize={{ base: "3xl", md: "4xl" }}
-              color="white"
+              color="warmGray.900"
               fontWeight="700"
               letterSpacing="-0.02em"
               mb={3}
@@ -203,7 +183,7 @@ const Home = () => {
             {poDescription && (
               <Text
                 fontSize={{ base: "md", md: "lg" }}
-                color="whiteAlpha.700"
+                color="warmGray.600"
                 lineHeight="1.7"
                 fontWeight="500"
                 maxW="480px"
@@ -224,22 +204,22 @@ const Home = () => {
             <Box {...cardStyle} p={{ base: 4, md: 6 }}>
               <SimpleGrid columns={3} spacing={{ base: 2, md: 4 }}>
                 {[
-                  { icon: FiUsers, value: poMembers || "0", label: "Members", color: "purple.300" },
-                  { icon: FiActivity, value: activeTaskAmount || "0", label: "Active Tasks", color: "blue.300" },
-                  { icon: FiCheckCircle, value: completedTaskAmount || "0", label: "Completed", color: "green.300" },
+                  { icon: FiUsers, value: poMembers || "0", label: "Members", color: "purple.500" },
+                  { icon: FiActivity, value: activeTaskAmount || "0", label: "Active Tasks", color: "blue.500" },
+                  { icon: FiCheckCircle, value: completedTaskAmount || "0", label: "Completed", color: "green.500" },
                 ].map((stat) => (
                   <VStack key={stat.label} spacing={1}>
                     <Icon as={stat.icon} color={stat.color} boxSize={{ base: 4, md: 5 }} />
                     <Text
                       fontSize={{ base: "xl", md: "2xl" }}
                       fontWeight="700"
-                      color="white"
+                      color="warmGray.900"
                     >
                       {stat.value}
                     </Text>
                     <Text
                       fontSize="xs"
-                      color="whiteAlpha.500"
+                      color="warmGray.500"
                       fontWeight="500"
                     >
                       {stat.label}
@@ -250,35 +230,107 @@ const Home = () => {
             </Box>
           </motion.div>
 
-          {/* CTA */}
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          >
-            <Link href={`/user/?userDAO=${userDAO}`} passHref legacyBehavior>
-              <Button
-                as="a"
-                size="lg"
-                bg="white"
-                color="gray.900"
-                borderRadius="full"
-                fontWeight="600"
-                px={8}
-                rightIcon={<Icon as={FaArrowRight} boxSize={3} />}
-                _hover={{
-                  transform: "translateY(-1px)",
-                  boxShadow: "0 4px 24px rgba(255, 255, 255, 0.15)",
-                }}
-                _active={{
-                  transform: "translateY(0)",
-                }}
-                transition="all 0.2s ease"
-              >
-                Join or Sign In
-              </Button>
-            </Link>
-          </motion.div>
+          {/* CTA for unauthenticated users */}
+          {!isSignedIn && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+            >
+              <Link href={`/user/?userDAO=${userDAO}`} passHref legacyBehavior>
+                <Button
+                  as="a"
+                  size="lg"
+                  bg="coral.500"
+                  color="white"
+                  borderRadius="full"
+                  fontWeight="600"
+                  px={8}
+                  rightIcon={<Icon as={FaArrowRight} boxSize={3} />}
+                  _hover={{
+                    bg: "coral.600",
+                    transform: "translateY(-1px)",
+                    boxShadow: "0 4px 24px rgba(240, 101, 67, 0.25)",
+                  }}
+                  _active={{
+                    bg: "coral.700",
+                    transform: "translateY(0)",
+                  }}
+                  transition="all 0.2s ease"
+                >
+                  Join or Sign In
+                </Button>
+              </Link>
+            </motion.div>
+          )}
+
+          {/* Quick links for signed-in users */}
+          {isSignedIn && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.2 }}
+              style={{ width: "100%" }}
+            >
+              <SimpleGrid columns={{ base: 2, md: 2 }} spacing={3} w="100%">
+                {[
+                  {
+                    icon: FiGrid,
+                    label: "Dashboard",
+                    description: "View org activity and stats",
+                    path: `/dashboard/?userDAO=${userDAO}`,
+                    color: "purple.500",
+                  },
+                  {
+                    icon: FiCheckSquare,
+                    label: "Tasks",
+                    description: "Browse and claim tasks",
+                    path: `/tasks/?userDAO=${userDAO}`,
+                    color: "blue.500",
+                  },
+                  {
+                    icon: FiBarChart2,
+                    label: "Voting",
+                    description: "Vote on active proposals",
+                    path: `/voting/?userDAO=${userDAO}`,
+                    color: "green.500",
+                  },
+                  {
+                    icon: FiUser,
+                    label: "Profile Hub",
+                    description: "Manage your profile and roles",
+                    path: `/profileHub/?userDAO=${userDAO}`,
+                    color: "coral.500",
+                  },
+                ].map((item) => (
+                  <Link key={item.label} href={item.path} passHref legacyBehavior>
+                    <Box
+                      as="a"
+                      {...cardStyle}
+                      p={4}
+                      cursor="pointer"
+                      transition="all 0.2s ease"
+                      _hover={{
+                        transform: "translateY(-2px)",
+                        boxShadow: "0 8px 30px rgba(0, 0, 0, 0.08)",
+                        bg: "rgba(255, 255, 255, 0.95)",
+                      }}
+                    >
+                      <VStack spacing={2} align="start">
+                        <Icon as={item.icon} color={item.color} boxSize={5} />
+                        <Text fontWeight="600" fontSize="sm" color="warmGray.800">
+                          {item.label}
+                        </Text>
+                        <Text fontSize="xs" color="warmGray.500" lineHeight="1.4">
+                          {item.description}
+                        </Text>
+                      </VStack>
+                    </Box>
+                  </Link>
+                ))}
+              </SimpleGrid>
+            </motion.div>
+          )}
 
           {/* Org Links */}
           <motion.div
@@ -293,8 +345,8 @@ const Home = () => {
                     key={i}
                     size="sm"
                     variant="ghost"
-                    color="whiteAlpha.600"
-                    _hover={{ color: "white", bg: "whiteAlpha.100" }}
+                    color="warmGray.500"
+                    _hover={{ color: "warmGray.800", bg: "warmGray.100" }}
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
@@ -308,8 +360,8 @@ const Home = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    color="whiteAlpha.600"
-                    _hover={{ color: "white", bg: "whiteAlpha.100" }}
+                    color="warmGray.500"
+                    _hover={{ color: "warmGray.800", bg: "warmGray.100" }}
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
@@ -320,8 +372,8 @@ const Home = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    color="whiteAlpha.600"
-                    _hover={{ color: "white", bg: "whiteAlpha.100" }}
+                    color="warmGray.500"
+                    _hover={{ color: "warmGray.800", bg: "warmGray.100" }}
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
@@ -334,50 +386,10 @@ const Home = () => {
             </HStack>
           </motion.div>
 
-          {/* Badges */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.5, delay: 0.35 }}
-          >
-            <HStack spacing={2} wrap="wrap" justify="center">
-              {[
-                { icon: FaLink, label: "Decentralized" },
-                { icon: FaUsers, label: "Community-Owned" },
-                { icon: FaSearch, label: "Transparent" },
-              ].map((badge) => (
-                <Flex
-                  key={badge.label}
-                  align="center"
-                  bg="whiteAlpha.100"
-                  border="1px solid"
-                  borderColor="whiteAlpha.200"
-                  borderRadius="full"
-                  px={3}
-                  py={1}
-                >
-                  <Icon
-                    as={badge.icon}
-                    color="whiteAlpha.600"
-                    boxSize={2.5}
-                    mr={1.5}
-                  />
-                  <Text
-                    fontSize="xs"
-                    fontWeight="500"
-                    color="whiteAlpha.700"
-                  >
-                    {badge.label}
-                  </Text>
-                </Flex>
-              ))}
-            </HStack>
-          </motion.div>
-
           {/* Footer */}
           <Text
             fontSize="xs"
-            color="whiteAlpha.300"
+            color="warmGray.400"
             fontWeight="400"
             textAlign="center"
             mt={4}
