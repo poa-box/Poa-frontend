@@ -41,6 +41,7 @@ const VotingPage = () => {
     votingContractAddress,
     taskManagerContractAddress,
     executorContractAddress,
+    participationTokenAddress,
     poContextLoading,
     roleNames,
   } = usePOContext();
@@ -162,6 +163,7 @@ const VotingPage = () => {
     directDemocracyVotingContractAddress,
     taskManagerContractAddress,
     executorContractAddress,
+    participationTokenAddress,
   };
 
   // Wrapper for handleSubmit that passes eligibilityModule and contract addresses

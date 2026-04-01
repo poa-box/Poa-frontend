@@ -25,6 +25,7 @@ import {
   FiUsers,
   FiAlertTriangle,
   FiClipboard,
+  FiTag,
   FiChevronRight,
   FiArrowLeft,
 } from 'react-icons/fi';
@@ -43,6 +44,7 @@ const categoryIcons = {
   permissions: FiUsers,
   emergency: FiAlertTriangle,
   tasks: FiClipboard,
+  tokenSettings: FiTag,
 };
 
 const inputStyles = {
