@@ -41,21 +41,20 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backgroundColor: 'rgba(15, 10, 25, 0.97)',
-  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
-  border: '1px solid rgba(148, 115, 220, 0.3)',
+  backgroundColor: 'rgba(25, 25, 30, 0.97)',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
 };
 
 const inputStyles = {
   bg: 'whiteAlpha.100',
   border: '1px solid',
-  borderColor: 'whiteAlpha.300',
+  borderColor: 'whiteAlpha.200',
   color: 'white',
-  _placeholder: { color: 'gray.400' },
-  _hover: { borderColor: 'whiteAlpha.400' },
+  _placeholder: { color: 'gray.500' },
+  _hover: { borderColor: 'whiteAlpha.300' },
   _focus: {
-    borderColor: 'purple.400',
-    boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
+    borderColor: 'gray.400',
+    boxShadow: '0 0 0 1px var(--chakra-colors-gray-400)',
   },
 };
 
@@ -63,7 +62,7 @@ const SectionHeader = ({ children }) => (
   <Text
     fontSize="xs"
     fontWeight="bold"
-    color="purple.300"
+    color="gray.400"
     textTransform="uppercase"
     letterSpacing="wide"
     mb={2}
@@ -668,8 +667,8 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
           <ModalBody pb={6}>
             <VStack spacing={5} align="stretch">
               {task.isIndexing ? (
-                <Box w="100%" p={4} bg="whiteAlpha.50" borderRadius="lg" border="1px solid rgba(148, 115, 220, 0.3)">
-                  <Text color="purple.200" fontWeight="bold">
+                <Box w="100%" p={4} bg="whiteAlpha.50" borderRadius="lg" border="1px solid" borderColor="whiteAlpha.100">
+                  <Text color="gray.300" fontWeight="bold">
                     Task information is being indexed from IPFS
                   </Text>
                   <Text color="gray.400" fontSize="sm" mt={2}>
@@ -791,11 +790,11 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                       bg="whiteAlpha.50"
                       borderRadius="lg"
                       border="1px solid"
-                      borderColor="purple.500"
+                      borderColor="whiteAlpha.200"
                       w="100%"
                     >
                       <HStack>
-                        <Badge colorScheme="purple" fontSize="xs">Application Required</Badge>
+                        <Badge colorScheme="teal" fontSize="xs">Application Required</Badge>
                         <Text fontSize="xs" color="gray.400">
                           Members must apply and be approved before claiming
                         </Text>
@@ -863,7 +862,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                               ) : appContent ? (
                                 <VStack align="start" spacing={2} mt={1}>
                                   <Box>
-                                    <Text fontSize="xs" color="purple.300" fontWeight="bold" mb={0.5}>
+                                    <Text fontSize="xs" color="gray.400" fontWeight="bold" mb={0.5}>
                                       Why they want this task:
                                     </Text>
                                     <Text fontSize="sm" color="gray.300" style={{ whiteSpace: 'pre-wrap' }}>
@@ -872,7 +871,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                                   </Box>
                                   {appContent.experience && (
                                     <Box>
-                                      <Text fontSize="xs" color="purple.300" fontWeight="bold" mb={0.5}>
+                                      <Text fontSize="xs" color="gray.400" fontWeight="bold" mb={0.5}>
                                         Relevant Experience:
                                       </Text>
                                       <Text fontSize="sm" color="gray.300" style={{ whiteSpace: 'pre-wrap' }}>
@@ -903,7 +902,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                         />
                         <Button
                           size="sm"
-                          colorScheme="purple"
+                          colorScheme="teal"
                           onClick={handleAssignTask}
                           isLoading={isAssigning}
                           loadingText="Resolving..."
@@ -927,7 +926,8 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                 p={3}
                 bg="whiteAlpha.50"
                 borderRadius="lg"
-                border="1px solid rgba(148, 115, 220, 0.2)"
+                border="1px solid"
+                borderColor="whiteAlpha.100"
               >
                 <VStack align="start" spacing={0}>
                   <Text fontSize="xs" color="gray.400">Reward</Text>
@@ -935,7 +935,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                     <Text fontSize="lg" fontWeight="bold" color="white">
                       {task.Payout}
                     </Text>
-                    <Text fontSize="sm" color="purple.300">PT</Text>
+                    <Text fontSize="sm" color="gray.300">PT</Text>
                   </HStack>
                   {checkHasBounty(task.bountyToken, task.bountyPayout) && (
                     <Text fontSize="xs" color="green.400" fontWeight="bold">
@@ -960,7 +960,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                   <Button
                     variant="ghost"
                     onClick={() => setShowAssignSection(!showAssignSection)}
-                    color={showAssignSection ? "purple.300" : "gray.400"}
+                    color={showAssignSection ? "teal.300" : "gray.400"}
                     _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
                     size="sm"
                   >
@@ -990,7 +990,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                 )}
                 <Button
                   onClick={handleButtonClick}
-                  colorScheme="purple"
+                  colorScheme="teal"
                   isDisabled={task.isIndexing || (columnId === 'open' && task.requiresApplication && hasApplied)}
                   size="sm"
                 >

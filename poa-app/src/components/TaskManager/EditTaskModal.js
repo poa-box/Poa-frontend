@@ -31,21 +31,20 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backgroundColor: 'rgba(15, 10, 25, 0.97)',
-  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
-  border: '1px solid rgba(148, 115, 220, 0.3)',
+  backgroundColor: 'rgba(25, 25, 30, 0.97)',
+  border: '1px solid rgba(255, 255, 255, 0.08)',
 };
 
 const inputStyles = {
   bg: 'whiteAlpha.100',
   border: '1px solid',
-  borderColor: 'whiteAlpha.300',
+  borderColor: 'whiteAlpha.200',
   color: 'white',
-  _placeholder: { color: 'gray.400' },
-  _hover: { borderColor: 'whiteAlpha.400' },
+  _placeholder: { color: 'gray.500' },
+  _hover: { borderColor: 'whiteAlpha.300' },
   _focus: {
-    borderColor: 'purple.400',
-    boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
+    borderColor: 'gray.400',
+    boxShadow: '0 0 0 1px var(--chakra-colors-gray-400)',
   },
 };
 
@@ -115,7 +114,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
               <Text
                 fontSize="xs"
                 fontWeight="bold"
-                color="purple.300"
+                color="gray.400"
                 mb={3}
                 textTransform="uppercase"
                 letterSpacing="wide"
@@ -150,7 +149,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
               <Text
                 fontSize="xs"
                 fontWeight="bold"
-                color="purple.300"
+                color="gray.400"
                 mb={3}
                 textTransform="uppercase"
                 letterSpacing="wide"
@@ -208,7 +207,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
                     <Text
                       fontSize="xs"
                       fontWeight="bold"
-                      color="purple.300"
+                      color="gray.400"
                       textTransform="uppercase"
                       letterSpacing="wide"
                     >
@@ -221,7 +220,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
                   <Switch
                     isChecked={hasBounty}
                     onChange={(e) => setHasBounty(e.target.checked)}
-                    colorScheme="purple"
+                    colorScheme="teal"
                     isDisabled={tokenOptions.length === 0}
                   />
                 </HStack>
@@ -232,7 +231,8 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
                   p={4}
                   bg="whiteAlpha.50"
                   borderRadius="lg"
-                  border="1px solid rgba(148, 115, 220, 0.2)"
+                  border="1px solid"
+                  borderColor="whiteAlpha.100"
                 >
                   <SimpleGrid columns={2} spacing={3}>
                     <FormControl>
@@ -301,7 +301,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
                 Cancel
               </Button>
               <Button
-                colorScheme="purple"
+                colorScheme="teal"
                 onClick={handleEditTask}
               >
                 Save Changes
