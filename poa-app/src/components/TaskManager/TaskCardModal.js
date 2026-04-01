@@ -39,7 +39,7 @@ import { useRouter } from 'next/router';
 import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { useProjectContext } from '@/context/ProjectContext';
-import { userCanReviewTask } from '../../util/permissions';
+import { userCanReviewTask, userCanAssignTask } from '../../util/permissions';
 
 
 const glassLayerStyle = {
@@ -74,6 +74,10 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   const [rejectionMetadata, setRejectionMetadata] = useState(null);
   const [metadataLoading, setMetadataLoading] = useState(false);
 
+  // Application IPFS content state
+  const [applicationContents, setApplicationContents] = useState({});
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+
   // Project-level review permission (matches TaskColumn.js pattern)
   const userHatIds = userData?.hatIds || [];
   const currentProject = useMemo(() => {
@@ -87,6 +91,24 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     if (!projectRolePermissions?.length && hasExecRole) return true;
     return false;
   }, [userHatIds, projectRolePermissions, hasExecRole]);
+
+  // Project-level assign permission (for approving applications)
+  // Contract's approveApplication requires ASSIGN permission or project manager
+  const canAssign = useMemo(() => {
+    const hasPermission = userCanAssignTask(userHatIds, projectRolePermissions);
+    if (hasPermission) return true;
+    if (!projectRolePermissions?.length && hasExecRole) return true;
+    return false;
+  }, [userHatIds, projectRolePermissions, hasExecRole]);
+
+  // Check if current user has already applied for this task
+  const userApplication = useMemo(() => {
+    if (!account || !task?.applicants) return null;
+    return task.applicants.find(
+      a => a.address?.toLowerCase() === account?.toLowerCase()
+    );
+  }, [task?.applicants, account]);
+  const hasApplied = !!userApplication;
 
   // Ref to prevent re-opening modal during intentional close
   const isClosingRef = useRef(false);
@@ -166,6 +188,39 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     fetchIpfsMetadata();
   }, [isOpen, task, safeFetchFromIpfs, taskMetadata, submissionMetadata, rejectionMetadata]);
 
+  // Fetch application content from IPFS for all applicants
+  useEffect(() => {
+    const fetchApplicationContents = async () => {
+      if (!isOpen || !task?.applicants?.length) return;
+
+      const hashesToFetch = task.applicants.filter(
+        a => a.applicationHash && !applicationContents[a.address]
+      );
+      if (hashesToFetch.length === 0) return;
+
+      setApplicationsLoading(true);
+      const results = {};
+
+      await Promise.all(
+        hashesToFetch.map(async (applicant) => {
+          try {
+            const content = await safeFetchFromIpfs(applicant.applicationHash);
+            if (content) {
+              results[applicant.address] = content;
+            }
+          } catch (err) {
+            console.error('[TaskCardModal] Failed to fetch application content for', applicant.address, err);
+          }
+        })
+      );
+
+      setApplicationContents(prev => ({ ...prev, ...results }));
+      setApplicationsLoading(false);
+    };
+
+    fetchApplicationContents();
+  }, [isOpen, task?.applicants, safeFetchFromIpfs]);
+
   const handleCloseModal = async () => {
     // Set flag to prevent useEffect from re-opening
     isClosingRef.current = true;
@@ -221,12 +276,12 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     }
   };
 
-  // Handle approving an application (for executives)
+  // Handle approving an application (requires ASSIGN permission)
   const handleApproveApplication = async (applicantAddress) => {
-    if (!hasExecRole) {
+    if (!canAssign) {
       toast({
         title: 'Permission Required',
-        description: 'You must be an executive to approve applications.',
+        description: 'You must have assign permissions to approve applications.',
         status: 'warning',
         duration: 4000,
         isClosable: true,
@@ -375,6 +430,16 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   const handleButtonClick = async () => {
     // For tasks requiring application, open the application modal instead
     if (columnId === 'open' && task.requiresApplication && !hasExecRole) {
+      if (hasApplied) {
+        toast({
+          title: 'Already Applied',
+          description: 'You have already submitted an application for this task.',
+          status: 'info',
+          duration: 3000,
+          isClosable: true,
+        });
+        return;
+      }
       if (hasMemberRole) {
         onOpenApplicationModal();
       } else {
@@ -495,9 +560,9 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   const buttonText = () => {
     switch (columnId) {
       case 'open':
-        // Show "Apply" for tasks requiring application (unless exec who can bypass)
+        // Show "Apply" / "Applied" for tasks requiring application (unless exec who can bypass)
         if (task.requiresApplication && !hasExecRole) {
-          return 'Apply';
+          return hasApplied ? 'Applied' : 'Apply';
         }
         return 'Claim';
       case 'inProgress':
@@ -678,32 +743,96 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                     </Badge>
                   )}
 
-                  {/* Applicants section for executives on tasks requiring application */}
-                  {columnId === 'open' && task.requiresApplication && hasExecRole && task.applicants && task.applicants.length > 0 && (
-                    <Box w="100%" p={4} bg="whiteAlpha.100" borderRadius="md">
-                      <Text fontWeight="bold" fontSize="md" mb={3}>
+                  {/* Already applied status for members */}
+                  {columnId === 'open' && task.requiresApplication && hasApplied && !hasExecRole && (
+                    <Box w="100%" p={4} bg="green.900" borderRadius="md" borderLeft="4px solid" borderColor="green.400">
+                      <HStack>
+                        <CheckIcon color="green.300" />
+                        <Text fontWeight="bold" color="green.200" fontSize="sm">
+                          Application Submitted
+                        </Text>
+                      </HStack>
+                      <Text fontSize="xs" color="gray.400" mt={1}>
+                        Your application is pending review.
+                        {userApplication?.appliedAt && (
+                          <> Applied {new Date(userApplication.appliedAt * 1000).toLocaleDateString()}</>
+                        )}
+                      </Text>
+                    </Box>
+                  )}
+
+                  {/* Rich applicants section for users with ASSIGN permission */}
+                  {columnId === 'open' && task.requiresApplication && canAssign && task.applicants && task.applicants.length > 0 && (
+                    <Box w="100%" p={4} bg="whiteAlpha.50" borderRadius="md" border="1px solid" borderColor="whiteAlpha.100">
+                      <Text
+                        fontSize="xs"
+                        fontWeight="bold"
+                        color="purple.300"
+                        textTransform="uppercase"
+                        letterSpacing="wide"
+                        mb={3}
+                      >
                         Applicants ({task.applicants.length})
                       </Text>
-                      <VStack spacing={2} align="stretch">
-                        {task.applicants.map((applicant, index) => (
-                          <Flex key={index} justify="space-between" align="center" p={2} bg="whiteAlpha.100" borderRadius="md">
-                            <VStack align="start" spacing={0}>
-                              <Text fontSize="sm" fontWeight="medium">
-                                {applicant.username || `${applicant.address?.slice(0, 6)}...${applicant.address?.slice(-4)}`}
-                              </Text>
-                              {applicant.notes && (
-                                <Text fontSize="xs" color="gray.400">{applicant.notes}</Text>
-                              )}
-                            </VStack>
-                            <Button
-                              size="sm"
-                              colorScheme="green"
-                              onClick={() => handleApproveApplication(applicant.address)}
+                      <VStack spacing={3} align="stretch">
+                        {task.applicants.map((applicant, index) => {
+                          const appContent = applicationContents[applicant.address];
+                          return (
+                            <Box
+                              key={index}
+                              p={3}
+                              bg="whiteAlpha.100"
+                              borderRadius="md"
+                              border="1px solid"
+                              borderColor="whiteAlpha.100"
                             >
-                              Approve
-                            </Button>
-                          </Flex>
-                        ))}
+                              <Flex justify="space-between" align="start" mb={appContent || applicationsLoading ? 2 : 0}>
+                                <VStack align="start" spacing={0}>
+                                  <Text fontSize="sm" fontWeight="bold" color="white">
+                                    {applicant.username || `${applicant.address?.slice(0, 6)}...${applicant.address?.slice(-4)}`}
+                                  </Text>
+                                  <Text fontSize="xs" color="gray.500">
+                                    {applicant.appliedAt
+                                      ? `Applied ${new Date(applicant.appliedAt * 1000).toLocaleDateString()}`
+                                      : ''}
+                                  </Text>
+                                </VStack>
+                                <Button
+                                  size="sm"
+                                  colorScheme="green"
+                                  onClick={() => handleApproveApplication(applicant.address)}
+                                >
+                                  Approve
+                                </Button>
+                              </Flex>
+
+                              {applicationsLoading && !appContent ? (
+                                <Text fontSize="xs" color="gray.500">Loading application details...</Text>
+                              ) : appContent ? (
+                                <VStack align="start" spacing={2} mt={1}>
+                                  <Box>
+                                    <Text fontSize="xs" color="purple.300" fontWeight="bold" mb={0.5}>
+                                      Why they want this task:
+                                    </Text>
+                                    <Text fontSize="sm" color="gray.300" style={{ whiteSpace: 'pre-wrap' }}>
+                                      {appContent.notes || 'No notes provided'}
+                                    </Text>
+                                  </Box>
+                                  {appContent.experience && (
+                                    <Box>
+                                      <Text fontSize="xs" color="purple.300" fontWeight="bold" mb={0.5}>
+                                        Relevant Experience:
+                                      </Text>
+                                      <Text fontSize="sm" color="gray.300" style={{ whiteSpace: 'pre-wrap' }}>
+                                        {appContent.experience}
+                                      </Text>
+                                    </Box>
+                                  )}
+                                </VStack>
+                              ) : null}
+                            </Box>
+                          );
+                        })}
                       </VStack>
                     </Box>
                   )}
@@ -779,7 +908,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                   Reject
                 </Button>
               )}
-              <Button onClick={handleButtonClick} colorScheme="teal" isDisabled={task.isIndexing}>
+              <Button onClick={handleButtonClick} colorScheme="teal" isDisabled={task.isIndexing || (columnId === 'open' && hasApplied && !hasExecRole)}>
                 {buttonText()}
               </Button>
             </Box>
@@ -801,7 +930,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
         isOpen={isApplicationModalOpen}
         onClose={onCloseApplicationModal}
         onApply={handleApply}
-        taskName={task.name}
+        task={task}
       />
     </>
   ) : null;

@@ -410,22 +410,10 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
           tasks.map((task, index) => (
             <TaskCard
               key={task.id}
-              id={task.id}
-              name={task.name}
-              description={task.description}
-              difficulty={task.difficulty}
-              estHours={task.estHours}
-              submission={task.submission}
-              claimedBy={task.claimedBy}
-              Payout={task.Payout}
-              claimerUsername={task.claimerUsername}
+              task={task}
               columnId={columnId}
-              projectId={task.projectId}
               onEditTask={(updatedTask) => handleEditTask(updatedTask, index)}
               isMobile={isMobile}
-              rejectionCount={task.rejectionCount}
-              rejectionReason={task.rejectionReason}
-              rejections={task.rejections}
             />
           ))
         ) : (
