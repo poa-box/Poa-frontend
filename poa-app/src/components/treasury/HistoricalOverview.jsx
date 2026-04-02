@@ -103,7 +103,7 @@ const HistoricalOverview = ({ distributions = [], payments = [] }) => {
   // Distribution amounts by period
   const distributionData = useMemo(() => {
     return distributions
-      .filter(d => d.status === 'Finalized')
+      .filter(d => d.totalClaimed && d.totalClaimed !== '0')
       .slice(0, 10)
       .reverse()
       .map(d => {
