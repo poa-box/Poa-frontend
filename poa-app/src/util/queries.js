@@ -895,3 +895,23 @@ export const FETCH_VOUCHES_FOR_ORG = gql`
     }
   }
 `;
+
+// ============================================
+// Distribution claim — find executed proposals with merkle tree CIDs
+// ============================================
+
+export const FETCH_DISTRIBUTION_PROPOSALS = gql`
+  query FetchDistributionProposals($hybridVotingId: String!) {
+    proposals(
+      where: { hybridVoting: $hybridVotingId, wasExecuted: true }
+      orderBy: executedAt
+      orderDirection: desc
+      first: 50
+    ) {
+      id
+      metadata {
+        description
+      }
+    }
+  }
+`;

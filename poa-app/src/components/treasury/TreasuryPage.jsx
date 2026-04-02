@@ -269,6 +269,8 @@ const TreasuryPage = () => {
                   <CurrentDistributions
                     distributions={activeDistributions}
                     paymentManagerAddress={paymentManager?.id}
+                    hybridVotingId={hybridVotingContractAddress}
+                    subgraphUrl={subgraphUrl}
                     refetch={refetch}
                   />
                 </Box>
@@ -293,7 +295,7 @@ const TreasuryPage = () => {
                 </VStack>
                 <Box p={{ base: 2, md: 4 }}>
                   <DistributionHistory
-                    distributions={completedDistributions}
+                    distributions={distributions}
                     payments={payments}
                   />
                 </Box>
