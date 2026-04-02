@@ -27,6 +27,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'task',
     item: { id, columnId, name, description, difficulty, estHours, claimedBy, claimerUsername, Payout, submission: task.submission, projectId },
+    canDrag: () => !task.isIndexing,
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
