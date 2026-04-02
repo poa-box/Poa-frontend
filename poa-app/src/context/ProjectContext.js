@@ -1,9 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { useQuery } from '@apollo/client';
 import { FETCH_PROJECTS_DATA_NEW } from '../util/queries';
 import { useRouter } from 'next/router';
 import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
+import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { getTokenByAddress } from '../util/tokens';
 
@@ -30,13 +31,42 @@ export const ProjectProvider = ({ children }) => {
 
     // pollInterval keeps task data fresh. cache-and-network shows cached data instantly.
     // 40s balances liveness against The Graph Studio rate limits.
-    const { data, loading, error } = useQuery(FETCH_PROJECTS_DATA_NEW, {
+    const { data, loading, error, refetch } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-and-network',
         pollInterval: 40000,
         context: { subgraphUrl },
     });
+
+    // Handle refresh events from task transactions — refetch after a short delay
+    // to give the subgraph time to index the new transaction.
+    const handleRefresh = useCallback(() => {
+        if (orgId && refetch) {
+            setTimeout(() => {
+                refetch();
+            }, 5000);
+        }
+    }, [orgId, refetch]);
+
+    useRefreshSubscription(
+        [
+            RefreshEvent.PROJECT_CREATED,
+            RefreshEvent.PROJECT_DELETED,
+            RefreshEvent.TASK_CREATED,
+            RefreshEvent.TASK_CLAIMED,
+            RefreshEvent.TASK_SUBMITTED,
+            RefreshEvent.TASK_COMPLETED,
+            RefreshEvent.TASK_UPDATED,
+            RefreshEvent.TASK_CANCELLED,
+            RefreshEvent.TASK_REJECTED,
+            RefreshEvent.TASK_ASSIGNED,
+            RefreshEvent.TASK_APPLICATION_SUBMITTED,
+            RefreshEvent.TASK_APPLICATION_APPROVED,
+        ],
+        handleRefresh,
+        [handleRefresh]
+    );
 
     useEffect(() => {
         if (data?.organization?.taskManager) {

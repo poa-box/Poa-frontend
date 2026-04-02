@@ -60,17 +60,22 @@ export const DataBaseProvider = ({ children }) => {
       return `${address.substring(0, 6)}...${address.substring(38)}`;
     }, []);
 
-    // Handle column updates from TaskBoard
-    const handleUpdateColumns = useCallback((newColumns) => {
-      if (selectedProject) {
-        const updatedProject = { ...selectedProject, columns: newColumns };
-        setSelectedProject(updatedProject);
+    // Handle column updates from TaskBoard.
+    // Accepts an optional projectId to guard against stale updates when the user
+    // switches projects while a transaction is still in-flight.
+    const handleUpdateColumns = useCallback((newColumns, projectId) => {
+      setSelectedProject(prev => {
+        if (!prev) return prev;
+        if (projectId && prev.id !== projectId) return prev;
+        return { ...prev, columns: newColumns };
+      });
 
+      if (projectId) {
         setProjects(prev => prev.map(p =>
-          p.id === selectedProject.id ? updatedProject : p
+          p.id === projectId ? { ...p, columns: newColumns } : p
         ));
       }
-    }, [selectedProject]);
+    }, []);
 
     const contextValue = useMemo(() => ({
       projects,

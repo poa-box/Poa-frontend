@@ -202,10 +202,20 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
       }
       // Note: Token minting is now handled automatically by the contract on task completion
 
-      if (item.columnId === 'completed') {
+      // Only allow valid forward transitions:
+      // open → inProgress (claim), inProgress → inReview (submit), inReview → completed (complete)
+      const validTransitions = {
+        'open': 'inProgress',
+        'inProgress': 'inReview',
+        'inReview': 'completed',
+      };
+
+      if (validTransitions[item.columnId] !== columnId) {
         toast({
           title: 'Action Not Allowed',
-          description: 'You cannot move tasks from the Completed column.',
+          description: item.columnId === 'completed'
+            ? 'You cannot move tasks from the Completed column.'
+            : 'Tasks can only move forward: Open → In Progress → In Review → Completed.',
           status: 'info',
           duration: 3000,
           isClosable: true,
