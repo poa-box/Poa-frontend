@@ -213,21 +213,6 @@ const PollModal = ({
                     </Text>
                   </Text>
                 </HStack>
-                {selectedPoll?.quorum > 0 && (
-                  <Tooltip
-                    label="Percentage of eligible voters that must participate for the vote to be valid"
-                    placement="top"
-                    hasArrow
-                    bg="gray.700"
-                  >
-                    <HStack spacing={1} cursor="help">
-                      <Text fontSize="sm" color="gray.400">
-                        {selectedPoll.quorum}% participation needed
-                      </Text>
-                      <InfoOutlineIcon boxSize={3} color="gray.500" />
-                    </HStack>
-                  </Tooltip>
-                )}
                 {selectedPoll?.thresholdPct > 0 && (
                   <Tooltip
                     label="Percentage of votes the winning option must receive to pass"
@@ -238,6 +223,21 @@ const PollModal = ({
                     <HStack spacing={1} cursor="help">
                       <Text fontSize="sm" color="gray.400">
                         {selectedPoll.thresholdPct}% support to pass
+                      </Text>
+                      <InfoOutlineIcon boxSize={3} color="gray.500" />
+                    </HStack>
+                  </Tooltip>
+                )}
+                {(selectedPoll?.quorum > 0 || selectedPoll?.thresholdPct > 0) && (
+                  <Tooltip
+                    label="Minimum percentage of eligible voters that must participate for the vote to be valid"
+                    placement="top"
+                    hasArrow
+                    bg="gray.700"
+                  >
+                    <HStack spacing={1} cursor="help">
+                      <Text fontSize="sm" color="gray.400">
+                        {selectedPoll.quorum || selectedPoll.thresholdPct}% quorum
                       </Text>
                       <InfoOutlineIcon boxSize={3} color="gray.500" />
                     </HStack>
