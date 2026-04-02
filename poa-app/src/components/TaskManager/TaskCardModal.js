@@ -275,7 +275,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     }
 
     try {
-      await applyForTask(task.id, applicationData);
+      await applyForTask(task.id, applicationData, account);
       toast({
         title: 'Application Submitted',
         description: 'Your application has been submitted for review.',
@@ -387,7 +387,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
         resolvedAddress = resolved.get(input.toLowerCase());
       }
 
-      await assignTask(task.id, resolvedAddress);
+      await assignTask(task.id, resolvedAddress, input !== resolvedAddress ? input : '');
       toast({
         title: 'Task Assigned',
         description: `The task has been assigned to ${input !== resolvedAddress ? input : `${resolvedAddress.slice(0, 6)}...${resolvedAddress.slice(-4)}`}.`,

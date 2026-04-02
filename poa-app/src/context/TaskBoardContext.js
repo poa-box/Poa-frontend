@@ -41,6 +41,31 @@ export const TaskBoardProvider = ({
   // the grace period expires (safety valve).
   const optimisticLockRef = useRef(null);
   const OPTIMISTIC_GRACE_PERIOD = 65000; // 65s — covers 2+ poll-interval cycles (30s each)
+  const lockClearTimerRef = useRef(null);
+
+  // Clear optimistic lock after a delay, giving the subgraph refetch time to arrive.
+  // Timestamp-guarded: if a newer operation sets a fresh lock, this timer won't clobber it.
+  const scheduleLockClear = useCallback(() => {
+    if (lockClearTimerRef.current) {
+      clearTimeout(lockClearTimerRef.current);
+    }
+    const lockTimestamp = optimisticLockRef.current;
+    lockClearTimerRef.current = setTimeout(() => {
+      if (optimisticLockRef.current === lockTimestamp) {
+        optimisticLockRef.current = null;
+      }
+      lockClearTimerRef.current = null;
+    }, 10000);
+  }, []);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (lockClearTimerRef.current) {
+        clearTimeout(lockClearTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (optimisticLockRef.current) {
@@ -99,6 +124,13 @@ export const TaskBoardProvider = ({
   ) => {
     if (!isReady || !taskService) {
       addNotification('Web3 not ready. Please connect your wallet.', 'error');
+      return;
+    }
+
+    // Validate transition: only allow forward moves
+    const validDest = { open: 'inProgress', inProgress: 'inReview', inReview: 'completed' };
+    if (validDest[sourceColumnId] !== destColumnId) {
+      addNotification('Invalid task transition.', 'error');
       return;
     }
 
@@ -198,8 +230,9 @@ export const TaskBoardProvider = ({
 
       // Call the onUpdateColumns prop when the columns are updated
       if (onUpdateColumns) {
-        onUpdateColumns(newTaskColumns);
+        onUpdateColumns(newTaskColumns, selectedProject?.id);
       }
+      scheduleLockClear();
     } catch (error) {
       // Revert the UI changes if there is an error
       console.error('Error moving task:', error);
@@ -221,6 +254,7 @@ export const TaskBoardProvider = ({
     emit,
     createTaskMetadata,
     onUpdateColumns,
+    scheduleLockClear,
   ]);
 
   /**
@@ -290,8 +324,9 @@ export const TaskBoardProvider = ({
         emit(RefreshEvent.TASK_CREATED, { task: newTask });
 
         if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns);
+          onUpdateColumns(newTaskColumns, selectedProject?.id);
         }
+        scheduleLockClear();
       } else {
         throw new Error(result.error?.userMessage || 'Failed to create task');
       }
@@ -311,6 +346,7 @@ export const TaskBoardProvider = ({
     updateNotification,
     emit,
     onUpdateColumns,
+    scheduleLockClear,
   ]);
 
   /**
@@ -364,8 +400,9 @@ export const TaskBoardProvider = ({
         emit(RefreshEvent.TASK_UPDATED, { taskId: updatedTask.id });
 
         if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns);
+          onUpdateColumns(newTaskColumns, selectedProject?.id);
         }
+        scheduleLockClear();
       } else {
         throw new Error(result.error?.userMessage || 'Failed to update task');
       }
@@ -384,6 +421,7 @@ export const TaskBoardProvider = ({
     updateNotification,
     emit,
     onUpdateColumns,
+    scheduleLockClear,
   ]);
 
   /**
@@ -423,8 +461,9 @@ export const TaskBoardProvider = ({
         emit(RefreshEvent.TASK_CANCELLED, { taskId });
 
         if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns);
+          onUpdateColumns(newTaskColumns, selectedProject?.id);
         }
+        scheduleLockClear();
       } else {
         throw new Error(result.error?.userMessage || 'Failed to delete task');
       }
@@ -443,15 +482,39 @@ export const TaskBoardProvider = ({
     updateNotification,
     emit,
     onUpdateColumns,
+    scheduleLockClear,
   ]);
 
   /**
    * Apply for a task that requires application
    */
-  const applyForTask = useCallback(async (taskId, applicationData) => {
+  const applyForTask = useCallback(async (taskId, applicationData, applicantAddress) => {
     if (!isReady || !taskService) {
       addNotification('Web3 not ready. Please connect your wallet.', 'error');
       return { success: false };
+    }
+
+    // Save previous state for rollback
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+
+    // Optimistically add applicant to the task so UI reflects immediately
+    if (applicantAddress) {
+      const newTaskColumns = taskColumns.map(col => ({
+        ...col,
+        tasks: col.tasks.map(t =>
+          t.id === taskId
+            ? {
+                ...t,
+                applicants: [
+                  ...(t.applicants || []),
+                  { address: applicantAddress, username: '', appliedAt: Math.floor(Date.now() / 1000), approved: false },
+                ],
+              }
+            : t
+        ),
+      }));
+      optimisticLockRef.current = Date.now();
+      setTaskColumns(newTaskColumns);
     }
 
     const notifId = addNotification('Submitting application...', 'loading');
@@ -466,6 +529,7 @@ export const TaskBoardProvider = ({
       if (result.success) {
         updateNotification(notifId, 'Application submitted successfully!', 'success');
         emit(RefreshEvent.TASK_APPLICATION_SUBMITTED, { taskId });
+        if (applicantAddress) scheduleLockClear();
         return { success: true };
       } else {
         throw new Error(result.error?.userMessage || 'Failed to submit application');
@@ -473,9 +537,13 @@ export const TaskBoardProvider = ({
     } catch (error) {
       console.error('Error applying for task:', error);
       updateNotification(notifId, error.message || 'Error submitting application', 'error');
+      if (applicantAddress) {
+        optimisticLockRef.current = null;
+        setTaskColumns(previousTaskColumns);
+      }
       return { success: false, error };
     }
-  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit]);
+  }, [taskColumns, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, scheduleLockClear]);
 
   /**
    * Approve an application for a task
@@ -526,8 +594,9 @@ export const TaskBoardProvider = ({
         emit(RefreshEvent.TASK_APPLICATION_APPROVED, { taskId, applicantAddress });
 
         if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns);
+          onUpdateColumns(newTaskColumns, selectedProject?.id);
         }
+        scheduleLockClear();
 
         return { success: true };
       } else {
@@ -541,16 +610,42 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskColumns, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns]);
+  }, [taskColumns, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
 
   /**
    * Assign a task to a specific user
    */
-  const assignTask = useCallback(async (taskId, assigneeAddress) => {
+  const assignTask = useCallback(async (taskId, assigneeAddress, assigneeUsername) => {
     if (!isReady || !taskService) {
       addNotification('Web3 not ready. Please connect your wallet.', 'error');
       return { success: false };
     }
+
+    // Save previous state for rollback
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+
+    // Lock to prevent poll-interval from overwriting this optimistic update
+    optimisticLockRef.current = Date.now();
+
+    // Optimistically move task from open to inProgress
+    const newTaskColumns = [...taskColumns];
+    const openColumn = newTaskColumns.find(col => col.id === 'open');
+    const inProgressColumn = newTaskColumns.find(col => col.id === 'inProgress');
+
+    if (openColumn && inProgressColumn) {
+      const taskIndex = openColumn.tasks.findIndex(t => t.id === taskId);
+      if (taskIndex > -1) {
+        const [task] = openColumn.tasks.splice(taskIndex, 1);
+        inProgressColumn.tasks.push({
+          ...task,
+          claimedBy: assigneeAddress,
+          claimerUsername: assigneeUsername || '',
+          status: 'Assigned',
+        });
+      }
+    }
+
+    setTaskColumns(newTaskColumns);
 
     const notifId = addNotification('Assigning task...', 'loading');
 
@@ -564,6 +659,12 @@ export const TaskBoardProvider = ({
       if (result.success) {
         updateNotification(notifId, 'Task assigned successfully!', 'success');
         emit(RefreshEvent.TASK_ASSIGNED, { taskId, assigneeAddress });
+
+        if (onUpdateColumns) {
+          onUpdateColumns(newTaskColumns, selectedProject?.id);
+        }
+        scheduleLockClear();
+
         return { success: true };
       } else {
         throw new Error(result.error?.userMessage || 'Failed to assign task');
@@ -571,9 +672,11 @@ export const TaskBoardProvider = ({
     } catch (error) {
       console.error('Error assigning task:', error);
       updateNotification(notifId, error.message || 'Error assigning task', 'error');
+      optimisticLockRef.current = null;
+      setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit]);
+  }, [taskColumns, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
 
   /**
    * Reject a submitted task, moving it back to inProgress
@@ -631,8 +734,9 @@ export const TaskBoardProvider = ({
         emit(RefreshEvent.TASK_REJECTED, { taskId: task.id });
 
         if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns);
+          onUpdateColumns(newTaskColumns, selectedProject?.id);
         }
+        scheduleLockClear();
 
         return { success: true };
       } else {
@@ -655,6 +759,7 @@ export const TaskBoardProvider = ({
     emit,
     addToIpfs,
     onUpdateColumns,
+    scheduleLockClear,
   ]);
 
   const value = useMemo(() => ({

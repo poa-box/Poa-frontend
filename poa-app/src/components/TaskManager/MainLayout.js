@@ -391,10 +391,11 @@ const MainLayout = () => {
           
           {selectedProject ? (
             <Box flex="1" width="100%" overflow={isMobile ? "visible" : "auto"}>
-              <TaskBoardProvider 
+              <TaskBoardProvider
                 key={selectedProject.id}
                 projectId={selectedProject.id}
                 initialColumns={selectedProject.columns}
+                onUpdateColumns={handleUpdateColumns}
                 account={account}
               >
                 <TaskBoard 
