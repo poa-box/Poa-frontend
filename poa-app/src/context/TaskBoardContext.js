@@ -55,7 +55,7 @@ export const TaskBoardProvider = ({
         optimisticLockRef.current = null;
       }
       lockClearTimerRef.current = null;
-    }, 10000);
+    }, 11000);
   }, []);
 
   // Clean up timer on unmount
@@ -88,8 +88,15 @@ export const TaskBoardProvider = ({
         const isStale = hasLocalOnly || hasServerOnly || hasColumnMismatch;
 
         if (isStale) return; // Server hasn't caught up — keep optimistic state
+
+        // Server structure matches local — accept the data but DON'T clear the lock.
+        // scheduleLockClear is the sole mechanism for lock cleanup. Clearing here
+        // would race with partially-indexed subgraph data (e.g. IPFS metadata not
+        // resolved yet → blank descriptions) arriving before metadata is ready.
+        setTaskColumns(initialColumns);
+        return;
       }
-      // Grace period expired or server caught up — clear lock and accept server data
+      // Grace period expired — clear lock and accept server data
       optimisticLockRef.current = null;
     }
     setTaskColumns(initialColumns);
