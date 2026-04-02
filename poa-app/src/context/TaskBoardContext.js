@@ -20,6 +20,58 @@ export const useTaskBoard = () => {
   return useContext(TaskBoardContext);
 };
 
+/**
+ * Merge server columns with optimistic columns, preserving task metadata
+ * that the subgraph may not have re-indexed yet after a status change.
+ *
+ * When a task is claimed/submitted/completed, The Graph updates the entity
+ * but may temporarily return null metadata while re-resolving the IPFS link.
+ * This manifests as description='', difficulty='medium', estHours=1 (the
+ * defaults in ProjectContext). We detect this pattern and keep the richer
+ * optimistic data for those fields until the server catches up.
+ */
+function mergeColumnsPreservingMetadata(serverColumns, optimisticColumns) {
+  // Build a lookup of task data from the optimistic (current) state
+  const optimisticTaskMap = new Map();
+  for (const col of optimisticColumns) {
+    for (const task of col.tasks) {
+      optimisticTaskMap.set(task.id, task);
+    }
+  }
+
+  return serverColumns.map(col => ({
+    ...col,
+    tasks: col.tasks.map(task => {
+      const optimistic = optimisticTaskMap.get(task.id);
+      if (!optimistic) return task;
+
+      // Server has all-default metadata but optimistic has real data →
+      // the subgraph hasn't re-indexed the IPFS metadata yet.
+      const serverHasDefaults =
+        task.description === '' &&
+        task.difficulty === 'medium' &&
+        task.estHours === 1;
+      const optimisticHasReal =
+        optimistic.description !== '' ||
+        optimistic.difficulty !== 'medium' ||
+        optimistic.estHours !== 1;
+
+      if (serverHasDefaults && optimisticHasReal) {
+        return {
+          ...task,
+          description: optimistic.description,
+          difficulty: optimistic.difficulty,
+          estHours: optimistic.estHours,
+          name: optimistic.name || task.name,
+          title: optimistic.title || task.title,
+        };
+      }
+
+      return task;
+    }),
+  }));
+}
+
 export const TaskBoardProvider = ({
   children,
   initialColumns,
@@ -59,10 +111,11 @@ export const TaskBoardProvider = ({
     lockClearTimerRef.current = setTimeout(() => {
       if (optimisticLockRef.current === lockTimestamp) {
         optimisticLockRef.current = null;
-        // Apply the latest server data now that the lock is cleared.
-        // The useEffect won't re-fire unless initialColumns changes again,
-        // so we need to push the last-seen server data through here.
-        setTaskColumns(latestInitialColumnsRef.current);
+        // Apply the latest server data, but merge with optimistic state to
+        // preserve task metadata that the subgraph may not have re-indexed yet.
+        setTaskColumns(prev =>
+          mergeColumnsPreservingMetadata(latestInitialColumnsRef.current, prev)
+        );
       }
       lockClearTimerRef.current = null;
     }, 11000);
@@ -85,8 +138,11 @@ export const TaskBoardProvider = ({
         // scheduleLockClear will apply latest server data when the lock expires.
         return;
       }
-      // Grace period expired — clear lock and accept server data
+      // Grace period expired — merge to preserve any metadata the subgraph
+      // still hasn't re-indexed (same protection as scheduleLockClear).
       optimisticLockRef.current = null;
+      setTaskColumns(prev => mergeColumnsPreservingMetadata(initialColumns, prev));
+      return;
     }
     setTaskColumns(initialColumns);
   }, [initialColumns]);
@@ -136,23 +192,6 @@ export const TaskBoardProvider = ({
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically update the UI
-    const newTaskColumns = [...taskColumns];
-    const sourceColumn = newTaskColumns.find(
-      (column) => column.id === sourceColumnId
-    );
-    const destColumn = newTaskColumns.find((column) => column.id === destColumnId);
-
-    // Remove the task from the source column
-    if (sourceColumn) {
-      const sourceTaskIndex = sourceColumn.tasks.findIndex(
-        (task) => task.id === draggedTask.id
-      );
-      if (sourceTaskIndex > -1) {
-        sourceColumn.tasks.splice(sourceTaskIndex, 1);
-      }
-    }
-
     // Prepare the updated task
     const updatedTask = {
       ...draggedTask,
@@ -166,12 +205,19 @@ export const TaskBoardProvider = ({
           : draggedTask.claimedBy,
     };
 
-    // Add the task to the destination column
-    if (destColumn) {
-      destColumn.tasks.splice(newIndex, 0, updatedTask);
-    }
+    // Optimistically update the UI — immutable update (no mutation of existing state)
+    const newTaskColumns = taskColumns.map(col => {
+      if (col.id === sourceColumnId) {
+        return { ...col, tasks: col.tasks.filter(t => t.id !== draggedTask.id) };
+      }
+      if (col.id === destColumnId) {
+        const tasks = [...col.tasks];
+        tasks.splice(newIndex, 0, updatedTask);
+        return { ...col, tasks };
+      }
+      return col;
+    });
 
-    // Update the state optimistically
     setTaskColumns(newTaskColumns);
 
     let notifId = null;
@@ -224,9 +270,16 @@ export const TaskBoardProvider = ({
         }
       }
 
-      // Call the onUpdateColumns prop when the columns are updated
-      if (onUpdateColumns) {
-        onUpdateColumns(newTaskColumns, selectedProject?.id);
+      // Use functional updater to get the latest state (consistent with addTask).
+      // This avoids stale closure over newTaskColumns from before the await.
+      let confirmedColumns;
+      setTaskColumns(prev => {
+        confirmedColumns = prev;
+        return prev;
+      });
+
+      if (onUpdateColumns && confirmedColumns) {
+        onUpdateColumns(confirmedColumns, selectedProject?.id);
       }
       scheduleLockClear();
     } catch (error) {
@@ -270,10 +323,6 @@ export const TaskBoardProvider = ({
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically update the UI
-    const newTaskColumns = [...taskColumns];
-    const destColumn = newTaskColumns.find((column) => column.id === destColumnId);
-
     const predictedId = `${taskManagerContractAddress}-${nextTaskId}`.toLowerCase();
     const newTask = {
       ...task,
@@ -284,9 +333,11 @@ export const TaskBoardProvider = ({
       isIndexing: true,
     };
 
-    if (destColumn) {
-      destColumn.tasks.push(newTask);
-    }
+    // Optimistically update the UI — immutable
+    const newTaskColumns = taskColumns.map(col => {
+      if (col.id !== destColumnId) return col;
+      return { ...col, tasks: [...col.tasks, newTask] };
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -377,10 +428,6 @@ export const TaskBoardProvider = ({
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically update the UI
-    const newTaskColumns = [...taskColumns];
-    const destColumn = newTaskColumns.find((column) => column.id === destColumnId);
-
     const payout = calculatePayout(updatedTask.difficulty, updatedTask.estHours);
 
     const newTask = {
@@ -388,9 +435,14 @@ export const TaskBoardProvider = ({
       Payout: payout,
     };
 
-    if (destColumn && destColumn.tasks[destTaskIndex]) {
-      destColumn.tasks.splice(destTaskIndex, 1, newTask);
-    }
+    // Optimistically update the UI — immutable
+    const newTaskColumns = taskColumns.map(col => {
+      if (col.id !== destColumnId) return col;
+      return {
+        ...col,
+        tasks: col.tasks.map((t, i) => i === destTaskIndex ? newTask : t),
+      };
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -412,8 +464,10 @@ export const TaskBoardProvider = ({
         updateNotification(notifId, 'Task updated successfully!', 'success');
         emit(RefreshEvent.TASK_UPDATED, { taskId: updatedTask.id });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns, selectedProject?.id);
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
         scheduleLockClear();
       } else {
@@ -452,15 +506,11 @@ export const TaskBoardProvider = ({
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically update the UI
-    const newTaskColumns = [...taskColumns];
-    const column = newTaskColumns.find((col) => col.id === columnId);
-    if (column) {
-      const taskIndex = column.tasks.findIndex((task) => task.id === taskId);
-      if (taskIndex > -1) {
-        column.tasks.splice(taskIndex, 1);
-      }
-    }
+    // Optimistically update the UI — immutable
+    const newTaskColumns = taskColumns.map(col => {
+      if (col.id !== columnId) return col;
+      return { ...col, tasks: col.tasks.filter(t => t.id !== taskId) };
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -473,8 +523,10 @@ export const TaskBoardProvider = ({
         updateNotification(notifId, 'Task deleted successfully!', 'success');
         emit(RefreshEvent.TASK_CANCELLED, { taskId });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns, selectedProject?.id);
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
         scheduleLockClear();
       } else {
@@ -577,23 +629,26 @@ export const TaskBoardProvider = ({
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically move task from open to inProgress
-    const newTaskColumns = [...taskColumns];
-    const openColumn = newTaskColumns.find(col => col.id === 'open');
-    const inProgressColumn = newTaskColumns.find(col => col.id === 'inProgress');
-
-    if (openColumn && inProgressColumn) {
-      const taskIndex = openColumn.tasks.findIndex(t => t.id === taskId);
-      if (taskIndex > -1) {
-        const [task] = openColumn.tasks.splice(taskIndex, 1);
-        inProgressColumn.tasks.push({
-          ...task,
-          claimedBy: applicantAddress,
-          claimerUsername: applicantUsername || '',
-          status: 'Assigned',
-        });
+    // Optimistically move task from open to inProgress — immutable
+    let movedTask = null;
+    const newTaskColumns = taskColumns.map(col => {
+      if (col.id === 'open') {
+        const task = col.tasks.find(t => t.id === taskId);
+        if (task) {
+          movedTask = {
+            ...task,
+            claimedBy: applicantAddress,
+            claimerUsername: applicantUsername || '',
+            status: 'Assigned',
+          };
+        }
+        return { ...col, tasks: col.tasks.filter(t => t.id !== taskId) };
       }
-    }
+      if (col.id === 'inProgress' && movedTask) {
+        return { ...col, tasks: [...col.tasks, movedTask] };
+      }
+      return col;
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -610,8 +665,10 @@ export const TaskBoardProvider = ({
         updateNotification(notifId, 'Application approved successfully!', 'success');
         emit(RefreshEvent.TASK_APPLICATION_APPROVED, { taskId, applicantAddress });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns, selectedProject?.id);
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
         scheduleLockClear();
 
@@ -644,23 +701,26 @@ export const TaskBoardProvider = ({
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically move task from open to inProgress
-    const newTaskColumns = [...taskColumns];
-    const openColumn = newTaskColumns.find(col => col.id === 'open');
-    const inProgressColumn = newTaskColumns.find(col => col.id === 'inProgress');
-
-    if (openColumn && inProgressColumn) {
-      const taskIndex = openColumn.tasks.findIndex(t => t.id === taskId);
-      if (taskIndex > -1) {
-        const [task] = openColumn.tasks.splice(taskIndex, 1);
-        inProgressColumn.tasks.push({
-          ...task,
-          claimedBy: assigneeAddress,
-          claimerUsername: assigneeUsername || '',
-          status: 'Assigned',
-        });
+    // Optimistically move task from open to inProgress — immutable
+    let movedTask = null;
+    const newTaskColumns = taskColumns.map(col => {
+      if (col.id === 'open') {
+        const task = col.tasks.find(t => t.id === taskId);
+        if (task) {
+          movedTask = {
+            ...task,
+            claimedBy: assigneeAddress,
+            claimerUsername: assigneeUsername || '',
+            status: 'Assigned',
+          };
+        }
+        return { ...col, tasks: col.tasks.filter(t => t.id !== taskId) };
       }
-    }
+      if (col.id === 'inProgress' && movedTask) {
+        return { ...col, tasks: [...col.tasks, movedTask] };
+      }
+      return col;
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -677,8 +737,10 @@ export const TaskBoardProvider = ({
         updateNotification(notifId, 'Task assigned successfully!', 'success');
         emit(RefreshEvent.TASK_ASSIGNED, { taskId, assigneeAddress });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns, selectedProject?.id);
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
         scheduleLockClear();
 
@@ -715,21 +777,16 @@ export const TaskBoardProvider = ({
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically move task from inReview to inProgress
-    const newTaskColumns = [...taskColumns];
-    const sourceColumn = newTaskColumns.find(col => col.id === 'inReview');
-    const destColumn = newTaskColumns.find(col => col.id === 'inProgress');
-
-    if (sourceColumn) {
-      const taskIndex = sourceColumn.tasks.findIndex(t => t.id === task.id);
-      if (taskIndex > -1) {
-        sourceColumn.tasks.splice(taskIndex, 1);
+    // Optimistically move task from inReview to inProgress — immutable
+    const newTaskColumns = taskColumns.map(col => {
+      if (col.id === 'inReview') {
+        return { ...col, tasks: col.tasks.filter(t => t.id !== task.id) };
       }
-    }
-
-    if (destColumn) {
-      destColumn.tasks.push({ ...task });
-    }
+      if (col.id === 'inProgress') {
+        return { ...col, tasks: [...col.tasks, { ...task }] };
+      }
+      return col;
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -750,8 +807,10 @@ export const TaskBoardProvider = ({
         updateNotification(notifId, 'Task rejected successfully!', 'success');
         emit(RefreshEvent.TASK_REJECTED, { taskId: task.id });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns, selectedProject?.id);
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
         scheduleLockClear();
 
