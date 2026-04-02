@@ -5,6 +5,7 @@ import { useRouter } from 'next/router';
 import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
+import { formatTokenAmount } from '../util/formatToken';
 
 const VotingContext = createContext();
 
@@ -26,6 +27,7 @@ function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quoru
 
     // Aggregate votes per option - different logic for Hybrid vs DD
     const optionVotes = {};
+    const optionVotesRaw = {}; // BigInt string versions for Hybrid display formatting
     let totalVotes = 0;
 
     if (type === 'Hybrid') {
@@ -50,8 +52,9 @@ function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quoru
             totalVotes += Number(votePower);
         });
 
-        // Convert BigInt to Number for display
+        // Store BigInt strings for formatting before losing precision
         Object.keys(optionVotes).forEach(k => {
+            optionVotesRaw[k] = optionVotes[k].toString();
             optionVotes[k] = Number(optionVotes[k]);
         });
     } else {
@@ -70,10 +73,14 @@ function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quoru
     const totalOptionVotes = Object.values(optionVotes).reduce((sum, v) => sum + v, 0);
     for (let i = 0; i < (proposal.numOptions || 2); i++) {
         const votes = optionVotes[i] || 0;
+        const displayVotes = type === 'Hybrid'
+            ? formatTokenAmount(optionVotesRaw[i] || '0')
+            : String(votes);
         options.push({
             id: `${proposal.id}-option-${i}`,
             name: optionNames[i] || `Option ${i + 1}`,
             votes: votes,
+            displayVotes,
             percentage: totalOptionVotes > 0 ? (votes / totalOptionVotes) * 100 : 0,
             currentPercentage: totalOptionVotes > 0 ? Math.round((votes / totalOptionVotes) * 100) : 0,
         });

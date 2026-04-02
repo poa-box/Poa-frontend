@@ -266,7 +266,7 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
                       {option.isWinner && " (Winner)"}
                     </Text>
                     <Text>
-                      {option.processedVotes} vote{option.processedVotes !== 1 ? 's' : ''} ({option.percentage.toFixed(1)}%)
+                      {option.displayVotes ?? option.processedVotes} vote{option.processedVotes !== 1 ? 's' : ''} ({option.percentage.toFixed(1)}%)
                     </Text>
                   </HStack>
                   <Progress 

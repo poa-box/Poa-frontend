@@ -407,7 +407,7 @@ const PollModal = ({
                         {hasVoted && (
                           selectedPoll.type === "Hybrid"
                             ? ` (${option.currentPercentage || 0}%)`
-                            : ` (${option.votes || 0} votes)`
+                            : ` (${option.displayVotes ?? option.votes ?? 0} votes)`
                         )}
                       </Radio>
                     ))}
