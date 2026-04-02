@@ -20,7 +20,9 @@ const TokenBalanceCard = ({
   isClickable = false,
   onClick,
 }) => {
-  const formattedBalance = formatTokenAmount(balance || '0', decimals, decimals === 6 ? 2 : 0);
+  // PT (Governance) displays as whole numbers; ERC-20 tokens need decimal precision
+  const displayDecimals = tokenType === 'Governance' ? 0 : (decimals <= 6 ? 2 : 4);
+  const formattedBalance = formatTokenAmount(balance || '0', decimals, displayDecimals);
 
   // Token icon colors - check for Participation Token or PT
   const iconColors = {
