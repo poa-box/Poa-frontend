@@ -43,6 +43,8 @@ import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { getBountyTokenOptions } from '../../util/tokens';
 import { usePOContext } from '../../context/POContext';
+import { createChainClients } from '@/services/web3/utils/chainClients';
+import { formatTokenAmount } from '@/util/formatToken';
 
 /**
  * @param {Object} props
@@ -53,9 +55,13 @@ import { usePOContext } from '../../context/POContext';
  * @param {Object} props.roleNames - Map of hatId -> role name
  * @param {string[]} props.creatorHatIds - Hat IDs that can create projects
  */
+const BALANCE_ABI = [
+  { type: 'function', name: 'balanceOf', inputs: [{ name: 'account', type: 'address' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' },
+];
+
 const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [] }) => {
   const toast = useToast();
-  const { orgChainId } = usePOContext();
+  const { orgChainId, taskManagerContractAddress } = usePOContext();
   const [loading, setLoading] = useState(false);
 
   // Basic fields
@@ -69,6 +75,31 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
   // Bounty budgets: array of { token, cap, isUnlimited } objects
   const [bountyBudgets, setBountyBudgets] = useState([]);
   const availableTokens = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
+
+  // TaskManager token balances for bounty budget warnings
+  const [taskManagerBalances, setTaskManagerBalances] = useState({}); // { tokenAddress: balanceString }
+  useEffect(() => {
+    if (!taskManagerContractAddress || !orgChainId || bountyBudgets.length === 0) return;
+    let cancelled = false;
+    const fetchBalances = async () => {
+      const clients = createChainClients(orgChainId);
+      const client = clients?.publicClient;
+      if (!client) return;
+      const enabledTokens = bountyBudgets.map(b => b.token);
+      const results = {};
+      await Promise.all(enabledTokens.map(async (addr) => {
+        try {
+          const bal = await client.readContract({
+            address: addr, abi: BALANCE_ABI, functionName: 'balanceOf', args: [taskManagerContractAddress],
+          });
+          results[addr] = bal.toString();
+        } catch { results[addr] = '0'; }
+      }));
+      if (!cancelled) setTaskManagerBalances(results);
+    };
+    fetchBalances();
+    return () => { cancelled = true; };
+  }, [bountyBudgets.length, taskManagerContractAddress, orgChainId]);
 
   // Additional managers - stores { address, displayName } objects
   const [managers, setManagers] = useState([]);
@@ -415,35 +446,61 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                           </HStack>
 
                           {isEnabled && (
-                            <HStack spacing={3}>
-                              <Checkbox
-                                size="sm"
-                                isChecked={budget.isUnlimited}
-                                onChange={(e) => {
-                                  setBountyBudgets(prev => prev.map(b =>
-                                    b.token === token.address ? { ...b, isUnlimited: e.target.checked } : b
-                                  ));
-                                }}
-                                colorScheme="teal"
-                              >
-                                <Text fontSize="xs">Unlimited</Text>
-                              </Checkbox>
-                              {!budget.isUnlimited && (
-                                <NumberInput
+                            <VStack spacing={2} align="stretch">
+                              <HStack spacing={3}>
+                                <Checkbox
                                   size="sm"
-                                  value={budget.cap}
-                                  onChange={(value) => {
+                                  isChecked={budget.isUnlimited}
+                                  onChange={(e) => {
                                     setBountyBudgets(prev => prev.map(b =>
-                                      b.token === token.address ? { ...b, cap: value } : b
+                                      b.token === token.address ? { ...b, isUnlimited: e.target.checked } : b
                                     ));
                                   }}
-                                  min={0}
-                                  flex={1}
+                                  colorScheme="teal"
                                 >
-                                  <NumberInputField placeholder={`Max ${token.symbol}`} />
-                                </NumberInput>
-                              )}
-                            </HStack>
+                                  <Text fontSize="xs">Unlimited</Text>
+                                </Checkbox>
+                                {!budget.isUnlimited && (
+                                  <NumberInput
+                                    size="sm"
+                                    value={budget.cap}
+                                    onChange={(value) => {
+                                      setBountyBudgets(prev => prev.map(b =>
+                                        b.token === token.address ? { ...b, cap: value } : b
+                                      ));
+                                    }}
+                                    min={0}
+                                    flex={1}
+                                  >
+                                    <NumberInputField placeholder={`Max ${token.symbol}`} />
+                                  </NumberInput>
+                                )}
+                              </HStack>
+                              {/* Show TaskManager balance and warn if insufficient */}
+                              {(() => {
+                                const tmBalance = taskManagerBalances[token.address] || '0';
+                                const formatted = formatTokenAmount(tmBalance, token.decimals, 4);
+                                let insufficient = false;
+                                if (!budget.isUnlimited && budget.cap && Number(budget.cap) > 0) {
+                                  try {
+                                    const capWei = ethers.utils.parseUnits(budget.cap.toString(), token.decimals);
+                                    insufficient = capWei.gt(ethers.BigNumber.from(tmBalance));
+                                  } catch { /* invalid input, skip warning */ }
+                                }
+                                return (
+                                  <>
+                                    <Text fontSize="xs" color="gray.500">
+                                      Available in bounty fund: {formatted} {token.symbol}
+                                    </Text>
+                                    {insufficient && (
+                                      <Text fontSize="xs" color="orange.400">
+                                        ⚠ Insufficient — deposit more {token.symbol} via Treasury → Fund Bounties
+                                      </Text>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </VStack>
                           )}
                         </Box>
                       );

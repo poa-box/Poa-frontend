@@ -60,6 +60,24 @@ export class TreasuryService {
   }
 
   /**
+   * Transfer ERC20 tokens directly to a recipient (e.g., TaskManager for bounty funding).
+   * Uses plain ERC20.transfer — no approval needed since tokens come from caller's balance.
+   * @param {string} tokenAddress - ERC20 token contract address
+   * @param {string} recipientAddress - Destination address (e.g., TaskManager)
+   * @param {string} amount - Amount to transfer (in wei)
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async transferERC20(tokenAddress, recipientAddress, amount, options = {}) {
+    requireAddress(tokenAddress, 'Token address');
+    requireAddress(recipientAddress, 'Recipient address');
+    requirePositiveNumber(amount, 'Transfer amount');
+
+    const contract = this.factory.createWritable(tokenAddress, ERC20ABI);
+    return this.txManager.execute(contract, 'transfer', [recipientAddress, amount], options);
+  }
+
+  /**
    * Get current ERC20 allowance
    * @param {string} tokenAddress - ERC20 token contract address
    * @param {string} ownerAddress - Token owner address

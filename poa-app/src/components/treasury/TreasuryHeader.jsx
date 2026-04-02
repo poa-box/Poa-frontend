@@ -42,6 +42,7 @@ const TreasuryHeader = ({
   isAdmin = false,
   onCreateDistribution,
   onDeposit,
+  onFundBounties,
   refetch,
 }) => {
   const isMobile = useBreakpointValue({ base: true, md: false });
@@ -70,6 +71,17 @@ const TreasuryHeader = ({
         </VStack>
 
         <HStack spacing={2}>
+          {onFundBounties && (
+            <Button
+              leftIcon={<FiDollarSign />}
+              colorScheme="teal"
+              variant="outline"
+              size={{ base: 'sm', md: 'md' }}
+              onClick={onFundBounties}
+            >
+              Fund Bounties
+            </Button>
+          )}
           {onDeposit && (
             <Button
               leftIcon={<FiDownload />}
