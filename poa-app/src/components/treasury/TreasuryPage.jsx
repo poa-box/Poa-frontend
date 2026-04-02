@@ -26,6 +26,7 @@ import DistributionHistory from './DistributionHistory';
 import HistoricalOverview from './HistoricalOverview';
 import ParticipationTokenModal from './ParticipationTokenModal';
 import DepositModal from './DepositModal';
+import CreateDistributionModal from './CreateDistributionModal';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -55,6 +56,7 @@ const TreasuryPage = () => {
     poMembers,
     participationTokenAddress,
     taskManagerContractAddress: taskManagerAddress,
+    hybridVotingContractAddress,
     subgraphUrl,
     hideTreasury,
     orgChainId,
@@ -72,6 +74,7 @@ const TreasuryPage = () => {
   const { isOpen: isPTModalOpen, onOpen: onPTModalOpen, onClose: onPTModalClose } = useDisclosure();
   const { isOpen: isDepositOpen, onOpen: onDepositOpen, onClose: onDepositClose } = useDisclosure();
   const { isOpen: isBountyDepositOpen, onOpen: onBountyDepositOpen, onClose: onBountyDepositClose } = useDisclosure();
+  const { isOpen: isCreateDistOpen, onOpen: onCreateDistOpen, onClose: onCreateDistClose } = useDisclosure();
 
   // Responsive design
   const sectionHeadingSize = useBreakpointValue({ base: 'lg', md: 'xl' });
@@ -209,7 +212,7 @@ const TreasuryPage = () => {
                   totalDistributed={totalDistributed.toString()}
                   distributionCount={distributions.length}
                   isAdmin={hasExecRole}
-                  onCreateDistribution={() => {/* TODO: Open modal */}}
+                  onCreateDistribution={onCreateDistOpen}
                   onDeposit={onDepositOpen}
                   onFundBounties={taskManagerAddress ? onBountyDepositOpen : undefined}
                   refetch={refetch}
@@ -354,6 +357,15 @@ const TreasuryPage = () => {
           useDirectTransfer
         />
       )}
+
+      {/* Create Distribution Proposal Modal */}
+      <CreateDistributionModal
+        isOpen={isCreateDistOpen}
+        onClose={onCreateDistClose}
+        paymentManagerAddress={paymentManager?.id}
+        orgChainId={orgChainId}
+        votingContractAddress={hybridVotingContractAddress}
+      />
     </>
   );
 };
