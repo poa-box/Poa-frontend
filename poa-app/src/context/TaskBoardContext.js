@@ -55,7 +55,7 @@ export const TaskBoardProvider = ({
         optimisticLockRef.current = null;
       }
       lockClearTimerRef.current = null;
-    }, 15000);
+    }, 11000);
   }, []);
 
   // Clean up timer on unmount
