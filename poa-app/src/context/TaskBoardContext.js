@@ -42,6 +42,10 @@ export const TaskBoardProvider = ({
   const optimisticLockRef = useRef(null);
   const OPTIMISTIC_GRACE_PERIOD = 65000; // 65s — covers 2+ poll-interval cycles (30s each)
   const lockClearTimerRef = useRef(null);
+  const latestInitialColumnsRef = useRef(initialColumns);
+
+  // Keep ref in sync so scheduleLockClear can apply the latest server data
+  latestInitialColumnsRef.current = initialColumns;
 
   // Clear optimistic lock after a delay, giving the subgraph refetch time to arrive.
   // Timestamp-guarded: if a newer operation sets a fresh lock, this timer won't clobber it.
@@ -53,6 +57,10 @@ export const TaskBoardProvider = ({
     lockClearTimerRef.current = setTimeout(() => {
       if (optimisticLockRef.current === lockTimestamp) {
         optimisticLockRef.current = null;
+        // Apply the latest server data now that the lock is cleared.
+        // The useEffect won't re-fire unless initialColumns changes again,
+        // so we need to push the last-seen server data through here.
+        setTaskColumns(latestInitialColumnsRef.current);
       }
       lockClearTimerRef.current = null;
     }, 11000);
