@@ -55,7 +55,7 @@ export const TaskBoardProvider = ({
         optimisticLockRef.current = null;
       }
       lockClearTimerRef.current = null;
-    }, 30000); // 30s — gives subgraph time to index IPFS metadata
+    }, 17000);
   }, []);
 
   // Clean up timer on unmount
