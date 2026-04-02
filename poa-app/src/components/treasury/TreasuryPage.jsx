@@ -269,6 +269,8 @@ const TreasuryPage = () => {
                   <CurrentDistributions
                     distributions={activeDistributions}
                     paymentManagerAddress={paymentManager?.id}
+                    hybridVotingId={hybridVotingContractAddress}
+                    subgraphUrl={subgraphUrl}
                     refetch={refetch}
                   />
                 </Box>

@@ -265,7 +265,7 @@ export class TreasuryService {
 
     const contract = this.factory.createReadOnly(contractAddress, PaymentManagerABI);
     const id = ethers.BigNumber.from(distributionId);
-    const result = await contract.distributions(id);
+    const result = await contract.getDistribution(id);
 
     return {
       payoutToken: result.payoutToken,
@@ -290,7 +290,7 @@ export class TreasuryService {
 
     const contract = this.factory.createReadOnly(contractAddress, PaymentManagerABI);
     const id = ethers.BigNumber.from(distributionId);
-    const claimed = await contract.claimed(id, userAddress);
+    const claimed = await contract.hasClaimed(id, userAddress);
 
     return claimed;
   }
