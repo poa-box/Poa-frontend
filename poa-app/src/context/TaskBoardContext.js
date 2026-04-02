@@ -6,6 +6,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDataBaseContext } from './dataBaseContext';
+import { useProjectContext } from './ProjectContext';
 import { usePOContext } from './POContext';
 import { useIPFScontext } from './ipfsContext';
 import { useRefreshEmit, RefreshEvent } from './RefreshContext';
@@ -26,6 +27,7 @@ export const TaskBoardProvider = ({
 }) => {
   const [taskColumns, setTaskColumns] = useState(initialColumns);
   const { selectedProject } = useDataBaseContext();
+  const { nextTaskId } = useProjectContext();
   const { taskManagerContractAddress } = usePOContext();
   const { addToIpfs } = useIPFScontext();
   const { emit } = useRefreshEmit();
@@ -42,6 +44,10 @@ export const TaskBoardProvider = ({
   const optimisticLockRef = useRef(null);
   const OPTIMISTIC_GRACE_PERIOD = 65000; // 65s — covers 2+ poll-interval cycles (30s each)
   const lockClearTimerRef = useRef(null);
+  const latestInitialColumnsRef = useRef(initialColumns);
+
+  // Keep ref in sync so scheduleLockClear can apply the latest server data
+  latestInitialColumnsRef.current = initialColumns;
 
   // Clear optimistic lock after a delay, giving the subgraph refetch time to arrive.
   // Timestamp-guarded: if a newer operation sets a fresh lock, this timer won't clobber it.
@@ -53,6 +59,10 @@ export const TaskBoardProvider = ({
     lockClearTimerRef.current = setTimeout(() => {
       if (optimisticLockRef.current === lockTimestamp) {
         optimisticLockRef.current = null;
+        // Apply the latest server data now that the lock is cleared.
+        // The useEffect won't re-fire unless initialColumns changes again,
+        // so we need to push the last-seen server data through here.
+        setTaskColumns(latestInitialColumnsRef.current);
       }
       lockClearTimerRef.current = null;
     }, 11000);
@@ -71,29 +81,8 @@ export const TaskBoardProvider = ({
     if (optimisticLockRef.current) {
       const elapsed = Date.now() - optimisticLockRef.current;
       if (elapsed < OPTIMISTIC_GRACE_PERIOD) {
-        // Compare task-to-column mappings to detect if server has caught up
-        const serverMap = {};
-        initialColumns.forEach(col => col.tasks.forEach(t => { serverMap[t.id] = col.id; }));
-        const localMap = {};
-        taskColumns.forEach(col => col.tasks.forEach(t => { localMap[t.id] = col.id; }));
-
-        // Tasks added locally but not yet on server
-        const hasLocalOnly = Object.keys(localMap).some(id => !serverMap[id]);
-        // Tasks deleted locally but still on server
-        const hasServerOnly = Object.keys(serverMap).some(id => !localMap[id]);
-        // Tasks moved between columns
-        const hasColumnMismatch = Object.entries(localMap).some(([id, colId]) => {
-          return serverMap[id] && serverMap[id] !== colId;
-        });
-        const isStale = hasLocalOnly || hasServerOnly || hasColumnMismatch;
-
-        if (isStale) return; // Server hasn't caught up — keep optimistic state
-
-        // Server structure matches local — accept the data but DON'T clear the lock.
-        // scheduleLockClear is the sole mechanism for lock cleanup. Clearing here
-        // would race with partially-indexed subgraph data (e.g. IPFS metadata not
-        // resolved yet → blank descriptions) arriving before metadata is ready.
-        setTaskColumns(initialColumns);
+        // Lock is active — keep optimistic state, ignore server data.
+        // scheduleLockClear will apply latest server data when the lock expires.
         return;
       }
       // Grace period expired — clear lock and accept server data
@@ -285,12 +274,14 @@ export const TaskBoardProvider = ({
     const newTaskColumns = [...taskColumns];
     const destColumn = newTaskColumns.find((column) => column.id === destColumnId);
 
+    const predictedId = `${taskManagerContractAddress}-${nextTaskId}`.toLowerCase();
     const newTask = {
       ...task,
-      id: task.id || `optimistic-${Date.now()}`,
+      id: task.id || predictedId,
+      taskId: String(nextTaskId),
       projectId: selectedProject.id,
       kubixPayout: kubixPayout,
-      isOptimistic: true,
+      isIndexing: true,
     };
 
     if (destColumn) {
@@ -330,10 +321,22 @@ export const TaskBoardProvider = ({
 
       if (result.success) {
         updateNotification(notifId, task.assignTo ? 'Task created and assigned!' : 'Task created successfully!', 'success');
+
+        // Task is now on-chain — mark it as no longer indexing so action buttons enable.
+        // Use functional updater to avoid stale closure over taskColumns.
+        let confirmedColumns;
+        setTaskColumns(prev => {
+          confirmedColumns = prev.map(col => ({
+            ...col,
+            tasks: col.tasks.map(t => t.id === newTask.id ? { ...t, isIndexing: false } : t),
+          }));
+          return confirmedColumns;
+        });
+
         emit(RefreshEvent.TASK_CREATED, { task: newTask });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns, selectedProject?.id);
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
         scheduleLockClear();
       } else {
@@ -350,6 +353,7 @@ export const TaskBoardProvider = ({
     taskService,
     taskManagerContractAddress,
     selectedProject,
+    nextTaskId,
     isReady,
     addNotification,
     updateNotification,
@@ -507,8 +511,9 @@ export const TaskBoardProvider = ({
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
 
     // Optimistically add applicant to the task so UI reflects immediately
+    let newTaskColumns;
     if (applicantAddress) {
-      const newTaskColumns = taskColumns.map(col => ({
+      newTaskColumns = taskColumns.map(col => ({
         ...col,
         tasks: col.tasks.map(t =>
           t.id === taskId
@@ -538,7 +543,10 @@ export const TaskBoardProvider = ({
       if (result.success) {
         updateNotification(notifId, 'Application submitted successfully!', 'success');
         emit(RefreshEvent.TASK_APPLICATION_SUBMITTED, { taskId });
-        if (applicantAddress) scheduleLockClear();
+        if (applicantAddress) {
+          if (onUpdateColumns) onUpdateColumns(newTaskColumns, selectedProject?.id);
+          scheduleLockClear();
+        }
         return { success: true };
       } else {
         throw new Error(result.error?.userMessage || 'Failed to submit application');
@@ -552,7 +560,7 @@ export const TaskBoardProvider = ({
       }
       return { success: false, error };
     }
-  }, [taskColumns, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, scheduleLockClear]);
+  }, [taskColumns, taskService, taskManagerContractAddress, selectedProject, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
 
   /**
    * Approve an application for a task
@@ -776,13 +784,12 @@ export const TaskBoardProvider = ({
     moveTask,
     addTask,
     editTask,
-    setTaskColumns,
     deleteTask,
     applyForTask,
     approveApplication,
     assignTask,
     rejectTask,
-  }), [taskColumns, moveTask, addTask, editTask, setTaskColumns, deleteTask, applyForTask, approveApplication, assignTask, rejectTask]);
+  }), [taskColumns, moveTask, addTask, editTask, deleteTask, applyForTask, approveApplication, assignTask, rejectTask]);
 
   return (
     <TaskBoardContext.Provider value={value}>
