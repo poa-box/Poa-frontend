@@ -24,6 +24,7 @@ export const ProjectProvider = ({ children }) => {
     const [projectsData, setProjectsData] = useState([]);
     const [taskCount, setTaskCount] = useState(0);
     const [recommendedTasks, setRecommendedTasks] = useState([]);
+    const [nextTaskId, setNextTaskId] = useState(0);
     const { accountAddress: address } = useAuth();
     const { orgId, subgraphUrl } = usePOContext();
 
@@ -73,12 +74,16 @@ export const ProjectProvider = ({ children }) => {
             const projects = data.organization.taskManager.projects || [];
 
             let totalTasks = 0;
+            let maxTaskId = -1;
             projects.forEach(project => {
                 project.tasks?.forEach(task => {
                     if (task.status !== 'Cancelled') totalTasks++;
+                    const numId = parseInt(task.taskId, 10);
+                    if (!isNaN(numId) && numId > maxTaskId) maxTaskId = numId;
                 });
             });
             setTaskCount(totalTasks);
+            setNextTaskId(maxTaskId + 1);
 
             // Get recommended tasks (open tasks, randomly sorted)
             const openTasks = projects
@@ -198,9 +203,10 @@ export const ProjectProvider = ({ children }) => {
         projectsData,
         taskCount,
         recommendedTasks,
+        nextTaskId,
         loading,
         error,
-    }), [projectsData, taskCount, recommendedTasks, loading, error]);
+    }), [projectsData, taskCount, recommendedTasks, nextTaskId, loading, error]);
 
     return (
         <ProjectContext.Provider value={contextValue}>
