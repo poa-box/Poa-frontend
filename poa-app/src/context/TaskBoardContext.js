@@ -299,6 +299,7 @@ export const TaskBoardProvider = ({
       projectId: selectedProject.id,
       kubixPayout: kubixPayout,
       isOptimistic: true,
+      isIndexing: true,
     };
 
     if (destColumn) {
