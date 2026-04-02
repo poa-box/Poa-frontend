@@ -280,8 +280,10 @@ export const TaskBoardProvider = ({
 
     const newTask = {
       ...task,
+      id: task.id || `optimistic-${Date.now()}`,
       projectId: selectedProject.id,
       kubixPayout: kubixPayout,
+      isOptimistic: true,
     };
 
     if (destColumn) {
