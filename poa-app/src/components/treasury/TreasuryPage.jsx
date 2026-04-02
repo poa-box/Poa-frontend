@@ -54,6 +54,7 @@ const TreasuryPage = () => {
     poContextLoading,
     poMembers,
     participationTokenAddress,
+    taskManagerContractAddress: taskManagerAddress,
     subgraphUrl,
     hideTreasury,
     orgChainId,
@@ -70,6 +71,7 @@ const TreasuryPage = () => {
   // Modal state
   const { isOpen: isPTModalOpen, onOpen: onPTModalOpen, onClose: onPTModalClose } = useDisclosure();
   const { isOpen: isDepositOpen, onOpen: onDepositOpen, onClose: onDepositClose } = useDisclosure();
+  const { isOpen: isBountyDepositOpen, onOpen: onBountyDepositOpen, onClose: onBountyDepositClose } = useDisclosure();
 
   // Responsive design
   const sectionHeadingSize = useBreakpointValue({ base: 'lg', md: 'xl' });
@@ -209,6 +211,7 @@ const TreasuryPage = () => {
                   isAdmin={hasExecRole}
                   onCreateDistribution={() => {/* TODO: Open modal */}}
                   onDeposit={onDepositOpen}
+                  onFundBounties={taskManagerAddress ? onBountyDepositOpen : undefined}
                   refetch={refetch}
                 />
               </Box>
@@ -331,13 +334,26 @@ const TreasuryPage = () => {
         tokenAddress={participationTokenAddress}
       />
 
-      {/* Deposit Modal */}
+      {/* Deposit Modal (Treasury) */}
       <DepositModal
         isOpen={isDepositOpen}
         onClose={onDepositClose}
         paymentManagerAddress={paymentManager?.id}
         orgChainId={orgChainId}
       />
+
+      {/* Deposit Modal (Task Bounties) */}
+      {taskManagerAddress && (
+        <DepositModal
+          isOpen={isBountyDepositOpen}
+          onClose={onBountyDepositClose}
+          paymentManagerAddress={paymentManager?.id}
+          orgChainId={orgChainId}
+          targetAddress={taskManagerAddress}
+          targetLabel="Task Bounties"
+          useDirectTransfer
+        />
+      )}
     </>
   );
 };

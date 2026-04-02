@@ -56,7 +56,18 @@ const glassLayerStyle = {
   backgroundColor: 'rgba(0, 0, 0, .85)',
 };
 
-const DepositModal = ({ isOpen, onClose, paymentManagerAddress, orgChainId }) => {
+const DepositModal = ({
+  isOpen,
+  onClose,
+  paymentManagerAddress,
+  orgChainId,
+  // Optional: override deposit target (e.g., TaskManager for bounty funding)
+  targetAddress,       // defaults to paymentManagerAddress
+  targetLabel,         // defaults to "Treasury"
+  useDirectTransfer,   // if true, use ERC20.transfer instead of PaymentManager.payERC20
+}) => {
+  const depositTarget = targetAddress || paymentManagerAddress;
+  const depositLabel = targetLabel || 'Treasury';
   const { treasury, executeWithNotification, isReady } = useWeb3();
   const { accountAddress } = useAuth();
 
@@ -87,7 +98,7 @@ const DepositModal = ({ isOpen, onClose, paymentManagerAddress, orgChainId }) =>
 
   // Fetch user balance and allowance when token is selected
   useEffect(() => {
-    if (!selectedToken || !accountAddress || !paymentManagerAddress || !orgChainId) return;
+    if (!selectedToken || !accountAddress || !depositTarget || !orgChainId) return;
 
     let cancelled = false;
 
@@ -98,24 +109,34 @@ const DepositModal = ({ isOpen, onClose, paymentManagerAddress, orgChainId }) =>
         const client = clients?.publicClient;
         if (!client || cancelled) return;
 
-        const [balance, allowance] = await Promise.all([
-          client.readContract({
-            address: selectedToken.address,
-            abi: ERC20_BALANCE_ABI,
-            functionName: 'balanceOf',
-            args: [accountAddress],
-          }),
-          client.readContract({
-            address: selectedToken.address,
-            abi: ERC20_BALANCE_ABI,
-            functionName: 'allowance',
-            args: [accountAddress, paymentManagerAddress],
-          }),
-        ]);
+        // Always fetch user balance; skip allowance for direct transfers (not needed)
+        const balancePromise = client.readContract({
+          address: selectedToken.address,
+          abi: ERC20_BALANCE_ABI,
+          functionName: 'balanceOf',
+          args: [accountAddress],
+        });
 
-        if (!cancelled) {
-          setUserBalance(balance.toString());
-          setCurrentAllowance(allowance.toString());
+        if (useDirectTransfer) {
+          const balance = await balancePromise;
+          if (!cancelled) {
+            setUserBalance(balance.toString());
+            setCurrentAllowance(ethers.constants.MaxUint256.toString()); // skip approval
+          }
+        } else {
+          const [balance, allowance] = await Promise.all([
+            balancePromise,
+            client.readContract({
+              address: selectedToken.address,
+              abi: ERC20_BALANCE_ABI,
+              functionName: 'allowance',
+              args: [accountAddress, depositTarget],
+            }),
+          ]);
+          if (!cancelled) {
+            setUserBalance(balance.toString());
+            setCurrentAllowance(allowance.toString());
+          }
         }
       } catch (e) {
         console.warn('Failed to fetch token data:', e.message);
@@ -130,7 +151,7 @@ const DepositModal = ({ isOpen, onClose, paymentManagerAddress, orgChainId }) =>
 
     fetchTokenData();
     return () => { cancelled = true; };
-  }, [selectedToken, accountAddress, paymentManagerAddress, orgChainId]);
+  }, [selectedToken, accountAddress, depositTarget, orgChainId, useDirectTransfer]);
 
   const handleTokenChange = (e) => {
     const address = e.target.value;
@@ -168,56 +189,77 @@ const DepositModal = ({ isOpen, onClose, paymentManagerAddress, orgChainId }) =>
     const weiAmount = parseTokenAmount(amount, selectedToken.decimals);
 
     try {
-      // Step 1: Approve if needed
-      const allowanceBN = ethers.BigNumber.from(currentAllowance);
-      const amountBN = ethers.BigNumber.from(weiAmount);
-
-      if (allowanceBN.lt(amountBN)) {
-        setStep('approving');
-        const approveResult = await executeWithNotification(
-          () => treasury.approveToken(
+      if (useDirectTransfer) {
+        // Direct ERC20 transfer (e.g., funding TaskManager for bounties)
+        setStep('depositing');
+        const transferResult = await executeWithNotification(
+          () => treasury.transferERC20(
             selectedToken.address,
-            paymentManagerAddress,
+            depositTarget,
             weiAmount
           ),
           {
-            pendingMessage: `Approving ${selectedToken.symbol}...`,
-            successMessage: `${selectedToken.symbol} approved!`,
+            pendingMessage: `Sending ${amount} ${selectedToken.symbol} to ${depositLabel}...`,
+            successMessage: `Sent ${amount} ${selectedToken.symbol} to ${depositLabel}!`,
+            refreshEvent: RefreshEvent.TREASURY_DEPOSITED,
+            refreshData: { token: selectedToken.symbol, amount },
           }
         );
 
-        if (!approveResult.success) {
+        if (transferResult.success) {
+          setStep('success');
+          setTimeout(() => { onClose(); }, 1500);
+        } else {
           setStep('form');
-          setIsLoading(false);
-          return;
         }
-        // Update cached allowance so retry skips approve
-        setCurrentAllowance(weiAmount);
-      }
-
-      // Step 2: Deposit
-      setStep('depositing');
-      const depositResult = await executeWithNotification(
-        () => treasury.depositERC20(
-          paymentManagerAddress,
-          selectedToken.address,
-          weiAmount
-        ),
-        {
-          pendingMessage: `Depositing ${amount} ${selectedToken.symbol}...`,
-          successMessage: `Deposited ${amount} ${selectedToken.symbol} to treasury!`,
-          refreshEvent: RefreshEvent.TREASURY_DEPOSITED,
-          refreshData: { token: selectedToken.symbol, amount },
-        }
-      );
-
-      if (depositResult.success) {
-        setStep('success');
-        setTimeout(() => {
-          onClose();
-        }, 1500);
       } else {
-        setStep('form');
+        // Standard approve + deposit flow (PaymentManager)
+        const allowanceBN = ethers.BigNumber.from(currentAllowance);
+        const amountBN = ethers.BigNumber.from(weiAmount);
+
+        if (allowanceBN.lt(amountBN)) {
+          setStep('approving');
+          const approveResult = await executeWithNotification(
+            () => treasury.approveToken(
+              selectedToken.address,
+              depositTarget,
+              weiAmount
+            ),
+            {
+              pendingMessage: `Approving ${selectedToken.symbol}...`,
+              successMessage: `${selectedToken.symbol} approved!`,
+            }
+          );
+
+          if (!approveResult.success) {
+            setStep('form');
+            setIsLoading(false);
+            return;
+          }
+          setCurrentAllowance(weiAmount);
+        }
+
+        setStep('depositing');
+        const depositResult = await executeWithNotification(
+          () => treasury.depositERC20(
+            depositTarget,
+            selectedToken.address,
+            weiAmount
+          ),
+          {
+            pendingMessage: `Depositing ${amount} ${selectedToken.symbol}...`,
+            successMessage: `Deposited ${amount} ${selectedToken.symbol} to ${depositLabel}!`,
+            refreshEvent: RefreshEvent.TREASURY_DEPOSITED,
+            refreshData: { token: selectedToken.symbol, amount },
+          }
+        );
+
+        if (depositResult.success) {
+          setStep('success');
+          setTimeout(() => { onClose(); }, 1500);
+        } else {
+          setStep('form');
+        }
       }
     } catch (error) {
       console.error('Deposit failed:', error);
@@ -239,7 +281,7 @@ const DepositModal = ({ isOpen, onClose, paymentManagerAddress, orgChainId }) =>
       >
         <div style={glassLayerStyle} />
         <ModalHeader borderBottom="1px solid" borderColor="whiteAlpha.100">
-          Deposit to Treasury
+          Deposit to {depositLabel}
         </ModalHeader>
         <ModalCloseButton isDisabled={isLoading} />
 
@@ -261,7 +303,7 @@ const DepositModal = ({ isOpen, onClose, paymentManagerAddress, orgChainId }) =>
                 Deposit Successful!
               </Text>
               <Text color="gray.400" textAlign="center">
-                {amount} {selectedToken?.symbol} has been deposited to the treasury.
+                {amount} {selectedToken?.symbol} has been deposited to {depositLabel}.
               </Text>
             </VStack>
           ) : step === 'approving' || step === 'depositing' ? (
