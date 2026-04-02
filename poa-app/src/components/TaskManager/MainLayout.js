@@ -398,8 +398,7 @@ const MainLayout = () => {
                 onUpdateColumns={handleUpdateColumns}
                 account={account}
               >
-                <TaskBoard 
-                  columns={selectedProject.columns} 
+                <TaskBoard
                   projectName={selectedProject.name}
                   hideTitleBar={isMobile}
                   sidebarVisible={sidebarVisible}
