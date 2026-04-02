@@ -181,7 +181,7 @@ export const FETCH_ORG_FULL_DATA = gql`
         creatorHatIds
         projects(where: { deleted: false }, first: 100) {
           id
-          tasks(first: 200) {
+          tasks(first: 1000) {
             id
             status
           }
@@ -348,7 +348,7 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
             canReview
             canAssign
           }
-          tasks(first: 100) {
+          tasks(first: 1000, orderBy: taskId, orderDirection: desc) {
             id
             taskId
             title
