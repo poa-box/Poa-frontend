@@ -196,16 +196,26 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
                 </Text>
               </HStack>
 
-              {/* Quorum info */}
-              {selectedPoll?.quorum > 0 && (
-                <Text fontSize="xs" color="gray.400">
-                  {selectedPoll.quorum}% participation needed
-                </Text>
-              )}
+              {/* Threshold and quorum info */}
               {selectedPoll?.thresholdPct > 0 && (
                 <Text fontSize="xs" color="gray.400">
                   {selectedPoll.thresholdPct}% support to pass
                 </Text>
+              )}
+              {(selectedPoll?.quorum > 0 || selectedPoll?.thresholdPct > 0) && (
+                <Tooltip
+                  label="Minimum percentage of eligible voters that must participate for the vote to be valid"
+                  placement="top"
+                  hasArrow
+                  bg="gray.700"
+                >
+                  <HStack spacing={1} cursor="help">
+                    <Text fontSize="xs" color="gray.400">
+                      {selectedPoll.quorum || selectedPoll.thresholdPct}% quorum
+                    </Text>
+                    <InfoOutlineIcon boxSize={3} color="gray.500" />
+                  </HStack>
+                </Tooltip>
               )}
 
               {/* Execution Status */}
