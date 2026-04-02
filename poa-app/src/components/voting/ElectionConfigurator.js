@@ -26,6 +26,7 @@ import {
   InputGroup,
   InputLeftElement,
   Checkbox,
+  Select,
 } from '@chakra-ui/react';
 import {
   FiChevronRight,
@@ -169,6 +170,35 @@ const ElectionConfigurator = ({
     [allHolders]
   );
 
+  // Fallback role options (exclude the elected role)
+  const fallbackRoleOptions = useMemo(() => {
+    if (!proposal.electionRoleId) return [];
+    return allRoles.filter(r => String(r.hatId) !== String(proposal.electionRoleId));
+  }, [allRoles, proposal.electionRoleId]);
+
+  // Fallback role display name for preview
+  const fallbackRoleName = useMemo(() => {
+    if (!proposal.electionFallbackRoleId) return '';
+    const role = allRoles.find(r => String(r.hatId) === String(proposal.electionFallbackRoleId));
+    return role?.name || '';
+  }, [proposal.electionFallbackRoleId, allRoles]);
+
+  // Handle fallback role selection
+  const handleFallbackRoleChange = useCallback((e) => {
+    const fallbackHatId = e.target.value;
+    if (!fallbackHatId) {
+      onChange({ electionFallbackRoleId: '', electionFallbackHolders: [] });
+      return;
+    }
+    // Pre-compute which addresses currently hold the fallback hat
+    const holders = getCurrentHolders(fallbackHatId, leaderboardData);
+    const holderAddresses = holders.map(h => h.address);
+    onChange({
+      electionFallbackRoleId: fallbackHatId,
+      electionFallbackHolders: holderAddresses,
+    });
+  }, [onChange, leaderboardData]);
+
   // Handle role selection (step 1 -> 2)
   const handleRoleSelect = useCallback(
     (role) => {
@@ -178,6 +208,8 @@ const ElectionConfigurator = ({
         electionCurrentHolders: holders,
         electionSelectedIncumbents: [],
         electionCandidates: [],
+        electionFallbackRoleId: '',
+        electionFallbackHolders: [],
       };
 
       // Auto-populate title if it's empty or was auto-generated from a previous role
@@ -269,6 +301,8 @@ const ElectionConfigurator = ({
         electionCandidates: [],
         electionCurrentHolders: [],
         electionSelectedIncumbents: [],
+        electionFallbackRoleId: '',
+        electionFallbackHolders: [],
       };
       // Clear auto-generated title
       if (proposal.name.startsWith('Election for ')) {
@@ -408,11 +442,44 @@ const ElectionConfigurator = ({
               <AlertIcon color="yellow.300" />
               <Text fontSize="sm" color="yellow.200">
                 {selectedIncumbents.length === 1
-                  ? `${selectedIncumbents[0].name} will lose the hat if they don't win.`
-                  : `${selectedIncumbents.length} selected holders will lose the hat if they don't win.`}
-                {' '}Add them as candidates if they should be eligible to keep it.
+                  ? `${selectedIncumbents[0].name} will lose ${selectedRoleName} if they don't win`
+                  : `${selectedIncumbents.length} selected holders will lose ${selectedRoleName} if they don't win`}
+                {proposal.electionFallbackRoleId
+                  ? ` and be downgraded to ${fallbackRoleName}.`
+                  : '. Add them as candidates if they should be eligible to keep it.'}
               </Text>
             </Alert>
+          )}
+
+          {/* Fallback Role for Losers — only show when incumbents are selected */}
+          {selectedIncumbents.length > 0 && fallbackRoleOptions.length > 0 && (
+            <Box
+              p={3}
+              bg="rgba(66, 153, 225, 0.08)"
+              borderRadius="md"
+              border="1px solid rgba(66, 153, 225, 0.2)"
+            >
+              <Text fontSize="sm" color="gray.300" fontWeight="medium" mb={1}>
+                Fallback role for losers (optional)
+              </Text>
+              <Text fontSize="xs" color="gray.500" mb={2}>
+                Losing incumbents will be granted this role instead of being
+                removed entirely.
+              </Text>
+              <Select
+                placeholder="None — just revoke hat"
+                value={proposal.electionFallbackRoleId || ''}
+                onChange={handleFallbackRoleChange}
+                size="sm"
+                {...inputStyles}
+              >
+                {fallbackRoleOptions.map(role => (
+                  <option key={role.hatId} value={role.hatId} style={{ background: '#1a1a2e' }}>
+                    {role.name}
+                  </option>
+                ))}
+              </Select>
+            </Box>
           )}
 
           {/* Member Search */}
@@ -678,16 +745,34 @@ const ElectionConfigurator = ({
                       >
                         If {candidate.name} wins:
                       </Text>
-                      {incumbentsToRevoke.map((h) => (
-                        <Text
-                          key={h.address}
-                          fontSize="xs"
-                          color="red.300"
-                          pl={2}
-                        >
-                          - Revoke hat from {h.name}
-                        </Text>
-                      ))}
+                      {incumbentsToRevoke.map((h) => {
+                        const alreadyHoldsFallback = proposal.electionFallbackRoleId &&
+                          (proposal.electionFallbackHolders || []).some(
+                            addr => addr.toLowerCase() === h.address.toLowerCase()
+                          );
+                        return (
+                          <React.Fragment key={h.address}>
+                            <Text
+                              fontSize="xs"
+                              color="red.300"
+                              pl={2}
+                            >
+                              - Revoke {selectedRoleName} from {h.name}
+                            </Text>
+                            {proposal.electionFallbackRoleId && (
+                              <Text
+                                fontSize="xs"
+                                color={alreadyHoldsFallback ? 'gray.400' : 'blue.300'}
+                                pl={2}
+                              >
+                                - {alreadyHoldsFallback
+                                    ? `${h.name} already holds ${fallbackRoleName}`
+                                    : `Grant ${fallbackRoleName} to ${h.name}`}
+                              </Text>
+                            )}
+                          </React.Fragment>
+                        );
+                      })}
                       {!candidateAlreadyHolds && (
                         <Text fontSize="xs" color="green.300" pl={2}>
                           - Grant hat to {candidate.name}
