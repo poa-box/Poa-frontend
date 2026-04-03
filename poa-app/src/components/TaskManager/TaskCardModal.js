@@ -941,7 +941,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                     </Text>
                     <Text fontSize="sm" color="gray.300">PT</Text>
                   </HStack>
-                  {checkHasBounty(task.bountyToken, task.bountyPayout) && (() => {
+                  {checkHasBounty(task.bountyToken, task.bountyPayoutRaw) && (() => {
                     const tokenInfo = getTokenByAddress(task.bountyToken);
                     return (
                       <HStack spacing={1} align="center">

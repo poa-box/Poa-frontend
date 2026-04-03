@@ -7,7 +7,7 @@ import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
-  const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, rejectionCount, requiresApplication, applicants } = task;
+  const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
 
   const router = useRouter();
   const { userDAO } = router.query;
@@ -195,7 +195,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
                   </Flex>
                 </Tooltip>
               )}
-              {checkHasBounty(bountyToken, bountyPayout) && (() => {
+              {checkHasBounty(bountyToken, bountyPayoutRaw) && (() => {
                 const tokenInfo = getTokenByAddress(bountyToken);
                 return (
                   <Tooltip label={`Token bounty: ${tokenInfo.name}`} placement="top">
