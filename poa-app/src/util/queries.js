@@ -253,6 +253,7 @@ export const FETCH_VOTING_DATA_NEW = gql`
         votingClasses(where: { isActive: true }, orderBy: classIndex, orderDirection: asc) {
           id
           classIndex
+          version
           strategy
           slicePct
           quadratic
