@@ -37,6 +37,7 @@ import {
   Switch,
   Checkbox,
   useToast,
+  Image,
 } from '@chakra-ui/react';
 import { AddIcon, InfoIcon } from '@chakra-ui/icons';
 import { ethers } from 'ethers';
@@ -428,6 +429,9 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                         <Box key={token.address} p={3} bg="gray.50" borderRadius="md">
                           <HStack justify="space-between" mb={isEnabled ? 2 : 0}>
                             <HStack spacing={2}>
+                              {token.logo && (
+                                <Image src={token.logo} alt={token.symbol} boxSize="20px" borderRadius="full" fallback={<></>} />
+                              )}
                               <Text fontSize="sm" fontWeight="600">{token.symbol}</Text>
                               <Text fontSize="xs" color="gray.500">{token.name}</Text>
                             </HStack>
