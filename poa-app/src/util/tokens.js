@@ -10,7 +10,7 @@ import { NETWORKS } from '../config/networks';
 const TOKEN_META = {
   USDC:  { symbol: 'USDC',  name: 'USD Coin', decimals: 6, logo: null, projectUrl: null },
   DAI:   { symbol: 'DAI',   name: 'Dai Stablecoin', decimals: 18, logo: null, projectUrl: null },
-  BREAD: { symbol: 'BREAD', name: 'Breadchain', decimals: 18, logo: '/images/tokens/bread.png', projectUrl: 'https://breadchain.xyz' },
+  BREAD: { symbol: 'BREAD', name: 'Breadchain', decimals: 18, logo: '/images/tokens/bread.png', projectUrl: 'https://fund.bread.coop/' },
   WXDAI: { symbol: 'WXDAI', name: 'Wrapped xDAI', decimals: 18, logo: null, projectUrl: null },
 };
 
