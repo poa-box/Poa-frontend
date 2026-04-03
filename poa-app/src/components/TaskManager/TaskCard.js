@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon } from '@chakra-ui/react';
+import { Box, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon, Image } from '@chakra-ui/react';
 import { useDrag } from 'react-dnd';
 import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
@@ -195,15 +195,28 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
                   </Flex>
                 </Tooltip>
               )}
-              {checkHasBounty(bountyToken, bountyPayout) && (
-                <Tooltip label={`Token bounty: ${getTokenByAddress(bountyToken).name}`} placement="top">
-                  <Flex align="center" bg="green.50" px={2} py={0.5} borderRadius="full">
-                    <Text fontWeight="bold" color="green.700" fontSize="xs">
-                      +{bountyPayout} {getTokenByAddress(bountyToken).symbol}
-                    </Text>
-                  </Flex>
-                </Tooltip>
-              )}
+              {checkHasBounty(bountyToken, bountyPayout) && (() => {
+                const tokenInfo = getTokenByAddress(bountyToken);
+                return (
+                  <Tooltip label={`Token bounty: ${tokenInfo.name}`} placement="top">
+                    <Flex align="center" bg="green.50" px={2} py={0.5} borderRadius="full">
+                      {tokenInfo.logo && (
+                        <Image
+                          src={tokenInfo.logo}
+                          alt={tokenInfo.symbol}
+                          boxSize="14px"
+                          borderRadius="full"
+                          mr={1}
+                          fallback={<></>}
+                        />
+                      )}
+                      <Text fontWeight="bold" color="green.700" fontSize="xs">
+                        +{bountyPayout} {tokenInfo.symbol}
+                      </Text>
+                    </Flex>
+                  </Tooltip>
+                );
+              })()}
             </HStack>
 
             {claimerUsername && (

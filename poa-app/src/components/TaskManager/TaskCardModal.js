@@ -19,8 +19,10 @@ import {
   Text,
   Badge,
   HStack,
+  Image,
+  Link,
 } from '@chakra-ui/react';
-import { CheckIcon, WarningIcon } from '@chakra-ui/icons';
+import { CheckIcon, WarningIcon, ExternalLinkIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import EditTaskModal from './EditTaskModal';
 import TaskApplicationModal from './TaskApplicationModal';
@@ -939,11 +941,30 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                     </Text>
                     <Text fontSize="sm" color="gray.300">PT</Text>
                   </HStack>
-                  {checkHasBounty(task.bountyToken, task.bountyPayout) && (
-                    <Text fontSize="xs" color="green.400" fontWeight="bold">
-                      + {task.bountyPayout} {getTokenByAddress(task.bountyToken).symbol}
-                    </Text>
-                  )}
+                  {checkHasBounty(task.bountyToken, task.bountyPayout) && (() => {
+                    const tokenInfo = getTokenByAddress(task.bountyToken);
+                    return (
+                      <HStack spacing={1} align="center">
+                        {tokenInfo.logo && (
+                          <Image
+                            src={tokenInfo.logo}
+                            alt={tokenInfo.symbol}
+                            boxSize="16px"
+                            borderRadius="full"
+                            fallback={<></>}
+                          />
+                        )}
+                        <Text fontSize="sm" color="green.400" fontWeight="bold">
+                          + {task.bountyPayout} {tokenInfo.symbol}
+                        </Text>
+                        {tokenInfo.projectUrl && (
+                          <Link href={tokenInfo.projectUrl} isExternal onClick={(e) => e.stopPropagation()}>
+                            <ExternalLinkIcon boxSize={3} color="gray.500" _hover={{ color: 'gray.300' }} />
+                          </Link>
+                        )}
+                      </HStack>
+                    );
+                  })()}
                 </VStack>
               </Box>
 
