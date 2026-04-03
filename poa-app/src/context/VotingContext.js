@@ -178,15 +178,23 @@ export const VotingProvider = ({ children }) => {
                 setHybridVotingCompleted(hybridCompleted);
 
                 // Process voting classes - convert to usable format
-                const classes = (org.hybridVoting.votingClasses || []).map(c => ({
-                    classIndex: c.classIndex,
-                    strategy: c.strategy,
-                    slicePct: c.slicePct,
-                    quadratic: c.quadratic,
-                    minBalance: c.minBalance?.toString() || '0',
-                    asset: c.asset,
-                    hatIds: (c.hatIds || []).map(h => h.toString()),
-                }));
+                // Filter to latest version only (subgraph bug: old versions stay isActive)
+                const rawClasses = org.hybridVoting.votingClasses || [];
+                const maxVersion = rawClasses.reduce(
+                    (max, c) => Math.max(max, Number(c.version || 0)), 0
+                );
+                const classes = rawClasses
+                    .filter(c => Number(c.version || 0) === maxVersion)
+                    .map(c => ({
+                        classIndex: Number(c.classIndex),
+                        strategy: c.strategy,
+                        slicePct: Number(c.slicePct),
+                        quadratic: c.quadratic,
+                        minBalance: c.minBalance?.toString() || '0',
+                        asset: c.asset,
+                        hatIds: (c.hatIds || []).map(h => h.toString()),
+                    }))
+                    .sort((a, b) => a.classIndex - b.classIndex);
                 setVotingClasses(classes);
             } else {
                 setHybridVotingOngoing([]);
