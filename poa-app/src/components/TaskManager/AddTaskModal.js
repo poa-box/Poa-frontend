@@ -25,6 +25,7 @@ import {
   Avatar,
   IconButton,
   SimpleGrid,
+  Image,
 } from '@chakra-ui/react';
 import { InfoIcon, CloseIcon } from '@chakra-ui/icons';
 import { getBountyTokenOptions, BOUNTY_TOKENS } from '../../util/tokens';
@@ -333,18 +334,27 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                       <FormLabel color="gray.400" fontSize="xs">
                         Token
                       </FormLabel>
-                      <Select
-                        value={bountyToken}
-                        onChange={(e) => setBountyToken(e.target.value)}
-                        size="sm"
-                        {...selectStyles}
-                      >
-                        {tokenOptions.map((token) => (
-                          <option key={token.symbol} value={token.address}>
-                            {token.symbol}
-                          </option>
-                        ))}
-                      </Select>
+                      <HStack spacing={2}>
+                        {(() => {
+                          const selected = tokenOptions.find(t => t.address === bountyToken);
+                          return selected?.logo ? (
+                            <Image src={selected.logo} alt={selected.symbol} boxSize="24px" borderRadius="full" fallback={<></>} />
+                          ) : null;
+                        })()}
+                        <Select
+                          value={bountyToken}
+                          onChange={(e) => setBountyToken(e.target.value)}
+                          size="sm"
+                          {...selectStyles}
+                          flex={1}
+                        >
+                          {tokenOptions.map((token) => (
+                            <option key={token.symbol} value={token.address}>
+                              {token.symbol}
+                            </option>
+                          ))}
+                        </Select>
+                      </HStack>
                     </FormControl>
                     <FormControl id="bounty-amount">
                       <FormLabel color="gray.400" fontSize="xs">
