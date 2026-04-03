@@ -156,7 +156,8 @@ export const ProjectProvider = ({ children }) => {
                         Payout: taskPayout, // Alias with capital P for TaskCard
                         kubixPayout: taskPayout, // Alias for TaskColumn
                         bountyToken: task.bountyToken,
-                        bountyPayout: formatTokenAmount(task.bountyPayout || '0', bountyTokenInfo.decimals, bountyTokenInfo.decimals <= 6 ? 2 : 0),
+                        bountyPayoutRaw: task.bountyPayout || '0',
+                        bountyPayout: formatTokenAmount(task.bountyPayout || '0', bountyTokenInfo.decimals, bountyTokenInfo.decimals <= 6 ? 2 : 2),
                         projectId: project.id,
                         status: task.status,
                         claimerUsername: task.assigneeUsername || '',
