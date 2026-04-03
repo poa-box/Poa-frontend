@@ -134,7 +134,7 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
                   </Text>
                 ) : (
                   <Text color="gray.400" fontStyle="italic">
-                    No PT budget set
+                    No PT budget
                   </Text>
                 )}
                 {(selectedProject?.bountyCaps || []).length > 0 && (
@@ -144,8 +144,8 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
                     </Text>
                     {selectedProject.bountyCaps.map((bc) => {
                       const tokenInfo = getTokenByAddress(bc.token);
-                      const UNLIMITED_STR = '340282366920938463463374607431768211455';
-                      const isUnlimited = bc.cap === UNLIMITED_STR;
+                      // Caps at or above 10^30 are effectively unlimited (contract uses 2^128-1)
+                      const isUnlimited = bc.cap && bc.cap.length > 30;
                       const formattedCap = isUnlimited ? 'Unlimited' : formatTokenAmount(bc.cap || '0', tokenInfo.decimals, 2);
                       return (
                         <HStack key={bc.token} spacing={2} align="center">
@@ -157,7 +157,7 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
                             </Box>
                           )}
                           <Text fontSize="sm">
-                            {formattedCap} {tokenInfo.symbol}
+                            {tokenInfo.symbol}: {formattedCap}
                           </Text>
                           {tokenInfo.projectUrl && (
                             <Link href={tokenInfo.projectUrl} isExternal onClick={(e) => e.stopPropagation()}>
