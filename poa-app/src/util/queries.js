@@ -341,6 +341,10 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
             description
           }
           cap
+          bountyCaps {
+            token
+            cap
+          }
           createdAt
           rolePermissions {
             hatId

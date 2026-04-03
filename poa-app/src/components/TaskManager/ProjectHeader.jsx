@@ -17,11 +17,15 @@ import {
   ModalCloseButton,
   useDisclosure,
   VStack,
+  HStack,
+  Image,
+  Link,
 } from '@chakra-ui/react';
-import { InfoIcon } from '@chakra-ui/icons';
+import { InfoIcon, ExternalLinkIcon } from '@chakra-ui/icons';
 import { FaProjectDiagram } from 'react-icons/fa';
 import { useDataBaseContext } from '@/context/dataBaseContext';
 import { formatTokenAmount } from '@/util/formatToken';
+import { getTokenByAddress } from '@/util/tokens';
 
 const glassLayerStyle = {
   position: "absolute",
@@ -130,8 +134,40 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
                   </Text>
                 ) : (
                   <Text color="gray.400" fontStyle="italic">
-                    No budget
+                    No PT budget set
                   </Text>
+                )}
+                {(selectedProject?.bountyCaps || []).length > 0 && (
+                  <VStack align="start" spacing={2} mt={3}>
+                    <Text fontWeight="bold" fontSize="sm" color="gray.300">
+                      Bounty Token Budgets
+                    </Text>
+                    {selectedProject.bountyCaps.map((bc) => {
+                      const tokenInfo = getTokenByAddress(bc.token);
+                      const UNLIMITED_STR = '340282366920938463463374607431768211455';
+                      const isUnlimited = bc.cap === UNLIMITED_STR;
+                      const formattedCap = isUnlimited ? 'Unlimited' : formatTokenAmount(bc.cap || '0', tokenInfo.decimals, 2);
+                      return (
+                        <HStack key={bc.token} spacing={2} align="center">
+                          {tokenInfo.logo ? (
+                            <Image src={tokenInfo.logo} alt={tokenInfo.symbol} boxSize="20px" borderRadius="full" fallback={<></>} />
+                          ) : (
+                            <Box w="20px" h="20px" borderRadius="full" bg="gray.500" display="flex" alignItems="center" justifyContent="center">
+                              <Text fontSize="xs" fontWeight="bold" color="white">{tokenInfo.symbol.charAt(0)}</Text>
+                            </Box>
+                          )}
+                          <Text fontSize="sm">
+                            {formattedCap} {tokenInfo.symbol}
+                          </Text>
+                          {tokenInfo.projectUrl && (
+                            <Link href={tokenInfo.projectUrl} isExternal onClick={(e) => e.stopPropagation()}>
+                              <ExternalLinkIcon boxSize={3} color="gray.500" _hover={{ color: 'gray.300' }} />
+                            </Link>
+                          )}
+                        </HStack>
+                      );
+                    })}
+                  </VStack>
                 )}
               </Box>
             </VStack>

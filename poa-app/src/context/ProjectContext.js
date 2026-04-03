@@ -122,6 +122,7 @@ export const ProjectProvider = ({ children }) => {
                     // Use indexed metadata from subgraph as primary source
                     description: project.metadata?.description || '',
                     cap: project.cap,
+                    bountyCaps: project.bountyCaps || [],
                     rolePermissions: project.rolePermissions || [],
                     columns: [
                         { id: 'open', title: 'Open', tasks: [] },
