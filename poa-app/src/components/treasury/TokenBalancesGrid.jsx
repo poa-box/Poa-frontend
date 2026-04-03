@@ -31,6 +31,8 @@ const TokenBalancesGrid = ({ totalSupply, onPTClick, isLoading, erc20Balances = 
       decimals: token.decimals,
       tokenType: 'ERC-20',
       isClickable: false,
+      logo: token.logo || null,
+      projectUrl: token.projectUrl || null,
     })),
   ];
 
@@ -55,6 +57,8 @@ const TokenBalancesGrid = ({ totalSupply, onPTClick, isLoading, erc20Balances = 
           isLoading={isLoading}
           isClickable={token.isClickable}
           onClick={token.onClick}
+          logo={token.logo}
+          projectUrl={token.projectUrl}
         />
       ))}
     </SimpleGrid>

@@ -8,10 +8,10 @@ import { NETWORKS } from '../config/networks';
 
 // Token metadata (chain-independent)
 const TOKEN_META = {
-  USDC:  { symbol: 'USDC',  name: 'USD Coin', decimals: 6 },
-  DAI:   { symbol: 'DAI',   name: 'Dai Stablecoin', decimals: 18 },
-  BREAD: { symbol: 'BREAD', name: 'Breadchain', decimals: 18 },
-  WXDAI: { symbol: 'WXDAI', name: 'Wrapped xDAI', decimals: 18 },
+  USDC:  { symbol: 'USDC',  name: 'USD Coin', decimals: 6, logo: null, projectUrl: null },
+  DAI:   { symbol: 'DAI',   name: 'Dai Stablecoin', decimals: 18, logo: null, projectUrl: null },
+  BREAD: { symbol: 'BREAD', name: 'Breadchain', decimals: 18, logo: '/images/tokens/bread.png', projectUrl: 'https://breadchain.xyz' },
+  WXDAI: { symbol: 'WXDAI', name: 'Wrapped xDAI', decimals: 18, logo: null, projectUrl: null },
 };
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -23,6 +23,8 @@ export const NO_BOUNTY_TOKEN = {
   name: 'Participation Token',
   decimals: 18,
   isDefault: true,
+  logo: null,
+  projectUrl: null,
 };
 
 // Build flat address→token lookup across all chains (addresses are globally unique)
@@ -60,6 +62,8 @@ export function getTokenByAddress(address) {
     name: 'Unknown Token',
     decimals: 18,
     isDefault: false,
+    logo: null,
+    projectUrl: null,
   };
 }
 

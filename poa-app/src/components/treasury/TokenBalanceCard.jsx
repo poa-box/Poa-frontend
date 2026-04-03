@@ -7,7 +7,10 @@ import {
   Badge,
   Skeleton,
   Tooltip,
+  Image,
+  Link,
 } from '@chakra-ui/react';
+import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { formatTokenAmount } from '@/util/formatToken';
 
 const TokenBalanceCard = ({
@@ -19,6 +22,8 @@ const TokenBalanceCard = ({
   tokenType = 'Token',
   isClickable = false,
   onClick,
+  logo = null,
+  projectUrl = null,
 }) => {
   // PT (Governance) displays as whole numbers; ERC-20 tokens need decimal precision
   const displayDecimals = tokenType === 'Governance' ? 0 : (decimals <= 6 ? 2 : 4);
@@ -61,19 +66,44 @@ const TokenBalanceCard = ({
       <VStack align="flex-start" spacing={2}>
         <HStack justify="space-between" w="100%">
           <HStack spacing={2}>
-            <Box
-              w="32px"
-              h="32px"
-              borderRadius="full"
-              bg={iconColor}
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-            >
-              <Text fontWeight="bold" fontSize="sm" color="white">
-                {iconLetter}
-              </Text>
-            </Box>
+            {logo ? (
+              <Image
+                src={logo}
+                alt={displaySymbol}
+                boxSize="32px"
+                borderRadius="full"
+                objectFit="cover"
+                fallback={
+                  <Box
+                    w="32px"
+                    h="32px"
+                    borderRadius="full"
+                    bg={iconColor}
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
+                  >
+                    <Text fontWeight="bold" fontSize="sm" color="white">
+                      {iconLetter}
+                    </Text>
+                  </Box>
+                }
+              />
+            ) : (
+              <Box
+                w="32px"
+                h="32px"
+                borderRadius="full"
+                bg={iconColor}
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+              >
+                <Text fontWeight="bold" fontSize="sm" color="white">
+                  {iconLetter}
+                </Text>
+              </Box>
+            )}
             <Text fontWeight="bold" fontSize="md">
               {displaySymbol}
             </Text>
@@ -102,6 +132,18 @@ const TokenBalanceCard = ({
         <Text fontSize="xs" color="gray.500">
           {name}
         </Text>
+        {projectUrl && (
+          <Link
+            href={projectUrl}
+            isExternal
+            fontSize="xs"
+            color="orange.400"
+            _hover={{ color: 'orange.300', textDecoration: 'underline' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {new URL(projectUrl).hostname} <ExternalLinkIcon mx="2px" boxSize={3} />
+          </Link>
+        )}
       </VStack>
     </Box>
   );
