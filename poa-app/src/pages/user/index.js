@@ -650,6 +650,31 @@ const User = () => {
                         ))}
                       </VStack>
 
+                      {!isAuthenticated && (
+                        <>
+                          <Divider borderColor="whiteAlpha.200" />
+                          <VStack spacing={2}>
+                            <Text color={subtextColor} fontSize="sm" textAlign="center">
+                              Already have an account?
+                            </Text>
+                            <Button
+                              onClick={onSignInOpen}
+                              width="100%"
+                              size="lg"
+                              height={buttonHeight}
+                              fontSize={{ base: "md", md: "lg" }}
+                              colorScheme="teal"
+                              variant="outline"
+                              leftIcon={<FaFingerprint />}
+                              _hover={{ transform: "translateY(-2px)", boxShadow: "lg", bg: "whiteAlpha.100" }}
+                              transition="all 0.2s"
+                            >
+                              Sign In
+                            </Button>
+                          </VStack>
+                        </>
+                      )}
+
                     </VStack>
                   )}
                 </CardBody>
