@@ -153,7 +153,7 @@ function RecommendedTasksCompact({ tasks, userDAO }) {
                     {task.isIndexing ? 'Indexing...' : task.title}
                   </Text>
                   <Badge colorScheme="yellow" variant="subtle" fontSize="xs" ml={2}>
-                    {task.payout} PT
+                    {task.payout} shares
                   </Badge>
                 </HStack>
                 <Badge colorScheme="green" fontSize="xs" mt={2}>{task.status}</Badge>
@@ -382,7 +382,7 @@ const UserprofileHub = () => {
                             {task.isIndexing ? 'Indexing...' : task.title}
                           </Text>
                           <Badge colorScheme="yellow" variant="subtle" fontSize="xs" ml={2}>
-                            {task.payout} PT
+                            {task.payout} shares
                           </Badge>
                         </HStack>
                         <Badge colorScheme="purple" fontSize="xs" mt={2}>{task.status}</Badge>

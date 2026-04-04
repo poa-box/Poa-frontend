@@ -278,7 +278,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                         {estimatedPayout}
                       </Text>
                       <Text fontSize="md" color="purple.300">
-                        PT
+                        shares
                       </Text>
                     </HStack>
                   </VStack>
@@ -383,7 +383,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                     </FormControl>
                   </SimpleGrid>
                   <Text fontSize="xs" color="gray.500" mt={3}>
-                    This bounty will be paid in addition to participation tokens
+                    This bounty will be paid in addition to shares
                   </Text>
                 </Box>
               )}

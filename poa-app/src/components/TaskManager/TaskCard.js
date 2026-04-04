@@ -3,7 +3,7 @@ import { Box, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon, Image } 
 import { useDrag } from 'react-dnd';
 import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
-import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui/icons';
+import { TimeIcon, StarIcon, CheckIcon, InfoIcon, InfoOutlineIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
@@ -186,14 +186,20 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
           <Flex justify="space-between" align="center" mt={1}>
             <HStack spacing={1}>
               {Payout && (
-                <Tooltip label="Participation token reward" placement="top">
-                  <Flex align="center" bg="purple.50" px={2} py={0.5} borderRadius="full">
-                    <StarIcon boxSize={3} mr={1} color="purple.500" />
-                    <Text fontWeight="bold" color="purple.700" fontSize="xs">
-                      {Payout} PT
-                    </Text>
-                  </Flex>
-                </Tooltip>
+                <Flex align="center" bg="purple.50" px={2} py={0.5} borderRadius="full">
+                  <StarIcon boxSize={3} mr={1} color="purple.500" />
+                  <Text fontWeight="bold" color="purple.700" fontSize="xs">
+                    {Payout} shares
+                  </Text>
+                  <Tooltip
+                    label="Shares are earned through work and contributions. Non-transferable — no speculation, just ownership proportional to what you put in."
+                    placement="top"
+                    maxW="250px"
+                    fontSize="xs"
+                  >
+                    <InfoOutlineIcon boxSize={2.5} ml={1} color="purple.400" cursor="help" />
+                  </Tooltip>
+                </Flex>
               )}
               {checkHasBounty(bountyToken, bountyPayoutRaw) && (() => {
                 const tokenInfo = getTokenByAddress(bountyToken);

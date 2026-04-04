@@ -29,10 +29,10 @@ const TokenBalanceCard = ({
   const displayDecimals = tokenType === 'Governance' ? 0 : (decimals <= 6 ? 2 : 4);
   const formattedBalance = formatTokenAmount(balance || '0', decimals, displayDecimals);
 
-  // Token icon colors - check for Participation Token or PT
+  // Token icon colors
   const iconColors = {
-    'Participation Token': 'purple.400',
-    PT: 'purple.400',
+    'Shares': 'purple.400',
+    shares: 'purple.400',
     ETH: 'blue.400',
     USDC: 'green.400',
     DAI: 'yellow.400',
@@ -44,8 +44,8 @@ const TokenBalanceCard = ({
   const iconColor = iconColors[symbol] || 'gray.400';
 
   // Display shorter version for icon and card
-  const iconLetter = symbol === 'Participation Token' ? 'P' : symbol.charAt(0);
-  const displaySymbol = symbol === 'Participation Token' ? 'PT' : symbol;
+  const iconLetter = symbol === 'Shares' ? 'S' : symbol.charAt(0);
+  const displaySymbol = symbol === 'Shares' ? 'shares' : symbol;
 
   return (
     <Box

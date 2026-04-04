@@ -147,7 +147,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
       type: 'request',
       amount: r.amount,
       timestamp: parseInt(r.approvedAt),
-      title: 'Token Request',
+      title: 'Share Request',
       recipient: r.requester
         ? `${r.requester.slice(0, 6)}...${r.requester.slice(-4)}`
         : 'Unknown',
@@ -322,7 +322,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
         <Box style={glassLayerStyle} />
 
         <ModalHeader color="white" fontSize="xl" fontWeight="bold" pb={2}>
-          Participation Token Stats
+          Share Activity
         </ModalHeader>
         <ModalCloseButton color="white" />
 
@@ -338,7 +338,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                 <StatCard
                   label="Total Supply"
                   value={formatTokenAmount(stats.supply.toString(), 18, 0)}
-                  subtext="tokens minted"
+                  subtext="shares minted"
                 />
                 <StatCard
                   label="Holders"
@@ -539,7 +539,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                 <Box textAlign="center" py={6}>
                   <Text color="gray.400">No mint events yet</Text>
                   <Text fontSize="sm" color="gray.500">
-                    Tokens are minted from completed tasks and approved requests
+                    Shares are minted from completed tasks and approved requests
                   </Text>
                 </Box>
               )}

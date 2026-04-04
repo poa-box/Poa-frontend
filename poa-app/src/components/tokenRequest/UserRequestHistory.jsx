@@ -84,8 +84,8 @@ const UserRequestHistory = () => {
       const result = await executeWithNotification(
         () => tokenRequest.cancelRequest(participationTokenAddress, requestId),
         {
-          pendingMessage: 'Cancelling token request...',
-          successMessage: 'Token request cancelled',
+          pendingMessage: 'Cancelling share request...',
+          successMessage: 'Share request cancelled',
           errorMessage: 'Failed to cancel request',
           refreshEvent: RefreshEvent.TOKEN_REQUEST_CANCELLED,
           refreshData: { requestId },
@@ -139,7 +139,7 @@ const UserRequestHistory = () => {
   if (userRequests.length === 0) {
     return (
       <Box p={4} textAlign="center" color="gray.500">
-        <Text>You haven&apos;t made any token requests yet</Text>
+        <Text>You haven&apos;t made any share requests yet</Text>
       </Box>
     );
   }

@@ -61,7 +61,7 @@ function getClassLabel(votingClass, index, roles = []) {
     }
     return `Direct ${index + 1}`;
   }
-  return votingClass.quadratic ? 'Token (Quadratic)' : 'Token';
+  return votingClass.quadratic ? 'Shares (Quadratic)' : 'Shares';
 }
 
 export function MultiClassWeightBar({ classes, roles = [], showLabels = true }) {

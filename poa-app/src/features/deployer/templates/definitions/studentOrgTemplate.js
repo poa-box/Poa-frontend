@@ -62,7 +62,7 @@ export const studentOrgTemplate = {
       },
       {
         name: 'Track Member Participation',
-        description: 'Attendance, event organizing, committee work—participation tokens recognize engagement. See who\'s showing up and contributing.',
+        description: 'Attendance, event organizing, committee work—shares recognize engagement. See who\'s showing up and contributing.',
         icon: '⭐',
       },
       {
@@ -102,7 +102,7 @@ who understand how to build consensus, manage conflict, and serve communities.`,
 
     whatHybridVotingMeans: `With 70/30 hybrid voting in your student org:
 - 70% of voting power comes from membership (every member equal)
-- 30% comes from contribution tokens (earned through engagement)
+- 30% comes from shares (earned through engagement)
 
 **Example:** Voting on next semester's budget in a 50-member club:
 - Every member has at least 1.4% voting power just from being a member
@@ -452,11 +452,11 @@ as members), and active contributors earn additional influence through participa
       'participation-tokens': {
         title: 'Activity & Engagement Tracking',
         short: 'Recognition for showing up and contributing',
-        detailed: `Participation tokens track engagement: attending meetings,
+        detailed: `Shares track engagement: attending meetings,
 running events, serving on committees, taking on responsibilities. They help
 identify who's actually contributing vs. just having a title. More engagement
 = more influence in org decisions.`,
-        whenToUse: 'Use tokens to recognize genuine engagement. Helps address resume-stuffing problem.',
+        whenToUse: 'Use shares to recognize genuine engagement. Helps address resume-stuffing problem.',
       },
       'elections': {
         title: 'Elections',

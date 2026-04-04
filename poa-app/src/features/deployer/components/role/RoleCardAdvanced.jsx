@@ -334,7 +334,7 @@ function PowerBadges({ roleIndex, permissions, onToggle }) {
       label: 'Member',
       icon: PiUsers,
       color: 'blue',
-      desc: 'Can join easily, earn and hold tokens, access learning materials, and vote in polls',
+      desc: 'Can join easily, earn and hold shares, access learning materials, and vote in polls',
     },
     {
       key: 'creator',

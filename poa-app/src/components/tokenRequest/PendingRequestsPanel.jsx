@@ -94,8 +94,8 @@ const PendingRequestsPanel = () => {
       const result = await executeWithNotification(
         () => tokenRequest.approveRequest(participationTokenAddress, requestId),
         {
-          pendingMessage: 'Approving token request...',
-          successMessage: 'Token request approved!',
+          pendingMessage: 'Approving share request...',
+          successMessage: 'Share request approved!',
           errorMessage: 'Failed to approve request',
           refreshEvent: RefreshEvent.TOKEN_REQUEST_APPROVED,
           refreshData: { requestId },
@@ -126,8 +126,8 @@ const PendingRequestsPanel = () => {
       const result = await executeWithNotification(
         () => tokenRequest.cancelRequest(participationTokenAddress, requestId),
         {
-          pendingMessage: 'Rejecting token request...',
-          successMessage: 'Token request rejected',
+          pendingMessage: 'Rejecting share request...',
+          successMessage: 'Share request rejected',
           errorMessage: 'Failed to reject request',
           refreshEvent: RefreshEvent.TOKEN_REQUEST_CANCELLED,
           refreshData: { requestId },
@@ -181,7 +181,7 @@ const PendingRequestsPanel = () => {
   if (pendingRequests.length === 0) {
     return (
       <Box p={4} textAlign="center" color="gray.500">
-        <Text>No pending token requests to review</Text>
+        <Text>No pending share requests to review</Text>
       </Box>
     );
   }

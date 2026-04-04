@@ -167,7 +167,7 @@ function LeaderboardUserModal({ isOpen, onClose, user, rank, roleNames = {} }) {
               <GridItem>
                 <StatBox
                   icon={PiCoinVerticalBold}
-                  label="Tokens"
+                  label="Shares"
                   value={user.token}
                   color="yellow.400"
                 />

@@ -90,7 +90,7 @@ export function VotingClassCard({
   const { isOpen, onToggle } = useDisclosure();
 
   const isDirectVoting = votingClass.strategy === VOTING_STRATEGY.DIRECT;
-  const strategyLabel = isDirectVoting ? 'Direct (Role-Based)' : 'Participation Token';
+  const strategyLabel = isDirectVoting ? 'Direct (Role-Based)' : 'Shares-Based';
   const colors = getClassColors(votingClass);
   const StrategyIcon = isDirectVoting ? PiUsers : PiChartBar;
 
@@ -135,7 +135,7 @@ export function VotingClassCard({
               {strategyLabel}
             </Badge>
             {votingClass.quadratic && (
-              <Tooltip label="Quadratic voting reduces whale influence by using square root of token balance">
+              <Tooltip label="Quadratic voting reduces outsized influence by using square root of share balance">
                 <Badge colorScheme="orange" variant="solid" fontSize="xs">
                   <HStack spacing={1}>
                     <Icon as={PiLightning} boxSize={3} />
@@ -162,7 +162,7 @@ export function VotingClassCard({
           {/* Min balance for ERC20_BAL classes */}
           {!isDirectVoting && votingClass.minBalance > 0 && (
             <Text fontSize="xs" color="warmGray.500">
-              Min: {votingClass.minBalance} tokens required
+              Min: {votingClass.minBalance} shares required
             </Text>
           )}
         </VStack>
@@ -281,7 +281,7 @@ export function VotingClassCard({
                 Quadratic Voting Enabled
               </Text>
               <Text fontSize="xs" color="orange.600">
-                Large token holders have reduced influence. Example: 100 tokens = 10 votes, 400 tokens = 20 votes.
+                Members with more shares have reduced influence. Example: 100 shares = 10 votes, 400 shares = 20 votes.
               </Text>
             </Box>
           </HStack>
@@ -311,7 +311,7 @@ export function VotingClassCard({
                   <Text fontWeight="medium" minW="100px">Min Balance:</Text>
                   <Text>
                     {votingClass.minBalance > 0
-                      ? `${votingClass.minBalance} tokens`
+                      ? `${votingClass.minBalance} shares`
                       : 'No minimum'}
                   </Text>
                 </HStack>

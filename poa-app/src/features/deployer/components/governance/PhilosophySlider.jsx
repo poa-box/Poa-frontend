@@ -120,7 +120,7 @@ function VotingExampleCard({ contributionWeight, democracyWeight }) {
                     {person.name}
                   </Text>
                   <Text fontSize="sm" color={mutedColor}>
-                    ({person.tokens} tokens)
+                    ({person.tokens} shares)
                   </Text>
                 </HStack>
                 <HStack spacing={2}>
@@ -186,7 +186,7 @@ function VotingExampleCard({ contributionWeight, democracyWeight }) {
       <Text fontSize="sm" color={mutedColor} mt={4} fontStyle="italic">
         {passes
           ? "Alice's contribution power overrides the 2-1 majority. Active contributors can push decisions."
-          : "The 2-1 majority wins despite Alice having more tokens. Equal voice gives everyone a fair say."}
+          : "The 2-1 majority wins despite Alice having more shares. Equal voice gives everyone a fair say."}
       </Text>
     </Box>
   );
@@ -211,7 +211,7 @@ function GovernanceInfoSection({ contributionWeight, democracyWeight }) {
       </HStack>
 
       <Text fontSize="md" color={textColor} mb={6}>
-        Each member's voting power combines two factors. Members earn contribution tokens by
+        Each member's voting power combines two factors. Members earn shares by
         completing tasks and contributing to the organization.
       </Text>
 
@@ -234,7 +234,7 @@ function GovernanceInfoSection({ contributionWeight, democracyWeight }) {
               Contribution Weight ({contributionWeight}%)
             </Text>
             <Text fontSize="md" color={textColor}>
-              Voting power based on tokens earned. Members who do more work have more say in this
+              Voting power based on shares earned. Members who do more work have more say in this
               portion of the vote.
             </Text>
           </Box>
@@ -258,7 +258,7 @@ function GovernanceInfoSection({ contributionWeight, democracyWeight }) {
               Equal Voice ({democracyWeight}%)
             </Text>
             <Text fontSize="md" color={textColor}>
-              One person, one vote. Every member has equal say in this portion, regardless of tokens
+              One person, one vote. Every member has equal say in this portion, regardless of shares
               held.
             </Text>
           </Box>

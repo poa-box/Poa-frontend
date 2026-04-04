@@ -30,13 +30,13 @@ import {
 // Permission groups with human-readable labels
 const PERMISSION_GROUPS = [
   {
-    name: 'Joining & Tokens',
+    name: 'Joining & Shares',
     icon: PiUserPlus,
     color: 'purple',
     permissions: [
       { key: 'quickJoinRoles', label: 'Quick Join', desc: 'Role is given when joining without vouching' },
-      { key: 'tokenMemberRoles', label: 'Hold Tokens', desc: 'Can receive and hold participation tokens' },
-      { key: 'tokenApproverRoles', label: 'Approve Tokens', desc: 'Can approve token transfer requests' },
+      { key: 'tokenMemberRoles', label: 'Earn Shares', desc: 'Can earn and hold shares' },
+      { key: 'tokenApproverRoles', label: 'Approve Shares', desc: 'Can approve share requests' },
     ],
   },
   {

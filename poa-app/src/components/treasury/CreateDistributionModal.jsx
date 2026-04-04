@@ -186,7 +186,7 @@ const CreateDistributionModal = ({
       setStep('submitting');
       const proposalData = {
         name: `Distribute ${amount} ${selectedToken.symbol}`,
-        description: `Proportional distribution of ${amount} ${selectedToken.symbol} to ${treeResult.holderCount} token holders based on participation token balances. Merkle tree: ipfs://${treeCid} Root: ${treeResult.root}`,
+        description: `Proportional distribution of ${amount} ${selectedToken.symbol} to ${treeResult.holderCount} shareholders based on share balances. Merkle tree: ipfs://${treeCid} Root: ${treeResult.root}`,
         durationMinutes: parseInt(durationMinutes) || 1440,
         numOptions: 2,
         optionNames: ['Approve Distribution', 'Reject'],
@@ -339,7 +339,7 @@ const CreateDistributionModal = ({
                 <Text fontSize="sm" color="gray.300" fontWeight="medium" mb={1}>Distribution Preview</Text>
                 <Text fontSize="xs" color="gray.400">
                   {holders.length > 0
-                    ? `${holders.length} token holders will receive proportional shares based on their participation token balance.`
+                    ? `${holders.length} shareholders will receive proportional distributions based on their share balance.`
                     : 'Loading holder data...'}
                 </Text>
                 {holders.length > 0 && amount && Number(amount) > 0 && selectedToken && (

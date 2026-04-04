@@ -251,7 +251,7 @@ export function GovernanceConfigSection({
             <HStack justify="space-between" flexWrap="wrap" gap={4}>
               <VStack align="flex-start" spacing={0}>
                 <Text fontSize="xs" color="gray.500">
-                  Participation Token
+                  Shares
                 </Text>
                 <HStack>
                   <Text fontWeight="semibold" color="white">

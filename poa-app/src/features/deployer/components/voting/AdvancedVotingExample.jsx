@@ -94,7 +94,7 @@ function generateExampleVoters(votingClasses, roles) {
   // Voter 3: Token holder only (if there's a token class)
   if (hasTokenClass) {
     voters.push({
-      name: 'Token Holder',
+      name: 'Contributor',
       emoji: '👩‍🎨',
       tokens: 16,
       hasRole: [],
@@ -149,7 +149,7 @@ function getClassLabel(votingClass, roles, index) {
     }
     return `Role-based ${index + 1}`;
   }
-  return votingClass.quadratic ? 'Tokens (Quadratic)' : 'Tokens (Linear)';
+  return votingClass.quadratic ? 'Shares (Quadratic)' : 'Shares (Linear)';
 }
 
 /**
@@ -166,17 +166,17 @@ function generateInsight(votingClasses, yesTotal, noTotal, passes) {
     if (directWeight > 60) {
       return 'The proposal passes. Role-based voting gives active members significant influence in this configuration.';
     } else if (hasQuadratic && tokenWeight > 50) {
-      return 'The proposal passes. Quadratic voting helped balance influence between large and small token holders.';
+      return 'The proposal passes. Quadratic voting helped balance influence between members with different share levels.';
     } else if (tokenWeight > 60) {
-      return 'The proposal passes. Token holdings give the supporter enough weighted power to win despite being outnumbered.';
+      return 'The proposal passes. Share holdings give the supporter enough weighted power to win despite being outnumbered.';
     } else {
-      return 'The proposal passes with combined support from role-based and token-weighted voting.';
+      return 'The proposal passes with combined support from role-based and share-weighted voting.';
     }
   } else {
     if (directWeight > 60) {
-      return 'The proposal fails. Role-based voting allowed active members to block it despite token holdings.';
+      return 'The proposal fails. Role-based voting allowed active members to block it despite share holdings.';
     } else if (hasQuadratic) {
-      return 'The proposal fails. Quadratic voting reduced the large holder\'s advantage, allowing smaller holders to block it.';
+      return 'The proposal fails. Quadratic voting reduced the top contributor\'s advantage, allowing others to block it.';
     } else {
       return 'The proposal fails. Combined opposition outweighed the supporter\'s voting power.';
     }

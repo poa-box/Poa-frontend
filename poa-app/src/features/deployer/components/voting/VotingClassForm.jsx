@@ -129,13 +129,13 @@ export function VotingClassForm({
               Direct (Role-based) - One vote per member with eligible role
             </option>
             <option value={VOTING_STRATEGY.ERC20_BAL}>
-              Participation Token - Voting power based on token balance
+              Shares-Based - Voting power based on share balance
             </option>
           </Select>
           <FormHelperText>
             {formData.strategy === VOTING_STRATEGY.DIRECT
               ? 'Each member with an eligible role gets one vote'
-              : 'Voting power is proportional to participation token balance'}
+              : 'Voting power is proportional to share balance'}
           </FormHelperText>
         </FormControl>
 
@@ -235,10 +235,10 @@ export function VotingClassForm({
             <Alert status="info" borderRadius="md">
               <AlertIcon />
               <Box>
-                <Text fontWeight="medium" fontSize="sm">Participation Token Voting</Text>
+                <Text fontWeight="medium" fontSize="sm">Share-Based Voting</Text>
                 <Text fontSize="sm">
-                  Voting power is based on each member's participation token balance.
-                  The token will be deployed automatically with your organization.
+                  Voting power is based on each member's share balance.
+                  Shares will be deployed automatically with your organization.
                 </Text>
               </Box>
             </Alert>
@@ -272,7 +272,7 @@ export function VotingClassForm({
               </FormControl>
 
               <Text fontSize="sm" color="warmGray.600" mb={3}>
-                Reduces the influence of large token holders by using the square root of their balance as voting power.
+                Reduces outsized influence by using the square root of share balance as voting power.
               </Text>
 
               {/* Quadratic voting explanation */}
@@ -287,21 +287,21 @@ export function VotingClassForm({
                 </Text>
                 <VStack align="stretch" spacing={1} color="warmGray.600">
                   <HStack justify="space-between">
-                    <Text>100 tokens</Text>
+                    <Text>100 shares</Text>
                     <Text fontWeight="bold">→ {formData.quadratic ? '10 votes' : '100 votes'}</Text>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text>400 tokens</Text>
+                    <Text>400 shares</Text>
                     <Text fontWeight="bold">→ {formData.quadratic ? '20 votes' : '400 votes'}</Text>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text>10,000 tokens</Text>
+                    <Text>10,000 shares</Text>
                     <Text fontWeight="bold">→ {formData.quadratic ? '100 votes' : '10,000 votes'}</Text>
                   </HStack>
                 </VStack>
                 {formData.quadratic && (
                   <Text mt={2} fontSize="xs" color="orange.600" fontStyle="italic">
-                    With quadratic voting, a 100x token difference only gives 10x more voting power
+                    With quadratic voting, a 100x share difference only gives 10x more voting power
                   </Text>
                 )}
               </Box>
@@ -309,7 +309,7 @@ export function VotingClassForm({
 
             {/* Minimum balance */}
             <FormControl>
-              <FormLabel>Minimum Token Balance Required</FormLabel>
+              <FormLabel>Minimum Share Balance Required</FormLabel>
               <NumberInput
                 value={formData.minBalance || 0}
                 onChange={(_, val) => {
@@ -324,7 +324,7 @@ export function VotingClassForm({
                 </NumberInputStepper>
               </NumberInput>
               <FormHelperText>
-                Minimum participation tokens required to vote (0 = no minimum)
+                Minimum shares required to vote (0 = no minimum)
               </FormHelperText>
             </FormControl>
           </>

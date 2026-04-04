@@ -38,10 +38,10 @@ export const SETTER_CATEGORIES = {
     description: 'Project permissions and bounty settings'
   },
   tokenSettings: {
-    name: 'Token Settings',
+    name: 'Share Settings',
     icon: 'FiTag',
     color: 'teal',
-    description: 'Participation token name and symbol'
+    description: 'Share name and symbol settings'
   }
 };
 
@@ -67,8 +67,8 @@ export const CONTRACT_MAP = {
   },
   participationToken: {
     contextKey: 'participationTokenAddress',
-    displayName: 'Participation Token',
-    description: 'Organization participation token'
+    displayName: 'Shares',
+    description: 'Organization shares contract'
   }
 };
 
@@ -157,7 +157,7 @@ export const SETTER_TEMPLATES = [
     id: 'change-voting-split',
     category: 'voting',
     name: 'Change Voting Class Weights',
-    description: 'Adjust the voting power split between democracy and participation token classes',
+    description: 'Adjust the voting power split between democracy and share-based classes',
     contract: 'hybridVoting',
     functionName: 'setClasses',
     inputs: [
@@ -444,7 +444,7 @@ export const SETTER_TEMPLATES = [
     id: 'change-token-metadata',
     category: 'tokenSettings',
     name: 'Change Token Name & Symbol',
-    description: 'Update the participation token name, symbol, or both via governance vote',
+    description: 'Update the share name, symbol, or both via governance vote',
     contract: 'participationToken',
     inputs: [
       {
@@ -489,7 +489,7 @@ export const SETTER_TEMPLATES = [
       if (values.tokenName && values.tokenName.trim()) parts.push(`name to "${values.tokenName.trim()}"`);
       if (values.tokenSymbol && values.tokenSymbol.trim()) parts.push(`symbol to "${values.tokenSymbol.trim()}"`);
       if (parts.length === 0) return 'No changes specified';
-      return `Change token ${parts.join(' and ')}`;
+      return `Change share ${parts.join(' and ')}`;
     }
   }
 ];
@@ -608,7 +608,7 @@ export const RAW_FUNCTIONS = {
       params: [
         { name: 'newName', type: 'string', label: 'New Token Name' }
       ],
-      description: 'Change the participation token name'
+      description: 'Change the share name'
     },
     {
       name: 'setSymbol',
@@ -616,7 +616,7 @@ export const RAW_FUNCTIONS = {
       params: [
         { name: 'newSymbol', type: 'string', label: 'New Token Symbol' }
       ],
-      description: 'Change the participation token symbol'
+      description: 'Change the share symbol'
     }
   ]
 };

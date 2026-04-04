@@ -69,9 +69,9 @@ export function QuadraticVotingExplainer({ isEnabled = false }) {
 
       {/* Description */}
       <Text fontSize="md" color={textColor} mb={6}>
-        Quadratic voting reduces the influence of large token holders by taking the
+        Quadratic voting reduces the influence of members with many shares by taking the
         <Text as="span" fontWeight="bold" color="orange.600"> square root </Text>
-        of their token balance as voting power. This prevents whales from dominating governance.
+        of their share balance as voting power. This prevents any single person from dominating governance.
       </Text>
 
       {/* Side-by-side comparison */}
@@ -100,7 +100,7 @@ export function QuadraticVotingExplainer({ isEnabled = false }) {
                   <HStack>
                     <Text>{user.emoji}</Text>
                     <Text color={textColor}>{user.name}</Text>
-                    <Text color="warmGray.400">({user.tokens} tokens)</Text>
+                    <Text color="warmGray.400">({user.tokens} shares)</Text>
                   </HStack>
                   <HStack>
                     <Box
@@ -155,7 +155,7 @@ export function QuadraticVotingExplainer({ isEnabled = false }) {
                   <HStack>
                     <Text>{user.emoji}</Text>
                     <Text color={textColor}>{user.name}</Text>
-                    <Text color="warmGray.400">({user.tokens} tokens)</Text>
+                    <Text color="warmGray.400">({user.tokens} shares)</Text>
                   </HStack>
                   <HStack>
                     <Box
@@ -197,9 +197,9 @@ export function QuadraticVotingExplainer({ isEnabled = false }) {
               When to use quadratic voting
             </Text>
             <Text fontSize="sm" color="blue.600">
-              Best for communities that want token-weighted governance but need to prevent a
-              small number of large holders from controlling all decisions. It's a balance
-              between pure democracy and pure plutocracy.
+              Best for communities that want share-weighted governance but need to prevent a
+              small number of members from controlling all decisions. It's a balance
+              between pure democracy and pure meritocracy.
             </Text>
           </Box>
         </HStack>
@@ -227,8 +227,8 @@ export function QuadraticVotingExplainerCompact() {
             Quadratic Voting
           </Text>
           <Text fontSize="xs" color="orange.600">
-            Uses √(tokens) as voting power. 100 tokens = 10 votes, 10,000 tokens = 100 votes.
-            Reduces whale influence while still rewarding token holders.
+            Uses √(shares) as voting power. 100 shares = 10 votes, 10,000 shares = 100 votes.
+            Reduces outsized influence while still rewarding active contributors.
           </Text>
         </Box>
       </HStack>

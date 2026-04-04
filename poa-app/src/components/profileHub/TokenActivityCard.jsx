@@ -109,7 +109,7 @@ export function TokenActivityCard({
       <VStack pb={2} align="flex-start" position="relative" borderTopRadius="2xl">
         <div style={glassLayerStyle} />
         <Text pl={6} pt={2} fontWeight="bold" fontSize={{ base: 'xl', md: '2xl' }} color="white">
-          Tokens & Activity
+          Shares & Activity
         </Text>
       </VStack>
 
@@ -139,7 +139,7 @@ export function TokenActivityCard({
                 )}
               </Text>
               <Text fontSize="md" color="gray.400">
-                tokens
+                shares
               </Text>
             </HStack>
             <Badge colorScheme={tierColorScheme} fontSize="sm" px={2}>

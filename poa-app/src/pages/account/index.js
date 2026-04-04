@@ -369,11 +369,11 @@ const AccountPage = () => {
                                 <Grid templateColumns="repeat(2, 1fr)" gap={2}>
                                   <VStack align="start" spacing={0}>
                                     <Text color={subtextColor} fontSize="xs">
-                                      Tokens Earned
+                                      Shares Earned
                                     </Text>
                                     <Text color={textColor} fontWeight="medium">
                                       {formatTokenAmount(userOrg.participationTokenBalance)}{' '}
-                                      {userOrg.organization?.participationToken?.symbol || 'PT'}
+                                      {userOrg.organization?.participationToken?.symbol || 'shares'}
                                     </Text>
                                   </VStack>
 
