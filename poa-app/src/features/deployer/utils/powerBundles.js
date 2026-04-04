@@ -13,7 +13,7 @@ export const POWER_BUNDLES = {
     id: 'admin',
     name: 'Admin Powers',
     icon: 'shield',
-    description: 'Approve tokens, create tasks, manage education, create polls',
+    description: 'Approve shares, create tasks, manage education, create polls',
     color: 'purple',
     permissions: [
       'tokenApproverRoles',
@@ -26,7 +26,7 @@ export const POWER_BUNDLES = {
     id: 'member',
     name: 'Member Powers',
     icon: 'users',
-    description: 'Join quickly, hold tokens, access education, vote in polls',
+    description: 'Join quickly, earn shares, access education, vote in polls',
     color: 'blue',
     permissions: [
       'quickJoinRoles',

@@ -48,7 +48,7 @@ export function TokenRequestCard({ hasMemberRole }) {
         <VStack pb={2} align="flex-start" position="relative" borderTopRadius="2xl">
           <div style={glassLayerStyle} />
           <Text pl={6} pt={2} fontWeight="bold" fontSize={{ base: 'xl', md: '2xl' }} color="white">
-            Token Requests
+            Share Requests
           </Text>
         </VStack>
 
@@ -62,7 +62,7 @@ export function TokenRequestCard({ hasMemberRole }) {
             onClick={openModal}
             w="100%"
           >
-            Request Tokens
+            Request Shares
           </Button>
 
           {/* Collapsible History Section */}

@@ -57,7 +57,7 @@ export const creativeCollectiveTemplate = {
       },
       {
         name: 'Track Contributions to the Collective',
-        description: 'Who organized the show? Who maintained the website? Participation tokens recognize engagement with collective matters (not creative output).',
+        description: 'Who organized the show? Who maintained the website? Shares recognize engagement with collective matters (not creative output).',
         icon: '✨',
       },
       {
@@ -419,13 +419,13 @@ space management. Your art is yours; collective decisions are democratic.`,
         whenToUse: 'Keep democracy high (90%+) for creative collectives. Equality preserves creative freedom.',
       },
       'participation-tokens': {
-        title: 'Collective Engagement Tokens',
+        title: 'Collective Engagement',
         short: 'Recognition for contributing to collective operations',
-        detailed: `Participation tokens in a creative collective track engagement
+        detailed: `Shares in a creative collective track engagement
 with collective matters—NOT creative output. Organizing shows, managing finances,
 maintaining shared space, attending meetings. This separates "helping run the
 collective" from "making art," so creative output stays individual.`,
-        whenToUse: 'Use tokens for governance work only. Never tokenize creative output—that stays individual.',
+        whenToUse: 'Use shares for governance work only. Never tokenize creative output—that stays individual.',
       },
       'creative-autonomy': {
         title: 'Creative Autonomy',

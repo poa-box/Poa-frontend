@@ -369,8 +369,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
             <FormControl>
               <HStack justify="space-between">
                 <HStack spacing={1}>
-                  <FormLabel mb={0}>Token Budget Cap</FormLabel>
-                  <Tooltip label="Set a maximum amount of participation tokens this project can allocate to tasks. Leave unchecked for unlimited." placement="top">
+                  <FormLabel mb={0}>Share Budget Cap</FormLabel>
+                  <Tooltip label="Set a maximum amount of shares this project can allocate to tasks. Leave unchecked for unlimited." placement="top">
                     <InfoIcon color="gray.400" boxSize={3} />
                   </Tooltip>
                 </HStack>
@@ -385,7 +385,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
             {hasCap && (
               <Box w="100%" p={3} bg="gray.50" borderRadius="md">
                 <FormControl>
-                  <FormLabel fontSize="sm">Maximum Token Budget</FormLabel>
+                  <FormLabel fontSize="sm">Maximum Share Budget</FormLabel>
                   <NumberInput
                     value={cap}
                     onChange={(value) => setCap(value)}
@@ -398,7 +398,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                     </NumberInputStepper>
                   </NumberInput>
                   <Text fontSize="xs" color="gray.500" mt={1}>
-                    Total participation tokens that can be allocated to tasks in this project
+                    Total shares that can be allocated to tasks in this project
                   </Text>
                 </FormControl>
               </Box>

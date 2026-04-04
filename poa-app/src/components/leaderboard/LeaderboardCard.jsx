@@ -111,7 +111,7 @@ function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
             <HStack spacing={1.5}>
               <Icon as={PiCoinVerticalBold} color={medalColor || 'yellow.400'} boxSize={4} />
               <Text fontSize="sm" color="gray.300" fontWeight="medium">
-                {user.token} <Text as="span" textTransform="uppercase">Tokens</Text>
+                {user.token} <Text as="span" textTransform="uppercase">Shares</Text>
               </Text>
             </HStack>
             <HStack spacing={1.5}>

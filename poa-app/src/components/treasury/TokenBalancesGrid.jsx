@@ -16,7 +16,7 @@ const TokenBalancesGrid = ({ totalSupply, onPTClick, isLoading, erc20Balances = 
   // Build token list: PT first, then ERC20 treasury balances
   const tokenList = [
     {
-      symbol: 'Participation Token',
+      symbol: 'Shares',
       name: 'Total Supply',
       balance: totalSupply || '0',
       decimals: 18,

@@ -492,9 +492,9 @@ export function VotingStep() {
               <br />
               • Use multiple Direct classes to give different roles separate voting weights
               <br />
-              • Participation Token: Voting power based on participation token balance
+              • Shares: Voting power based on share balance
               <br />
-              • Enable Quadratic on token classes to reduce whale influence
+              • Enable Quadratic on share classes to reduce outsized influence
             </Text>
           </Box>
         </Alert>

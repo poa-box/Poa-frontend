@@ -158,7 +158,7 @@ const TaskApplicationModal = ({ isOpen, onClose, onApply, task }) => {
                   </Text>
                   <Spacer />
                   <Text fontSize="xs" color="green.300" fontWeight="bold">
-                    {task.Payout} PT
+                    {task.Payout} shares
                   </Text>
                   {checkHasBounty(task.bountyToken, task.bountyPayout) && (
                     <Text fontSize="xs" color="green.400" fontWeight="bold">

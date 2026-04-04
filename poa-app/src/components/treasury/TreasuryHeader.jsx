@@ -122,7 +122,7 @@ const TreasuryHeader = ({
           icon={FiDollarSign}
           label="Total Distributed"
           value={formattedTotal !== '0' ? `${formattedTotal}` : '0'}
-          tooltip="Total tokens distributed to members"
+          tooltip="Total distributed to members"
         />
         <StatCard
           icon={FiTrendingUp}

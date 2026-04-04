@@ -130,11 +130,11 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
                 </Text>
                 {projectBudget !== '0' ? (
                   <Text>
-                    {projectBudget} PT
+                    {projectBudget} shares
                   </Text>
                 ) : (
                   <Text color="gray.400" fontStyle="italic">
-                    No PT budget
+                    No share budget
                   </Text>
                 )}
                 {(selectedProject?.bountyCaps || []).length > 0 && (

@@ -19,8 +19,8 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 // Sentinel for "no bounty token" (PT-only payout)
 export const NO_BOUNTY_TOKEN = {
   address: ZERO_ADDRESS,
-  symbol: 'PT',
-  name: 'Participation Token',
+  symbol: 'shares',
+  name: 'Shares',
   decimals: 18,
   isDefault: true,
   logo: null,

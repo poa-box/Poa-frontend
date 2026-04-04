@@ -273,7 +273,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
                     </FormControl>
                   </SimpleGrid>
                   <Text fontSize="xs" color="gray.500" mt={3}>
-                    This bounty will be paid in addition to participation tokens
+                    This bounty will be paid in addition to shares
                   </Text>
                 </Box>
               )}

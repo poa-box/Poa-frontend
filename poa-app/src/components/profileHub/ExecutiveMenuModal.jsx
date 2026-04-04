@@ -137,11 +137,11 @@ const ExecutiveMenuModal = ({ isOpen, onClose, hasApproverRole = false }) => {
 
             <Divider borderColor="whiteAlpha.200" />
 
-            {/* Token Request Approvals - only show if user has approver role */}
+            {/* Share Request Approvals - only show if user has approver role */}
             {hasApproverRole && (
               <MenuSection
                 icon={FiCheck}
-                title="Token Request Approvals"
+                title="Share Request Approvals"
                 defaultOpen={true}
               >
                 <Box mt={2}>
