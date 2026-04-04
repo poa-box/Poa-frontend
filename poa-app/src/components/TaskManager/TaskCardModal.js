@@ -21,8 +21,9 @@ import {
   HStack,
   Image,
   Link,
+  Tooltip,
 } from '@chakra-ui/react';
-import { CheckIcon, WarningIcon, ExternalLinkIcon } from '@chakra-ui/icons';
+import { CheckIcon, WarningIcon, ExternalLinkIcon, InfoOutlineIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import EditTaskModal from './EditTaskModal';
 import TaskApplicationModal from './TaskApplicationModal';
@@ -940,6 +941,14 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                       {task.Payout}
                     </Text>
                     <Text fontSize="sm" color="gray.300">shares</Text>
+                    <Tooltip
+                      label="Shares are earned through work and contributions. Non-transferable — no speculation, just ownership proportional to what you put in."
+                      placement="top"
+                      maxW="250px"
+                      fontSize="xs"
+                    >
+                      <InfoOutlineIcon boxSize={3} ml={0.5} color="gray.400" cursor="help" />
+                    </Tooltip>
                   </HStack>
                   {checkHasBounty(task.bountyToken, task.bountyPayoutRaw) && (() => {
                     const tokenInfo = getTokenByAddress(task.bountyToken);

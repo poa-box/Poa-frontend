@@ -3,7 +3,7 @@ import { Box, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon, Image } 
 import { useDrag } from 'react-dnd';
 import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
-import { TimeIcon, StarIcon, CheckIcon, InfoIcon, InfoOutlineIcon, WarningIcon } from '@chakra-ui/icons';
+import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
@@ -191,14 +191,6 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
                   <Text fontWeight="bold" color="purple.700" fontSize="xs">
                     {Payout} shares
                   </Text>
-                  <Tooltip
-                    label="Shares are earned through work and contributions. Non-transferable — no speculation, just ownership proportional to what you put in."
-                    placement="top"
-                    maxW="250px"
-                    fontSize="xs"
-                  >
-                    <InfoOutlineIcon boxSize={2.5} ml={1} color="purple.400" cursor="help" />
-                  </Tooltip>
                 </Flex>
               )}
               {checkHasBounty(bountyToken, bountyPayoutRaw) && (() => {
