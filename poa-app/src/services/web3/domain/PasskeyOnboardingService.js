@@ -24,7 +24,7 @@ import { ENTRY_POINT_ADDRESS } from '../../../config/passkey';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
 // Registration deadline: 5 minutes from now
-const REGISTRATION_DEADLINE_SECONDS = 300;
+const REGISTRATION_DEADLINE_SECONDS = 1209600;
 
 /**
  * Onboarding step identifiers for progress tracking
