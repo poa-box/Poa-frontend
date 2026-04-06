@@ -12,8 +12,8 @@ const ConfigRow = ({ label, value, color = 'warmGray.700' }) => (
 );
 
 const ChainSponsorshipCard = ({ chain }) => {
-  const onboarding = chain.onChain?.onboarding;
-  const orgDeploy = chain.onChain?.orgDeploy;
+  const onboarding = chain.onboarding;
+  const orgDeploy = chain.orgDeploy;
 
   return (
     <Box bg="white" border="1px solid" borderColor="warmGray.100" borderRadius="xl" p={5}>
@@ -35,10 +35,9 @@ const ChainSponsorshipCard = ({ chain }) => {
           <VStack spacing={0} align="stretch">
             <ConfigRow label="Max Cost per Creation" value={`${parseFloat(onboarding.maxGasPerCreation).toFixed(4)} ${chain.nativeCurrency}`} />
             <ConfigRow label="Daily Limit" value={`${onboarding.dailyCreationLimit} accounts`} />
-            <ConfigRow label="Used Today" value={`${onboarding.attemptsToday}`} />
           </VStack>
         ) : (
-          <Text fontSize="xs" color="warmGray.400">Data unavailable (on-chain read pending)</Text>
+          <Text fontSize="xs" color="warmGray.400">Not configured</Text>
         )}
       </Box>
 
@@ -61,10 +60,9 @@ const ChainSponsorshipCard = ({ chain }) => {
             <ConfigRow label="Max Cost per Deploy" value={`${parseFloat(orgDeploy.maxGasPerDeploy).toFixed(4)} ${chain.nativeCurrency}`} />
             <ConfigRow label="Daily Limit" value={`${orgDeploy.dailyDeployLimit} deploys`} />
             <ConfigRow label="Max per Account" value={`${orgDeploy.maxDeploysPerAccount} lifetime`} />
-            <ConfigRow label="Used Today" value={`${orgDeploy.attemptsToday}`} />
           </VStack>
         ) : (
-          <Text fontSize="xs" color="warmGray.400">Data unavailable (on-chain read pending)</Text>
+          <Text fontSize="xs" color="warmGray.400">Not configured</Text>
         )}
       </Box>
     </Box>
