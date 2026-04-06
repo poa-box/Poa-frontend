@@ -91,15 +91,6 @@ export class TaskService {
       bountyCaps,
     ];
 
-    console.log('=== createProject DEBUG ===');
-    console.log('Contract address:', contractAddress);
-    console.log('Name:', name);
-    console.log('Cap:', cap?.toString?.() || cap);
-    console.log('Managers:', managers);
-    console.log('BountyTokens:', bountyTokens);
-    console.log('BountyCaps:', bountyCaps.map(c => c?.toString?.() || c));
-    console.log('=== END DEBUG ===');
-
     return this.txManager.execute(
       contract,
       'createProject',
@@ -198,23 +189,6 @@ export class TaskService {
       bountyPayoutWei = ethers.utils.parseUnits(bountyPayout.toString(), tokenInfo.decimals);
     }
 
-    // Debug logging
-    console.log('=== createTask DEBUG ===');
-    console.log('Contract address:', contractAddress);
-    console.log('Task name:', name);
-    console.log('Title bytes:', titleBytes);
-    console.log('Title bytes length:', titleBytes?.length || 'undefined');
-    console.log('Metadata hash:', metadataHash);
-    console.log('Project ID (raw):', projectId);
-    console.log('Project ID (parsed):', pid);
-    console.log('Payout (raw):', payout);
-    console.log('Payout (wei):', payoutWei?.toString?.() || payoutWei);
-    console.log('Bounty token:', bountyToken);
-    console.log('Bounty payout (raw):', bountyPayout);
-    console.log('Bounty payout (wei):', bountyPayoutWei?.toString?.() || bountyPayoutWei);
-    console.log('Requires application:', requiresApplication);
-    console.log('=== END createTask DEBUG ===');
-
     return this.txManager.execute(
       contract,
       'createTask',
@@ -236,8 +210,6 @@ export class TaskService {
     const contract = this.factory.createWritable(contractAddress, TaskManagerABI);
     const parsedTaskId = parseTaskId(taskId);
 
-    console.log("Claiming task with ID:", parsedTaskId);
-
     return this.txManager.execute(contract, 'claimTask', [parsedTaskId], options);
   }
 
@@ -256,13 +228,6 @@ export class TaskService {
     const parsedTaskId = parseTaskId(taskId);
     // submissionCid is an IPFS CID (Qm...), convert to bytes32 properly
     const submissionHash = ipfsCidToBytes32(submissionCid);
-
-    console.log('=== submitTask DEBUG ===');
-    console.log('Task ID (raw):', taskId);
-    console.log('Task ID (parsed):', parsedTaskId);
-    console.log('Submission CID:', submissionCid);
-    console.log('Submission hash (bytes32):', submissionHash);
-    console.log('=== END submitTask DEBUG ===');
 
     return this.txManager.execute(
       contract,

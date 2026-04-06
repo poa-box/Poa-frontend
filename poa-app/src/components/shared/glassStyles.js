@@ -23,3 +23,20 @@ export const glassLayerLightStyle = {
   ...glassLayerStyle,
   backgroundColor: 'rgba(0, 0, 0, .6)',
 };
+
+/**
+ * Shared dark-themed input styles for Chakra UI form elements.
+ * Used across modals and forms for consistent look-and-feel.
+ */
+export const inputStyles = {
+  bg: 'whiteAlpha.100',
+  border: '1px solid',
+  borderColor: 'whiteAlpha.300',
+  color: 'white',
+  _placeholder: { color: 'gray.400' },
+  _hover: { borderColor: 'whiteAlpha.400' },
+  _focus: {
+    borderColor: 'purple.400',
+    boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
+  },
+};

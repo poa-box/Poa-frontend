@@ -39,11 +39,11 @@ const STRATEGY_COLORS = {
 const WeightBar = ({ classes }) => {
   return (
     <HStack spacing={0} h="8px" borderRadius="full" overflow="hidden" w="100%">
-      {classes.map((cls, i) => {
+      {classes.map((cls) => {
         const color = STRATEGY_COLORS[cls.strategy] || 'gray';
         return (
           <Box
-            key={i}
+            key={cls.classIndex ?? cls.strategy}
             h="100%"
             w={`${cls.slicePct}%`}
             bg={`${color}.400`}
@@ -233,10 +233,10 @@ const VotingClassWeightsInput = ({ currentClasses = [], value, onChange }) => {
 
       <HStack justify="center" spacing={4} py={1}>
         {classes.map((cls, i) => {
-          const label = STRATEGY_LABELS[cls.strategy] || `Class ${i + 1}`;
+          const label = STRATEGY_LABELS[cls.strategy] || `Class ${(cls.classIndex ?? i) + 1}`;
           const color = STRATEGY_COLORS[cls.strategy] || 'gray';
           return (
-            <HStack key={i} spacing={1}>
+            <HStack key={cls.classIndex ?? cls.strategy} spacing={1}>
               <Box w="8px" h="8px" borderRadius="full" bg={`${color}.400`} />
               <Text fontSize="xs" color="gray.400">
                 {label}: {cls.slicePct}%
@@ -248,7 +248,7 @@ const VotingClassWeightsInput = ({ currentClasses = [], value, onChange }) => {
 
       {classes.map((cls, i) => (
         <ClassRow
-          key={i}
+          key={cls.classIndex ?? cls.strategy}
           cls={cls}
           index={i}
           onWeightChange={handleWeightChange}

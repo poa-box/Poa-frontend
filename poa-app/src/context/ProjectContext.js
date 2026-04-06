@@ -22,8 +22,6 @@ const STATUS_TO_COLUMN = {
 
 export const ProjectProvider = ({ children }) => {
     const [projectsData, setProjectsData] = useState([]);
-    const [taskCount, setTaskCount] = useState(0);
-    const [recommendedTasks, setRecommendedTasks] = useState([]);
     const [nextTaskId, setNextTaskId] = useState(0);
     const { accountAddress: address } = useAuth();
     const { orgId, subgraphUrl } = usePOContext();
@@ -72,44 +70,6 @@ export const ProjectProvider = ({ children }) => {
     useEffect(() => {
         if (data?.organization?.taskManager) {
             const projects = data.organization.taskManager.projects || [];
-
-            let totalTasks = 0;
-            let maxTaskId = -1;
-            projects.forEach(project => {
-                project.tasks?.forEach(task => {
-                    if (task.status !== 'Cancelled') totalTasks++;
-                    const numId = parseInt(task.taskId, 10);
-                    if (!isNaN(numId) && numId > maxTaskId) maxTaskId = numId;
-                });
-            });
-            setTaskCount(totalTasks);
-            setNextTaskId(maxTaskId + 1);
-
-            // Get recommended tasks (open tasks, randomly sorted)
-            const openTasks = projects
-                .flatMap(project =>
-                    (project.tasks || [])
-                        .filter(task => task.status === 'Open')
-                        .map(task => {
-                            const taskPayout = formatTokenAmount(task.payout || '0');
-                            return {
-                                ...task,
-                                title: task.title || 'Indexing...',
-                                name: task.title || 'Indexing...', // Alias for TaskManager components
-                                description: '', // In IPFS
-                                difficulty: 'medium', // Default
-                                estHours: 1, // Default
-                                payout: taskPayout,
-                                Payout: taskPayout,
-                                kubixPayout: taskPayout,
-                                projectId: project.id,
-                                projectTitle: project.title,
-                                isIndexing: !task.title,
-                            };
-                        })
-                )
-;
-            setRecommendedTasks(openTasks);
 
             // Transform projects for kanban board
             const transformedProjects = projects.map(project => {
@@ -197,9 +157,41 @@ export const ProjectProvider = ({ children }) => {
                 return transformedProject;
             });
 
+            // Compute nextTaskId from raw data (includes cancelled tasks) so optimistic
+            // IDs never collide with cancelled task IDs that are filtered from projectsData.
+            let maxTaskId = -1;
+            projects.forEach(project => {
+                (project.tasks || []).forEach(task => {
+                    const numId = parseInt(task.taskId, 10);
+                    if (!isNaN(numId) && numId > maxTaskId) maxTaskId = numId;
+                });
+            });
+            setNextTaskId(maxTaskId + 1);
+
             setProjectsData(transformedProjects);
         }
     }, [data]);
+
+    // Derive taskCount from projectsData (correctly excludes cancelled tasks)
+    const taskCount = useMemo(() => {
+        let totalTasks = 0;
+        projectsData.forEach(project => {
+            project.columns?.forEach(col => {
+                totalTasks += col.tasks?.length || 0;
+            });
+        });
+        return totalTasks;
+    }, [projectsData]);
+
+    // Derive recommended (open) tasks from projectsData
+    const recommendedTasks = useMemo(() => {
+        return projectsData.flatMap(project =>
+            (project.columns?.find(c => c.id === 'open')?.tasks || []).map(task => ({
+                ...task,
+                projectTitle: project.title,
+            }))
+        );
+    }, [projectsData]);
 
     const contextValue = useMemo(() => ({
         projectsData,

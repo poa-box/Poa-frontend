@@ -20,6 +20,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
+import { inputStyles } from '@/components/shared/glassStyles';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -30,19 +31,6 @@ const glassLayerStyle = {
   backgroundColor: 'rgba(15, 10, 25, 0.97)',
   boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
   border: '1px solid rgba(148, 115, 220, 0.3)',
-};
-
-const inputStyles = {
-  bg: 'whiteAlpha.100',
-  border: '1px solid',
-  borderColor: 'whiteAlpha.300',
-  color: 'white',
-  _placeholder: { color: 'gray.400' },
-  _hover: { borderColor: 'whiteAlpha.400' },
-  _focus: {
-    borderColor: 'purple.400',
-    boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
-  },
 };
 
 const difficultyColorScheme = {

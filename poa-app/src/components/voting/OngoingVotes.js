@@ -71,8 +71,8 @@ const OngoingVotes = ({
               maxW="1200px"
               mx="auto"
             >
-              {displayedProposals.map((proposal, index) => (
-                <Flex w="100%" key={index} justify="center">
+              {displayedProposals.map((proposal) => (
+                <Flex w="100%" key={proposal.id} justify="center">
                   <VoteCard
                     proposal={proposal}
                     showDetermineWinner={showDetermineWinner[proposal.id]}
