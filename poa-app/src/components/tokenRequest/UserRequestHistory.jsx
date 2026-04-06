@@ -6,7 +6,6 @@ import {
   Text,
   Button,
   Badge,
-  Spinner,
   Table,
   Thead,
   Tbody,
@@ -18,6 +17,7 @@ import {
   AlertIcon,
   Tooltip,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
 import { useAccount } from 'wagmi';
 import { FETCH_USER_TOKEN_REQUESTS } from '@/util/queries';
@@ -121,7 +121,7 @@ const UserRequestHistory = () => {
   if (loading && !data) {
     return (
       <Box p={4} textAlign="center">
-        <Spinner size="md" />
+        <PulseLoader size="md" />
         <Text mt={2} color="gray.500">Loading your requests...</Text>
       </Box>
     );

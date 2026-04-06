@@ -27,9 +27,9 @@ import {
   useToast,
   Tooltip,
   Icon,
-  Spinner,
   useBreakpointValue,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { InfoIcon, CloseIcon, AddIcon } from '@chakra-ui/icons';
 import { PiImage, PiLink, PiUploadSimple, PiGear } from 'react-icons/pi';
 import { useDropzone } from 'react-dropzone';
@@ -270,7 +270,7 @@ function InlineLogoUpload({ logoURL, logoPreviewUrl, onUpload, onRemove }) {
       <input {...getInputProps()} />
       {isUploading ? (
         <VStack spacing={2}>
-          <Spinner size="md" color="amethyst.500" />
+          <PulseLoader size="md" color="amethyst.500" />
           <Text fontSize="sm" color="warmGray.600">Uploading...</Text>
         </VStack>
       ) : (

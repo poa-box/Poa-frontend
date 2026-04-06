@@ -18,10 +18,10 @@ import {
   TabList,
   Tab,
   Center,
-  Spinner,
   useDisclosure,
   useBreakpointValue,
 } from "@chakra-ui/react";
+import PulseLoader from "@/components/shared/PulseLoader";
 import { SearchIcon, ArrowBackIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/router";
 
@@ -193,7 +193,7 @@ const VotingHistoryPage = () => {
       <>
         <Navbar />
         <Center height="90vh">
-          <Spinner size="xl" color="purple.400" />
+          <PulseLoader size="xl" color="purple.400" />
         </Center>
       </>
     );

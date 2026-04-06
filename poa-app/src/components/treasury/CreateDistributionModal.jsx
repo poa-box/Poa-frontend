@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter,
   ModalCloseButton, VStack, HStack, Text, Button, Select, Input,
-  InputGroup, InputRightElement, Box, Spinner, Divider, Alert, AlertIcon,
+  InputGroup, InputRightElement, Box, Divider, Alert, AlertIcon,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { FiCheck } from 'react-icons/fi';
 import { ethers } from 'ethers';
 import { useWeb3 } from '@/hooks/useWeb3Services';
@@ -239,7 +240,7 @@ const CreateDistributionModal = ({
             </VStack>
           ) : step === 'building' || step === 'submitting' ? (
             <VStack spacing={4} py={8}>
-              <Spinner size="xl" color="purple.400" />
+              <PulseLoader size="xl" color="purple.400" />
               <Text fontSize="lg" fontWeight="bold">
                 {step === 'building' ? 'Building merkle tree...' : 'Creating proposal...'}
               </Text>

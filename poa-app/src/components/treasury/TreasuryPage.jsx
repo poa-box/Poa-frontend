@@ -5,11 +5,11 @@ import {
   Grid,
   GridItem,
   Text,
-  Spinner,
   Center,
   useBreakpointValue,
   useDisclosure,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useRouter } from 'next/router';
 import { useQuery } from '@apollo/client';
 import { usePOContext } from '@/context/POContext';
@@ -195,7 +195,7 @@ const TreasuryPage = () => {
       {isLoading ? (
         <Center height="100vh">
           <VStack spacing={4}>
-            <Spinner size="xl" color="purple.400" />
+            <PulseLoader size="xl" color="purple.400" />
             <Text color="gray.400">Loading treasury data...</Text>
           </VStack>
         </Center>

@@ -9,9 +9,9 @@ import {
   Button,
   Heading,
   useToast,
-  Spinner,
   Flex,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { usePOContext } from '@/context/POContext';
 
 const ExecutivePage = () => {
@@ -109,7 +109,7 @@ const ExecutivePage = () => {
   if (loading || poContextLoading) {
     return (
       <Box textAlign="center" mt={20}>
-        <Spinner size="xl" />
+        <PulseLoader size="xl" />
       </Box>
     );
   }
@@ -141,7 +141,7 @@ const ExecutivePage = () => {
           List of Executives
         </Heading>
         {loadingExecs ? (
-          <Spinner />
+          <PulseLoader />
         ) : executives.length > 0 ? (
           executives.map((exec) => (
             <Box

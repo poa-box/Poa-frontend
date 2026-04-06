@@ -7,9 +7,9 @@ import React, { useState, useCallback } from "react";
 import {
   Container,
   Center,
-  Spinner,
   TabPanel,
 } from "@chakra-ui/react";
+import PulseLoader from "@/components/shared/PulseLoader";
 import { usePOContext } from "@/context/POContext";
 import { useVotingContext } from "@/context/VotingContext";
 import { useWeb3 } from "@/hooks";
@@ -228,7 +228,7 @@ const VotingPage = () => {
       <Navbar />
       {poContextLoading ? (
         <Center height="90vh">
-          <Spinner size="xl" />
+          <PulseLoader size="xl" />
         </Center>
       ) : (
         <Container maxW="container.2xl" py={{ base: 20, md: 4 }} px={{ base: "1%", md: "3%" }}>

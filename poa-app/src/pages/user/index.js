@@ -34,12 +34,12 @@ import {
   Card,
   CardBody,
   useToast,
-  Spinner,
   IconButton,
   Alert,
   AlertIcon,
   useDisclosure,
 } from "@chakra-ui/react";
+import PulseLoader from "@/components/shared/PulseLoader";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
@@ -781,7 +781,7 @@ const User = () => {
                       {/* Onboarding step progress (when completing) */}
                       {vouchFirstHook.phase === VouchFirstPhase.COMPLETING && vouchFirstHook.stepMessage && (
                         <HStack justify="center" spacing={2}>
-                          <Spinner size="sm" color="teal.400" />
+                          <PulseLoader size="sm" color="teal.400" />
                           <Text fontSize="sm" color={textColor}>{vouchFirstHook.stepMessage}</Text>
                         </HStack>
                       )}
@@ -851,7 +851,7 @@ const User = () => {
                   ) : isAuthenticated ? (
                     orgStructureLoading ? (
                       <VStack spacing={6} align="center" py={12}>
-                        <Spinner size="lg" color="teal.400" />
+                        <PulseLoader size="lg" color="teal.400" />
                         <Text color={subtextColor} fontSize="sm">
                           Loading organization details...
                         </Text>
@@ -1335,7 +1335,7 @@ const User = () => {
                   /* ── Branch 5: Not authenticated + vouch-gated → credential creation + vouch link ── */
                   ) : !isAuthenticated && orgStructureLoading ? (
                     <VStack spacing={6} align="center" py={12}>
-                      <Spinner size="lg" color="teal.400" />
+                      <PulseLoader size="lg" color="teal.400" />
                       <Text color={subtextColor} fontSize="sm">
                         Loading organization details...
                       </Text>

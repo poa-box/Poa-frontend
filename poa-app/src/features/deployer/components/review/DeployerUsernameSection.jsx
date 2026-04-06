@@ -17,10 +17,10 @@ import {
   InputRightElement,
   Badge,
   Icon,
-  Spinner,
   Button,
   useColorModeValue,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import {
   PiUser,
   PiCheckCircle,
@@ -74,7 +74,7 @@ export function DeployerUsernameSection({ onUsernameReady }) {
         maxW="400px"
       >
         <HStack spacing={3} justify="center">
-          <Spinner size="sm" color="amethyst.500" />
+          <PulseLoader size="sm" color="amethyst.500" />
           <Text fontSize="sm" color={helperColor}>Checking your username...</Text>
         </HStack>
       </Box>
@@ -232,7 +232,7 @@ export function DeployerUsernameSection({ onUsernameReady }) {
             />
             <InputRightElement>
               {validationState.isChecking && (
-                <Spinner size="sm" color="amethyst.500" />
+                <PulseLoader size="sm" color="amethyst.500" />
               )}
               {isValid && !validationState.isChecking && (
                 <Icon as={PiCheckCircle} color="green.500" boxSize={5} />

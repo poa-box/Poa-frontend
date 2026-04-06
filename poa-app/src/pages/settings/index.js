@@ -9,13 +9,13 @@ import {
   VStack,
   Heading,
   Text,
-  Spinner,
   Center,
   Alert,
   AlertIcon,
   AlertTitle,
   AlertDescription,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useRouter } from 'next/router';
 
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
@@ -50,7 +50,7 @@ const SettingsPage = () => {
         <Navbar />
         <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
           <VStack spacing={4}>
-            <Spinner size="xl" color="coral.500" thickness="4px" />
+            <PulseLoader size="xl" color="coral.500" />
             <Text color="warmGray.500">Loading settings...</Text>
           </VStack>
         </Center>

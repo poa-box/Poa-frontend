@@ -23,12 +23,12 @@ import {
   InputRightElement,
   VStack,
   Text,
-  Spinner,
   Icon,
   useToast,
   useColorModeValue,
 } from '@chakra-ui/react';
 import { CheckIcon, WarningIcon } from '@chakra-ui/icons';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useWeb3 } from '@/hooks';
 import { useDeployerUsername } from '@/features/deployer/hooks/useDeployerUsername';
 
@@ -135,7 +135,7 @@ const SignupModal = ({ isOpen, onClose }) => {
         <ModalBody>
           {isLoadingExisting ? (
             <VStack py={8}>
-              <Spinner size="lg" color="teal.400" />
+              <PulseLoader size="lg" color="teal.400" />
               <Text color="gray.500">Checking account status...</Text>
             </VStack>
           ) : existingUsername ? (
@@ -171,7 +171,7 @@ const SignupModal = ({ isOpen, onClose }) => {
                   />
                   <InputRightElement>
                     {inputState === 'checking' && (
-                      <Spinner size="sm" color="blue.400" />
+                      <PulseLoader size="sm" color="blue.400" />
                     )}
                     {inputState === 'valid' && (
                       <Icon as={CheckIcon} color="green.400" />

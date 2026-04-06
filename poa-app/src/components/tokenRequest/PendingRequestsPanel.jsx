@@ -6,7 +6,6 @@ import {
   Text,
   Button,
   Badge,
-  Spinner,
   Accordion,
   AccordionItem,
   AccordionButton,
@@ -17,6 +16,7 @@ import {
   Alert,
   AlertIcon,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
 import { FETCH_PENDING_TOKEN_REQUESTS } from '@/util/queries';
 import { useWeb3 } from '@/hooks/useWeb3Services';
@@ -163,7 +163,7 @@ const PendingRequestsPanel = () => {
   if (loading && !data) {
     return (
       <Box p={4} textAlign="center">
-        <Spinner size="md" />
+        <PulseLoader size="md" />
         <Text mt={2} color="gray.500">Loading pending requests...</Text>
       </Box>
     );
