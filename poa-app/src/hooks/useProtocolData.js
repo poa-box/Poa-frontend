@@ -181,7 +181,7 @@ export function useProtocolData() {
   }, [chainData]);
 
   return {
-    isLoading: subgraphLoading || onChainLoading,
+    isLoading: subgraphLoading, // Don't block on on-chain reads — subgraph data is sufficient
     chains: chainData,
     aggregated,
   };
