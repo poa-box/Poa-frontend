@@ -11,7 +11,6 @@ import {
   Link,
   Image,
   Button,
-  Spinner,
   Center,
   useBreakpointValue,
   useClipboard,
@@ -25,6 +24,7 @@ import {
   Collapse,
   Tooltip,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useVotingContext } from '@/context/VotingContext';
 import { usePOContext } from '@/context/POContext';
 import { useProjectContext } from '@/context/ProjectContext';
@@ -122,7 +122,7 @@ const PerpetualOrgDashboard = () => {
       <Navbar />
       {poContextLoading ? (
         <Center height="100vh">
-          <Spinner size="xl" />
+          <PulseLoader size="xl" />
         </Center>
       ) : (
         <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }}>

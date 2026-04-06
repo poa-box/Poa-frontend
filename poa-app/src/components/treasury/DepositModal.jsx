@@ -15,9 +15,9 @@ import {
   Input,
   InputGroup,
   InputRightElement,
-  Spinner,
   Box,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { FiCheck } from 'react-icons/fi';
 import { ethers } from 'ethers';
 import { useWeb3 } from '@/hooks/useWeb3Services';
@@ -308,7 +308,7 @@ const DepositModal = ({
             </VStack>
           ) : step === 'approving' || step === 'depositing' ? (
             <VStack spacing={4} py={8}>
-              <Spinner size="xl" color="purple.400" />
+              <PulseLoader size="xl" color="purple.400" />
               <Text fontSize="lg" fontWeight="bold">
                 {step === 'approving'
                   ? `Approving ${selectedToken?.symbol}...`

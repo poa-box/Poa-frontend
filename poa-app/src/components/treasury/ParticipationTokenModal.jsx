@@ -18,9 +18,9 @@ import {
   Th,
   Td,
   Badge,
-  Spinner,
   Center,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
 import {
   AreaChart,
@@ -329,7 +329,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
         <ModalBody pb={6}>
           {requestsLoading ? (
             <Center py={8}>
-              <Spinner size="lg" color="purple.400" />
+              <PulseLoader size="lg" color="purple.400" />
             </Center>
           ) : (
             <VStack spacing={6} align="stretch">

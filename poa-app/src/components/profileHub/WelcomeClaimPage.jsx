@@ -12,12 +12,12 @@ import {
   Image,
   Button,
   Icon,
-  Spinner,
   Flex,
   Circle,
   Badge,
 } from '@chakra-ui/react';
 import { FiUsers, FiArrowRight, FiCheck, FiStar, FiLock, FiUserPlus } from 'react-icons/fi';
+import PulseLoader from "@/components/shared/PulseLoader";
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { useClaimRole, useVouches } from '@/hooks';
 import { useAuth } from '@/context/AuthContext';
@@ -221,7 +221,7 @@ export function WelcomeClaimPage({
             <VStack w="100%" spacing={3} minH="180px">
               {claimableRoles.length === 0 ? (
                 <VStack py={6}>
-                  <Spinner size="lg" color="purple.400" />
+                  <PulseLoader size="lg" color="purple.400" />
                   <Text color="gray.400" fontSize="sm">Loading roles...</Text>
                 </VStack>
               ) : (

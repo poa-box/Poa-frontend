@@ -19,7 +19,6 @@ import {
   IconButton,
   useToast,
   Icon,
-  Spinner,
   Card,
   CardBody,
   CardHeader,
@@ -32,6 +31,7 @@ import {
 import { CloseIcon, AddIcon } from '@chakra-ui/icons';
 import { PiImage } from 'react-icons/pi';
 import { useDropzone } from 'react-dropzone';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
 
 import { useAccount, useSwitchChain } from 'wagmi';
@@ -111,7 +111,7 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChan
     >
       <input {...getInputProps()} />
       {isUploading ? (
-        <Spinner size="lg" color="coral.500" />
+        <PulseLoader size="lg" color="coral.500" />
       ) : previewSrc ? (
         <VStack spacing={3}>
           <Image
@@ -392,7 +392,7 @@ export default function OrgMetadataEditor({
       <Card variant="elevated" borderRadius="2xl">
         <CardBody>
           <VStack spacing={4} py={8}>
-            <Spinner size="lg" color="coral.500" />
+            <PulseLoader size="lg" color="coral.500" />
             <Text color="warmGray.500">Loading infrastructure...</Text>
           </VStack>
         </CardBody>
