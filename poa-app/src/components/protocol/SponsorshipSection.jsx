@@ -38,7 +38,7 @@ const ChainSponsorshipCard = ({ chain }) => {
             <ConfigRow label="Used Today" value={`${onboarding.attemptsToday}`} />
           </VStack>
         ) : (
-          <Text fontSize="xs" color="warmGray.400">Loading...</Text>
+          <Text fontSize="xs" color="warmGray.400">Data unavailable (on-chain read pending)</Text>
         )}
       </Box>
 
@@ -64,7 +64,7 @@ const ChainSponsorshipCard = ({ chain }) => {
             <ConfigRow label="Used Today" value={`${orgDeploy.attemptsToday}`} />
           </VStack>
         ) : (
-          <Text fontSize="xs" color="warmGray.400">Loading...</Text>
+          <Text fontSize="xs" color="warmGray.400">Data unavailable (on-chain read pending)</Text>
         )}
       </Box>
     </Box>

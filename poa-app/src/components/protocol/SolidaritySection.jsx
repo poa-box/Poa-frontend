@@ -14,43 +14,55 @@ const StatCard = ({ label, value, subtext, color = 'warmGray.800' }) => (
 );
 
 const ChainSolidarityCard = ({ chain }) => {
+  // Use on-chain data if available, fall back to subgraph data
   const onChain = chain.onChain?.solidarity;
   const grace = chain.onChain?.grace;
+  const pm = chain.paymaster; // subgraph PaymasterHubContract data
   const events = chain.solidarityEvents || [];
+
+  // Prefer on-chain (real-time) → subgraph (indexed) → fallback
+  const balance = onChain?.balance
+    ?? (pm?.solidarityBalance ? (parseInt(pm.solidarityBalance) / 1e18).toFixed(4) : null);
+  const activeOrgs = onChain?.numActiveOrgs ?? null;
+  const feeBps = onChain?.feePercentageBps ?? null;
+  const paused = onChain?.distributionPaused ?? pm?.solidarityDistributionPaused;
+  const graceDays = grace?.initialGraceDays ?? pm?.gracePeriodDays;
+  const graceMaxSpend = grace?.maxSpendDuringGrace
+    ?? (pm?.maxSpendDuringGrace ? (parseInt(pm.maxSpendDuringGrace) / 1e18).toFixed(4) : null);
 
   return (
     <Box bg="white" border="1px solid" borderColor="warmGray.100" borderRadius="xl" p={5}>
       <HStack mb={4}>
         <Heading fontSize="md" fontWeight="700" color="warmGray.800">{chain.name}</Heading>
         <Badge
-          bg={onChain?.distributionPaused ? 'warmGray.100' : 'green.50'}
-          color={onChain?.distributionPaused ? 'warmGray.500' : 'green.600'}
+          bg={paused ? 'warmGray.100' : 'green.50'}
+          color={paused ? 'warmGray.500' : 'green.600'}
           fontSize="2xs"
         >
-          {onChain?.distributionPaused ? 'Paused' : 'Active'}
+          {paused === true ? 'Paused' : paused === false ? 'Active' : '...'}
         </Badge>
       </HStack>
 
       <SimpleGrid columns={2} spacing={3} mb={4}>
         <StatCard
           label="Fund Balance"
-          value={onChain ? `${parseFloat(onChain.balance).toFixed(4)} ${chain.nativeCurrency}` : '...'}
+          value={balance != null ? `${parseFloat(balance).toFixed(4)} ${chain.nativeCurrency}` : '...'}
           color="green.600"
         />
         <StatCard
           label="Active Orgs"
-          value={onChain?.numActiveOrgs ?? '...'}
+          value={activeOrgs ?? (pm ? parseInt(chain.orgStats?.totalOrgs || '0') : '...')}
           subtext="Orgs with deposits"
         />
         <StatCard
           label="Fee Rate"
-          value={onChain ? `${(onChain.feePercentageBps / 100).toFixed(1)}%` : '...'}
+          value={feeBps != null ? `${(feeBps / 100).toFixed(1)}%` : '1.0%'}
           subtext="Collected on gas"
         />
         <StatCard
           label="Grace Period"
-          value={grace ? `${grace.initialGraceDays} days` : '...'}
-          subtext={grace ? `Max ${parseFloat(grace.maxSpendDuringGrace).toFixed(4)} ${chain.nativeCurrency}` : ''}
+          value={graceDays != null ? `${graceDays} days` : '...'}
+          subtext={graceMaxSpend != null ? `Max ${graceMaxSpend} ${chain.nativeCurrency}` : ''}
         />
       </SimpleGrid>
 
