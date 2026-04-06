@@ -1,19 +1,14 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { FETCH_PROTOCOL_DATA } from '@/util/protocolQueries';
 import { getAllSubgraphUrls, getNetworkByChainId } from '@/config/networks';
-import { createChainClients } from '@/services/web3/utils/chainClients';
-import { formatEther } from 'viem';
-import PaymasterHubABI from '../../abi/PaymasterHub.json';
 
 /**
- * Hook to fetch protocol-level data from all production chain subgraphs
- * and on-chain PaymasterHub configs.
+ * Hook to fetch protocol-level data from all production chain subgraphs.
+ * All data comes from subgraph queries — no on-chain reads needed.
  */
 export function useProtocolData() {
   const chains = useMemo(() => getAllSubgraphUrls(), []);
-  const [onChainData, setOnChainData] = useState({});
-  const [onChainLoading, setOnChainLoading] = useState(true);
 
   // Query each chain's subgraph
   const chainQueries = chains.map(chain => {
@@ -25,137 +20,62 @@ export function useProtocolData() {
     return { chainId: chain.chainId, name: chain.name, data, loading };
   });
 
-  const subgraphLoading = chainQueries.some(q => q.loading);
-
-  // On-chain reads for PaymasterHub configs
-  useEffect(() => {
-    if (subgraphLoading) return;
-
-    const fetchOnChain = async () => {
-      setOnChainLoading(true);
-      const results = {};
-
-      for (const query of chainQueries) {
-        const paymasterAddr = query.data?.paymasterHubContracts?.[0]?.id;
-        if (!paymasterAddr) continue;
-
-        const clients = createChainClients(query.chainId);
-        const client = clients?.publicClient;
-        if (!client) continue;
-
-        try {
-          // Use the real PaymasterHub ABI (returns tuples, not flat arrays)
-          const [solidarity, onboarding, orgDeploy, grace] = await Promise.all([
-            client.readContract({ address: paymasterAddr, abi: PaymasterHubABI, functionName: 'getSolidarityFund' }).catch(() => null),
-            client.readContract({ address: paymasterAddr, abi: PaymasterHubABI, functionName: 'getOnboardingConfig' }).catch(() => null),
-            client.readContract({ address: paymasterAddr, abi: PaymasterHubABI, functionName: 'getOrgDeployConfig' }).catch(() => null),
-            client.readContract({ address: paymasterAddr, abi: PaymasterHubABI, functionName: 'getGracePeriodConfig' }).catch((e) => { console.warn('getGracePeriodConfig failed:', e.message); return null; }),
-          ]);
-
-          // The ABI returns structs — viem decodes them as objects with named fields
-          // or as arrays depending on whether the ABI has component names.
-          // PaymasterHub.json has named components, so viem returns objects.
-          const parseSolidarity = (s) => {
-            if (!s) return null;
-            // Could be object {balance, numActiveOrgs, ...} or array [balance, numActiveOrgs, ...]
-            const bal = s.balance ?? s[0];
-            const orgs = s.numActiveOrgs ?? s[1];
-            const fee = s.feePercentageBps ?? s[2];
-            const paused = s.distributionPaused ?? s[3];
-            return {
-              balance: formatEther(bal),
-              numActiveOrgs: Number(orgs),
-              feePercentageBps: Number(fee),
-              distributionPaused: paused,
-            };
-          };
-
-          const parseOnboarding = (o) => {
-            if (!o) return null;
-            const maxGas = o.maxGasPerCreation ?? o[0];
-            const limit = o.dailyCreationLimit ?? o[1];
-            const attempts = o.attemptsToday ?? o[2];
-            const enabled = o.enabled ?? o[4];
-            const registry = o.accountRegistry ?? o[5];
-            return {
-              maxGasPerCreation: formatEther(maxGas),
-              dailyCreationLimit: Number(limit),
-              attemptsToday: Number(attempts),
-              enabled,
-              accountRegistry: registry,
-            };
-          };
-
-          const parseOrgDeploy = (d) => {
-            if (!d) return null;
-            const maxGas = d.maxGasPerDeploy ?? d[0];
-            const limit = d.dailyDeployLimit ?? d[1];
-            const attempts = d.attemptsToday ?? d[2];
-            const maxPer = d.maxDeploysPerAccount ?? d[4];
-            const enabled = d.enabled ?? d[5];
-            const deployer = d.orgDeployer ?? d[6];
-            return {
-              maxGasPerDeploy: formatEther(maxGas),
-              dailyDeployLimit: Number(limit),
-              attemptsToday: Number(attempts),
-              maxDeploysPerAccount: Number(maxPer),
-              enabled,
-              orgDeployer: deployer,
-            };
-          };
-
-          const parseGrace = (g) => {
-            if (!g) return null;
-            const days = g.initialGraceDays ?? g[0];
-            const maxSpend = g.maxSpendDuringGrace ?? g[1];
-            const minDep = g.minDepositRequired ?? g[2];
-            return {
-              initialGraceDays: Number(days),
-              maxSpendDuringGrace: formatEther(maxSpend),
-              minDepositRequired: formatEther(minDep),
-            };
-          };
-
-          results[query.chainId] = {
-            solidarity: parseSolidarity(solidarity),
-            onboarding: parseOnboarding(onboarding),
-            orgDeploy: parseOrgDeploy(orgDeploy),
-            grace: parseGrace(grace),
-          };
-        } catch (e) {
-          console.warn(`[Protocol] Failed on-chain reads for chain ${query.chainId}:`, e.message);
-        }
-      }
-
-      setOnChainData(results);
-      setOnChainLoading(false);
-    };
-
-    fetchOnChain();
-  }, [subgraphLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  const isLoading = chainQueries.some(q => q.loading);
 
   // Structure the data per chain
   const chainData = useMemo(() => {
     const result = {};
     for (const query of chainQueries) {
       const d = query.data;
+      if (!d) continue;
+
       const network = getNetworkByChainId(query.chainId);
+      const pm = d.paymasterHubContracts?.[0];
+      const onboarding = d.onboardingConfigs?.[0];
+      const orgDeploy = d.orgDeployConfigs?.[0];
+
       result[query.chainId] = {
         name: query.name,
         chainId: query.chainId,
         blockExplorer: network?.blockExplorer || '',
         nativeCurrency: network?.nativeCurrency?.symbol || 'ETH',
-        infrastructure: d?.poaManagerContracts?.[0] || null,
-        orgStats: d?.orgRegistryContracts?.[0] || null,
-        accountStats: d?.universalAccountRegistries?.[0] || null,
-        paymaster: d?.paymasterHubContracts?.[0] || null,
-        beaconUpgrades: d?.beaconUpgrades || [],
-        solidarityEvents: d?.solidarityEvents || [],
-        onChain: onChainData[query.chainId] || null,
+        infrastructure: d.poaManagerContracts?.[0] || null,
+        orgStats: d.orgRegistryContracts?.[0] || null,
+        accountStats: d.universalAccountRegistries?.[0] || null,
+        paymaster: pm || null,
+        beaconUpgrades: d.beaconUpgrades || [],
+        solidarityEvents: d.solidarityEvents || [],
+        // Solidarity fund data from subgraph
+        solidarity: pm ? {
+          balance: pm.solidarityBalance ? (parseInt(pm.solidarityBalance) / 1e18).toFixed(4) : '0',
+          distributionPaused: pm.solidarityDistributionPaused,
+          feePercentageBps: 100, // Default 1% — not indexed per-event, but set at initialize
+        } : null,
+        // Grace period from subgraph
+        grace: pm ? {
+          initialGraceDays: parseInt(pm.gracePeriodDays || '90'),
+          maxSpendDuringGrace: pm.maxSpendDuringGrace ? (parseInt(pm.maxSpendDuringGrace) / 1e18).toFixed(4) : '0.05',
+          minDepositRequired: pm.minDepositRequired ? (parseInt(pm.minDepositRequired) / 1e18).toFixed(4) : '0.0001',
+        } : null,
+        // Onboarding config from subgraph (may be null if never updated after deploy)
+        onboarding: onboarding ? {
+          maxGasPerCreation: (parseInt(onboarding.maxGasPerCreation) / 1e18).toFixed(4),
+          dailyCreationLimit: parseInt(onboarding.dailyCreationLimit),
+          enabled: onboarding.enabled,
+          accountRegistry: onboarding.accountRegistry,
+        } : null,
+        // Org deploy config from subgraph (may be null if never updated after deploy)
+        orgDeploy: orgDeploy ? {
+          maxGasPerDeploy: (parseInt(orgDeploy.maxGasPerDeploy) / 1e18).toFixed(4),
+          dailyDeployLimit: parseInt(orgDeploy.dailyDeployLimit),
+          maxDeploysPerAccount: orgDeploy.maxDeploysPerAccount,
+          enabled: orgDeploy.enabled,
+          orgDeployer: orgDeploy.orgDeployer,
+        } : null,
       };
     }
     return result;
-  }, [chainQueries, onChainData]);
+  }, [chainQueries]);
 
   // Aggregate stats
   const aggregated = useMemo(() => {
@@ -181,7 +101,7 @@ export function useProtocolData() {
   }, [chainData]);
 
   return {
-    isLoading: subgraphLoading || onChainLoading,
+    isLoading,
     chains: chainData,
     aggregated,
   };

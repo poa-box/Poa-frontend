@@ -42,6 +42,19 @@ export const FETCH_PROTOCOL_DATA = gql`
       minDepositRequired
       createdAt
     }
+    onboardingConfigs(first: 1) {
+      maxGasPerCreation
+      dailyCreationLimit
+      enabled
+      accountRegistry
+    }
+    orgDeployConfigs(first: 1) {
+      maxGasPerDeploy
+      dailyDeployLimit
+      maxDeploysPerAccount
+      enabled
+      orgDeployer
+    }
     solidarityEvents(first: 30, orderBy: eventAt, orderDirection: desc) {
       id
       eventType

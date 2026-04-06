@@ -14,8 +14,8 @@ const StatCard = ({ label, value, subtext, color = 'warmGray.800' }) => (
 );
 
 const ChainSolidarityCard = ({ chain }) => {
-  const onChain = chain.onChain?.solidarity;
-  const grace = chain.onChain?.grace;
+  const solidarity = chain.solidarity;
+  const grace = chain.grace;
   const events = chain.solidarityEvents || [];
 
   return (
@@ -23,34 +23,34 @@ const ChainSolidarityCard = ({ chain }) => {
       <HStack mb={4}>
         <Heading fontSize="md" fontWeight="700" color="warmGray.800">{chain.name}</Heading>
         <Badge
-          bg={onChain?.distributionPaused ? 'warmGray.100' : 'green.50'}
-          color={onChain?.distributionPaused ? 'warmGray.500' : 'green.600'}
+          bg={solidarity?.distributionPaused ? 'warmGray.100' : 'green.50'}
+          color={solidarity?.distributionPaused ? 'warmGray.500' : 'green.600'}
           fontSize="2xs"
         >
-          {onChain?.distributionPaused ? 'Paused' : 'Active'}
+          {solidarity?.distributionPaused === true ? 'Paused' : solidarity?.distributionPaused === false ? 'Active' : '...'}
         </Badge>
       </HStack>
 
       <SimpleGrid columns={2} spacing={3} mb={4}>
         <StatCard
           label="Fund Balance"
-          value={onChain ? `${parseFloat(onChain.balance).toFixed(4)} ${chain.nativeCurrency}` : '...'}
+          value={solidarity ? `${solidarity.balance} ${chain.nativeCurrency}` : '...'}
           color="green.600"
         />
         <StatCard
-          label="Active Orgs"
-          value={onChain?.numActiveOrgs ?? '...'}
-          subtext="Orgs with deposits"
+          label="Total Orgs"
+          value={chain.orgStats?.totalOrgs ?? '...'}
+          subtext="Deployed organizations"
         />
         <StatCard
           label="Fee Rate"
-          value={onChain ? `${(onChain.feePercentageBps / 100).toFixed(1)}%` : '...'}
+          value={solidarity ? `${(solidarity.feePercentageBps / 100).toFixed(1)}%` : '1.0%'}
           subtext="Collected on gas"
         />
         <StatCard
           label="Grace Period"
           value={grace ? `${grace.initialGraceDays} days` : '...'}
-          subtext={grace ? `Max ${parseFloat(grace.maxSpendDuringGrace).toFixed(4)} ${chain.nativeCurrency}` : ''}
+          subtext={grace ? `Max ${grace.maxSpendDuringGrace} ${chain.nativeCurrency}` : ''}
         />
       </SimpleGrid>
 
