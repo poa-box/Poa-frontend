@@ -14,6 +14,7 @@ export function useProtocolData() {
   const chainQueries = chains.map(chain => {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const { data, loading } = useQuery(FETCH_PROTOCOL_DATA, {
+      variables: { chainId: String(chain.chainId) }, // Breaks Apollo query deduplication
       fetchPolicy: 'no-cache',
       context: { subgraphUrl: chain.url },
     });
@@ -43,7 +44,7 @@ export function useProtocolData() {
         orgStats: d.orgRegistryContracts?.[0] || null,
         accountStats: d.universalAccountRegistries?.[0] || null,
         paymaster: pm || null,
-        beaconUpgrades: d.beaconUpgrades || [],
+        beaconUpgrades: d.beaconUpgradeEvents || [],
         solidarityEvents: d.solidarityEvents || [],
         // Solidarity fund data from subgraph
         solidarity: pm ? {

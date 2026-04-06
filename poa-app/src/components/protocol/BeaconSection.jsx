@@ -19,7 +19,7 @@ const BeaconSection = ({ chains }) => {
         });
       });
     });
-    return upgrades.sort((a, b) => parseInt(b.blockTimestamp) - parseInt(a.blockTimestamp));
+    return upgrades.sort((a, b) => parseInt(b.upgradedAt || b.blockTimestamp || 0) - parseInt(a.upgradedAt || a.blockTimestamp || 0));
   }, [chains]);
 
   return (
@@ -48,8 +48,8 @@ const BeaconSection = ({ chains }) => {
                     <Tr>
                       <Th color="warmGray.500" fontSize="2xs">Date</Th>
                       <Th color="warmGray.500" fontSize="2xs">Chain</Th>
+                      <Th color="warmGray.500" fontSize="2xs">Version</Th>
                       <Th color="warmGray.500" fontSize="2xs">Implementation</Th>
-                      <Th color="warmGray.500" fontSize="2xs">Block</Th>
                       <Th color="warmGray.500" fontSize="2xs">Tx</Th>
                     </Tr>
                   </Thead>
@@ -57,18 +57,18 @@ const BeaconSection = ({ chains }) => {
                     {allUpgrades.slice(0, 30).map((u, i) => (
                       <Tr key={u.id || i} _hover={{ bg: 'warmGray.50' }}>
                         <Td fontSize="xs" color="warmGray.600">
-                          {new Date(parseInt(u.blockTimestamp) * 1000).toLocaleDateString('en-US', {
+                          {new Date(parseInt(u.upgradedAt || u.blockTimestamp) * 1000).toLocaleDateString('en-US', {
                             month: 'short', day: 'numeric', year: 'numeric',
                           })}
                         </Td>
                         <Td>
                           <Badge fontSize="2xs" bg="amethyst.50" color="amethyst.600">{u.chainName}</Badge>
                         </Td>
-                        <Td fontSize="xs" fontFamily="mono" color="warmGray.600">
-                          {u.implementation ? `${u.implementation.slice(0, 6)}...${u.implementation.slice(-4)}` : '—'}
+                        <Td>
+                          {u.version && <Badge fontSize="2xs" bg="warmGray.100" color="warmGray.600">{u.version}</Badge>}
                         </Td>
-                        <Td fontSize="xs" color="warmGray.500">
-                          {u.blockNumber}
+                        <Td fontSize="xs" fontFamily="mono" color="warmGray.600">
+                          {(u.newImplementation || u.implementation) ? `${(u.newImplementation || u.implementation).slice(0, 6)}...${(u.newImplementation || u.implementation).slice(-4)}` : '—'}
                         </Td>
                         <Td>
                           {u.transactionHash && (
