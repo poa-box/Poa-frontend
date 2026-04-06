@@ -17,7 +17,8 @@ import {
   Spinner,
   Box,
 } from '@chakra-ui/react';
-import { FiCheck } from 'react-icons/fi';
+import { FiCheck, FiAlertTriangle } from 'react-icons/fi';
+import { useAccount } from 'wagmi';
 import { useWeb3 } from '@/hooks/useWeb3Services';
 import { useAuth } from '@/context/AuthContext';
 import { usePOContext } from '@/context/POContext';
@@ -37,11 +38,16 @@ const glassLayerStyle = {
 
 const GasPoolDepositModal = ({ isOpen, onClose, paymasterHubAddress }) => {
   const { treasury, executeWithNotification, isReady } = useWeb3();
-  const { accountAddress } = useAuth();
+  const { accountAddress, isPasskeyUser } = useAuth();
+  const { chain: walletChain } = useAccount();
   const { orgId, orgChainId } = usePOContext();
 
   const network = getNetworkByChainId(orgChainId);
   const nativeSymbol = network?.nativeCurrency?.symbol || 'ETH';
+  const networkName = network?.name || 'Unknown';
+
+  // EOA users must have their wallet connected to the org's chain
+  const isChainMismatch = !isPasskeyUser && walletChain && orgChainId && walletChain.id !== orgChainId;
 
   const [amount, setAmount] = useState('');
   const [userBalance, setUserBalance] = useState('0');
@@ -197,9 +203,27 @@ const GasPoolDepositModal = ({ isOpen, onClose, paymasterHubAddress }) => {
           ) : (
             <VStack spacing={5}>
               <Text fontSize="sm" color="gray.400">
-                Deposit {nativeSymbol} to fund gas sponsorship for your organization's members.
-                This covers transaction fees so members can use the app for free.
+                Deposit {nativeSymbol} on {networkName} to fund gas sponsorship for your
+                organization's members. This covers transaction fees so members can use the app for free.
               </Text>
+
+              {isChainMismatch && (
+                <HStack
+                  w="100%"
+                  p={3}
+                  bg="rgba(236, 201, 75, 0.1)"
+                  borderRadius="lg"
+                  border="1px solid"
+                  borderColor="yellow.600"
+                  spacing={3}
+                >
+                  <FiAlertTriangle color="#ECC94B" size={18} style={{ flexShrink: 0 }} />
+                  <Text fontSize="sm" color="yellow.200">
+                    Your wallet is connected to {walletChain?.name || 'a different network'}.
+                    Please switch to <strong>{networkName}</strong> to deposit.
+                  </Text>
+                </HStack>
+              )}
 
               {/* Amount input */}
               <Box w="100%">
@@ -263,7 +287,7 @@ const GasPoolDepositModal = ({ isOpen, onClose, paymasterHubAddress }) => {
             <Button
               colorScheme="purple"
               onClick={handleDeposit}
-              isDisabled={!isAmountValid() || isLoading || !isReady || isFetchingBalance}
+              isDisabled={!isAmountValid() || isLoading || !isReady || isFetchingBalance || isChainMismatch}
               isLoading={isLoading}
             >
               Deposit

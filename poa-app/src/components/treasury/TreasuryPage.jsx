@@ -99,10 +99,13 @@ const TreasuryPage = () => {
     context: { subgraphUrl },
   });
 
-  // Fetch paymaster hub address from infrastructure
+  // Fetch paymaster hub address from infrastructure.
+  // MUST use no-cache: Apollo caches by query+variables (not endpoint), so queries
+  // against different subgraphs can return poisoned cache results (e.g., Arbitrum
+  // paymaster address when querying Gnosis org). Matches useWeb3Services pattern.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
     context: { subgraphUrl },
-    fetchPolicy: 'cache-first',
+    fetchPolicy: 'no-cache',
     skip: !subgraphUrl,
   });
   const paymasterHubAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
