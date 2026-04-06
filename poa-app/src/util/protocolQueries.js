@@ -3,9 +3,13 @@ import { gql } from '@apollo/client';
 /**
  * Protocol-level data query for the /protocol dashboard.
  * Run once per chain subgraph to get infrastructure, stats, and solidarity info.
+ *
+ * NOTE: The $chainId variable is unused by the subgraph but breaks Apollo's
+ * query deduplication. Without it, two useQuery calls with the same document
+ * but different context.subgraphUrl get deduplicated and return the same result.
  */
 export const FETCH_PROTOCOL_DATA = gql`
-  query FetchProtocolData {
+  query FetchProtocolData($chainId: String!) {
     poaManagerContracts(first: 1) {
       id
       beaconCount
@@ -25,11 +29,12 @@ export const FETCH_PROTOCOL_DATA = gql`
       id
       totalAccounts
     }
-    beaconUpgrades(first: 50, orderBy: blockTimestamp, orderDirection: desc) {
+    beaconUpgradeEvents(first: 50, orderBy: upgradedAt, orderDirection: desc) {
       id
-      implementation
-      blockNumber
-      blockTimestamp
+      typeId
+      newImplementation
+      version
+      upgradedAt
       transactionHash
     }
     paymasterHubContracts(first: 1) {
