@@ -85,8 +85,8 @@ const VotingHistoryPreview = ({
             maxW="1200px"
             mx="auto"
           >
-            {displayedProposals.map((proposal, index) => (
-              <Flex w="100%" key={proposal.id || index} justify="center">
+            {displayedProposals.map((proposal) => (
+              <Flex w="100%" key={proposal.id} justify="center">
                 <HistoryCard
                   proposal={proposal}
                   onPollClick={onPollClick}

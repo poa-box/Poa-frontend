@@ -151,14 +151,6 @@ export class TreasuryService {
 
     const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
 
-    console.log('=== createDistribution DEBUG ===');
-    console.log('PaymentManager address:', contractAddress);
-    console.log('Payout token:', payoutToken);
-    console.log('Amount:', amount);
-    console.log('Merkle root:', merkleRoot);
-    console.log('Checkpoint block:', checkpointBlock);
-    console.log('=== END createDistribution DEBUG ===');
-
     return this.txManager.execute(
       contract,
       'createDistribution',
@@ -182,13 +174,6 @@ export class TreasuryService {
 
     const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
     const id = ethers.BigNumber.from(distributionId);
-
-    console.log('=== claimDistribution DEBUG ===');
-    console.log('PaymentManager address:', contractAddress);
-    console.log('Distribution ID:', id.toString());
-    console.log('Claim amount:', claimAmount);
-    console.log('Merkle proof length:', merkleProof.length);
-    console.log('=== END claimDistribution DEBUG ===');
 
     return this.txManager.execute(
       contract,
@@ -218,11 +203,6 @@ export class TreasuryService {
     const amounts = claims.map(c => c.amount);
     const proofs = claims.map(c => c.proof);
 
-    console.log('=== claimMultiple DEBUG ===');
-    console.log('PaymentManager address:', contractAddress);
-    console.log('Number of claims:', claims.length);
-    console.log('=== END claimMultiple DEBUG ===');
-
     return this.txManager.execute(
       contract,
       'claimMultiple',
@@ -243,11 +223,6 @@ export class TreasuryService {
 
     const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
     const id = ethers.BigNumber.from(distributionId);
-
-    console.log('=== finalizeDistribution DEBUG ===');
-    console.log('PaymentManager address:', contractAddress);
-    console.log('Distribution ID:', id.toString());
-    console.log('=== END finalizeDistribution DEBUG ===');
 
     return this.txManager.execute(
       contract,

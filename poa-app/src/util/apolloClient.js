@@ -27,6 +27,8 @@ if (typeof window !== 'undefined') {
     client.clearStore().then(() => {
       localStorage.setItem('poa-cache-version', CACHE_VERSION);
       console.log('[Apollo] Cache cleared due to version change');
+    }).catch((err) => {
+      console.error('[Apollo] Failed to clear cache:', err);
     });
   }
 }

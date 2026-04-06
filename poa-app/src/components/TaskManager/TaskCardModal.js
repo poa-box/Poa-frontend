@@ -149,6 +149,8 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
 
   // Fetch IPFS metadata when modal opens - only as fallback when indexed data is missing
   useEffect(() => {
+    let cancelled = false;
+
     const fetchIpfsMetadata = async () => {
       if (!isOpen || !task) return;
 
@@ -161,15 +163,13 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
 
       if (!needsTaskMetadata && !needsSubmissionMetadata && !needsRejectionMetadata) return;
 
-      setMetadataLoading(true);
+      if (!cancelled) setMetadataLoading(true);
 
       // Fetch task metadata (description, difficulty, estHours) - IPFS fallback
       if (needsTaskMetadata) {
-        console.log('[TaskCardModal] Indexed metadata missing, fetching from IPFS:', task.metadataHash);
         try {
           const metadata = await safeFetchFromIpfs(task.metadataHash);
-          console.log('[TaskCardModal] IPFS task metadata result:', metadata);
-          if (metadata) {
+          if (!cancelled && metadata) {
             setTaskMetadata(metadata);
           }
         } catch (err) {
@@ -179,11 +179,9 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
 
       // Fetch submission metadata for submitted/completed tasks - IPFS fallback
       if (needsSubmissionMetadata) {
-        console.log('[TaskCardModal] Indexed submission missing, fetching from IPFS:', task.submissionHash);
         try {
           const metadata = await safeFetchFromIpfs(task.submissionHash);
-          console.log('[TaskCardModal] IPFS submission metadata result:', metadata);
-          if (metadata) {
+          if (!cancelled && metadata) {
             setSubmissionMetadata(metadata);
           }
         } catch (err) {
@@ -193,11 +191,9 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
 
       // Fetch rejection metadata - IPFS fallback
       if (needsRejectionMetadata) {
-        console.log('[TaskCardModal] Indexed rejection missing, fetching from IPFS:', task.rejectionHash);
         try {
           const metadata = await safeFetchFromIpfs(task.rejectionHash);
-          console.log('[TaskCardModal] IPFS rejection metadata result:', metadata);
-          if (metadata) {
+          if (!cancelled && metadata) {
             setRejectionMetadata(metadata);
           }
         } catch (err) {
@@ -205,14 +201,17 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
         }
       }
 
-      setMetadataLoading(false);
+      if (!cancelled) setMetadataLoading(false);
     };
 
     fetchIpfsMetadata();
+    return () => { cancelled = true; };
   }, [isOpen, task, safeFetchFromIpfs, taskMetadata, submissionMetadata, rejectionMetadata]);
 
   // Fetch application content from IPFS — only for applicants without subgraph-indexed metadata
   useEffect(() => {
+    let cancelled = false;
+
     const fetchApplicationContents = async () => {
       if (!isOpen || !task?.applicants?.length) return;
 
@@ -221,7 +220,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
       );
       if (hashesToFetch.length === 0) return;
 
-      setApplicationsLoading(true);
+      if (!cancelled) setApplicationsLoading(true);
       const results = {};
 
       await Promise.all(
@@ -237,11 +236,14 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
         })
       );
 
-      setApplicationContents(prev => ({ ...prev, ...results }));
-      setApplicationsLoading(false);
+      if (!cancelled) {
+        setApplicationContents(prev => ({ ...prev, ...results }));
+        setApplicationsLoading(false);
+      }
     };
 
     fetchApplicationContents();
+    return () => { cancelled = true; };
   }, [isOpen, task?.applicants, safeFetchFromIpfs]);
 
   const handleCloseModal = async () => {

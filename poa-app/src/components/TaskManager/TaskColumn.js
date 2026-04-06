@@ -178,7 +178,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
     drop: async(item) => {
       console.log(`Attempting to drop in ${title} column:`, item);
 
-      if (!hasMemberRoleRef.current && title != 'Completed') {
+      if (!hasMemberRoleRef.current && title !== 'Completed') {
         toast({
           title: 'Membership Required',
           description: 'You must be a member to move tasks. Go to user page to join.',

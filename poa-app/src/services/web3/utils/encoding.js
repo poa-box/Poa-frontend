@@ -45,45 +45,28 @@ export function stringToBytes32(str) {
  * @returns {string} bytes32 hex string
  */
 export function ipfsCidToBytes32(cid) {
-  console.log('=== ipfsCidToBytes32 DEBUG ===');
-  console.log('Input CID:', cid);
-  console.log('CID type:', typeof cid);
-
   if (!cid || cid === '') {
-    console.log('Result: HashZero (empty input)');
     return ethers.constants.HashZero;
   }
 
   // Validate CID format
   if (!cid.startsWith('Qm')) {
-    console.warn('Warning: CID does not start with "Qm" (not CIDv0):', cid);
     // If it's already a hex bytes32, return as-is
     if (cid.startsWith('0x') && cid.length === 66) {
-      console.log('Result: Already bytes32, returning as-is');
       return cid;
     }
     // Otherwise, hash it as a fallback
-    console.log('Fallback: Hashing string to bytes32');
     return stringToBytes32(cid);
   }
 
   try {
     // Decode base58 CID, skip 2-byte multihash prefix (0x12 0x20), get 32-byte hash
     const decoded = bs58.decode(cid);
-    console.log('Decoded bytes length:', decoded.length);
-    console.log('First 4 bytes (hex):', ethers.utils.hexlify(decoded.slice(0, 4)));
-
     const hashBytes = decoded.slice(2); // Skip the 0x12 0x20 prefix
-    console.log('Hash bytes length:', hashBytes.length);
-
     const result = ethers.utils.hexlify(hashBytes);
-    console.log('Result bytes32:', result);
-    console.log('=== END ipfsCidToBytes32 DEBUG ===');
     return result;
   } catch (error) {
     console.error('Failed to encode IPFS CID to bytes32:', error);
-    console.log('Fallback: Returning HashZero');
-    console.log('=== END ipfsCidToBytes32 DEBUG ===');
     return ethers.constants.HashZero;
   }
 }
@@ -143,17 +126,12 @@ export function parseModuleId(moduleId) {
  * @returns {string} bytes32 project ID
  */
 export function parseProjectId(projectId) {
-  console.log('=== parseProjectId DEBUG ===');
-  console.log('Input projectId:', projectId);
-
   if (!projectId) {
-    console.log('Result: HashZero (null input)');
     return ethers.constants.HashZero;
   }
 
   // If already a bytes32 hex string, return as-is
   if (projectId.startsWith('0x') && projectId.length === 66) {
-    console.log('Result: Already bytes32, returning as-is');
     return projectId;
   }
 
@@ -162,28 +140,23 @@ export function parseProjectId(projectId) {
   // Format: "0x1234...-0x0000..."
   const subgraphPattern = /^0x[a-fA-F0-9]{40}-(.+)$/;
   const match = projectId.match(subgraphPattern);
-  console.log('Subgraph pattern match:', match);
 
   if (match) {
     const extractedId = match[1];
-    console.log('Extracted ID:', extractedId);
 
     // If the extracted part is already a valid bytes32, return it
     if (extractedId.startsWith('0x') && extractedId.length === 66) {
-      console.log('Result: Extracted bytes32 from subgraph format');
       return extractedId;
     }
     // If it's a hex string without 0x prefix, add it and pad to bytes32
     if (/^[a-fA-F0-9]+$/.test(extractedId)) {
       const padded = ethers.utils.hexZeroPad('0x' + extractedId, 32);
-      console.log('Result: Padded hex to bytes32:', padded);
       return padded;
     }
   }
 
   // Legacy: if it's a plain string name, hash it (for backwards compatibility)
   const hashed = stringToBytes32(projectId);
-  console.log('Result: Hashed string (legacy):', hashed);
   return hashed;
 }
 

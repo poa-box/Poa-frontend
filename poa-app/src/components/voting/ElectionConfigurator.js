@@ -36,19 +36,7 @@ import {
 } from 'react-icons/fi';
 import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
 import { utils } from 'ethers';
-
-const inputStyles = {
-  bg: 'whiteAlpha.100',
-  border: '1px solid',
-  borderColor: 'whiteAlpha.300',
-  color: 'white',
-  _placeholder: { color: 'gray.400' },
-  _hover: { borderColor: 'whiteAlpha.400' },
-  _focus: {
-    borderColor: 'purple.400',
-    boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
-  },
-};
+import { inputStyles } from '@/components/shared/glassStyles';
 
 /**
  * Derive current holders of a hat from leaderboard data

@@ -74,7 +74,9 @@ export function VouchLinkHandler({
     }).then(({ data }) => {
       const name = data?.account?.username;
       if (name && name.trim().length > 0) setUsername(name);
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[VouchLinkHandler] Username lookup failed:', err);
+    });
   }, [vouchAddress]);
 
   const handleVouch = async () => {

@@ -94,7 +94,9 @@ const User = () => {
     if (!addr) return;
     findUsernameAcrossChains(addr).then(({ username }) => {
       if (username) setCrossChainUsername(username);
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[UserPage] Cross-chain username lookup failed:', err);
+    });
   }, [accountAddress, address]);
 
   const [newUsername, setNewUsername] = useState("");
