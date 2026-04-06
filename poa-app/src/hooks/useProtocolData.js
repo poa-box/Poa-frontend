@@ -4,7 +4,7 @@ import { FETCH_PROTOCOL_DATA } from '@/util/protocolQueries';
 import { getAllSubgraphUrls, getNetworkByChainId } from '@/config/networks';
 import { createChainClients } from '@/services/web3/utils/chainClients';
 import { formatEther } from 'viem';
-import PaymasterHubABI from '../../../abi/PaymasterHub.json';
+import PaymasterHubABI from '../../abi/PaymasterHub.json';
 
 /**
  * Hook to fetch protocol-level data from all production chain subgraphs
@@ -181,7 +181,7 @@ export function useProtocolData() {
   }, [chainData]);
 
   return {
-    isLoading: subgraphLoading || onChainLoading,
+    isLoading: subgraphLoading, // Don't block on on-chain reads — subgraph data is sufficient
     chains: chainData,
     aggregated,
   };
