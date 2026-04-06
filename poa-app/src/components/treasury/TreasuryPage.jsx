@@ -16,7 +16,8 @@ import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
-import { FETCH_TREASURY_DATA } from '@/util/queries';
+import { FETCH_TREASURY_DATA, FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
+import { FETCH_GAS_POOL_DATA } from '@/util/passkeyQueries';
 import { getBountyTokenOptions } from '@/util/tokens';
 import { createChainClients } from '@/services/web3/utils/chainClients';
 import TreasuryHeader from './TreasuryHeader';
@@ -27,6 +28,8 @@ import HistoricalOverview from './HistoricalOverview';
 import ParticipationTokenModal from './ParticipationTokenModal';
 import DepositModal from './DepositModal';
 import CreateDistributionModal from './CreateDistributionModal';
+import GasPoolSection from './GasPoolSection';
+import GasPoolDepositModal from './GasPoolDepositModal';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -75,6 +78,7 @@ const TreasuryPage = () => {
   const { isOpen: isDepositOpen, onOpen: onDepositOpen, onClose: onDepositClose } = useDisclosure();
   const { isOpen: isBountyDepositOpen, onOpen: onBountyDepositOpen, onClose: onBountyDepositClose } = useDisclosure();
   const { isOpen: isCreateDistOpen, onOpen: onCreateDistOpen, onClose: onCreateDistClose } = useDisclosure();
+  const { isOpen: isGasPoolDepositOpen, onOpen: onGasPoolDepositOpen, onClose: onGasPoolDepositClose } = useDisclosure();
 
   // Responsive design
   const sectionHeadingSize = useBreakpointValue({ base: 'lg', md: 'xl' });
@@ -86,6 +90,22 @@ const TreasuryPage = () => {
     fetchPolicy: 'cache-first',
     context: { subgraphUrl },
   });
+
+  // Fetch gas pool data
+  const { data: gasPoolData, loading: gasPoolLoading, refetch: refetchGasPool } = useQuery(FETCH_GAS_POOL_DATA, {
+    variables: { orgId },
+    skip: !orgId,
+    fetchPolicy: 'cache-first',
+    context: { subgraphUrl },
+  });
+
+  // Fetch paymaster hub address from infrastructure
+  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
+    context: { subgraphUrl },
+    fetchPolicy: 'cache-first',
+    skip: !subgraphUrl,
+  });
+  const paymasterHubAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
   const isLoading = poContextLoading || treasuryLoading;
 
@@ -164,6 +184,11 @@ const TreasuryPage = () => {
     setTimeout(fetchErc20Balances, 2000);
   }, [fetchErc20Balances]);
 
+  // Refetch gas pool data after deposit
+  useRefreshSubscription(RefreshEvent.GAS_POOL_DEPOSITED, () => {
+    setTimeout(() => refetchGasPool(), 3000);
+  }, [refetchGasPool]);
+
   return (
     <>
       <Navbar />
@@ -185,12 +210,14 @@ const TreasuryPage = () => {
                 'distributions'
                 'history'
                 'charts'
+                'gaspool'
               `,
               md: `
                 'header header'
                 'balances distributions'
                 'history history'
                 'charts charts'
+                'gaspool gaspool'
               `,
             }}
             templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }}
@@ -326,6 +353,32 @@ const TreasuryPage = () => {
                 </Box>
               </Box>
             </GridItem>
+
+            {/* Gas Pool */}
+            <GridItem area="gaspool">
+              <Box
+                borderRadius="2xl"
+                bg="transparent"
+                boxShadow="lg"
+                position="relative"
+                zIndex={2}
+              >
+                <div style={glassLayerStyle} />
+                <VStack pb={1} align="flex-start" position="relative" borderTopRadius="2xl">
+                  <div style={glassLayerStyle} />
+                  <Text pl={{ base: 3, md: 6 }} fontWeight="bold" fontSize={sectionHeadingSize}>
+                    Gas Pool
+                  </Text>
+                </VStack>
+                <Box p={{ base: 2, md: 4 }}>
+                  <GasPoolSection
+                    gasPoolData={gasPoolData}
+                    isLoading={gasPoolLoading}
+                    onDeposit={onGasPoolDepositOpen}
+                  />
+                </Box>
+              </Box>
+            </GridItem>
           </Grid>
         </Box>
       )}
@@ -367,6 +420,13 @@ const TreasuryPage = () => {
         paymentManagerAddress={paymentManager?.id}
         orgChainId={orgChainId}
         votingContractAddress={hybridVotingContractAddress}
+      />
+
+      {/* Gas Pool Deposit Modal */}
+      <GasPoolDepositModal
+        isOpen={isGasPoolDepositOpen}
+        onClose={onGasPoolDepositClose}
+        paymasterHubAddress={paymasterHubAddress}
       />
     </>
   );

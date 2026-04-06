@@ -53,6 +53,7 @@ export const RefreshEvent = {
 
   // Treasury events
   TREASURY_DEPOSITED: 'treasury:deposited',
+  GAS_POOL_DEPOSITED: 'gaspool:deposited',
 
   // User events
   USER_CREATED: 'user:created',
