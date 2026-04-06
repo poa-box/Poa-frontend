@@ -5,6 +5,7 @@
 
 import { ethers } from 'ethers';
 import PaymentManagerABI from '../../../../abi/PaymentManager.json';
+import PaymasterHubABI from '../../../../abi/PaymasterHub.json';
 import ERC20ABI from '../../../../abi/ERC20.json';
 import { requireAddress, requirePositiveNumber } from '../utils/validation';
 
@@ -107,6 +108,26 @@ export class TreasuryService {
     const contract = this.factory.createReadOnly(tokenAddress, ERC20ABI);
     const balance = await contract.balanceOf(accountAddress);
     return balance.toString();
+  }
+
+  // ============================================
+  // Gas Pool Functions
+  // ============================================
+
+  /**
+   * Deposit native token (ETH/xDAI) to the org's gas pool via PaymasterHub.depositForOrg
+   * @param {string} paymasterHubAddress - PaymasterHub proxy address
+   * @param {string} orgId - Organization ID (bytes32)
+   * @param {string} amount - Amount to deposit (in wei)
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async depositToGasPool(paymasterHubAddress, orgId, amount, options = {}) {
+    requireAddress(paymasterHubAddress, 'PaymasterHub address');
+    requirePositiveNumber(amount, 'Deposit amount');
+
+    const contract = this.factory.createWritable(paymasterHubAddress, PaymasterHubABI);
+    return this.txManager.execute(contract, 'depositForOrg', [orgId], { ...options, value: amount });
   }
 
   // ============================================

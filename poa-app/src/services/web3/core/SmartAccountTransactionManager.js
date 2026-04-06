@@ -75,7 +75,7 @@ export class SmartAccountTransactionManager {
    * @returns {Promise<TransactionResult>}
    */
   async execute(contract, method, args = [], options = {}) {
-    const { onStateChange, paymasterHatIds: overrideHatIds } = options;
+    const { onStateChange, paymasterHatIds: overrideHatIds, value } = options;
 
     try {
       // State: Estimating
@@ -85,11 +85,11 @@ export class SmartAccountTransactionManager {
       const targetAddress = contract.address;
       const targetCallData = contract.interface.encodeFunctionData(method, args);
 
-      // 2. Wrap in PasskeyAccount.execute(target, 0, data)
+      // 2. Wrap in PasskeyAccount.execute(target, value, data)
       const callData = encodeFunctionData({
         abi: PasskeyAccountABI,
         functionName: 'execute',
-        args: [targetAddress, 0n, targetCallData],
+        args: [targetAddress, value ? BigInt(value) : 0n, targetCallData],
       });
 
       // 3. Build UserOp — try with paymaster first, fall back to self-funded
