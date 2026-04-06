@@ -4,13 +4,7 @@ import { FETCH_PROTOCOL_DATA } from '@/util/protocolQueries';
 import { getAllSubgraphUrls, getNetworkByChainId } from '@/config/networks';
 import { createChainClients } from '@/services/web3/utils/chainClients';
 import { formatEther } from 'viem';
-
-const PAYMASTER_ABI = [
-  { type: 'function', name: 'getSolidarityFund', inputs: [], outputs: [{ type: 'uint256' }, { type: 'uint256' }, { type: 'uint256' }, { type: 'bool' }], stateMutability: 'view' },
-  { type: 'function', name: 'getOnboardingConfig', inputs: [], outputs: [{ type: 'uint128' }, { type: 'uint128' }, { type: 'uint128' }, { type: 'uint32' }, { type: 'bool' }, { type: 'address' }], stateMutability: 'view' },
-  { type: 'function', name: 'getOrgDeployConfig', inputs: [], outputs: [{ type: 'uint128' }, { type: 'uint128' }, { type: 'uint128' }, { type: 'uint32' }, { type: 'uint8' }, { type: 'bool' }, { type: 'address' }], stateMutability: 'view' },
-  { type: 'function', name: 'getGracePeriodConfig', inputs: [], outputs: [{ type: 'uint32' }, { type: 'uint128' }, { type: 'uint128' }], stateMutability: 'view' },
-];
+import PaymasterHubABI from '../../../abi/PaymasterHub.json';
 
 /**
  * Hook to fetch protocol-level data from all production chain subgraphs
@@ -50,40 +44,83 @@ export function useProtocolData() {
         if (!client) continue;
 
         try {
+          // Use the real PaymasterHub ABI (returns tuples, not flat arrays)
           const [solidarity, onboarding, orgDeploy, grace] = await Promise.all([
-            client.readContract({ address: paymasterAddr, abi: PAYMASTER_ABI, functionName: 'getSolidarityFund' }).catch(() => null),
-            client.readContract({ address: paymasterAddr, abi: PAYMASTER_ABI, functionName: 'getOnboardingConfig' }).catch(() => null),
-            client.readContract({ address: paymasterAddr, abi: PAYMASTER_ABI, functionName: 'getOrgDeployConfig' }).catch(() => null),
-            client.readContract({ address: paymasterAddr, abi: PAYMASTER_ABI, functionName: 'getGracePeriodConfig' }).catch(() => null),
+            client.readContract({ address: paymasterAddr, abi: PaymasterHubABI, functionName: 'getSolidarityFund' }).catch(() => null),
+            client.readContract({ address: paymasterAddr, abi: PaymasterHubABI, functionName: 'getOnboardingConfig' }).catch(() => null),
+            client.readContract({ address: paymasterAddr, abi: PaymasterHubABI, functionName: 'getOrgDeployConfig' }).catch(() => null),
+            client.readContract({ address: paymasterAddr, abi: PaymasterHubABI, functionName: 'getGracePeriodConfig' }).catch((e) => { console.warn('getGracePeriodConfig failed:', e.message); return null; }),
           ]);
 
+          // The ABI returns structs — viem decodes them as objects with named fields
+          // or as arrays depending on whether the ABI has component names.
+          // PaymasterHub.json has named components, so viem returns objects.
+          const parseSolidarity = (s) => {
+            if (!s) return null;
+            // Could be object {balance, numActiveOrgs, ...} or array [balance, numActiveOrgs, ...]
+            const bal = s.balance ?? s[0];
+            const orgs = s.numActiveOrgs ?? s[1];
+            const fee = s.feePercentageBps ?? s[2];
+            const paused = s.distributionPaused ?? s[3];
+            return {
+              balance: formatEther(bal),
+              numActiveOrgs: Number(orgs),
+              feePercentageBps: Number(fee),
+              distributionPaused: paused,
+            };
+          };
+
+          const parseOnboarding = (o) => {
+            if (!o) return null;
+            const maxGas = o.maxGasPerCreation ?? o[0];
+            const limit = o.dailyCreationLimit ?? o[1];
+            const attempts = o.attemptsToday ?? o[2];
+            const enabled = o.enabled ?? o[4];
+            const registry = o.accountRegistry ?? o[5];
+            return {
+              maxGasPerCreation: formatEther(maxGas),
+              dailyCreationLimit: Number(limit),
+              attemptsToday: Number(attempts),
+              enabled,
+              accountRegistry: registry,
+            };
+          };
+
+          const parseOrgDeploy = (d) => {
+            if (!d) return null;
+            const maxGas = d.maxGasPerDeploy ?? d[0];
+            const limit = d.dailyDeployLimit ?? d[1];
+            const attempts = d.attemptsToday ?? d[2];
+            const maxPer = d.maxDeploysPerAccount ?? d[4];
+            const enabled = d.enabled ?? d[5];
+            const deployer = d.orgDeployer ?? d[6];
+            return {
+              maxGasPerDeploy: formatEther(maxGas),
+              dailyDeployLimit: Number(limit),
+              attemptsToday: Number(attempts),
+              maxDeploysPerAccount: Number(maxPer),
+              enabled,
+              orgDeployer: deployer,
+            };
+          };
+
+          const parseGrace = (g) => {
+            if (!g) return null;
+            const days = g.initialGraceDays ?? g[0];
+            const maxSpend = g.maxSpendDuringGrace ?? g[1];
+            const minDep = g.minDepositRequired ?? g[2];
+            return {
+              initialGraceDays: Number(days),
+              maxSpendDuringGrace: formatEther(maxSpend),
+              minDepositRequired: formatEther(minDep),
+            };
+          };
+
           results[query.chainId] = {
-            solidarity: solidarity ? {
-              balance: formatEther(solidarity[0]),
-              numActiveOrgs: Number(solidarity[1]),
-              feePercentageBps: Number(solidarity[2]),
-              distributionPaused: solidarity[3],
-            } : null,
-            onboarding: onboarding ? {
-              maxGasPerCreation: formatEther(onboarding[0]),
-              dailyCreationLimit: Number(onboarding[1]),
-              attemptsToday: Number(onboarding[2]),
-              enabled: onboarding[4],
-              accountRegistry: onboarding[5],
-            } : null,
-            orgDeploy: orgDeploy ? {
-              maxGasPerDeploy: formatEther(orgDeploy[0]),
-              dailyDeployLimit: Number(orgDeploy[1]),
-              attemptsToday: Number(orgDeploy[2]),
-              maxDeploysPerAccount: Number(orgDeploy[4]),
-              enabled: orgDeploy[5],
-              orgDeployer: orgDeploy[6],
-            } : null,
-            grace: grace ? {
-              initialGraceDays: Number(grace[0]),
-              maxSpendDuringGrace: formatEther(grace[1]),
-              minDepositRequired: formatEther(grace[2]),
-            } : null,
+            solidarity: parseSolidarity(solidarity),
+            onboarding: parseOnboarding(onboarding),
+            orgDeploy: parseOrgDeploy(orgDeploy),
+            grace: parseGrace(grace),
           };
         } catch (e) {
           console.warn(`[Protocol] Failed on-chain reads for chain ${query.chainId}:`, e.message);
