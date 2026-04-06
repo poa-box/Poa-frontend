@@ -22,6 +22,7 @@ const STATUS_TO_COLUMN = {
 
 export const ProjectProvider = ({ children }) => {
     const [projectsData, setProjectsData] = useState([]);
+    const [nextTaskId, setNextTaskId] = useState(0);
     const { accountAddress: address } = useAuth();
     const { orgId, subgraphUrl } = usePOContext();
 
@@ -156,24 +157,30 @@ export const ProjectProvider = ({ children }) => {
                 return transformedProject;
             });
 
-            setProjectsData(transformedProjects);
-        }
-    }, [data]);
-
-    // Derive taskCount and nextTaskId from projectsData instead of separate useState
-    const { taskCount, nextTaskId } = useMemo(() => {
-        let totalTasks = 0;
-        let maxTaskId = -1;
-        projectsData.forEach(project => {
-            project.columns?.forEach(col => {
-                col.tasks?.forEach(task => {
-                    totalTasks++;
+            // Compute nextTaskId from raw data (includes cancelled tasks) so optimistic
+            // IDs never collide with cancelled task IDs that are filtered from projectsData.
+            let maxTaskId = -1;
+            projects.forEach(project => {
+                (project.tasks || []).forEach(task => {
                     const numId = parseInt(task.taskId, 10);
                     if (!isNaN(numId) && numId > maxTaskId) maxTaskId = numId;
                 });
             });
+            setNextTaskId(maxTaskId + 1);
+
+            setProjectsData(transformedProjects);
+        }
+    }, [data]);
+
+    // Derive taskCount from projectsData (correctly excludes cancelled tasks)
+    const taskCount = useMemo(() => {
+        let totalTasks = 0;
+        projectsData.forEach(project => {
+            project.columns?.forEach(col => {
+                totalTasks += col.tasks?.length || 0;
+            });
         });
-        return { taskCount: totalTasks, nextTaskId: maxTaskId + 1 };
+        return totalTasks;
     }, [projectsData]);
 
     // Derive recommended (open) tasks from projectsData
