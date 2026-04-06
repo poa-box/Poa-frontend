@@ -363,7 +363,7 @@ function DeployerPageContent() {
               signer: deploySigner,
               registryAddress,
               username: deployerUsername,
-              deadlineSeconds: 300,
+              deadlineSeconds: 1209600,
               chainId: targetChainId,
               readProvider,
             });
@@ -394,7 +394,7 @@ function DeployerPageContent() {
                 signer: retrySigner,
                 registryAddress,
                 username: deployerUsername,
-                deadlineSeconds: 300,
+                deadlineSeconds: 1209600,
                 chainId: targetChainId,
                 readProvider,
               });

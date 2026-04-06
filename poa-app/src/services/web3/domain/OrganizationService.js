@@ -11,7 +11,7 @@ import { signRegistration } from '../utils/registrySigner';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
 // Registration deadline: 5 minutes
-const REGISTRATION_DEADLINE_SECONDS = 300;
+const REGISTRATION_DEADLINE_SECONDS = 1209600;
 
 /**
  * OrganizationService - Organization membership management
