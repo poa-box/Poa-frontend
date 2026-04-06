@@ -1,82 +1,162 @@
-import { useMemo } from 'react';
-import { useQuery } from '@apollo/client';
-import { FETCH_PROTOCOL_DATA } from '@/util/protocolQueries';
+import { useState, useEffect, useMemo } from 'react';
 import { getAllSubgraphUrls, getNetworkByChainId } from '@/config/networks';
 
 /**
+ * GraphQL query for protocol-level data.
+ * Uses direct fetch() to each subgraph (not Apollo useQuery) to avoid
+ * deduplication issues when querying multiple chains with the same document.
+ */
+const PROTOCOL_QUERY = `{
+  poaManagerContracts(first: 1) {
+    id
+    beaconCount
+    orgDeployerProxy
+    orgRegistryProxy
+    paymasterHubProxy
+    globalAccountRegistryProxy
+    passkeyAccountFactoryProxy
+    createdAt
+  }
+  orgRegistryContracts(first: 1) {
+    id
+    totalOrgs
+    totalContracts
+  }
+  universalAccountRegistries(first: 1) {
+    id
+    totalAccounts
+  }
+  beaconUpgradeEvents(first: 50, orderBy: upgradedAt, orderDirection: desc) {
+    id
+    typeId
+    newImplementation
+    version
+    upgradedAt
+    transactionHash
+  }
+  paymasterHubContracts(first: 1) {
+    id
+    totalDeposit
+    solidarityBalance
+    solidarityDistributionPaused
+    gracePeriodDays
+    maxSpendDuringGrace
+    minDepositRequired
+    createdAt
+  }
+  onboardingConfigs(first: 1) {
+    maxGasPerCreation
+    dailyCreationLimit
+    enabled
+    accountRegistry
+  }
+  orgDeployConfigs(first: 1) {
+    maxGasPerDeploy
+    dailyDeployLimit
+    maxDeploysPerAccount
+    enabled
+    orgDeployer
+  }
+  solidarityEvents(first: 30, orderBy: eventAt, orderDirection: desc) {
+    id
+    eventType
+    from
+    amount
+    eventAt
+    transactionHash
+  }
+}`;
+
+/**
+ * Fetch protocol data from a single subgraph endpoint.
+ */
+async function fetchChainData(url) {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: PROTOCOL_QUERY }),
+  });
+  const json = await res.json();
+  return json?.data || null;
+}
+
+/**
  * Hook to fetch protocol-level data from all production chain subgraphs.
- * All data comes from subgraph queries — no on-chain reads needed.
+ * Uses direct fetch() (not Apollo) to avoid query deduplication issues.
  */
 export function useProtocolData() {
   const chains = useMemo(() => getAllSubgraphUrls(), []);
+  const [chainData, setChainData] = useState({});
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Query each chain's subgraph
-  const chainQueries = chains.map(chain => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const { data, loading } = useQuery(FETCH_PROTOCOL_DATA, {
-      variables: { chainId: String(chain.chainId) }, // Breaks Apollo query deduplication
-      fetchPolicy: 'no-cache',
-      context: { subgraphUrl: chain.url },
-    });
-    return { chainId: chain.chainId, name: chain.name, data, loading };
-  });
+  useEffect(() => {
+    let cancelled = false;
 
-  const isLoading = chainQueries.some(q => q.loading);
+    async function fetchAll() {
+      setIsLoading(true);
+      const results = {};
 
-  // Structure the data per chain
-  const chainData = useMemo(() => {
-    const result = {};
-    for (const query of chainQueries) {
-      const d = query.data;
-      if (!d) continue;
+      const settled = await Promise.allSettled(
+        chains.map(async (chain) => {
+          const d = await fetchChainData(chain.url);
+          return { chainId: chain.chainId, name: chain.name, data: d };
+        })
+      );
 
-      const network = getNetworkByChainId(query.chainId);
-      const pm = d.paymasterHubContracts?.[0];
-      const onboarding = d.onboardingConfigs?.[0];
-      const orgDeploy = d.orgDeployConfigs?.[0];
+      for (const result of settled) {
+        if (result.status !== 'fulfilled' || !result.value.data) continue;
+        const { chainId, name, data: d } = result.value;
+        const network = getNetworkByChainId(chainId);
+        const pm = d.paymasterHubContracts?.[0];
+        const onboarding = d.onboardingConfigs?.[0];
+        const orgDeploy = d.orgDeployConfigs?.[0];
 
-      result[query.chainId] = {
-        name: query.name,
-        chainId: query.chainId,
-        blockExplorer: network?.blockExplorer || '',
-        nativeCurrency: network?.nativeCurrency?.symbol || 'ETH',
-        infrastructure: d.poaManagerContracts?.[0] || null,
-        orgStats: d.orgRegistryContracts?.[0] || null,
-        accountStats: d.universalAccountRegistries?.[0] || null,
-        paymaster: pm || null,
-        beaconUpgrades: d.beaconUpgradeEvents || [],
-        solidarityEvents: d.solidarityEvents || [],
-        // Solidarity fund data from subgraph
-        solidarity: pm ? {
-          balance: pm.solidarityBalance ? (parseInt(pm.solidarityBalance) / 1e18).toFixed(4) : '0',
-          distributionPaused: pm.solidarityDistributionPaused,
-          feePercentageBps: 100, // Default 1% — set at initialize, not indexed as a separate field
-        } : null,
-        // Grace period from subgraph
-        grace: pm ? {
-          initialGraceDays: parseInt(pm.gracePeriodDays || '90'),
-          maxSpendDuringGrace: pm.maxSpendDuringGrace ? (parseInt(pm.maxSpendDuringGrace) / 1e18).toFixed(4) : '0.05',
-          minDepositRequired: pm.minDepositRequired ? (parseInt(pm.minDepositRequired) / 1e18).toFixed(4) : '0.0001',
-        } : null,
-        // Onboarding config from subgraph (null if never updated after deploy)
-        onboarding: onboarding ? {
-          maxGasPerCreation: (parseInt(onboarding.maxGasPerCreation) / 1e18).toFixed(4),
-          dailyCreationLimit: parseInt(onboarding.dailyCreationLimit),
-          enabled: onboarding.enabled,
-          accountRegistry: onboarding.accountRegistry,
-        } : null,
-        // Org deploy config from subgraph (null if never updated after deploy)
-        orgDeploy: orgDeploy ? {
-          maxGasPerDeploy: (parseInt(orgDeploy.maxGasPerDeploy) / 1e18).toFixed(4),
-          dailyDeployLimit: parseInt(orgDeploy.dailyDeployLimit),
-          maxDeploysPerAccount: orgDeploy.maxDeploysPerAccount,
-          enabled: orgDeploy.enabled,
-          orgDeployer: orgDeploy.orgDeployer,
-        } : null,
-      };
+        results[chainId] = {
+          name,
+          chainId,
+          blockExplorer: network?.blockExplorer || '',
+          nativeCurrency: network?.nativeCurrency?.symbol || 'ETH',
+          infrastructure: d.poaManagerContracts?.[0] || null,
+          orgStats: d.orgRegistryContracts?.[0] || null,
+          accountStats: d.universalAccountRegistries?.[0] || null,
+          paymaster: pm || null,
+          beaconUpgrades: d.beaconUpgradeEvents || [],
+          solidarityEvents: d.solidarityEvents || [],
+          solidarity: pm ? {
+            balance: pm.solidarityBalance ? (parseInt(pm.solidarityBalance) / 1e18).toFixed(4) : '0',
+            distributionPaused: pm.solidarityDistributionPaused,
+            feePercentageBps: 100,
+          } : null,
+          grace: pm ? {
+            initialGraceDays: parseInt(pm.gracePeriodDays || '90'),
+            maxSpendDuringGrace: pm.maxSpendDuringGrace ? (parseInt(pm.maxSpendDuringGrace) / 1e18).toFixed(4) : '0.05',
+            minDepositRequired: pm.minDepositRequired ? (parseInt(pm.minDepositRequired) / 1e18).toFixed(4) : '0.0001',
+          } : null,
+          onboarding: onboarding ? {
+            maxGasPerCreation: (parseInt(onboarding.maxGasPerCreation) / 1e18).toFixed(4),
+            dailyCreationLimit: parseInt(onboarding.dailyCreationLimit),
+            enabled: onboarding.enabled,
+            accountRegistry: onboarding.accountRegistry,
+          } : null,
+          orgDeploy: orgDeploy ? {
+            maxGasPerDeploy: (parseInt(orgDeploy.maxGasPerDeploy) / 1e18).toFixed(4),
+            dailyDeployLimit: parseInt(orgDeploy.dailyDeployLimit),
+            maxDeploysPerAccount: orgDeploy.maxDeploysPerAccount,
+            enabled: orgDeploy.enabled,
+            orgDeployer: orgDeploy.orgDeployer,
+          } : null,
+        };
+      }
+
+      if (!cancelled) {
+        setChainData(results);
+        setIsLoading(false);
+      }
     }
-    return result;
-  }, [chainQueries]);
+
+    fetchAll();
+    return () => { cancelled = true; };
+  }, [chains]);
 
   // Aggregate stats
   const aggregated = useMemo(() => {
