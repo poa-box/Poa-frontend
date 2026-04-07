@@ -38,6 +38,7 @@ const PROTOCOL_QUERY = `{
     id
     totalDeposit
     solidarityBalance
+    totalFeesCollected
     solidarityDistributionPaused
     gracePeriodDays
     maxSpendDuringGrace
@@ -66,6 +67,29 @@ const PROTOCOL_QUERY = `{
     transactionHash
   }
 }`;
+
+/**
+ * Deploy-time defaults for onboarding config.
+ * These events fired before the PaymasterHub template was instantiated,
+ * so the subgraph never indexed them. Values are from MainDeploy.s.sol.
+ */
+function getOnboardingDefaults(chainId) {
+  // Arbitrum: onboarding disabled (governance-only chain)
+  if (chainId === 42161) {
+    return { maxGasPerCreation: '0.0050', dailyCreationLimit: 1000, enabled: false, accountRegistry: null };
+  }
+  // Gnosis: onboarding enabled
+  return { maxGasPerCreation: '0.0100', dailyCreationLimit: 1000, enabled: true, accountRegistry: null };
+}
+
+function getOrgDeployDefaults(chainId) {
+  // Arbitrum: org deploy disabled
+  if (chainId === 42161) {
+    return { maxGasPerDeploy: '0.0050', dailyDeployLimit: 50, maxDeploysPerAccount: 2, enabled: false, orgDeployer: null };
+  }
+  // Gnosis: org deploy enabled
+  return { maxGasPerDeploy: '0.0100', dailyDeployLimit: 50, maxDeploysPerAccount: 2, enabled: true, orgDeployer: null };
+}
 
 /**
  * Fetch protocol data from a single subgraph endpoint.
@@ -124,6 +148,7 @@ export function useProtocolData() {
           solidarityEvents: d.solidarityEvents || [],
           solidarity: pm ? {
             balance: pm.solidarityBalance ? (parseInt(pm.solidarityBalance) / 1e18).toFixed(4) : '0',
+            totalFeesCollected: pm.totalFeesCollected ? (parseInt(pm.totalFeesCollected) / 1e18).toFixed(6) : '0',
             distributionPaused: pm.solidarityDistributionPaused,
             feePercentageBps: 100,
           } : null,
@@ -132,19 +157,21 @@ export function useProtocolData() {
             maxSpendDuringGrace: pm.maxSpendDuringGrace ? (parseInt(pm.maxSpendDuringGrace) / 1e18).toFixed(4) : '0.05',
             minDepositRequired: pm.minDepositRequired ? (parseInt(pm.minDepositRequired) / 1e18).toFixed(4) : '0.0001',
           } : null,
+          // Onboarding config: use subgraph if indexed, otherwise fall back to
+          // known deploy-time defaults (events fired before template was instantiated)
           onboarding: onboarding ? {
             maxGasPerCreation: (parseInt(onboarding.maxGasPerCreation) / 1e18).toFixed(4),
             dailyCreationLimit: parseInt(onboarding.dailyCreationLimit),
             enabled: onboarding.enabled,
             accountRegistry: onboarding.accountRegistry,
-          } : null,
+          } : pm ? getOnboardingDefaults(chainId) : null,
           orgDeploy: orgDeploy ? {
             maxGasPerDeploy: (parseInt(orgDeploy.maxGasPerDeploy) / 1e18).toFixed(4),
             dailyDeployLimit: parseInt(orgDeploy.dailyDeployLimit),
             maxDeploysPerAccount: orgDeploy.maxDeploysPerAccount,
             enabled: orgDeploy.enabled,
             orgDeployer: orgDeploy.orgDeployer,
-          } : null,
+          } : pm ? getOrgDeployDefaults(chainId) : null,
         };
       }
 
