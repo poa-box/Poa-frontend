@@ -62,6 +62,7 @@ export const FETCH_PAYMASTER_ORG_CONFIG = gql`
       isPaused
       depositBalance
       totalSpent
+      totalSolidarityReceived
     }
   }
 `;
@@ -79,6 +80,7 @@ export const FETCH_GAS_POOL_DATA = gql`
       depositBalance
       totalDeposited
       totalSpent
+      totalSolidarityReceived
       stats {
         totalUserOps
         totalGasSponsored
