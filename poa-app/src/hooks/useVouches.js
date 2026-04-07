@@ -260,15 +260,6 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
 
     const canVouch = normalizedUserHatIds.includes(normalizedMembershipHatId);
 
-    // Debug logging
-    console.log('[canUserVouchForRole] Check:', {
-      membershipHatId,
-      normalizedMembershipHatId,
-      userHatIds,
-      normalizedUserHatIds,
-      canVouch,
-    });
-
     return canVouch;
   }, []);
 
