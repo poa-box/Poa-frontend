@@ -85,10 +85,15 @@ export const TaskBoardProvider = ({
   const { emit } = useRefreshEmit();
   const { addNotification, updateNotification } = useNotification();
 
-  // Get services from the new hook
-  const { task: taskService, isReady } = useWeb3Services({
-    ipfsService: { addToIpfs },
-  });
+  // Get services from the new hook — do NOT pass { ipfsService: { addToIpfs } } here,
+  // useWeb3Services already gets it from useIPFScontext(). Passing an inline object
+  // creates a new reference every render, causing all services to be recreated.
+  const { task: taskService, isReady } = useWeb3Services();
+
+  // Ref to access current taskColumns inside callbacks without adding taskColumns
+  // to their dependency arrays (which would recreate every callback on each column change).
+  const taskColumnsRef = useRef(taskColumns);
+  taskColumnsRef.current = taskColumns;
 
   // Optimistic lock: prevents poll-interval from overwriting local optimistic state.
   // After an optimistic update, server data is suppressed until it catches up or
@@ -187,7 +192,7 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state to revert in case of error
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
@@ -206,7 +211,7 @@ export const TaskBoardProvider = ({
     };
 
     // Optimistically update the UI — immutable update (no mutation of existing state)
-    const newTaskColumns = taskColumns.map(col => {
+    const newTaskColumns = taskColumnsRef.current.map(col => {
       if (col.id === sourceColumnId) {
         return { ...col, tasks: col.tasks.filter(t => t.id !== draggedTask.id) };
       }
@@ -294,7 +299,6 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
     }
   }, [
-    taskColumns,
     taskService,
     taskManagerContractAddress,
     isReady,
@@ -318,7 +322,7 @@ export const TaskBoardProvider = ({
     const kubixPayout = calculatePayout(task.difficulty, task.estHours);
 
     // Save previous state
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
@@ -334,7 +338,7 @@ export const TaskBoardProvider = ({
     };
 
     // Optimistically update the UI — immutable
-    const newTaskColumns = taskColumns.map(col => {
+    const newTaskColumns = taskColumnsRef.current.map(col => {
       if (col.id !== destColumnId) return col;
       return { ...col, tasks: [...col.tasks, newTask] };
     });
@@ -400,7 +404,6 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
     }
   }, [
-    taskColumns,
     taskService,
     taskManagerContractAddress,
     selectedProject,
@@ -423,7 +426,7 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
@@ -436,7 +439,7 @@ export const TaskBoardProvider = ({
     };
 
     // Optimistically update the UI — immutable
-    const newTaskColumns = taskColumns.map(col => {
+    const newTaskColumns = taskColumnsRef.current.map(col => {
       if (col.id !== destColumnId) return col;
       return {
         ...col,
@@ -480,7 +483,6 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
     }
   }, [
-    taskColumns,
     taskService,
     taskManagerContractAddress,
     isReady,
@@ -501,13 +503,13 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
     // Optimistically update the UI — immutable
-    const newTaskColumns = taskColumns.map(col => {
+    const newTaskColumns = taskColumnsRef.current.map(col => {
       if (col.id !== columnId) return col;
       return { ...col, tasks: col.tasks.filter(t => t.id !== taskId) };
     });
@@ -539,7 +541,6 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
     }
   }, [
-    taskColumns,
     taskService,
     taskManagerContractAddress,
     isReady,
@@ -560,12 +561,12 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state for rollback
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Optimistically add applicant to the task so UI reflects immediately
     let newTaskColumns;
     if (applicantAddress) {
-      newTaskColumns = taskColumns.map(col => ({
+      newTaskColumns = taskColumnsRef.current.map(col => ({
         ...col,
         tasks: col.tasks.map(t =>
           t.id === taskId
@@ -612,7 +613,7 @@ export const TaskBoardProvider = ({
       }
       return { success: false, error };
     }
-  }, [taskColumns, taskService, taskManagerContractAddress, selectedProject, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
+  }, [taskService, taskManagerContractAddress, selectedProject, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
 
   /**
    * Approve an application for a task
@@ -624,14 +625,14 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state for rollback
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
     // Optimistically move task from open to inProgress — immutable
     let movedTask = null;
-    const newTaskColumns = taskColumns.map(col => {
+    const newTaskColumns = taskColumnsRef.current.map(col => {
       if (col.id === 'open') {
         const task = col.tasks.find(t => t.id === taskId);
         if (task) {
@@ -684,7 +685,7 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskColumns, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
+  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
 
   /**
    * Assign a task to a specific user
@@ -696,14 +697,14 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state for rollback
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
     // Optimistically move task from open to inProgress — immutable
     let movedTask = null;
-    const newTaskColumns = taskColumns.map(col => {
+    const newTaskColumns = taskColumnsRef.current.map(col => {
       if (col.id === 'open') {
         const task = col.tasks.find(t => t.id === taskId);
         if (task) {
@@ -755,7 +756,7 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskColumns, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
+  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
 
   /**
    * Reject a submitted task, moving it back to inProgress
@@ -772,13 +773,13 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state for rollback
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
     // Optimistically move task from inReview to inProgress — immutable
-    const newTaskColumns = taskColumns.map(col => {
+    const newTaskColumns = taskColumnsRef.current.map(col => {
       if (col.id === 'inReview') {
         return { ...col, tasks: col.tasks.filter(t => t.id !== task.id) };
       }
@@ -826,7 +827,6 @@ export const TaskBoardProvider = ({
       return { success: false, error };
     }
   }, [
-    taskColumns,
     taskService,
     taskManagerContractAddress,
     isReady,
