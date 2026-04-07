@@ -104,8 +104,13 @@ const GasPoolSection = ({ gasPoolData, isLoading, onDeposit }) => {
   }
 
   const depositBalance = config.depositBalance || '0';
+  // Accurate balance: totalSpent includes solidarity subsidy, so add it back
+  const accurateBalance = config.totalSolidarityReceived && BigInt(config.totalSolidarityReceived) > 0n
+    ? (BigInt(config.totalDeposited || '0') - BigInt(config.totalSpent || '0') + BigInt(config.totalSolidarityReceived)).toString()
+    : depositBalance;
   const totalDeposited = config.totalDeposited || '0';
   const totalSpent = config.totalSpent || '0';
+  const totalSolidarityReceived = config.totalSolidarityReceived || '0';
   const totalUserOps = stats?.totalUserOps || '0';
   const totalGasSponsored = stats?.totalGasSponsored || '0';
 
@@ -117,11 +122,11 @@ const GasPoolSection = ({ gasPoolData, isLoading, onDeposit }) => {
   return (
     <VStack spacing={5} align="stretch">
       {/* Stats Row */}
-      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={4}>
+      <SimpleGrid columns={{ base: 2, md: 5 }} spacing={4}>
         <Stat>
           <StatLabel color="gray.400" fontSize="xs">Current Balance</StatLabel>
           <StatNumber fontSize={{ base: 'lg', md: 'xl' }} color="green.300">
-            {formatTokenAmount(depositBalance, 18, 6)} {nativeSymbol}
+            {formatTokenAmount(accurateBalance, 18, 6)} {nativeSymbol}
           </StatNumber>
           <StatHelpText color="gray.500" fontSize="xs">Available for gas</StatHelpText>
         </Stat>
@@ -143,11 +148,19 @@ const GasPoolSection = ({ gasPoolData, isLoading, onDeposit }) => {
         </Stat>
 
         <Stat>
-          <StatLabel color="gray.400" fontSize="xs">Total Spent</StatLabel>
+          <StatLabel color="gray.400" fontSize="xs">Spent from Deposits</StatLabel>
           <StatNumber fontSize={{ base: 'lg', md: 'xl' }} color="orange.300">
             {formatTokenAmount(totalSpent, 18, 6)} {nativeSymbol}
           </StatNumber>
-          <StatHelpText color="gray.500" fontSize="xs">Includes fees</StatHelpText>
+          <StatHelpText color="gray.500" fontSize="xs">From your deposits</StatHelpText>
+
+        <Stat>
+          <StatLabel color="gray.400" fontSize="xs">Solidarity Received</StatLabel>
+          <StatNumber fontSize={{ base: 'lg', md: 'xl' }} color="blue.300">
+            {formatTokenAmount(totalSolidarityReceived, 18, 6)} {nativeSymbol}
+          </StatNumber>
+          <StatHelpText color="gray.500" fontSize="xs">From solidarity fund</StatHelpText>
+        </Stat>
         </Stat>
       </SimpleGrid>
 
