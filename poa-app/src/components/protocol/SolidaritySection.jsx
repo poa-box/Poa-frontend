@@ -31,11 +31,17 @@ const ChainSolidarityCard = ({ chain }) => {
         </Badge>
       </HStack>
 
-      <SimpleGrid columns={2} spacing={3} mb={4}>
+      <SimpleGrid columns={{ base: 2, md: 3 }} spacing={3} mb={4}>
         <StatCard
           label="Fund Balance"
           value={solidarity ? `${solidarity.balance} ${chain.nativeCurrency}` : '...'}
           color="green.600"
+        />
+        <StatCard
+          label="Total Fees Collected"
+          value={solidarity ? `${solidarity.totalFeesCollected} ${chain.nativeCurrency}` : '...'}
+          subtext="Cumulative from all orgs"
+          color="amethyst.600"
         />
         <StatCard
           label="Total Orgs"
