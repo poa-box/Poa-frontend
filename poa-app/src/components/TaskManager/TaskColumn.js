@@ -176,8 +176,6 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
     accept: 'task',
     canDrop: () => true, // Always allow dropping
     drop: async(item) => {
-      console.log(`Attempting to drop in ${title} column:`, item);
-
       if (!hasMemberRoleRef.current && title !== 'Completed') {
         toast({
           title: 'Membership Required',
@@ -230,8 +228,6 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
         const claimedByValue = title === 'In Progress' ? account : item.claimedBy;
         const claimerUserValue = title === 'In Progress' ? graphUsername : item.claimerUsername;
         
-        console.log("Using username:", claimerUserValue);
-        
         const draggedTask = {
           ...item,
           id: item.id,
@@ -243,8 +239,6 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
           claimerUsername: claimerUserValue,
         };
         
-        console.log(`Moving task from ${item.columnId} to ${columnId}, index: ${newIndex}`);
-
         // Use the task's actual projectId (from subgraph), not constructed from projectName
         const safeProjectId = item.projectId ? encodeURIComponent(decodeURIComponent(item.projectId)) : '';
 

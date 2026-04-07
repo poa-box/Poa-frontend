@@ -107,11 +107,8 @@ const theme = extendTheme({
 
 export default function Post({ postData }) {
   if (!postData) {
-    console.log("No post data available");
     return <p>No Post Found</p>;
   }
-
-  console.log(postData.contentHtml);
 
   const showSidebar = useBreakpointValue({ base: false, md: true });
   const [marginLeft, setMarginLeft] = useState('0px');
@@ -120,7 +117,6 @@ export default function Post({ postData }) {
     const checkAndSetMargin = () => {
       const requiredMargin = 250;
       const availableSpace = window.innerWidth - 850-230;
-      console.log(availableSpace);
 
       if (showSidebar && availableSpace < requiredMargin) {
         setMarginLeft('230px');

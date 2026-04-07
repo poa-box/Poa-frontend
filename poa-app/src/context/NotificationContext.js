@@ -25,7 +25,6 @@ export const NotificationProvider = ({ children }) => {
 
     // Function to add a notification and return the notification id
     const addNotification = useCallback((message, status) => {
-        console.log("notif", message, status);
         const id = Date.now();
 
         setNotifications(prev => [...prev, { id, message, status }]);
@@ -61,8 +60,6 @@ export const NotificationProvider = ({ children }) => {
     }, []);
 
     const removeNotification = useCallback((id) => {
-        console.log("notif remove", id);
-
         // Clear timer if it exists for this notification
         if (timersRef.current.has(id)) {
             clearTimeout(timersRef.current.get(id));
