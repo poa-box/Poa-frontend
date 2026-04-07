@@ -151,11 +151,11 @@ export const VotingProvider = ({ children }) => {
     const refetchRef = useRef(refetch);
     refetchRef.current = refetch;
 
-    // Memoize refetch handler for stable reference
+    // Refetch immediately — executeWithNotification already waited for the
+    // subgraph to index the transaction block before emitting the event.
     const handleRefresh = useCallback(() => {
         if (orgId) {
-            // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
-            setTimeout(() => refetchRef.current(), 5000);
+            refetchRef.current();
         }
     }, [orgId]);
 

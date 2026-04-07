@@ -24,6 +24,7 @@ import {
 } from '@chakra-ui/react';
 import { PiCheck, PiWarningCircle } from 'react-icons/pi';
 import { useQuery } from '@apollo/client';
+import { getClient } from '@/util/apolloClient';
 import { useDeployer, STEPS, STEP_NAMES } from '../context/DeployerContext';
 import { mapStateToDeploymentParams, createDeploymentConfig } from '../utils/deploymentMapper';
 import { getRichTemplateById } from '../templates';
@@ -248,12 +249,13 @@ export function DeployerWizard({
   const headingColor = useColorModeValue('warmGray.900', 'white');
   const subtitleColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
-  // Fetch infrastructure addresses from the selected deploy chain's subgraph
+  // Fetch infrastructure addresses from the selected deploy chain's subgraph.
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache.
   const deployChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
   const deploySubgraphUrl = getSubgraphUrl(deployChainId);
+  const deployClient = useMemo(() => getClient(deploySubgraphUrl), [deploySubgraphUrl]);
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    fetchPolicy: 'network-only',
-    context: { subgraphUrl: deploySubgraphUrl },
+    client: deployClient,
     skip: !deploySubgraphUrl,
   });
 

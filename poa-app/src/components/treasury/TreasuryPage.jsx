@@ -12,6 +12,7 @@ import {
 import PulseLoader from "@/components/shared/PulseLoader";
 import { useRouter } from 'next/router';
 import { useQuery } from '@apollo/client';
+import { getClient } from '@/util/apolloClient';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
@@ -103,12 +104,10 @@ const TreasuryPage = () => {
   });
 
   // Fetch paymaster hub address from infrastructure.
-  // MUST use no-cache: Apollo caches by query+variables (not endpoint), so queries
-  // against different subgraphs can return poisoned cache results (e.g., Arbitrum
-  // paymaster address when querying Gnosis org). Matches useWeb3Services pattern.
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache.
+  const orgClient = useMemo(() => getClient(subgraphUrl), [subgraphUrl]);
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    context: apolloContext,
-    fetchPolicy: 'no-cache',
+    client: orgClient,
     skip: !subgraphUrl,
   });
   const paymasterHubAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
@@ -181,18 +180,15 @@ const TreasuryPage = () => {
     fetchErc20Balances();
   }, [fetchErc20Balances]);
 
-  // Refetch balances after treasury deposit
-  // Pass fetchErc20Balances as dep so the subscription captures the latest callback
-  // (on mount, paymentManager.id is null and fetchErc20Balances early-returns)
+  // Refetch immediately — executeWithNotification already waited for the
+  // subgraph to index the transaction block before emitting these events.
   useRefreshSubscription(RefreshEvent.TREASURY_DEPOSITED, () => {
     refetch();
-    // Delay balance refetch slightly to allow chain state to update
-    setTimeout(fetchErc20Balances, 2000);
+    fetchErc20Balances();
   }, [fetchErc20Balances]);
 
-  // Refetch gas pool data after deposit
   useRefreshSubscription(RefreshEvent.GAS_POOL_DEPOSITED, () => {
-    setTimeout(() => refetchGasPool(), 3000);
+    refetchGasPool();
   }, [refetchGasPool]);
 
   return (

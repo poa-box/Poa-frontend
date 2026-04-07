@@ -36,16 +36,13 @@ export function useGlobalAccount() {
     fetchPolicy: 'cache-first',
   });
 
-  // Subscribe to refresh events to update when account is created/changed
+  // Refetch immediately — executeWithNotification already waited for the
+  // subgraph to index the transaction block before emitting these events.
   useEffect(() => {
     if (!subscribe) return;
 
-    const unsub1 = subscribe('user:created', () => {
-      setTimeout(() => refetch(), 1500);
-    });
-    const unsub2 = subscribe('user:username_changed', () => {
-      setTimeout(() => refetch(), 1500);
-    });
+    const unsub1 = subscribe('user:created', () => refetch());
+    const unsub2 = subscribe('user:username_changed', () => refetch());
 
     return () => {
       unsub1();

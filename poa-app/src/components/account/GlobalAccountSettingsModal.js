@@ -51,8 +51,8 @@ const GlobalAccountSettingsModal = ({ isOpen, onClose }) => {
       );
 
       if (result.success) {
-        // Refetch account data to get updated username
-        setTimeout(() => refetchAccount(), 1500);
+        // Refetch handled by useGlobalAccount's refresh subscription —
+        // executeWithNotification waits for the subgraph before emitting.
       }
     } else {
       toast({

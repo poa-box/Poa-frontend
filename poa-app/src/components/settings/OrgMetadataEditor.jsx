@@ -33,6 +33,7 @@ import { PiImage } from 'react-icons/pi';
 import { useDropzone } from 'react-dropzone';
 import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
+import { getClient } from '@/util/apolloClient';
 
 import { useAccount, useSwitchChain } from 'wagmi';
 import { useIPFScontext } from '@/context/ipfsContext';
@@ -242,13 +243,14 @@ export default function OrgMetadataEditor({
   const { chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();
 
-  // Fetch infrastructure addresses from the ORG'S chain subgraph (not default/home chain)
+  // Fetch infrastructure addresses from the ORG'S chain subgraph (not default/home chain).
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache.
   const orgSubgraphUrl = orgChainId ? getSubgraphUrl(orgChainId) : null;
+  const orgClient = useMemo(() => getClient(orgSubgraphUrl), [orgSubgraphUrl]);
   const { data: infraData, loading: infraLoading, error: infraError } = useQuery(
     FETCH_INFRASTRUCTURE_ADDRESSES,
     {
-      fetchPolicy: 'no-cache',
-      context: orgSubgraphUrl ? { subgraphUrl: orgSubgraphUrl } : undefined,
+      client: orgClient,
       skip: !orgSubgraphUrl,
     }
   );

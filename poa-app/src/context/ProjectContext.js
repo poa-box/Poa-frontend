@@ -39,13 +39,11 @@ export const ProjectProvider = ({ children }) => {
     const refetchRef = useRef(refetch);
     refetchRef.current = refetch;
 
-    // Handle refresh events from task transactions — refetch after a short delay
-    // to give the subgraph time to index the new transaction.
+    // Refetch immediately — executeWithNotification already waited for the
+    // subgraph to index the transaction block before emitting the event.
     const handleRefresh = useCallback(() => {
         if (orgId) {
-            setTimeout(() => {
-                refetchRef.current();
-            }, 5000);
+            refetchRef.current();
         }
     }, [orgId]);
 

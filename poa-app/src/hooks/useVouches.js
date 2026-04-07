@@ -52,13 +52,11 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
     context: apolloContext,
   });
 
-  // Subscribe to refresh events for real-time updates
+  // Refetch immediately — executeWithNotification already waited for the
+  // subgraph to index the transaction block before emitting these events.
   useRefreshSubscription(
     ['role:vouched', 'role:vouch-revoked', 'role:claimed'],
-    useCallback(() => {
-      // Delay refetch to allow subgraph to index
-      setTimeout(() => refetch(), 1500);
-    }, [refetch])
+    useCallback(() => refetch(), [refetch])
   );
 
   // Create a map of quorums by hatId for quick lookup

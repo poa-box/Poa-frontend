@@ -6,12 +6,14 @@
 
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@apollo/client';
+import { getClient } from '@/util/apolloClient';
 import { encodeFunctionData } from 'viem';
 import { useEthersSigner, useEthersProvider } from '@/components/ProviderConverter';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useRefreshEmit } from '../context/RefreshContext';
 import { useIPFScontext } from '../context/ipfsContext';
+import { waitForSubgraphBlock } from '@/util/waitForSubgraph';
 import { usePOContext } from '../context/POContext';
 import { useUserContext } from '../context/UserContext';
 import { INFRASTRUCTURE_CONTRACTS, getInfrastructureAddress } from '../config/contracts';
@@ -81,18 +83,18 @@ export function useWeb3Services(options = {}) {
   const userContext = useUserContext();
   const hatIds = userContext?.userData?.hatIds || null;
 
-  // Stable reference for Apollo context — prevents no-cache queries from
-  // re-executing on every render due to new object identity.
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache,
+  // so infrastructure addresses from one chain can't leak into another chain's queries.
+  const orgClient = useMemo(() => getClient(subgraphUrl), [subgraphUrl]);
+  // Context routing for org-scoped queries that use the default client (safe from
+  // cache poisoning because they have org-specific variables like orgId).
   const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
   // Fetch infrastructure addresses from subgraph — routed to org's chain.
   // Skip until subgraphUrl is resolved by POContext to avoid querying the default
   // (Arbitrum) subgraph and getting wrong-chain addresses.
-  // MUST use no-cache: Apollo caches by query+variables (not endpoint), so queries
-  // against different subgraphs can return poisoned cache results.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    context: apolloContext,
-    fetchPolicy: 'no-cache',
+    client: orgClient,
     skip: !subgraphUrl,
   });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
@@ -101,8 +103,7 @@ export function useWeb3Services(options = {}) {
   // For passkey cross-chain: fetch factory address from org chain to compute initCode
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
     skip: !isPasskeyUser || !isCrossChain || !subgraphUrl,
-    context: apolloContext,
-    fetchPolicy: 'no-cache',
+    client: orgClient,
   });
   const orgFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
@@ -287,11 +288,18 @@ export function useWeb3Services(options = {}) {
 
 /**
  * Hook for transaction execution with integrated notifications
- * Wraps service calls with loading states and automatic notifications
+ * Wraps service calls with loading states and automatic notifications.
+ *
+ * After a successful transaction, waits for the subgraph to index
+ * the new block before emitting the refresh event. This centralizes
+ * the _meta polling (max 2 queries) so subscribers can refetch immediately
+ * with fresh data.
  */
 export function useTransactionWithNotification() {
   const { addNotification, updateNotification } = useNotification();
   const { emit } = useRefreshEmit();
+  const poContext = usePOContext();
+  const subgraphUrl = poContext?.subgraphUrl;
 
   /**
    * Execute a transaction with notification handling
@@ -324,12 +332,18 @@ export function useTransactionWithNotification() {
         // Update pending notification to success
         updateNotification(pendingId, successMessage, 'success');
 
-        // Emit refresh event if specified
+        // Wait for subgraph to index the tx block, then emit refresh event.
+        // Fire-and-forget: don't block the caller (optimistic UI is already showing).
+        // Max 2 _meta queries (~5s initial + 2s backup), then emit regardless.
         if (refreshEvent) {
-          emit(refreshEvent, {
-            ...refreshData,
-            transactionHash: result.transactionHash,
-          });
+          const emitRefresh = async () => {
+            await waitForSubgraphBlock(subgraphUrl, result.blockNumber);
+            emit(refreshEvent, {
+              ...refreshData,
+              transactionHash: result.txHash,
+            });
+          };
+          emitRefresh();
         }
       } else {
         // Update to error
@@ -348,7 +362,7 @@ export function useTransactionWithNotification() {
         error,
       };
     }
-  }, [addNotification, updateNotification, emit]);
+  }, [addNotification, updateNotification, emit, subgraphUrl]);
 
   /**
    * Create a transaction handler for common operations
