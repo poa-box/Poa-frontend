@@ -233,13 +233,11 @@ export const POProvider = ({ children }) => {
     const refetchRef = React.useRef(refetchOrgData);
     refetchRef.current = refetchOrgData;
 
-    // Handle refresh events from Web3 transactions
+    // Refetch immediately — executeWithNotification already waited for the
+    // subgraph to index the transaction block before emitting the event.
     const handleRefresh = useCallback(() => {
         if (state.orgId) {
-            // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
-            setTimeout(() => {
-                refetchRef.current();
-            }, 5000);
+            refetchRef.current();
         }
     }, [state.orgId]);
 

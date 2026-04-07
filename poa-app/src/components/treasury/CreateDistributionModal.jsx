@@ -16,6 +16,7 @@ import { formatTokenAmount, parseTokenAmount } from '@/util/formatToken';
 import { createChainClients } from '@/services/web3/utils/chainClients';
 import { buildDistributionTree } from '@/util/merkleDistribution';
 import { useQuery, gql } from '@apollo/client';
+import { getClient } from '@/util/apolloClient';
 
 const FETCH_PT_HOLDERS = gql`
   query FetchPTHolders($orgId: Bytes!) {
@@ -62,14 +63,13 @@ const CreateDistributionModal = ({
 
   const tokens = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
-
-  // Fetch PT holders from subgraph
+  // Fetch PT holders from subgraph.
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache.
+  const orgClient = useMemo(() => getClient(subgraphUrl), [subgraphUrl]);
   const { data: holderData } = useQuery(FETCH_PT_HOLDERS, {
     variables: { orgId },
     skip: !orgId || !isOpen,
-    fetchPolicy: 'no-cache',
-    context: apolloContext,
+    client: orgClient,
   });
 
   const holders = useMemo(() => {

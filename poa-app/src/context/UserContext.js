@@ -99,23 +99,18 @@ export const UserProvider = ({ children }) => {
         }
     }, [orgUserID, account]);
 
+    // Refetch immediately — executeWithNotification already waited for the
+    // subgraph to index the transaction block before emitting these events.
     useEffect(() => {
         const unsubscribe = subscribe('role:claimed', () => {
-            // Wait for subgraph to index on mainnet, then refetch user data
-            setTimeout(() => {
-                refetchUserData();
-            }, 5000);
+            refetchUserData();
         });
         return unsubscribe;
     }, [subscribe, refetchUserData]);
 
-    // Subscribe to username_changed event to refetch user data
     useEffect(() => {
         const unsubscribe = subscribe('user:username_changed', () => {
-            // Wait for subgraph to index on mainnet, then refetch user data
-            setTimeout(() => {
-                refetchUserData();
-            }, 5000);
+            refetchUserData();
         });
         return unsubscribe;
     }, [subscribe, refetchUserData]);
@@ -272,7 +267,10 @@ export const UserProvider = ({ children }) => {
         }));
         setUserDataLoading(false);
 
-        // Schedule a subgraph refetch to replace optimistic data with real data
+        // Schedule a subgraph refetch to replace optimistic data with real data.
+        // This is called before the transaction completes (optimistic), so we use
+        // a fixed delay. The actual transaction's refresh event (via executeWithNotification)
+        // will also trigger a refetch with proper _meta waiting.
         setTimeout(() => refetchUserData(), 8000);
     }, [orgId, roleHatIds, refetchUserData]);
 

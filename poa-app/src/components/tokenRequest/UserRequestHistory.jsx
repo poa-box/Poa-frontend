@@ -61,18 +61,15 @@ const UserRequestHistory = () => {
     context: apolloContext,
   });
 
-  // Subscribe to refresh events
-  const handleRefresh = () => {
-    setTimeout(() => refetch(), 2000);
-  };
-
+  // Refetch immediately — executeWithNotification already waited for the
+  // subgraph to index the transaction block before emitting these events.
   useRefreshSubscription(
     [
       RefreshEvent.TOKEN_REQUEST_CREATED,
       RefreshEvent.TOKEN_REQUEST_APPROVED,
       RefreshEvent.TOKEN_REQUEST_CANCELLED,
     ],
-    handleRefresh,
+    () => refetch(),
     [refetch]
   );
 

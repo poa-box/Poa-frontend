@@ -16,6 +16,7 @@ import {
 } from "@chakra-ui/react";
 import { CloseIcon } from "@chakra-ui/icons";
 import { useQuery } from "@apollo/client";
+import { getClient } from "@/util/apolloClient";
 import LogoDropzoneModal from "@/components/Architect/LogoDropzoneModal";
 import LinksModal from "@/components/Architect/LinksModal";
 import { useAccount, useDisconnect, useSwitchChain, useConfig } from "wagmi";
@@ -98,30 +99,26 @@ function DeployerPageContent() {
   // Fetch infrastructure addresses from the target deploy chain's subgraph
   const deployChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
   const deploySubgraphUrl = getSubgraphUrl(deployChainId);
-  // IMPORTANT: Use 'no-cache' for ALL cross-chain subgraph queries to prevent Apollo
-  // from returning cached Arbitrum results when querying Gnosis (same query, different endpoint).
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache,
+  // so Arbitrum infrastructure addresses can't leak into Gnosis queries.
+  const deployClient = useMemo(() => getClient(deploySubgraphUrl), [deploySubgraphUrl]);
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    fetchPolicy: 'no-cache',
-    context: { subgraphUrl: deploySubgraphUrl },
+    client: deployClient,
     skip: !deploySubgraphUrl,
   });
 
   // Fetch passkey factory address on deploy chain (needed for cross-chain account creation)
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
-    fetchPolicy: 'no-cache',
-    context: { subgraphUrl: deploySubgraphUrl },
+    client: deployClient,
     skip: !deploySubgraphUrl || !isPasskeyUser,
   });
   const deployChainFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
   // Check if deployer already has a username on the deploy chain (via subgraph)
-  // IMPORTANT: Use 'no-cache' to prevent Apollo from returning cached Arbitrum results
-  // for the same account ID queried against the Gnosis subgraph endpoint.
   const deployerAddr = passkeyState?.accountAddress || address;
   const { data: deployChainAccountData } = useQuery(FETCH_USERNAME_NEW, {
     variables: { id: deployerAddr?.toLowerCase() },
-    fetchPolicy: 'no-cache',
-    context: { subgraphUrl: deploySubgraphUrl },
+    client: deployClient,
     skip: !deployerAddr || !deploySubgraphUrl,
   });
   const deployChainHasUsername = !!deployChainAccountData?.account?.username;
