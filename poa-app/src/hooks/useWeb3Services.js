@@ -4,7 +4,7 @@
  * Supports both EOA (RainbowKit/wagmi) and Passkey (ERC-4337) auth types.
  */
 
-import { useMemo, useCallback, useState, useEffect } from 'react';
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { encodeFunctionData } from 'viem';
 import { useEthersSigner, useEthersProvider } from '@/components/ProviderConverter';
@@ -81,13 +81,17 @@ export function useWeb3Services(options = {}) {
   const userContext = useUserContext();
   const hatIds = userContext?.userData?.hatIds || null;
 
+  // Stable reference for Apollo context — prevents no-cache queries from
+  // re-executing on every render due to new object identity.
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Fetch infrastructure addresses from subgraph — routed to org's chain.
   // Skip until subgraphUrl is resolved by POContext to avoid querying the default
   // (Arbitrum) subgraph and getting wrong-chain addresses.
   // MUST use no-cache: Apollo caches by query+variables (not endpoint), so queries
   // against different subgraphs can return poisoned cache results.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    context: { subgraphUrl },
+    context: apolloContext,
     fetchPolicy: 'no-cache',
     skip: !subgraphUrl,
   });
@@ -97,7 +101,7 @@ export function useWeb3Services(options = {}) {
   // For passkey cross-chain: fetch factory address from org chain to compute initCode
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
     skip: !isPasskeyUser || !isCrossChain || !subgraphUrl,
-    context: { subgraphUrl },
+    context: apolloContext,
     fetchPolicy: 'no-cache',
   });
   const orgFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
@@ -109,11 +113,15 @@ export function useWeb3Services(options = {}) {
   const [crossChainInitCode, setCrossChainInitCode] = useState('0x');
   // Track whether cross-chain initCode resolution has completed (so we can
   // block isReady until it finishes and prevent transactions from firing early).
-  const [crossChainInitCodeResolved, setCrossChainInitCodeResolved] = useState(false);
+  // Lazy-initialize: for non-passkey/non-cross-chain users, start resolved (true)
+  // to avoid a false→true transition that triggers an extra render in every instance.
+  const needsCrossChainInit = isPasskeyUser && isCrossChain;
+  const [crossChainInitCodeResolved, setCrossChainInitCodeResolved] = useState(() => !needsCrossChainInit);
 
   useEffect(() => {
     if (!isPasskeyUser || !isCrossChain) {
-      // Not cross-chain — no initCode needed, immediately resolved
+      // Not cross-chain — no initCode needed, immediately resolved.
+      // No-op setState when value already matches (React bails out).
       setCrossChainInitCode('0x');
       setCrossChainInitCodeResolved(true);
       return;
@@ -178,7 +186,7 @@ export function useWeb3Services(options = {}) {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
   const orgPaymaster = pmConfig?.paymasterOrgConfigs?.[0];
   // Entity existence = registered. Only pass paymaster address when not paused.
@@ -259,7 +267,7 @@ export function useWeb3Services(options = {}) {
     ? Boolean(isAuthenticated && factory && txManager && crossChainInitCodeResolved)
     : Boolean(signer && factory && txManager);
 
-  return {
+  return useMemo(() => ({
     // Core
     factory,
     txManager,
@@ -274,7 +282,7 @@ export function useWeb3Services(options = {}) {
 
     // Constants
     VotingType,
-  };
+  }), [factory, txManager, services, getContractAddress, isReady, signer]);
 }
 
 /**
@@ -369,10 +377,10 @@ export function useTransactionWithNotification() {
     };
   }, [executeWithNotification]);
 
-  return {
+  return useMemo(() => ({
     executeWithNotification,
     createHandler,
-  };
+  }), [executeWithNotification, createHandler]);
 }
 
 /**
@@ -383,10 +391,10 @@ export function useWeb3(options = {}) {
   const services = useWeb3Services(options);
   const txNotification = useTransactionWithNotification();
 
-  return {
+  return useMemo(() => ({
     ...services,
     ...txNotification,
-  };
+  }), [services, txNotification]);
 }
 
 export default useWeb3Services;

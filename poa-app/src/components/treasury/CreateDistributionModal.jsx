@@ -62,12 +62,14 @@ const CreateDistributionModal = ({
 
   const tokens = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Fetch PT holders from subgraph
   const { data: holderData } = useQuery(FETCH_PT_HOLDERS, {
     variables: { orgId },
     skip: !orgId || !isOpen,
     fetchPolicy: 'no-cache',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
   const holders = useMemo(() => {

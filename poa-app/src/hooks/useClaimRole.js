@@ -23,6 +23,8 @@ export function useClaimRole(eligibilityModuleAddress) {
   const { addToIpfs, ipfsCidToBytes32 } = useIPFScontext();
   const { subgraphUrl } = usePOContext();
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   const [claimingHatId, setClaimingHatId] = useState(null);
   const [vouchingFor, setVouchingFor] = useState(null);
   const [revokingFor, setRevokingFor] = useState(null);
@@ -38,7 +40,7 @@ export function useClaimRole(eligibilityModuleAddress) {
       },
       skip: !eligibilityModuleAddress || !userAddress,
       fetchPolicy: 'cache-first',
-      context: { subgraphUrl },
+      context: apolloContext,
     }
   );
 

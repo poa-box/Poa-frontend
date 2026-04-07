@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   VStack,
@@ -36,12 +36,14 @@ const PendingRequestsPanel = () => {
   const [loadingRequestId, setLoadingRequestId] = useState(null);
   const [metadataCache, setMetadataCache] = useState({});
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Query pending requests
   const { data, loading, error, refetch } = useQuery(FETCH_PENDING_TOKEN_REQUESTS, {
     variables: { tokenAddress: participationTokenAddress },
     skip: !participationTokenAddress,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
   // Subscribe to refresh events

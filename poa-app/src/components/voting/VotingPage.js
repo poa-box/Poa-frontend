@@ -3,7 +3,7 @@
  * Main voting page component for proposal management and voting
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   Container,
   Center,
@@ -157,13 +157,13 @@ const VotingPage = () => {
   });
 
   // Contract addresses object for setter proposals
-  const contractAddresses = {
+  const contractAddresses = useMemo(() => ({
     votingContractAddress,
     directDemocracyVotingContractAddress,
     taskManagerContractAddress,
     executorContractAddress,
     participationTokenAddress,
-  };
+  }), [votingContractAddress, directDemocracyVotingContractAddress, taskManagerContractAddress, executorContractAddress, participationTokenAddress]);
 
   // Wrapper for handleSubmit that passes eligibilityModule and contract addresses
   const handlePollCreated = useCallback(() => {

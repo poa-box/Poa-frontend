@@ -2,8 +2,6 @@ import React, { createContext, useContext, useReducer, useEffect, useMemo, useCa
 import { useQuery } from '@apollo/client';
 import { FETCH_ORG_FULL_DATA } from '../util/queries';
 import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
-import { useAuth } from './AuthContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
@@ -150,8 +148,6 @@ function poReducer(state, action) {
 }
 
 export const POProvider = ({ children }) => {
-    const { address } = useAccount();
-    const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
     const poName = router.query.userDAO || '';
     const { safeFetchFromIpfs } = useIPFScontext();
@@ -224,23 +220,28 @@ export const POProvider = ({ children }) => {
 
     // Step 2: Fetch full org data using bytes ID, routed to the correct chain's subgraph
     const subgraphUrl = getSubgraphUrl(state.orgChainId);
+    const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
     const { data: orgData, loading: orgDataLoading, error: orgDataError, refetch: refetchOrgData } = useQuery(FETCH_ORG_FULL_DATA, {
         variables: { orgId: state.orgId },
         skip: !state.orgId,
         fetchPolicy: 'cache-first',
-        context: { subgraphUrl },
+        context: apolloContext,
     });
+
+    // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
+    const refetchRef = React.useRef(refetchOrgData);
+    refetchRef.current = refetchOrgData;
 
     // Handle refresh events from Web3 transactions
     const handleRefresh = useCallback(() => {
-        if (state.orgId && refetchOrgData) {
+        if (state.orgId) {
             // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
             setTimeout(() => {
-                refetchOrgData();
+                refetchRef.current();
             }, 5000);
         }
-    }, [state.orgId, refetchOrgData]);
+    }, [state.orgId]);
 
     // Subscribe to relevant events
     useRefreshSubscription(
@@ -436,7 +437,9 @@ export const POProvider = ({ children }) => {
 
     // Combined loading and error states
     const loading = orgLookupLoading || orgDataLoading;
-    const error = orgLookupError || orgDataError;
+    const rawError = orgLookupError || orgDataError;
+    // Stabilize error: only change when the message string changes, not the object reference
+    const errorMessage = rawError?.message || null;
 
     // Note: "org not found" is handled inline in the parallel fetch above
 
@@ -472,7 +475,7 @@ export const POProvider = ({ children }) => {
 
         // Derived data
         loading,
-        error,
+        error: errorMessage ? { message: errorMessage } : null,
         leaderboardData: state.leaderboardData,
         leaderboardDisplayData,
         poContextLoading: state.poContextLoading,
@@ -487,11 +490,11 @@ export const POProvider = ({ children }) => {
         hideTreasury: state.hideTreasury,
         roleNames: state.roleNames,
         roleCanVoteMap: state.roleCanVoteMap,
-    }), [state, loading, error, leaderboardDisplayData, subgraphUrl]);
+    }), [state, loading, errorMessage, leaderboardDisplayData, subgraphUrl]);
 
     return (
         <POContext.Provider value={contextValue}>
-            {error && <div>Error: {error.message}</div>}
+            {errorMessage && <div>Error: {errorMessage}</div>}
             {children}
         </POContext.Provider>
     );

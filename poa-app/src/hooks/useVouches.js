@@ -42,12 +42,14 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
   const { subgraphUrl } = usePOContext();
   const normalizedUserAddress = normalizeAddress(userAddress);
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Fetch vouches from subgraph
   const { data, loading, error, refetch } = useQuery(FETCH_VOUCHES_FOR_ORG, {
     variables: { eligibilityModuleId: eligibilityModuleAddress },
     skip: !eligibilityModuleAddress,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
   // Subscribe to refresh events for real-time updates

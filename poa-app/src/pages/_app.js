@@ -49,7 +49,7 @@ const config = getDefaultConfig({
   appName: 'Poa',
   projectId: '7dc7409d6ef96f46e91e9d5797e4deac',
   chains: allChains,
-  ssr: false,
+  ssr: true,
 });
 
 
@@ -190,43 +190,65 @@ const theme = extendTheme({
   },
 });
 
+import React, { useMemo } from 'react';
+
+// Provider tree wrapped in React.memo. Only re-renders when `children` changes.
+// Since `children` is a memoized page element (see MyApp), this prevents wagmi's
+// Hydrate/reconnect store updates from cascading through all nested providers.
+const StableProviders = React.memo(function StableProviders({ children }) {
+  return (
+    <AuthProvider>
+      <ApolloProvider client={client}>
+        <QueryClientProvider client={queryClient}>
+          <RainbowKitProvider initialChain={defaultChain}>
+            <RefreshProvider>
+            <IPFSprovider>
+              <ProfileHubProvider>
+                <POProvider>
+                  <VotingProvider>
+                    <ProjectProvider>
+                      <UserProvider>
+                        <NotificationProvider>
+                          <Web3Provider>
+                            <DataBaseProvider>
+                              <ChakraProvider theme={theme}>
+                                <NetworkModalControl />
+                                <Notification />
+                                {children}
+                              </ChakraProvider>
+                            </DataBaseProvider>
+                          </Web3Provider>
+                        </NotificationProvider>
+                      </UserProvider>
+                    </ProjectProvider>
+                  </VotingProvider>
+                </POProvider>
+              </ProfileHubProvider>
+            </IPFSprovider>
+            </RefreshProvider>
+          </RainbowKitProvider>
+        </QueryClientProvider>
+      </ApolloProvider>
+    </AuthProvider>
+  );
+});
+
 function MyApp({ Component, pageProps }) {
+  // Memoize the page element so it's a stable reference across wagmi-triggered
+  // re-renders. Only recreated on actual page navigation (Component change).
+  // pageProps excluded from deps — always {} in this static-export app (no
+  // getServerSideProps/getStaticProps), so the spread is a no-op.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const page = useMemo(() => (
+    <Component {...pageProps} />
+  ), [Component]);
+
   return (
     <ErrorBoundary>
       <WagmiProvider config={config}>
-        <AuthProvider>
-        <ApolloProvider client={client}>
-          <QueryClientProvider client={queryClient}>
-            <RainbowKitProvider initialChain={defaultChain}>
-              <RefreshProvider>
-              <IPFSprovider>
-                <ProfileHubProvider>
-                  <POProvider>
-                    <VotingProvider>
-                      <ProjectProvider>
-                        <UserProvider>
-                          <NotificationProvider>
-                            <Web3Provider>
-                              <DataBaseProvider>
-                                <ChakraProvider theme={theme}>
-                                  <NetworkModalControl />
-                                  <Notification />
-                                  <Component {...pageProps} />
-                                </ChakraProvider>
-                              </DataBaseProvider>
-                            </Web3Provider>
-                          </NotificationProvider>
-                        </UserProvider>
-                      </ProjectProvider>
-                    </VotingProvider>
-                  </POProvider>
-                </ProfileHubProvider>
-              </IPFSprovider>
-              </RefreshProvider>
-            </RainbowKitProvider>
-          </QueryClientProvider>
-        </ApolloProvider>
-        </AuthProvider>
+        <StableProviders>
+          {page}
+        </StableProviders>
       </WagmiProvider>
     </ErrorBoundary>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   VStack,
@@ -48,6 +48,8 @@ const UserRequestHistory = () => {
 
   const [cancellingId, setCancellingId] = useState(null);
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Query user's requests
   const { data, loading, error, refetch } = useQuery(FETCH_USER_TOKEN_REQUESTS, {
     variables: {
@@ -56,7 +58,7 @@ const UserRequestHistory = () => {
     },
     skip: !participationTokenAddress || !address,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
   // Subscribe to refresh events

@@ -114,11 +114,13 @@ const CustomTooltip = ({ active, payload, label }) => {
 const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks = [], tokenAddress }) => {
   const { leaderboardData, subgraphUrl } = usePOContext();
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Fetch token requests
   const { data: requestsData, loading: requestsLoading } = useQuery(FETCH_ALL_TOKEN_REQUESTS, {
     variables: { tokenAddress: tokenAddress?.toLowerCase() },
     skip: !tokenAddress || !isOpen,
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
   // Get approved token requests

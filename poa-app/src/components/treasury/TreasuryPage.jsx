@@ -83,12 +83,15 @@ const TreasuryPage = () => {
   // Responsive design
   const sectionHeadingSize = useBreakpointValue({ base: 'lg', md: 'xl' });
 
+  // Stable Apollo context reference — prevents queries from re-executing due to new object identity
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Fetch treasury data from subgraph
   const { data: treasuryData, loading: treasuryLoading, refetch } = useQuery(FETCH_TREASURY_DATA, {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
   // Fetch gas pool data
@@ -96,7 +99,7 @@ const TreasuryPage = () => {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
   // Fetch paymaster hub address from infrastructure.
@@ -104,7 +107,7 @@ const TreasuryPage = () => {
   // against different subgraphs can return poisoned cache results (e.g., Arbitrum
   // paymaster address when querying Gnosis org). Matches useWeb3Services pattern.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    context: { subgraphUrl },
+    context: apolloContext,
     fetchPolicy: 'no-cache',
     skip: !subgraphUrl,
   });

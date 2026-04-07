@@ -248,12 +248,14 @@ export function useOrgStructure() {
   });
   const [metadataLoading, setMetadataLoading] = useState(true);
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Fetch org structure data from subgraph
   const { data, loading: queryLoading, error } = useQuery(FETCH_ORG_STRUCTURE_DATA, {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
   const org = data?.organization;

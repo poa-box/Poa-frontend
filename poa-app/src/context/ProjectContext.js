@@ -1,8 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { FETCH_PROJECTS_DATA_NEW } from '../util/queries';
-import { useRouter } from 'next/router';
-import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { formatTokenAmount } from '../util/formatToken';
@@ -23,30 +21,33 @@ const STATUS_TO_COLUMN = {
 export const ProjectProvider = ({ children }) => {
     const [projectsData, setProjectsData] = useState([]);
     const [nextTaskId, setNextTaskId] = useState(0);
-    const { accountAddress: address } = useAuth();
     const { orgId, subgraphUrl } = usePOContext();
 
-    const router = useRouter();
+    const apolloContext = React.useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
     // pollInterval keeps task data fresh. cache-and-network shows cached data instantly.
     // 40s balances liveness against The Graph Studio rate limits.
-    const { data, loading, error, refetch } = useQuery(FETCH_PROJECTS_DATA_NEW, {
+    const { data, refetch } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-and-network',
         pollInterval: 40000,
-        context: { subgraphUrl },
+        context: apolloContext,
     });
+
+    // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
 
     // Handle refresh events from task transactions — refetch after a short delay
     // to give the subgraph time to index the new transaction.
     const handleRefresh = useCallback(() => {
-        if (orgId && refetch) {
+        if (orgId) {
             setTimeout(() => {
-                refetch();
+                refetchRef.current();
             }, 5000);
         }
-    }, [orgId, refetch]);
+    }, [orgId]);
 
     useRefreshSubscription(
         [
@@ -198,9 +199,7 @@ export const ProjectProvider = ({ children }) => {
         taskCount,
         recommendedTasks,
         nextTaskId,
-        loading,
-        error,
-    }), [projectsData, taskCount, recommendedTasks, nextTaskId, loading, error]);
+    }), [projectsData, taskCount, recommendedTasks, nextTaskId]);
 
     return (
         <ProjectContext.Provider value={contextValue}>
