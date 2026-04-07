@@ -1,9 +1,5 @@
-import { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useProjectContext } from './ProjectContext';
-import { useRouter } from 'next/router';
-
-
-
 
 const DataBaseContext = createContext();
 
@@ -12,11 +8,6 @@ export const useDataBaseContext = () => {
 };
 
 export const DataBaseProvider = ({ children }) => {
-    // usestate for projects initalized with mock data with 3 projects and each has an id 
-
-    const router = useRouter();
-    const { userDAO } = router.query;
-
     const {projectsData}= useProjectContext();
 
 
@@ -46,13 +37,16 @@ export const DataBaseProvider = ({ children }) => {
     // Projects are populated from ProjectContext via useEffect
     const [projects, setProjects] = useState([]);
 
+    // Ref-stabilize projects so setSelectedProjectId doesn't re-create on every data update
+    const projectsRef = useRef(projects);
+    projectsRef.current = projects;
 
     const [selectedProject,setSelectedProject] = useState('')
 
     const setSelectedProjectId = useCallback((projectId) => {
-      const project = projects.find(project => project.id === projectId);
+      const project = projectsRef.current.find(project => project.id === projectId);
       setSelectedProject(project);
-    }, [projects]);
+    }, []);
 
     // Placeholder function - username lookup should use subgraph data
     const getUsernameByAddress = useCallback(async (address) => {

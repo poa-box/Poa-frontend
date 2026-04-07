@@ -1,8 +1,6 @@
-import React, { createContext, useContext, useEffect, useMemo, useCallback, useReducer } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useCallback, useReducer, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { FETCH_VOTING_DATA_NEW } from '../util/queries';
-import { useRouter } from 'next/router';
-import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { formatTokenAmount } from '../util/formatToken';
@@ -139,24 +137,27 @@ function votingReducer(state, action) {
 export const VotingProvider = ({ children }) => {
     const [state, dispatch] = useReducer(votingReducer, initialVotingState);
 
-    const { accountAddress: address } = useAuth();
-    const router = useRouter();
     const { orgId, subgraphUrl } = usePOContext();
+    const apolloContext = React.useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
-    const { data, loading, error, refetch } = useQuery(FETCH_VOTING_DATA_NEW, {
+    const { data, loading, refetch } = useQuery(FETCH_VOTING_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-first',
-        context: { subgraphUrl },
+        context: apolloContext,
     });
+
+    // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
 
     // Memoize refetch handler for stable reference
     const handleRefresh = useCallback(() => {
         if (orgId) {
             // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
-            setTimeout(() => refetch(), 5000);
+            setTimeout(() => refetchRef.current(), 5000);
         }
-    }, [orgId, refetch]);
+    }, [orgId]);
 
     // Subscribe only to voting-specific events (not ALL, which fires on every event)
     useRefreshSubscription(
@@ -247,12 +248,10 @@ export const VotingProvider = ({ children }) => {
         democracyVotingOngoing: state.democracyVotingOngoing,
         democracyVotingCompleted: state.democracyVotingCompleted,
         loading,
-        error,
         ongoingPolls: state.ongoingPolls,
         votingType: state.votingType,
         votingClasses: state.votingClasses,
-        refetch,
-    }), [state, loading, error, refetch]);
+    }), [state, loading]);
 
     return (
         <VotingContext.Provider value={contextValue}>

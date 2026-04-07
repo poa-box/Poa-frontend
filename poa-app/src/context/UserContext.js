@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@apollo/client';
-import { useAccount } from 'wagmi';
 import { useAuth } from './AuthContext';
 import { FETCH_USER_DATA_NEW, FETCH_TOKEN_APPROVER_HATS } from '../util/queries';
 import { useRouter } from 'next/router';
@@ -14,7 +13,6 @@ const UserContext = createContext();
 export const useUserContext = () => useContext(UserContext);
 
 export const UserProvider = ({ children }) => {
-    const { address } = useAccount();
     const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
     const { userDAO } = router.query;
@@ -37,7 +35,7 @@ export const UserProvider = ({ children }) => {
     const [account, setAccount] = useState(null);
 
     // Use AuthContext's unified address (supports both EOA and passkey)
-    const effectiveAddress = authAddress || address;
+    const effectiveAddress = authAddress;
 
     useEffect(() => {
         if (effectiveAddress) {
@@ -47,6 +45,7 @@ export const UserProvider = ({ children }) => {
 
     // Construct the org-specific user ID
     const orgUserID = orgId && account ? `${orgId}-${account}` : null;
+    const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
     const { data, error, loading, refetch } = useQuery(FETCH_USER_DATA_NEW, {
         variables: {
@@ -55,15 +54,19 @@ export const UserProvider = ({ children }) => {
         },
         skip: !orgUserID || !account,
         fetchPolicy: 'cache-first',
-        context: { subgraphUrl },
+        context: apolloContext,
     });
+
+    // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
 
     // Query approver hats for the participation token
     const { data: approverHatsData } = useQuery(FETCH_TOKEN_APPROVER_HATS, {
         variables: { tokenAddress: participationTokenAddress },
         skip: !participationTokenAddress,
         fetchPolicy: 'cache-first',
-        context: { subgraphUrl },
+        context: apolloContext,
     });
 
     // Derive role booleans from query data (replaces separate useState + useEffect pattern).
@@ -92,9 +95,9 @@ export const UserProvider = ({ children }) => {
 
     const refetchUserData = useCallback(() => {
         if (orgUserID && account) {
-            refetch();
+            refetchRef.current();
         }
-    }, [refetch, orgUserID, account]);
+    }, [orgUserID, account]);
 
     useEffect(() => {
         const unsubscribe = subscribe('role:claimed', () => {
@@ -273,6 +276,9 @@ export const UserProvider = ({ children }) => {
         setTimeout(() => refetchUserData(), 8000);
     }, [orgId, roleHatIds, refetchUserData]);
 
+    // Stabilize error: only change when the message string changes, not the object reference
+    const errorMessage = error?.message || null;
+
     const contextValue = useMemo(() => ({
         userDataLoading,
         userProposals,
@@ -284,7 +290,7 @@ export const UserProvider = ({ children }) => {
         hasApproverRole,
         claimedTasks,
         completedModules,
-        error,
+        error: errorMessage ? { message: errorMessage } : null,
         refetchUserData,
         optimisticJoin,
     }), [
@@ -298,7 +304,7 @@ export const UserProvider = ({ children }) => {
         hasApproverRole,
         claimedTasks,
         completedModules,
-        error,
+        errorMessage,
         refetchUserData,
         optimisticJoin,
     ]);

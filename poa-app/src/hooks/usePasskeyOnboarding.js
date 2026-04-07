@@ -43,13 +43,15 @@ export function usePasskeyOnboarding() {
     return { publicClient: clients.publicClient, bundlerClient: clients.bundlerClient, chainId: orgChainId };
   }, [isCrossChain, orgChainId, homePublicClient, homeBundlerClient]);
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Fetch infrastructure addresses — routed to org's chain subgraph.
   // Skip until subgraphUrl is resolved by POContext to avoid querying the default
   // (Arbitrum) subgraph and getting wrong-chain addresses.
   // MUST use no-cache: Apollo caches by query+variables (not endpoint), so queries
   // against different subgraphs can return poisoned cache results.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    context: { subgraphUrl },
+    context: apolloContext,
     fetchPolicy: 'no-cache',
     skip: !subgraphUrl,
   });
@@ -58,7 +60,7 @@ export function usePasskeyOnboarding() {
 
   // Fetch factory address from org chain's subgraph
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
-    context: { subgraphUrl },
+    context: apolloContext,
     fetchPolicy: 'no-cache',
     skip: !subgraphUrl,
   });
