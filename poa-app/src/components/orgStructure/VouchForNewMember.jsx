@@ -3,7 +3,7 @@
  * Solves the chicken-and-egg problem where users need at least 1 vouch to appear in the UI
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   VStack,
@@ -47,9 +47,13 @@ export function VouchForNewMember({
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRoleHatId, setSelectedRoleHatId] = useState('');
 
-  // Filter to roles the user can vouch for
-  const vouchableRoles = rolesWithVouching.filter(role =>
-    canUserVouchForRole?.(role.vouchingMembershipHatId, userHatIds)
+  // Filter to roles the user can vouch for — memoized to keep a stable reference
+  // (.filter() creates a new array each render, which would re-trigger the useEffect below)
+  const vouchableRoles = useMemo(
+    () => rolesWithVouching.filter(role =>
+      canUserVouchForRole?.(role.vouchingMembershipHatId, userHatIds)
+    ),
+    [rolesWithVouching, userHatIds, canUserVouchForRole]
   );
 
   // Auto-select if only one role available
@@ -73,18 +77,6 @@ export function VouchForNewMember({
   };
 
   const canSubmit = selectedUser && selectedRoleHatId && !isVouching && isConnected;
-
-  // Debug: log vouch permission data
-  console.log('[VouchForNewMember] Debug:', {
-    rolesWithVouching: rolesWithVouching.map(r => ({
-      name: r.name,
-      hatId: r.hatId,
-      membershipHatId: r.vouchingMembershipHatId,
-    })),
-    userHatIds,
-    vouchableRoles: vouchableRoles.map(r => r.name),
-    isConnected,
-  });
 
   // Don't render if user can't vouch for any roles
   if (vouchableRoles.length === 0) {

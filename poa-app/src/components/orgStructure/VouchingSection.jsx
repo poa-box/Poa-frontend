@@ -3,7 +3,7 @@
  * Groups pending vouch requests by role with accordion pattern
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   Box,
   VStack,
@@ -293,8 +293,11 @@ export function VouchingSection({
   isConnected = true,
   embedded = false,
 }) {
-  // Filter to roles with vouching enabled
-  const rolesWithVouching = roles.filter(role => role.vouchingEnabled);
+  // Filter to roles with vouching enabled — memoized to keep a stable reference
+  const rolesWithVouching = useMemo(
+    () => roles.filter(role => role.vouchingEnabled),
+    [roles]
+  );
 
   // Use vouches hook
   const {
