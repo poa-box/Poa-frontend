@@ -21,6 +21,7 @@ import {
   SimpleGrid,
   InputGroup,
   InputRightAddon,
+  Image,
 } from '@chakra-ui/react';
 import { getBountyTokenOptions, BOUNTY_TOKENS, hasBounty as checkHasBounty } from '../../util/tokens';
 import { usePOContext } from '../../context/POContext';
@@ -237,18 +238,27 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
                   <SimpleGrid columns={2} spacing={3}>
                     <FormControl>
                       <FormLabel color="gray.400" fontSize="xs">Token</FormLabel>
-                      <Select
-                        value={bountyToken}
-                        onChange={(e) => setBountyToken(e.target.value)}
-                        size="sm"
-                        {...selectStyles}
-                      >
-                        {tokenOptions.map((token) => (
-                          <option key={token.symbol} value={token.address}>
-                            {token.symbol} - {token.name}
-                          </option>
-                        ))}
-                      </Select>
+                      <HStack spacing={2}>
+                        {(() => {
+                          const selected = tokenOptions.find(t => t.address === bountyToken);
+                          return selected?.logo ? (
+                            <Image src={selected.logo} alt={selected.symbol} boxSize="24px" borderRadius="full" fallback={<></>} />
+                          ) : null;
+                        })()}
+                        <Select
+                          value={bountyToken}
+                          onChange={(e) => setBountyToken(e.target.value)}
+                          size="sm"
+                          {...selectStyles}
+                          flex={1}
+                        >
+                          {tokenOptions.map((token) => (
+                            <option key={token.symbol} value={token.address}>
+                              {token.symbol} - {token.name}
+                            </option>
+                          ))}
+                        </Select>
+                      </HStack>
                     </FormControl>
                     <FormControl>
                       <FormLabel color="gray.400" fontSize="xs">Amount</FormLabel>
