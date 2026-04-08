@@ -1,6 +1,6 @@
 import React from "react";
 import Link from "next/link";
-import Head from "next/head";
+import SEOHead from "@/components/common/SEOHead";
 import {
   Box,
   Flex,
@@ -81,14 +81,11 @@ const STEPS = [
 const AboutPage = () => {
   return (
     <>
-      <Head>
-        <title>About Poa - Community-Owned Organization Builder</title>
-        <meta
-          name="description"
-          content="Learn how Poa enables communities to build democratic, decentralized organizations where voting power is earned through contribution."
-        />
-        <link rel="canonical" href="https://poa.community/about" />
-      </Head>
+      <SEOHead
+        title="About Poa - Community-Owned Organization Builder"
+        description="Learn how Poa enables communities to build democratic, decentralized organizations where voting power is earned through contribution."
+        path="/about"
+      />
 
       <Box minH="100vh" overflowX="hidden" bg="white">
         <Navbar />

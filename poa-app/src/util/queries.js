@@ -146,6 +146,7 @@ export const FETCH_ORG_FULL_DATA = gql`
         id
         description
         template
+        backgroundColor
         logo
         hideTreasury
         links {
@@ -501,6 +502,7 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
         id
         description
         template
+        backgroundColor
         logo
         hideTreasury
         links {

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
+import SEOHead from "@/components/common/SEOHead";
 import {
   Box,
   Container,
@@ -28,6 +29,7 @@ import { useRouter } from "next/router";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { usePOContext } from "@/context/POContext";
 import { useVotingContext } from "@/context/VotingContext";
+import { useOrgTheme } from "@/hooks";
 import HistoryCard from "@/components/voting/HistoryCard";
 import EmptyState from "@/components/voting/EmptyState";
 import CompletedPollModal from "@/templateComponents/studentOrgDAO/voting/CompletedPollModal";
@@ -51,6 +53,7 @@ const VotingHistoryPage = () => {
 
   // Context data
   const { poContextLoading } = usePOContext();
+  const { pageBackground } = useOrgTheme();
   const {
     democracyVotingCompleted,
     hybridVotingCompleted,
@@ -188,11 +191,21 @@ const VotingHistoryPage = () => {
     return index === 0 ? PTVoteType : "Democracy";
   };
 
+  const seoHead = (
+    <SEOHead
+      title="Voting History"
+      description="View past votes and proposals."
+      path="/votes"
+      noIndex
+    />
+  );
+
   if (poContextLoading) {
     return (
       <>
+        {seoHead}
         <Navbar />
-        <Center height="90vh">
+        <Center height="90vh" background={pageBackground()}>
           <PulseLoader size="xl" color="purple.400" />
         </Center>
       </>
@@ -201,8 +214,9 @@ const VotingHistoryPage = () => {
 
   return (
     <>
+      {seoHead}
       <Navbar />
-      <Box position="relative" w="100%" minH="100vh" p={containerPadding}>
+      <Box position="relative" w="100%" minH="100vh" p={containerPadding} background={pageBackground()}>
         <Container maxW="1400px" mx="auto">
           <VStack spacing={6} align="stretch">
             {/* Header with back button */}

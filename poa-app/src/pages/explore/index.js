@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { FiMap } from "react-icons/fi";
 import { useTour } from "@/features/tour";
+import SEOHead from "@/components/common/SEOHead";
 import { useIPFScontext } from "@/context/ipfsContext";
 import { useprofileHubContext } from "@/context/profileHubContext";
 import { useAuth } from "@/context/AuthContext";
@@ -234,6 +235,12 @@ const BrowserPage = () => {
   };
 
   return (
+    <>
+    <SEOHead
+      title="Explore Organizations"
+      description="Discover community-owned organizations built with Poa. Browse DAOs with democratic governance and contribution-based voting."
+      path="/explore"
+    />
     <Box minH="100vh" overflowX="hidden">
       <Navbar
         mounted={mounted}
@@ -732,6 +739,7 @@ const BrowserPage = () => {
         </Container>
       </Box>
     </Box>
+    </>
   );
 };
 

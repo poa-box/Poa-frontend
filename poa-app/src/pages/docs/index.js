@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSortedPostsData } from '../../util/posts';
+import SEOHead from '@/components/common/SEOHead';
 import { 
   Flex, 
   Box, 
@@ -263,6 +264,12 @@ export default function Home({ allPostsData }) {
   );
 
   return (
+    <>
+    <SEOHead
+      title="Documentation"
+      description="Guides for creating, joining, and governing community-owned organizations with Poa."
+      path="/docs"
+    />
     <Layout>
       <Box>
         {isClient && (
@@ -520,6 +527,7 @@ export default function Home({ allPostsData }) {
         )}
       </Box>
     </Layout>
+    </>
   );
 }
 

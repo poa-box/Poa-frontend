@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import SEOHead from "@/components/common/SEOHead";
 import {
   Box,
   VStack,
@@ -22,7 +23,7 @@ import { useAccount } from 'wagmi';
 
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { useAuth } from '@/context/AuthContext';
-import { useOrgStructure, useClaimRole, useVouches } from '@/hooks';
+import { useOrgStructure, useClaimRole, useVouches, useOrgTheme } from '@/hooks';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingContext } from '@/context/VotingContext';
 import {
@@ -40,6 +41,7 @@ const OrgStructurePage = () => {
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
   const { isConnected, address: wagmiAddress } = useAccount();
+  const { pageBackground } = useOrgTheme();
   const { isAuthenticated, accountAddress } = useAuth();
 
   // Use unified address (works for both passkey and wallet users)
@@ -111,53 +113,70 @@ const OrgStructurePage = () => {
     }
   }, [roles, eligibilityModuleAddress, userAddress, accountAddress, checkApplicationStatuses]);
 
+  const seoHead = (
+    <SEOHead
+      title="Organization Structure"
+      description="View organization roles and governance structure."
+      path="/team"
+      noIndex
+    />
+  );
+
   // Loading state
   if (loading) {
     return (
-      <Box
-        minH="100vh"
-        bg="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
-      >
-        <Navbar />
-        <Center minH="60vh">
-          <VStack spacing={4}>
-            <PulseLoader size="xl" color="purple.400" />
-            <Text color="gray.400">Loading organization structure...</Text>
-          </VStack>
-        </Center>
-      </Box>
+      <>
+        {seoHead}
+        <Box
+          minH="100vh"
+          background={pageBackground("linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)")}
+        >
+          <Navbar />
+          <Center minH="60vh">
+            <VStack spacing={4}>
+              <PulseLoader size="xl" color="purple.400" />
+              <Text color="gray.400">Loading organization structure...</Text>
+            </VStack>
+          </Center>
+        </Box>
+      </>
     );
   }
 
   // Error state
   if (error) {
     return (
-      <Box
-        minH="100vh"
-        bg="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
-      >
-        <Navbar />
-        <Center minH="60vh">
-          <VStack spacing={4}>
-            <Alert status="error" borderRadius="md">
-              <AlertIcon />
-              Failed to load organization data
-            </Alert>
-            <Link href={`/dashboard?org=${userDAO}`} passHref>
-              <Button leftIcon={<FiArrowLeft />} variant="ghost" colorScheme="purple">
-                Back to Dashboard
-              </Button>
-            </Link>
-          </VStack>
-        </Center>
-      </Box>
+      <>
+        {seoHead}
+        <Box
+          minH="100vh"
+          background={pageBackground("linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)")}
+        >
+          <Navbar />
+          <Center minH="60vh">
+            <VStack spacing={4}>
+              <Alert status="error" borderRadius="md">
+                <AlertIcon />
+                Failed to load organization data
+              </Alert>
+              <Link href={`/dashboard?org=${userDAO}`} passHref>
+                <Button leftIcon={<FiArrowLeft />} variant="ghost" colorScheme="purple">
+                  Back to Dashboard
+                </Button>
+              </Link>
+            </VStack>
+          </Center>
+        </Box>
+      </>
     );
   }
 
   return (
+    <>
+    {seoHead}
     <Box
       minH="100vh"
-      bg="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
+      background={pageBackground("linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)")}
     >
       <Navbar />
 
@@ -308,6 +327,7 @@ const OrgStructurePage = () => {
         roleName={applicationModal.roleName}
       />
     </Box>
+    </>
   );
 };
 

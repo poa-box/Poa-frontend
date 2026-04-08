@@ -1,3 +1,4 @@
+import SEOHead from "@/components/common/SEOHead";
 import React, { useRef, useEffect } from 'react';
 import { Box, Center } from '@chakra-ui/react';
 import PulseLoader from "@/components/shared/PulseLoader";
@@ -6,12 +7,14 @@ import { useDataBaseContext } from '@/context/dataBaseContext';
 import { useRouter } from 'next/router';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { usePOContext } from '@/context/POContext';
+import { useOrgTheme } from '@/hooks';
 
 const Tasks = () => {
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
   const { setSelectedProjectId, projects } = useDataBaseContext();
   const { poContextLoading } = usePOContext();
+  const { pageBackground } = useOrgTheme();
   const containerRef = useRef();
 
   useEffect(() => {
@@ -27,13 +30,19 @@ const Tasks = () => {
 
   return (
     <>
+      <SEOHead
+        title="Tasks"
+        description="Manage and track organization tasks."
+        path="/tasks"
+        noIndex
+      />
       <Navbar />
       {poContextLoading ? (
-        <Center height="90vh">
+        <Center height="90vh" background={pageBackground()}>
           <PulseLoader size="xl" />
         </Center>
       ) : (
-        <Box minH="90vh" position="relative" bg="blackAlpha.600" ref={containerRef}>
+        <Box minH="90vh" position="relative" bg="blackAlpha.600" ref={containerRef} background={pageBackground()}>
           <MainLayout />
         </Box>
       )}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import SEOHead from "@/components/common/SEOHead";
 import { useWeb3, useOrgStructure, useClaimRole, useVouches, useVouchFirstOnboarding } from "@/hooks";
 import { usePOContext } from "@/context/POContext";
 import { useUserContext } from "@/context/UserContext";
@@ -511,12 +512,22 @@ const User = () => {
     },
   ];
 
+  const seoHead = (
+    <SEOHead
+      title="Join Organization"
+      description="Join a community-owned organization."
+      path="/join"
+      noIndex
+    />
+  );
+
   if (isSSR) {
-    return null;
+    return seoHead;
   }
 
   return (
     <>
+      {seoHead}
       <Navbar />
       <Box
         position="fixed"

@@ -1,3 +1,4 @@
+import SEOHead from "@/components/common/SEOHead";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import {
@@ -17,6 +18,7 @@ import { FaExternalLinkAlt } from "react-icons/fa";
 import { FiUsers, FiActivity, FiCheckCircle, FiGrid, FiCheckSquare, FiBarChart2, FiUser } from "react-icons/fi";
 import Link from "next/link";
 import { usePOContext } from "@/context/POContext";
+import { useOrgTheme } from "@/hooks";
 import { useIPFScontext } from "@/context/ipfsContext";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { useAuth } from "@/context/AuthContext";
@@ -86,6 +88,7 @@ const GradientAvatar = ({ name, orgGradient }) => (
 
 const Home = () => {
   const { logoUrl, poDescription, poLinks, poMembers, activeTaskAmount, completedTaskAmount } = usePOContext();
+  const { pageBackground } = useOrgTheme();
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
   const { fetchImageFromIpfs } = useIPFScontext();
@@ -122,6 +125,12 @@ const Home = () => {
 
   return (
     <>
+      <SEOHead
+        title="Organization Home"
+        description="Organization overview and activity."
+        path="/home"
+        noIndex
+      />
       {isNavbarReady && <Navbar userDAO={userDAO} />}
 
       <Box
@@ -134,6 +143,7 @@ const Home = () => {
         alignItems="center"
         justifyContent="flex-start"
         zIndex={1}
+        background={pageBackground()}
       >
         <VStack
           spacing={{ base: 6, md: 8 }}
@@ -373,7 +383,7 @@ const Home = () => {
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
-                    onClick={() => window.open("https://poa.community", "_blank")}
+                    onClick={() => window.open("https://poa.box", "_blank")}
                   >
                     Website
                   </Button>
@@ -385,7 +395,7 @@ const Home = () => {
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
-                    onClick={() => window.open("https://docs.poa.community", "_blank")}
+                    onClick={() => window.open("https://docs.poa.box", "_blank")}
                   >
                     Docs
                   </Button>

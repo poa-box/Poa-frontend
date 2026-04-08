@@ -40,7 +40,7 @@ These mechanisms can be applied to both general governance and specific function
 
 The decentralized task manager in Poa AlphaV1 automates task assignment and payouts, fostering operational efficiency and transparency. Integrated with on-chain technology, this system ensures that all actions are recorded and verifiable, enhancing both security and trust within the organization.
 
-![Task Manager](https://poa.community/images/taskManager.png "task manager")
+![Task Manager](https://poa.box/images/taskManager.webp "task manager")
 
 
 ### Task Compensation Rubric

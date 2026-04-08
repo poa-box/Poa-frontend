@@ -4,6 +4,7 @@
  * Supports both wallet (EOA) and passkey authentication.
  */
 
+import SEOHead from "@/components/common/SEOHead";
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -154,14 +155,23 @@ const AccountPage = () => {
     }
   }, [isSSR, isAccountLoading, isAuthenticated, hasAccount, router]);
 
+  const seoHead = (
+    <SEOHead
+      title="Account Settings"
+      description="Manage your Poa account settings and profile."
+      path="/account"
+      noIndex
+    />
+  );
+
   if (isSSR) {
-    return null;
+    return seoHead;
   }
 
   // Not authenticated state
   if (!isAuthenticated) {
     return (
-      <Box
+      <>{seoHead}<Box
         minH="100vh"
         bgGradient={bgGradient}
         display="flex"
@@ -205,25 +215,27 @@ const AccountPage = () => {
           onClose={onSignInClose}
           onSuccess={() => {}}
         />
-      </Box>
+      </Box></>
     );
   }
 
   // Loading state
   if (isAccountLoading) {
     return (
-      <Box minH="100vh" bgGradient={bgGradient} p={4}>
+      <>{seoHead}<Box minH="100vh" bgGradient={bgGradient} p={4}>
         <Container maxW="container.lg" pt={8}>
           <VStack spacing={6}>
             <Skeleton height="200px" width="100%" borderRadius="2xl" />
             <Skeleton height="300px" width="100%" borderRadius="2xl" />
           </VStack>
         </Container>
-      </Box>
+      </Box></>
     );
   }
 
   return (
+    <>
+      {seoHead}
     <Box minH="100vh" bgGradient={bgGradient} pb={8}>
       <Container maxW="container.lg" pt={8}>
         {/* Header with back button */}
@@ -415,6 +427,7 @@ const AccountPage = () => {
         onClose={() => setSettingsModalOpen(false)}
       />
     </Box>
+    </>
   );
 };
 
