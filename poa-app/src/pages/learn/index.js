@@ -161,13 +161,14 @@ const EducationHub = () => {
         path="/learn"
         noIndex
       />
+      <Box minH="100vh" background={pageBackground()}>
       <Navbar />
       {poContextLoading ? (
-        <Center height="90vh" background={pageBackground()}>
+        <Center height="90vh">
           <PulseLoader size="xl" />
         </Center>
       ) : (
-        <Box position="relative" background={pageBackground()}>
+        <Box position="relative">
           {/* Main Box */}
           <Box
             p={5}
@@ -429,6 +430,7 @@ const EducationHub = () => {
           </Box>
         </Box>
       )}
+      </Box>
     </>
   );
 };

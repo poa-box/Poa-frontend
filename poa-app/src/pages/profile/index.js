@@ -21,7 +21,8 @@ import Link2 from 'next/link';
 import { useRouter } from 'next/router';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import ExecutiveMenuModal from '@/components/profileHub/ExecutiveMenuModal';
-import { useOrgStructure } from '@/hooks';
+import PulseLoader from "@/components/shared/PulseLoader";
+import { useOrgStructure, useOrgTheme } from '@/hooks';
 import { useVouches } from '@/hooks/useVouches';
 import WelcomeClaimPage from '@/components/profileHub/WelcomeClaimPage';
 import { useAuth } from '@/context/AuthContext';
@@ -175,6 +176,7 @@ const UserprofileHub = () => {
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
   const { accountAddress: userAddress } = useAuth();
+  const { pageBackground } = useOrgTheme();
 
   const { ongoingPolls } = useVotingContext();
   const { recommendedTasks } = useProjectContext();
@@ -246,7 +248,15 @@ const UserprofileHub = () => {
   );
 
   if (!isFullyLoaded) {
-    return <>{seoHead}<WelcomePageSkeleton /></>;
+    return (
+      <>
+        {seoHead}
+        <Navbar />
+        <Center height="100vh" background={pageBackground()}>
+          <PulseLoader size="xl" />
+        </Center>
+      </>
+    );
   }
 
   // Show welcome/claim page if user hasn't claimed any role yet
@@ -270,7 +280,7 @@ const UserprofileHub = () => {
       <>
         {seoHead}
         <Navbar />
-        <Center height="100vh">
+        <Center height="100vh" background={pageBackground()}>
           <Text color="white">Error: {error.message}</Text>
         </Center>
       </>
@@ -281,7 +291,7 @@ const UserprofileHub = () => {
     <>
       {seoHead}
       <Navbar />
-      <Box mt={-2} p={4}>
+      <Box mt={-2} p={4} minH="100vh" background={pageBackground()}>
         <Grid
           color="white"
           templateAreas={{
