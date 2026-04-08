@@ -178,17 +178,17 @@ export default function TourOverlay() {
   const { targetRect, targetElement } = useSpotlightTarget(selector, isActive);
   useTargetElevation(targetElement, !!currentStepDef?.forceInteraction);
 
-  // Block desktop scroll (wheel) while tour is active.
-  // Mobile touch is blocked by the overlay's pointer-events: auto.
+  // Block desktop scroll (wheel) while tour is active, unless noOverlay step.
   // Programmatic window.scrollTo still works for step transitions.
+  const noOverlay = !!currentStepDef?.noOverlay;
   useEffect(() => {
-    if (!isActive) return;
+    if (!isActive || noOverlay) return;
     const prevent = (e) => e.preventDefault();
     window.addEventListener('wheel', prevent, { passive: false });
     return () => {
       window.removeEventListener('wheel', prevent);
     };
-  }, [isActive]);
+  }, [isActive, noOverlay]);
 
   if (!isActive || !currentStepDef) return null;
 
@@ -206,8 +206,8 @@ export default function TourOverlay() {
 
   return (
     <Portal>
-      {/* Spotlight overlay */}
-      <Spotlight rect={targetRect} isActionStep={isAction} />
+      {/* Spotlight overlay — skip for noOverlay steps */}
+      {!noOverlay && <Spotlight rect={targetRect} isActionStep={isAction} />}
 
       {/* Tooltip */}
       <Box key={currentStep} {...style} zIndex={10000} pointerEvents="auto" animation={`${fadeIn} 0.25s ease`}>
