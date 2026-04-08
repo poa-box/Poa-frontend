@@ -175,17 +175,15 @@ export default function TourOverlay() {
   const { targetRect, targetElement } = useSpotlightTarget(selector, isActive);
   useTargetElevation(targetElement, !!currentStepDef?.forceInteraction);
 
-  // Block user scrolling while tour is active (wheel + touch).
-  // This prevents the spotlight lag from scroll tracking.
-  // Programmatic window.scrollTo still works since it doesn't fire these events.
+  // Block desktop scroll (wheel) while tour is active.
+  // Mobile touch is blocked by the overlay's pointer-events: auto.
+  // Programmatic window.scrollTo still works for step transitions.
   useEffect(() => {
     if (!isActive) return;
     const prevent = (e) => e.preventDefault();
     window.addEventListener('wheel', prevent, { passive: false });
-    window.addEventListener('touchmove', prevent, { passive: false });
     return () => {
       window.removeEventListener('wheel', prevent);
-      window.removeEventListener('touchmove', prevent);
     };
   }, [isActive]);
 
@@ -200,7 +198,7 @@ export default function TourOverlay() {
   const arrowPlacement = _actual || (targetRect ? currentStepDef.placement : null);
 
   const inviteLink = typeof window !== 'undefined' && orgName
-    ? `${window.location.origin}/join/?org=${encodeURIComponent(orgName)}`
+    ? `${window.location.origin}/join?org=${encodeURIComponent(orgName)}`
     : '';
 
   return (

@@ -62,7 +62,7 @@ export default function TourPrompt() {
                 <Icon as={PiSparkle} color="amethyst.400" boxSize={5} />
               </HStack>
               <Text color="warmGray.600" fontSize="md" maxW="340px">
-                Get a quick walkthrough of your new organization, then create your first project and task.
+                Get a quick walkthrough of this organization and see how everything works.
               </Text>
             </VStack>
 
@@ -77,13 +77,13 @@ export default function TourPrompt() {
                 <HStack spacing={2}>
                   <Icon as={PiRocketLaunch} color="amethyst.500" boxSize={4} />
                   <Text fontSize="sm" color="warmGray.700">
-                    See how your dashboard, task board, voting, and roles work
+                    Explore the dashboard, task board, voting, and roles
                   </Text>
                 </HStack>
                 <HStack spacing={2}>
                   <Icon as={PiRocketLaunch} color="amethyst.500" boxSize={4} />
                   <Text fontSize="sm" color="warmGray.700">
-                    Set up your first project and publish a task for members to claim
+                    Learn how tasks, governance, and permissions work
                   </Text>
                 </HStack>
               </VStack>

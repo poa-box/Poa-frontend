@@ -332,8 +332,9 @@ const BrowserPage = () => {
                 leftIcon={<FiMap />}
                 flex={1}
                 onClick={() => {
+                  if (!selectedOrg?.id) return;
                   onClose();
-                  startTour(selectedOrg?.id);
+                  startTour(selectedOrg.id);
                 }}
               >
                 Tour Org
