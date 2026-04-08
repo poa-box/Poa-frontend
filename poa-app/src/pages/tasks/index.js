@@ -31,10 +31,9 @@ const Tasks = () => {
   return (
     <>
       <SEOHead
-        title="Tasks"
-        description="Manage and track organization tasks."
+        title="A Task for You"
+        description="You've been shared a task on Poa."
         path="/tasks"
-        noIndex
       />
       <Navbar />
       {poContextLoading ? (
