@@ -12,8 +12,11 @@ import {
     Heading,
     Text,
     VStack,
-    Badge
+    Badge,
+    Center,
+    Icon,
     } from '@chakra-ui/react';
+import { FiBarChart2 } from 'react-icons/fi';
 
     import Link2 from 'next/link';
     import { useRouter } from "next/router";
@@ -35,7 +38,17 @@ const OngoingPolls = ({OngoingPolls}) => {
     const userDAO = router.query.org || router.query.userDAO || '';
     const ongoingPollsExist = OngoingPolls && OngoingPolls.length > 0;
     if (!ongoingPollsExist) {
-        return <Text mt="4" ml="7">No ongoing polls available</Text>;
+        return (
+            <Center py={8} flexDirection="column">
+                <Icon as={FiBarChart2} boxSize={8} color="whiteAlpha.300" mb={3} />
+                <Text fontSize="sm" color="whiteAlpha.500" fontWeight="medium">
+                    No active polls
+                </Text>
+                <Text fontSize="xs" color="whiteAlpha.300" mt={1}>
+                    Polls will appear here when voting is open
+                </Text>
+            </Center>
+        );
     }
 
     // Take first 3 polls without mutating the prop array
