@@ -14,11 +14,14 @@ import { useIPFScontext } from '@/context/ipfsContext';
 import { useEthersSigner, clientToSigner } from '@/components/ProviderConverter';
 import { useSwitchChain, useConfig } from 'wagmi';
 import { getConnectorClient } from 'wagmi/actions';
+import { useWalletClient } from 'wagmi';
 import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
 import { buildUserOp, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
 import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';
 import { encodeSolidarityOnboardingPaymasterData } from '@/services/web3/passkey/paymasterData';
 import { createChainClients } from '@/services/web3/utils/chainClients';
+import { signUserOpWithWallet } from '@/services/web3/eip7702/walletSigner';
+import { buildEOAAuthorization, checkWallet7702Support } from '@/services/web3/eip7702/authorizationBuilder';
 import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 import { DEFAULT_DEPLOY_CHAIN_ID, getSubgraphUrl } from '@/config/networks';
 import UniversalAccountRegistryABI from '../../abi/UniversalAccountRegistry.json';
@@ -34,6 +37,7 @@ export function useProfileUpdate() {
   const signer = useEthersSigner();
   const { switchChainAsync } = useSwitchChain();
   const wagmiConfig = useConfig();
+  const { data: walletClient } = useWalletClient();
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState(null);
@@ -121,15 +125,26 @@ export function useProfileUpdate() {
   }, [accountAddress, registryAddress, isPasskeyUser, addToIpfs, signer, publicClient, bundlerClient, paymasterAddress, passkeyState]);
 
   /**
-   * EOA flow: switch to Gnosis chain + direct contract write.
-   * Profile metadata lives on Gnosis, so we must ensure the wallet is on the right chain.
+   * EOA flow: try 7702 gas-sponsored via solidarity fund, fallback to direct tx.
+   * Profile metadata lives on Gnosis, so we target the Gnosis chain.
    */
   async function _updateViaEOA(metadataHash) {
     if (!signer) throw new Error('Wallet not connected');
 
-    setStep('signing');
+    // Try 7702 sponsored path first (same solidarity fund as passkey users)
+    if (walletClient && bundlerClient && publicClient && paymasterAddress) {
+      const has7702 = await checkWallet7702Support(walletClient).catch(() => false);
+      if (has7702) {
+        try {
+          return await _updateVia7702(metadataHash);
+        } catch (err) {
+          console.warn('[ProfileUpdate] 7702 sponsored path failed, falling back to direct tx:', err.message);
+        }
+      }
+    }
 
-    // Switch to Gnosis if not already there
+    // Fallback: direct contract call (EOA pays gas on Gnosis)
+    setStep('signing');
     await switchChainAsync({ chainId: SOLIDARITY_CHAIN_ID });
     const freshClient = await getConnectorClient(wagmiConfig, { chainId: SOLIDARITY_CHAIN_ID });
     const gnosisSigner = clientToSigner(freshClient);
@@ -140,6 +155,64 @@ export function useProfileUpdate() {
     setStep('confirming');
     const receipt = await tx.wait();
     return receipt.transactionHash;
+  }
+
+  /**
+   * EOA 7702 path: build UserOp with solidarity onboarding sponsorship.
+   * Same flow as passkey but signs with wallet ECDSA instead of WebAuthn.
+   */
+  async function _updateVia7702(metadataHash) {
+    setStep('building');
+
+    const authorization = await buildEOAAuthorization(walletClient);
+
+    const innerCallData = encodeFunctionData({
+      abi: UniversalAccountRegistryABI,
+      functionName: 'setProfileMetadata',
+      args: [metadataHash],
+    });
+
+    const callData = encodeFunctionData({
+      abi: PasskeyAccountABI,
+      functionName: 'execute',
+      args: [registryAddress, 0n, innerCallData],
+    });
+
+    const paymasterData = encodeSolidarityOnboardingPaymasterData();
+
+    const userOp = await buildUserOp({
+      sender: accountAddress,
+      callData,
+      bundlerClient,
+      publicClient,
+      paymasterAddress,
+      paymasterData,
+      authorization,
+      dummySignatureLength: 65,
+    });
+
+    setStep('signing');
+    const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, SOLIDARITY_CHAIN_ID);
+    const signature = await signUserOpWithWallet(userOpHash, walletClient);
+    userOp.signature = signature;
+
+    setStep('submitting');
+    const submittedHash = await bundlerClient.sendUserOperation({
+      ...userOp,
+      entryPointAddress: ENTRY_POINT_ADDRESS,
+    });
+
+    setStep('confirming');
+    const receipt = await bundlerClient.waitForUserOperationReceipt({
+      hash: submittedHash,
+      timeout: 120_000,
+    });
+
+    if (!receipt.success) {
+      throw new Error(receipt.reason || 'Profile update UserOp failed on-chain');
+    }
+
+    return receipt.receipt.transactionHash;
   }
 
   /**
