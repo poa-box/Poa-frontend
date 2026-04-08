@@ -738,15 +738,15 @@ function DeployerPageContent() {
   };
 
   // Handle navigation after deployment celebration
-  // Navigate immediately — the transition overlay stays visible during navigation,
-  // and the dashboard shows a loading screen while the subgraph indexes
   const handleDeploySuccess = () => {
-    const orgName = state.organization.name;
-    localStorage.setItem('poa-new-org-deploy', JSON.stringify({
-      orgName,
-      deployedAt: Date.now(),
-    }));
-    router.push(`/dashboard?userDAO=${encodeURIComponent(orgName)}&newOrg=true`);
+    // Store deploy info for the tour prompt, then navigate immediately
+    try {
+      localStorage.setItem('poa-new-org-deploy', JSON.stringify({
+        orgName: state.organization.name,
+        deployedAt: Date.now(),
+      }));
+    } catch {}
+    router.push(`/dashboard?org=${encodeURIComponent(state.organization.name)}&newOrg=true`);
   };
 
   // Handlers for modals that OrganizationStep needs

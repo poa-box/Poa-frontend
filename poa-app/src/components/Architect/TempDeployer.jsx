@@ -101,7 +101,7 @@ function Deployer({ isOpen, onClose, deploymentDetails, signer }) {
     const formattedOrgName = encodeURIComponent(
       deploymentDetails.POname.trim().replace(/\s+/g, "-")
     );
-    router.push(`/home/?userDAO=${formattedOrgName}`);
+    router.push(`/home/?org=${formattedOrgName}`);
   };
 
   const handleClose = () => {

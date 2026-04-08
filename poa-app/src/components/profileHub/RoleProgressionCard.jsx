@@ -112,7 +112,7 @@ function ClaimableRoleItem({ role, userDAO }) {
           Self-claimable
         </Text>
       </VStack>
-      <Link href={`/org-structure?userDAO=${userDAO}`} passHref>
+      <Link href={`/team?org=${userDAO}`} passHref>
         <Button size="xs" colorScheme="purple" variant="outline">
           Claim
         </Button>
@@ -214,7 +214,7 @@ export function RoleProgressionCard({
             <Text color="gray.400" textAlign="center" fontSize="sm">
               No roles in progress
             </Text>
-            <Link href={`/org-structure?userDAO=${userDAO}`} passHref>
+            <Link href={`/team?org=${userDAO}`} passHref>
               <Button
                 size="sm"
                 variant="outline"
@@ -258,7 +258,7 @@ export function RoleProgressionCard({
               </>
             )}
 
-            <Link href={`/org-structure?userDAO=${userDAO}`} passHref>
+            <Link href={`/team?org=${userDAO}`} passHref>
               <Button
                 size="sm"
                 variant="ghost"

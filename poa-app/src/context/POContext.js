@@ -149,7 +149,7 @@ function poReducer(state, action) {
 
 export const POProvider = ({ children }) => {
     const router = useRouter();
-    const poName = router.query.userDAO || '';
+    const poName = router.query.org || router.query.userDAO || '';
     const { safeFetchFromIpfs } = useIPFScontext();
 
     const [state, dispatch] = useReducer(poReducer, initialState);

@@ -153,7 +153,7 @@ export const TOUR_STEPS = [
   // --- Education Hub (conditional) ---
   {
     id: 'education-hub',
-    page: '/edu-Hub',
+    page: '/learn',
     title: 'Learn & Earn',
     description: 'Complete educational modules and quizzes to earn participation tokens. Admins can create modules with links, questions, and token rewards. This page will fill with content as your org builds its learning library.',
     icon: PiGraduationCap,
@@ -167,7 +167,7 @@ export const TOUR_STEPS = [
   // --- Org Structure ---
   {
     id: 'org-structure',
-    page: '/org-structure',
+    page: '/team',
     title: 'Roles & Permissions',
     description: 'This is the blueprint for your organization. It shows every role, what each role is allowed to do, and which members hold which positions. New members can claim or apply for roles from here.',
     icon: PiTreeStructure,

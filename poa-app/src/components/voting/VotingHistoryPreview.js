@@ -18,7 +18,7 @@ const VotingHistoryPreview = ({
   maxItems = 3,
 }) => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
 
   const headingSize = useBreakpointValue({ base: "xl", md: "2xl" });
 
@@ -32,7 +32,7 @@ const VotingHistoryPreview = ({
   };
 
   const handleViewAllClick = () => {
-    router.push(`/voting-history?userDAO=${userDAO}`);
+    router.push(`/votes?org=${userDAO}`);
   };
 
   return (

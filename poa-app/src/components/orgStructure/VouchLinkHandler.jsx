@@ -87,7 +87,7 @@ export function VouchLinkHandler({
   };
 
   const handleGoToDashboard = () => {
-    router.push(`/profileHub/?userDAO=${userDAO}`);
+    router.push(`/profile/?org=${userDAO}`);
   };
 
   return (

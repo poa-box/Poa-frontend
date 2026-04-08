@@ -53,7 +53,7 @@ const BALANCE_OF_ABI = [
 
 const TreasuryPage = () => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const {
     orgId,
     poContextLoading,
@@ -70,7 +70,7 @@ const TreasuryPage = () => {
   // Redirect to dashboard if treasury is hidden
   useEffect(() => {
     if (hideTreasury && !poContextLoading) {
-      router.replace(`/dashboard/?userDAO=${userDAO}`);
+      router.replace(`/dashboard/?org=${userDAO}`);
     }
   }, [hideTreasury, poContextLoading, router, userDAO]);
 

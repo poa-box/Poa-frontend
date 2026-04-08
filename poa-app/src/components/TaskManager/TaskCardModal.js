@@ -85,7 +85,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   const { getUsernameByAddress, setSelectedProject, projects } = useDataBaseContext();
   const { safeFetchFromIpfs } = useIPFScontext();
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const toast = useToast();
   const { isOpen, onOpen, onClose} = useDisclosure();
   const { isOpen: isApplicationModalOpen, onOpen: onOpenApplicationModal, onClose: onCloseApplicationModal } = useDisclosure();
@@ -251,12 +251,13 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     isClosingRef.current = true;
     onClose();
 
-    const { projectId, userDAO } = router.query;
+    const { projectId } = router.query;
+    const userDAO = router.query.org || router.query.userDAO || '';
     const safeProjectId = projectId ? encodeURIComponent(decodeURIComponent(projectId)) : '';
 
     // Wait for URL to update before returning - this prevents new modal instances from opening
     await router.push(
-      { pathname: `/tasks/`, query: { projectId: safeProjectId, userDAO } },
+      { pathname: `/tasks/`, query: { projectId: safeProjectId, org: userDAO } },
       undefined,
       { shallow: true }
     );
@@ -620,12 +621,12 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     setIsEditTaskModalOpen(false);
     const { projectId } = router.query;
     const safeProjectId = projectId ? encodeURIComponent(decodeURIComponent(projectId)) : '';
-    router.push({ pathname: `/tasks/`, query: { projectId: safeProjectId, userDAO: userDAO } }, undefined, { shallow: true });
+    router.push({ pathname: `/tasks/`, query: { projectId: safeProjectId, org: userDAO } }, undefined, { shallow: true });
   };
 
   const copyLinkToClipboard = () => {
     const encodedProjectId = encodeURIComponent(task.projectId);
-    const link = `${window.location.origin}/tasks/?task=${task.id}&projectId=${encodedProjectId}&userDAO=${userDAO}`;
+    const link = `${window.location.origin}/tasks/?task=${task.id}&projectId=${encodedProjectId}&org=${userDAO}`;
 
     navigator.clipboard.writeText(link).then(() => {
       toast({

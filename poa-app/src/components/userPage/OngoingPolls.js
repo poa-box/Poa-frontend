@@ -32,7 +32,7 @@ const OngoingPolls = ({OngoingPolls}) => {
 
     // check if ongoing polsl exist
     const router = useRouter();
-    const { userDAO } = router.query;
+    const userDAO = router.query.org || router.query.userDAO || '';
     const ongoingPollsExist = OngoingPolls && OngoingPolls.length > 0;
     if (!ongoingPollsExist) {
         return <Text mt="4" ml="7">No ongoing polls available</Text>;
@@ -69,7 +69,7 @@ const OngoingPolls = ({OngoingPolls}) => {
                                 
                                 <div style={glassLayerStyle}/>
                                 
-                                <Link2  href={`/voting/?poll=${poll.id}&userDAO=${userDAO}`}>
+                                <Link2  href={`/voting/?poll=${poll.id}&org=${userDAO}`}>
                                 <VStack textColor="white"  spacing={2}>
 
                                     <Heading  ml={4} fontWeight="extrabold" mt={2} size="sm">{poll.title}</Heading>

@@ -17,7 +17,7 @@ import { HiMenu, HiX } from "react-icons/hi";
 const NAV_LINKS = [
   { label: "About", href: "/about" },
   { label: "Docs", href: "/docs" },
-  { label: "Browse", href: "/browser" },
+  { label: "Browse", href: "/explore" },
   { label: "Protocol", href: "/protocol" },
   { label: "Create", href: "/create" },
 ];

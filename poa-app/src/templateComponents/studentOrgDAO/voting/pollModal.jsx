@@ -54,7 +54,7 @@ const PollModal = ({
   setSelectedOption,
 }) => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const { accountAddress: address } = useAuth();
   const { getRoleNamesString, votingEligibleRoles } = useRoleNames();
   const {
@@ -100,7 +100,7 @@ const PollModal = ({
 
   const handleModalClose = () => {
     onClose();
-    router.push(`/voting/?userDAO=${userDAO}`);
+    router.push(`/voting/?org=${userDAO}`);
   };
 
   const handleWeightChange = (optionIndex, newValue) => {

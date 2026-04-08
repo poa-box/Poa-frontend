@@ -200,7 +200,7 @@ export default function TourOverlay() {
   const arrowPlacement = _actual || (targetRect ? currentStepDef.placement : null);
 
   const inviteLink = typeof window !== 'undefined' && orgName
-    ? `${window.location.origin}/user?userDAO=${encodeURIComponent(orgName)}`
+    ? `${window.location.origin}/join/?org=${encodeURIComponent(orgName)}`
     : '';
 
   return (

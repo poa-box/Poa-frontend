@@ -324,7 +324,7 @@ const AccountPage = () => {
                     </Text>
                     <Button
                       colorScheme="purple"
-                      onClick={() => router.push('/browser')}
+                      onClick={() => router.push('/explore')}
                       rightIcon={<ExternalLinkIcon />}
                     >
                       Browse Organizations
@@ -337,7 +337,7 @@ const AccountPage = () => {
                   >
                     {organizations.map((userOrg) => (
                       <GridItem key={userOrg.id}>
-                        <Link href={`/home?userDAO=${userOrg.organization?.name}`} passHref>
+                        <Link href={`/home?org=${userOrg.organization?.name}`} passHref>
                           <Card
                             variant="outline"
                             borderRadius="xl"

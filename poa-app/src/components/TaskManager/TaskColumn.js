@@ -29,7 +29,7 @@ const glassLayerStyle = {
 
 const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile = false, isEmpty = false, hideTitleInMobile = false }, ref) => {
   const router = useRouter();
-  const {userDAO} = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const { moveTask, addTask, editTask } = useTaskBoard();
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
   const { accountAddress: account } = useAuth();
@@ -246,7 +246,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
         router.push({
           pathname: `/tasks/`,
           query: {
-            userDAO: router.query.userDAO,
+            org: router.query.org || router.query.userDAO,
             projectId: safeProjectId,
             task: draggedTask.id
           }

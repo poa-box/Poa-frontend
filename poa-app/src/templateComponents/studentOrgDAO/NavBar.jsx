@@ -9,9 +9,10 @@ import LoginButton from "@/components/LoginButton";
 import { useAuth } from "@/context/AuthContext";
 import { usePOContext } from "@/context/POContext";
 import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
+import { orgUrl } from "@/util/orgUrl";
 const Navbar = React.memo(() => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const org = router.query.org || router.query.userDAO || '';
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isPasskeyUser, accountAddress, isAuthenticated } = useAuth();
   const [mounted, setMounted] = useState(false);
@@ -24,13 +25,13 @@ const Navbar = React.memo(() => {
 
   // Navigation items - conditionally include Learn & Earn based on educationHubEnabled
   const navItems = useMemo(() => [
-    { name: 'Dashboard', path: `/dashboard/?userDAO=${userDAO}` },
-    { name: 'Tasks', path: `/tasks/?userDAO=${userDAO}` },
-    { name: 'Voting', path: `/voting/?userDAO=${userDAO}` },
-    ...(!hideTreasury ? [{ name: 'Treasury', path: `/treasury/?userDAO=${userDAO}` }] : []),
-    ...(educationHubEnabled ? [{ name: 'Learn & Earn', path: `/edu-Hub/?userDAO=${userDAO}` }] : []),
-    ...(isAdmin ? [{ name: 'Settings', path: `/settings/?userDAO=${userDAO}` }] : []),
-  ], [userDAO, hideTreasury, educationHubEnabled, isAdmin]);
+    { name: 'Dashboard', path: orgUrl(org, 'dashboard') },
+    { name: 'Tasks', path: orgUrl(org, 'tasks') },
+    { name: 'Voting', path: orgUrl(org, 'voting') },
+    ...(!hideTreasury ? [{ name: 'Treasury', path: orgUrl(org, 'treasury') }] : []),
+    ...(educationHubEnabled ? [{ name: 'Learn & Earn', path: orgUrl(org, 'learn') }] : []),
+    ...(isAdmin ? [{ name: 'Settings', path: orgUrl(org, 'settings') }] : []),
+  ], [org, hideTreasury, educationHubEnabled, isAdmin]);
 
   // Function to check active route
   const isActive = useCallback((path) => {
@@ -59,7 +60,7 @@ const Navbar = React.memo(() => {
       >
         {/* Left side - Home icon */}
         <Flex h="100%" w={{ base: "40%", md: "auto" }} mr={{ base: "2", md: "4" }} align="center">
-          <Link as={NextLink} href={`/home/?userDAO=${userDAO}`} passHref>
+          <Link as={NextLink} href={orgUrl(org, 'home')} passHref>
             {/* Desktop Home Icon */}
             <IconButton
               icon={<FaHome size="34px" />}
@@ -129,12 +130,12 @@ const Navbar = React.memo(() => {
           alignItems="center"
           display={{ base: 'none', md: 'flex' }}
         >
-          <Link as={NextLink} href={`/dashboard/?userDAO=${userDAO}`} color="white" fontWeight="extrabold" fontSize="xl" mx={"2%"}>
+          <Link as={NextLink} href={orgUrl(org, 'dashboard')} color="white" fontWeight="extrabold" fontSize="xl" mx={"2%"}>
             Dashboard
           </Link>
           <Link
             as={NextLink}
-            href={`/tasks/?userDAO=${userDAO}`}
+            href={orgUrl(org, 'tasks')}
             color="white"
             fontWeight="extrabold"
             fontSize="xl"
@@ -144,7 +145,7 @@ const Navbar = React.memo(() => {
           </Link>
           <Link
             as={NextLink}
-            href={`/voting/?userDAO=${userDAO}`}
+            href={orgUrl(org, 'voting')}
             color="white"
             fontWeight="extrabold"
             fontSize="xl"
@@ -155,7 +156,7 @@ const Navbar = React.memo(() => {
           {!hideTreasury && (
             <Link
               as={NextLink}
-              href={`/treasury/?userDAO=${userDAO}`}
+              href={orgUrl(org, 'treasury')}
               color="white"
               fontWeight="extrabold"
               fontSize="xl"
@@ -167,7 +168,7 @@ const Navbar = React.memo(() => {
           {educationHubEnabled && (
             <Link
               as={NextLink}
-              href={`/edu-Hub/?userDAO=${userDAO}`}
+              href={orgUrl(org, 'learn')}
               color="white"
               fontWeight="extrabold"
               fontSize="xl"
@@ -179,7 +180,7 @@ const Navbar = React.memo(() => {
           {isAdmin && (
             <Link
               as={NextLink}
-              href={`/settings/?userDAO=${userDAO}`}
+              href={orgUrl(org, 'settings')}
               color="white"
               fontWeight="extrabold"
               fontSize="xl"
@@ -196,7 +197,7 @@ const Navbar = React.memo(() => {
           ) : (
             <Button
               as={NextLink}
-              href={`/user/?userDAO=${userDAO}`}
+              href={orgUrl(org, 'join')}
               bgGradient="linear(to-r, green.400, teal.400)"
               color="white"
               borderRadius="full"
@@ -246,7 +247,7 @@ const Navbar = React.memo(() => {
                 height={30}
                 style={{ objectFit: 'contain', marginRight: '10px' }}
               />
-              {userDAO}
+              {org}
             </Flex>
           </DrawerHeader>
           <DrawerBody p={0}>
@@ -279,7 +280,7 @@ const Navbar = React.memo(() => {
                 <VStack spacing={4}>
                   <Button
                     as={NextLink}
-                    href={`/user/?userDAO=${userDAO}`}
+                    href={orgUrl(org, 'join')}
                     onClick={onClose}
                     w="100%"
                     bgGradient="linear(to-r, green.400, teal.400)"

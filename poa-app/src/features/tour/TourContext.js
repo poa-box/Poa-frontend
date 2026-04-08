@@ -88,23 +88,23 @@ export function TourProvider({ children }) {
   }), [isAuthenticated, hasMemberRole, hasExecRole, projects, hideTreasury, educationHubEnabled]);
 
   // After a new org deploy, auto-show the tour prompt once org data has loaded
-  const { userDAO } = router.query;
+  const orgName = router.query.org || router.query.userDAO || '';
   useEffect(() => {
-    if (poContextLoading || !userDAO) return;
+    if (poContextLoading || !orgName) return;
     try {
       const raw = localStorage.getItem('poa-new-org-deploy');
       if (!raw) return;
       const deployData = JSON.parse(raw);
-      if (deployData.orgName === userDAO) {
+      if (deployData.orgName === orgName) {
         localStorage.removeItem('poa-new-org-deploy');
         setTimeout(() => {
-          dispatch({ type: 'SHOW_PROMPT', payload: userDAO });
+          dispatch({ type: 'SHOW_PROMPT', payload: orgName });
         }, 500);
       }
     } catch {
       // Ignore parse errors
     }
-  }, [poContextLoading, userDAO]);
+  }, [poContextLoading, orgName]);
 
   // Derive current step from frozen steps
   const steps = state.frozenSteps || TOUR_STEPS;
@@ -134,8 +134,8 @@ export function TourProvider({ children }) {
 
     const firstStep = filtered[0];
     if (firstStep?.page && firstStep.page !== router.pathname) {
-      const dao = router.query.userDAO || orgName;
-      router.push(`${firstStep.page}?userDAO=${encodeURIComponent(dao)}`).catch(() => {});
+      const dao = router.query.org || router.query.userDAO || orgName;
+      router.push(`${firstStep.page}?org=${encodeURIComponent(dao)}`).catch(() => {});
     }
   }, [router, tourCtx]);
 
@@ -153,8 +153,8 @@ export function TourProvider({ children }) {
     const nextStepDef = frozen[nextIdx];
 
     if (nextStepDef.page && nextStepDef.page !== router.pathname) {
-      const dao = router.query.userDAO || state.orgName;
-      router.push(`${nextStepDef.page}?userDAO=${encodeURIComponent(dao)}`).catch(() => {});
+      const dao = router.query.org || router.query.userDAO || state.orgName;
+      router.push(`${nextStepDef.page}?org=${encodeURIComponent(dao)}`).catch(() => {});
     }
 
     dispatch({ type: 'NEXT_STEP' });
@@ -170,8 +170,8 @@ export function TourProvider({ children }) {
 
     const prevStepDef = frozen[prevIdx];
     if (prevStepDef.page && prevStepDef.page !== router.pathname) {
-      const dao = router.query.userDAO || state.orgName;
-      router.push(`${prevStepDef.page}?userDAO=${encodeURIComponent(dao)}`).catch(() => {});
+      const dao = router.query.org || router.query.userDAO || state.orgName;
+      router.push(`${prevStepDef.page}?org=${encodeURIComponent(dao)}`).catch(() => {});
     }
 
     dispatch({ type: 'PREV_STEP' });

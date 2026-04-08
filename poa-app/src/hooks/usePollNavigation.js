@@ -15,7 +15,7 @@ export function usePollNavigation({
   PTVoteType = 'Hybrid',
 }) {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
 
   // Ref-stabilize router so callbacks don't re-create on every route change
   const routerRef = useRef(router);
@@ -53,8 +53,8 @@ export function usePollNavigation({
   const handlePollClick = useCallback((poll, isCompleted = false) => {
     setSelectedPoll(poll);
     setIsPollCompleted(isCompleted);
-    const currentUserDAO = routerRef.current.query.userDAO;
-    routerRef.current.push(`/voting?poll=${poll.id}&userDAO=${currentUserDAO}`);
+    const currentUserDAO = routerRef.current.query.org || routerRef.current.query.userDAO || '';
+    routerRef.current.push(`/voting?poll=${poll.id}&org=${currentUserDAO}`);
 
     if (isCompleted) {
       onCompletedModalOpen();
