@@ -12,6 +12,8 @@ import { RefreshProvider } from "@/context/RefreshContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { TourProvider } from "@/features/tour/TourContext";
+import TourOverlay from "@/features/tour/components/TourOverlay";
+import TourPrompt from "@/features/tour/components/TourPrompt";
 import '@rainbow-me/rainbowkit/styles.css';
 import '../styles/globals.css';
 import '/public/css/prism.css';
@@ -38,15 +40,10 @@ import {
   QueryClient,
 } from "@tanstack/react-query";
 
-import dynamic from 'next/dynamic';
+import NetworkModalControl from "@/components/NetworkModalControl";
 import { ApolloProvider } from '@apollo/client';
 import client from '../util//apolloClient';
-
-// Non-critical UI deferred from main bundle (not needed for first paint)
-const NetworkModalControl = dynamic(() => import("@/components/NetworkModalControl"), { ssr: false });
-const Notification = dynamic(() => import("@/components/Notifications"), { ssr: false });
-const TourOverlay = dynamic(() => import("@/features/tour/components/TourOverlay"), { ssr: false });
-const TourPrompt = dynamic(() => import("@/features/tour/components/TourPrompt"), { ssr: false });
+import Notification from '@/components/Notifications';
 
 
 
