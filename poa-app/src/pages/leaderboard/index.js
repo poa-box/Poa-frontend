@@ -61,6 +61,7 @@ const Leaderboard = () => {
       <Navbar />
       <Box
         position="relative"
+        zIndex={0}
         w="100%"
         minH="100vh"
         p={{ base: 4, md: 6 }}

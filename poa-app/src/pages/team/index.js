@@ -23,7 +23,7 @@ import { useAccount } from 'wagmi';
 
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { useAuth } from '@/context/AuthContext';
-import { useOrgStructure, useClaimRole, useVouches, useOrgTheme } from '@/hooks';
+import { useOrgStructure, useClaimRole, useVouches } from '@/hooks';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingContext } from '@/context/VotingContext';
 import {
@@ -41,7 +41,6 @@ const OrgStructurePage = () => {
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
   const { isConnected, address: wagmiAddress } = useAccount();
-  const { pageBackground } = useOrgTheme();
   const { isAuthenticated, accountAddress } = useAuth();
 
   // Use unified address (works for both passkey and wallet users)
@@ -129,7 +128,7 @@ const OrgStructurePage = () => {
         {seoHead}
         <Box
           minH="100vh"
-          background={pageBackground("linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)")}
+          background="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
         >
           <Navbar />
           <Center minH="60vh">
@@ -150,7 +149,7 @@ const OrgStructurePage = () => {
         {seoHead}
         <Box
           minH="100vh"
-          background={pageBackground("linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)")}
+          background="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
         >
           <Navbar />
           <Center minH="60vh">
@@ -176,7 +175,7 @@ const OrgStructurePage = () => {
     {seoHead}
     <Box
       minH="100vh"
-      background={pageBackground("linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)")}
+      background="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
     >
       <Navbar />
 
