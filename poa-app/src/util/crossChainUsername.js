@@ -153,3 +153,103 @@ export async function findUserByUsernameAcrossChains(username) {
 
   return { address: null, username: null, chain: null };
 }
+
+/**
+ * Find a user's profile by username across ALL chains.
+ * Returns address, canonical username, and profile metadata in one query.
+ *
+ * @param {string} username - Username to search for
+ * @returns {Promise<{ address: string|null, username: string|null, metadata: Object|null }>}
+ */
+export async function findUserProfileByUsername(username) {
+  const sources = getAllSubgraphUrls();
+  const trimmed = username.trim().toLowerCase();
+
+  const query = `
+    query FindUserProfile($username: String!) {
+      accounts(where: { username: $username }, first: 1) {
+        id
+        user
+        username
+        metadata {
+          bio
+          avatar
+          github
+          twitter
+          website
+        }
+      }
+    }
+  `;
+
+  const results = await Promise.allSettled(
+    sources.map(async (source) => {
+      const res = await fetch(source.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables: { username: trimmed } }),
+      });
+      const json = await res.json();
+      return json?.data?.accounts?.[0] || null;
+    })
+  );
+
+  for (const result of results) {
+    if (result.status !== 'fulfilled' || !result.value) continue;
+    const account = result.value;
+    return {
+      address: account.id,
+      username: account.username,
+      metadata: account.metadata || null,
+    };
+  }
+
+  return { address: null, username: null, metadata: null };
+}
+
+/**
+ * Find all organization memberships for an address across ALL chains.
+ *
+ * @param {string} address - Wallet address
+ * @returns {Promise<Array<{ id, membershipStatus, participationTokenBalance, totalTasksCompleted, totalVotes, organization }>>}
+ */
+export async function findUserOrgsAcrossChains(address) {
+  const sources = getAllSubgraphUrls();
+
+  const query = `
+    query FetchUserOrgs($userAddress: Bytes!) {
+      users(where: { address: $userAddress, membershipStatus: Active }) {
+        id
+        membershipStatus
+        participationTokenBalance
+        totalTasksCompleted
+        totalVotes
+        organization {
+          id
+          name
+          metadataHash
+          participationToken { symbol }
+        }
+      }
+    }
+  `;
+
+  const results = await Promise.allSettled(
+    sources.map(async (source) => {
+      const res = await fetch(source.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables: { userAddress: address.toLowerCase() } }),
+      });
+      const json = await res.json();
+      return json?.data?.users || [];
+    })
+  );
+
+  const orgs = [];
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    orgs.push(...result.value);
+  }
+  return orgs;
+}

@@ -36,6 +36,7 @@ import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { useProjectContext } from '@/context/ProjectContext';
 import { userCanReviewTask, userCanAssignTask } from '../../util/permissions';
+import UsernameLink from '@/components/common/UsernameLink';
 
 
 const glassLayerStyle = {
@@ -708,7 +709,14 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                       <Spacer />
                       {task.claimedBy && (
                         <Text fontSize="sm" color="gray.400">
-                          Claimed by <Text as="span" color="white" fontWeight="medium">{task.claimerUsername}</Text>
+                          Claimed by{' '}
+                          <UsernameLink
+                            username={task.claimerUsername}
+                            hasUsername={!!task.claimerUsername}
+                            color="white"
+                            fontWeight="medium"
+                            fontSize="sm"
+                          />
                         </Text>
                       )}
                     </HStack>

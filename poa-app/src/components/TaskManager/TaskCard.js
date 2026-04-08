@@ -5,6 +5,7 @@ import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
 import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
+import Link from 'next/link';
 
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
@@ -220,13 +221,19 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
 
             {claimerUsername && (
               <Tooltip label={`Assigned to: ${claimerUsername}`} placement="top">
-                <Avatar
-                  size="xs"
-                  name={claimerUsername}
-                  getInitials={getUserInitials}
-                  bg="purple.500"
-                  color="white"
-                />
+                <Link href={`/u?username=${encodeURIComponent(claimerUsername)}`} passHref legacyBehavior>
+                  <Box as="a" onClick={(e) => e.stopPropagation()}>
+                    <Avatar
+                      size="xs"
+                      name={claimerUsername}
+                      getInitials={getUserInitials}
+                      bg="purple.500"
+                      color="white"
+                      cursor="pointer"
+                      _hover={{ ring: '2px', ringColor: 'purple.400' }}
+                    />
+                  </Box>
+                </Link>
               </Tooltip>
             )}
 
