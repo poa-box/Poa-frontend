@@ -5,8 +5,7 @@
  * - If no credentials: "Create Account" (opens onboarding modal)
  */
 
-import { useState } from 'react';
-import { Button, Icon, useDisclosure } from '@chakra-ui/react';
+import { Button, Icon, useDisclosure, useToast } from '@chakra-ui/react';
 import { FaFingerprint } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
 import PasskeyOnboardingModal from './PasskeyOnboardingModal';
@@ -19,6 +18,7 @@ import PasskeyOnboardingModal from './PasskeyOnboardingModal';
 export default function PasskeyLoginButton({ variant = 'full', onSuccess, ...buttonProps }) {
   const { hasStoredPasskey, connectPasskey, isPasskeyUser, passkeyConnecting } = useAuth();
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const toast = useToast();
 
   // If already authenticated with passkey, don't show the button
   if (isPasskeyUser) return null;
@@ -30,6 +30,14 @@ export default function PasskeyLoginButton({ variant = 'full', onSuccess, ...but
         await connectPasskey();
       } catch (err) {
         console.error('Failed to reconnect passkey:', err);
+        toast({
+          title: 'Sign in failed',
+          description: err.message || 'Could not sign in with passkey. Please try again.',
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+          position: 'top',
+        });
       }
     } else {
       // New user: open onboarding modal

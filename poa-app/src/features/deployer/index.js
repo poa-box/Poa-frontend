@@ -59,6 +59,8 @@ export {
   mapRole,
   mapVotingClasses,
   buildRoleAssignments,
+  mapPaymasterConfig,
+  getPaymasterFundingValue,
   mapStateToDeploymentParams,
   createDeploymentConfig,
   validateDeploymentConfig,
@@ -79,6 +81,8 @@ export {
   validatePermissionsStep,
   validateVotingStep,
   validateDeployerState,
+  paymasterSchema,
+  validatePaymasterConfig,
   formatZodErrors,
   getFirstError,
   hasError,
@@ -97,6 +101,7 @@ export { PermissionMatrix } from './components/permissions/PermissionMatrix';
 export { VotingClassCard } from './components/voting/VotingClassCard';
 export { VotingClassForm } from './components/voting/VotingClassForm';
 export { DeployerUsernameSection } from './components/review/DeployerUsernameSection';
+export { PaymasterConfigSection } from './components/paymaster/PaymasterConfigSection';
 
 // Hooks
 export { useDeployerUsername } from './hooks/useDeployerUsername';

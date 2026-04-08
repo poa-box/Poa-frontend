@@ -24,8 +24,8 @@ import {
   getLastUsedCredential,
   hasStoredCredentials,
   savePasskeyCredential,
-  removeCredential,
 } from '../services/web3/passkey/passkeyStorage';
+import { discoverPasskeyCredential } from '../services/web3/passkey/passkeyDiscover';
 
 const AuthContext = createContext();
 
@@ -39,7 +39,7 @@ export const useAuth = () => {
 
 // Build a viem chain object from our network config
 const networkConfig = NETWORKS[DEFAULT_NETWORK];
-const hoodiChain = defineChain({
+const defaultChain = defineChain({
   id: networkConfig.chainId,
   name: networkConfig.name,
   nativeCurrency: networkConfig.nativeCurrency,
@@ -75,8 +75,10 @@ export const AuthProvider = ({ children }) => {
   const isAuthenticated = authType !== null;
 
   // Create viem public client (shared, stateless)
+  // Uses a standard RPC endpoint for eth_call, eth_getCode, etc.
+  // (Pimlico bundler only supports ERC-4337 methods, not standard JSON-RPC.)
   const publicClient = useMemo(() => createPublicClient({
-    chain: hoodiChain,
+    chain: defaultChain,
     transport: http(networkConfig.rpcUrl),
   }), []);
 
@@ -84,7 +86,7 @@ export const AuthProvider = ({ children }) => {
   const bundlerClient = useMemo(() => {
     const bundlerUrl = getBundlerUrl(networkConfig.chainId);
     return createPimlicoClient({
-      chain: hoodiChain,
+      chain: defaultChain,
       transport: http(bundlerUrl),
       entryPoint: {
         address: ENTRY_POINT_ADDRESS,
@@ -122,16 +124,27 @@ export const AuthProvider = ({ children }) => {
   }, [eoaConnected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
-   * Connect a returning passkey user from stored credentials.
+   * Connect a returning passkey user.
+   * 1. Try stored credentials from localStorage (instant).
+   * 2. If none stored, trigger WebAuthn discoverable auth and look up account from subgraph.
    */
   const connectPasskey = useCallback(async (credential = null) => {
     setPasskeyConnecting(true);
     try {
-      const cred = credential || getLastUsedCredential();
-      if (!cred) throw new Error('No passkey credential found');
+      // Fast path: use provided credential or localStorage
+      const storedCred = credential || getLastUsedCredential();
+      if (storedCred) {
+        setPasskeyState(storedCred);
+        return storedCred;
+      }
 
-      setPasskeyState(cred);
-      return cred;
+      // Slow path: WebAuthn discoverable authentication + subgraph lookup
+      const discovered = await discoverPasskeyCredential();
+
+      // Save to localStorage for future fast reconnects
+      savePasskeyCredential(discovered);
+      setPasskeyState(discovered);
+      return discovered;
     } finally {
       setPasskeyConnecting(false);
     }
@@ -146,16 +159,15 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   /**
-   * Disconnect passkey session and remove stored credential.
+   * Disconnect passkey session (keeps stored credential for re-authentication).
    */
   const disconnectPasskey = useCallback(() => {
-    if (passkeyState) {
-      removeCredential(passkeyState.accountAddress);
-    }
     setPasskeyState(null);
-  }, [passkeyState]);
+  }, []);
 
-  const value = {
+  const hasStoredPasskey = typeof window !== 'undefined' ? hasStoredCredentials() : false;
+
+  const value = useMemo(() => ({
     // Auth state
     authType,
     accountAddress,
@@ -169,12 +181,12 @@ export const AuthProvider = ({ children }) => {
     connectPasskey,
     activatePasskey,
     disconnectPasskey,
-    hasStoredPasskey: typeof window !== 'undefined' ? hasStoredCredentials() : false,
+    hasStoredPasskey,
 
     // Shared infrastructure
     publicClient,
     bundlerClient,
-  };
+  }), [authType, accountAddress, isAuthenticated, passkeyState, passkeyConnecting, connectPasskey, activatePasskey, disconnectPasskey, hasStoredPasskey, publicClient, bundlerClient]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

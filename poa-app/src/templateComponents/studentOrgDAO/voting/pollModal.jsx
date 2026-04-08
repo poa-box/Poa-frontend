@@ -29,7 +29,7 @@ import {
 import { LockIcon, InfoOutlineIcon } from "@chakra-ui/icons";
 import CountDown from "./countDown";
 import { useRouter } from "next/router";
-import { useAccount } from "wagmi";
+import { useAuth } from "@/context/AuthContext";
 import { useRoleNames, useVotingPower } from "@/hooks";
 
 
@@ -39,8 +39,7 @@ const glassLayerStyle = {
   width: "100%",
   zIndex: -1,
   borderRadius: "inherit",
-  backdropFilter: "blur(9px)",
-  backgroundColor: "rgba(33, 33, 33, 0.97)",
+  backgroundColor: "rgba(33, 33, 33, 0.98)",
 };
 
 const PollModal = ({
@@ -55,9 +54,9 @@ const PollModal = ({
   setSelectedOption,
 }) => {
   const router = useRouter();
-  const { userDAO } = router.query;
-  const { address } = useAccount();
-  const { getRoleNamesString, allRoles } = useRoleNames();
+  const userDAO = router.query.org || router.query.userDAO || '';
+  const { accountAddress: address } = useAuth();
+  const { getRoleNamesString, votingEligibleRoles } = useRoleNames();
   const {
     membershipPower,
     contributionPower,
@@ -70,7 +69,9 @@ const PollModal = ({
   // Get role names for restricted voting
   const restrictedRolesText = selectedPoll?.isHatRestricted && selectedPoll?.restrictedHatIds?.length > 0
     ? getRoleNamesString(selectedPoll.restrictedHatIds)
-    : allRoles?.[0]?.name || "All Members";
+    : votingEligibleRoles?.length > 0
+      ? votingEligibleRoles.map(r => r.name).join(", ")
+      : "All Members";
 
   // Weighted voting state (for Hybrid voting)
   const [isWeightedMode, setIsWeightedMode] = useState(false);
@@ -99,7 +100,7 @@ const PollModal = ({
 
   const handleModalClose = () => {
     onClose();
-    router.push(`/voting/?userDAO=${userDAO}`);
+    router.push(`/voting/?org=${userDAO}`);
   };
 
   const handleWeightChange = (optionIndex, newValue) => {
@@ -212,16 +213,31 @@ const PollModal = ({
                     </Text>
                   </Text>
                 </HStack>
-                {selectedPoll?.quorum > 0 && (
+                {selectedPoll?.thresholdPct > 0 && (
                   <Tooltip
-                    label="The winning option must receive enough support to be considered valid"
+                    label="Percentage of votes the winning option must receive to pass"
                     placement="top"
                     hasArrow
                     bg="gray.700"
                   >
                     <HStack spacing={1} cursor="help">
                       <Text fontSize="sm" color="gray.400">
-                        {selectedPoll.quorum}% participation needed
+                        {selectedPoll.thresholdPct}% support to pass
+                      </Text>
+                      <InfoOutlineIcon boxSize={3} color="gray.500" />
+                    </HStack>
+                  </Tooltip>
+                )}
+                {(selectedPoll?.quorum > 0 || selectedPoll?.thresholdPct > 0) && (
+                  <Tooltip
+                    label="Minimum percentage of eligible voters that must participate for the vote to be valid"
+                    placement="top"
+                    hasArrow
+                    bg="gray.700"
+                  >
+                    <HStack spacing={1} cursor="help">
+                      <Text fontSize="sm" color="gray.400">
+                        {selectedPoll.quorum || selectedPoll.thresholdPct}% quorum
                       </Text>
                       <InfoOutlineIcon boxSize={3} color="gray.500" />
                     </HStack>
@@ -387,11 +403,11 @@ const PollModal = ({
                   <VStack align="flex-start">
                     {selectedPoll?.options?.map((option, index) => (
                       <Radio size="lg" key={index} value={String(index)}>
-                        {option.name}{" "}
-                        {selectedPoll.type === "Hybrid" ? (
-                          `(${option.currentPercentage || 0}%)`
-                        ) : (
-                          `(${option.votes || 0} votes)`
+                        {option.name}
+                        {hasVoted && (
+                          selectedPoll.type === "Hybrid"
+                            ? ` (${option.currentPercentage || 0}%)`
+                            : ` (${option.displayVotes ?? option.votes ?? 0} votes)`
                         )}
                       </Radio>
                     ))}

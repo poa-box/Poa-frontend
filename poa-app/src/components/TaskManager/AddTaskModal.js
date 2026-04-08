@@ -25,12 +25,15 @@ import {
   Avatar,
   IconButton,
   SimpleGrid,
+  Image,
 } from '@chakra-ui/react';
 import { InfoIcon, CloseIcon } from '@chakra-ui/icons';
-import { BOUNTY_TOKEN_OPTIONS, BOUNTY_TOKENS } from '../../util/tokens';
+import { getBountyTokenOptions, BOUNTY_TOKENS } from '../../util/tokens';
 import { useUserContext } from '../../context/UserContext';
+import { usePOContext } from '../../context/POContext';
 import { UserSearchInput } from '@/components/common';
 import { calculatePayout, DIFFICULTY_CONFIG } from '@/util/taskUtils';
+import { inputStyles } from '@/components/shared/glassStyles';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -38,23 +41,9 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(20px)',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  backgroundColor: 'rgba(15, 10, 25, 0.97)',
   boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
   border: '1px solid rgba(148, 115, 220, 0.3)',
-};
-
-const inputStyles = {
-  bg: 'whiteAlpha.50',
-  border: '1px solid',
-  borderColor: 'whiteAlpha.200',
-  color: 'white',
-  _placeholder: { color: 'gray.500' },
-  _hover: { borderColor: 'whiteAlpha.300' },
-  _focus: {
-    borderColor: 'purple.400',
-    boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
-  },
 };
 
 const selectStyles = {
@@ -69,13 +58,16 @@ const selectStyles = {
 
 const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
   const { hasExecRole } = useUserContext();
+  const { orgChainId } = usePOContext();
+
+  const tokenOptions = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [difficulty, setDifficulty] = useState('easy');
   const [estHours, setEstHours] = useState(0.5);
   const [hasBounty, setHasBounty] = useState(false);
-  const [bountyToken, setBountyToken] = useState(BOUNTY_TOKENS.BREAD.address);
+  const [bountyToken, setBountyToken] = useState('');
   const [bountyAmount, setBountyAmount] = useState('');
   const [requiresApplication, setRequiresApplication] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -87,12 +79,20 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
     return calculatePayout(difficulty, estHours);
   }, [difficulty, estHours]);
 
+  // Set default bounty token to first available when options load
+  React.useEffect(() => {
+    if (tokenOptions.length > 0 && !bountyToken) {
+      setBountyToken(tokenOptions[0].address);
+    }
+  }, [tokenOptions, bountyToken]);
+
   const resetForm = () => {
     setName('');
     setDescription('');
     setDifficulty('easy');
     setEstHours(0.5);
     setHasBounty(false);
+    setBountyToken(tokenOptions[0]?.address || '');
     setBountyAmount('');
     setRequiresApplication(false);
     setSelectedUser(null);
@@ -140,7 +140,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
 
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="xl" isCentered>
-      <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(10px)" />
+      <ModalOverlay bg="blackAlpha.800" />
       <ModalContent
         bg="transparent"
         borderRadius="xl"
@@ -171,7 +171,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
               </Text>
               <VStack spacing={4} align="stretch">
                 <FormControl id="task-name">
-                  <FormLabel color="gray.300" fontSize="sm">
+                  <FormLabel color="gray.200" fontSize="sm">
                     Task Name
                   </FormLabel>
                   <Input
@@ -183,7 +183,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                   />
                 </FormControl>
                 <FormControl id="task-description">
-                  <FormLabel color="gray.300" fontSize="sm">
+                  <FormLabel color="gray.200" fontSize="sm">
                     Description
                   </FormLabel>
                   <Textarea
@@ -212,7 +212,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
 
               <SimpleGrid columns={2} spacing={4} mb={4}>
                 <FormControl id="task-difficulty">
-                  <FormLabel color="gray.300" fontSize="sm">
+                  <FormLabel color="gray.200" fontSize="sm">
                     Difficulty
                   </FormLabel>
                   <Select
@@ -228,7 +228,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                 </FormControl>
 
                 <FormControl id="task-estimated-hours">
-                  <FormLabel color="gray.300" fontSize="sm">
+                  <FormLabel color="gray.200" fontSize="sm">
                     Estimated Hours
                   </FormLabel>
                   <Input
@@ -252,7 +252,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
               {/* Live Payout Preview */}
               <Box
                 p={4}
-                bg="rgba(0, 0, 0, 0.3)"
+                bg="whiteAlpha.50"
                 borderRadius="lg"
                 border="1px solid rgba(148, 115, 220, 0.3)"
               >
@@ -266,7 +266,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                         {estimatedPayout}
                       </Text>
                       <Text fontSize="md" color="purple.300">
-                        PT
+                        shares
                       </Text>
                     </HStack>
                   </VStack>
@@ -298,13 +298,14 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                       Token Bounty
                     </Text>
                     <Text fontSize="xs" color="gray.500">
-                      (Optional)
+                      {tokenOptions.length === 0 ? '(No tokens configured)' : '(Optional)'}
                     </Text>
                   </HStack>
                   <Switch
                     isChecked={hasBounty}
                     onChange={(e) => setHasBounty(e.target.checked)}
                     colorScheme="purple"
+                    isDisabled={tokenOptions.length === 0}
                   />
                 </HStack>
               </FormControl>
@@ -312,7 +313,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
               {hasBounty && (
                 <Box
                   p={4}
-                  bg="rgba(0, 0, 0, 0.3)"
+                  bg="whiteAlpha.50"
                   borderRadius="lg"
                   border="1px solid rgba(148, 115, 220, 0.2)"
                 >
@@ -321,20 +322,27 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                       <FormLabel color="gray.400" fontSize="xs">
                         Token
                       </FormLabel>
-                      <Select
-                        value={bountyToken}
-                        onChange={(e) => setBountyToken(e.target.value)}
-                        size="sm"
-                        {...selectStyles}
-                      >
-                        {BOUNTY_TOKEN_OPTIONS.filter((t) => !t.isDefault).map(
-                          (token) => (
+                      <HStack spacing={2}>
+                        {(() => {
+                          const selected = tokenOptions.find(t => t.address === bountyToken);
+                          return selected?.logo ? (
+                            <Image src={selected.logo} alt={selected.symbol} boxSize="24px" borderRadius="full" fallback={<></>} />
+                          ) : null;
+                        })()}
+                        <Select
+                          value={bountyToken}
+                          onChange={(e) => setBountyToken(e.target.value)}
+                          size="sm"
+                          {...selectStyles}
+                          flex={1}
+                        >
+                          {tokenOptions.map((token) => (
                             <option key={token.symbol} value={token.address}>
                               {token.symbol}
                             </option>
-                          )
-                        )}
-                      </Select>
+                          ))}
+                        </Select>
+                      </HStack>
                     </FormControl>
                     <FormControl id="bounty-amount">
                       <FormLabel color="gray.400" fontSize="xs">
@@ -355,7 +363,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                           borderColor="whiteAlpha.200"
                           color="gray.400"
                         >
-                          {BOUNTY_TOKEN_OPTIONS.find(
+                          {tokenOptions.find(
                             (t) => t.address === bountyToken
                           )?.symbol || 'TOKEN'}
                         </InputRightAddon>
@@ -363,7 +371,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                     </FormControl>
                   </SimpleGrid>
                   <Text fontSize="xs" color="gray.500" mt={3}>
-                    This bounty will be paid in addition to participation tokens
+                    This bounty will be paid in addition to shares
                   </Text>
                 </Box>
               )}
@@ -508,7 +516,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
               onClick={handleSubmit}
               isLoading={loading}
               loadingText="Creating..."
-              isDisabled={!name.trim()}
+              isDisabled={!name.trim() || (hasBounty && (!bountyToken || !bountyAmount || Number(bountyAmount) <= 0))}
             >
               Create Task
             </Button>

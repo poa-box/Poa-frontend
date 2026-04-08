@@ -105,6 +105,83 @@ export function buildRoleAssignments(permissions) {
 }
 
 /**
+ * Map paymaster state to contract PaymasterConfig format.
+ * When paymaster is disabled, returns all-zeros config (contract skips everything).
+ * @param {Object} paymasterState - Paymaster state from deployer context
+ * @returns {Object} PaymasterConfig for contract
+ */
+export function mapPaymasterConfig(paymasterState) {
+  if (!paymasterState || !paymasterState.enabled) {
+    return {
+      operatorRoleIndex: ethers.constants.MaxUint256,
+      autoWhitelistContracts: false,
+      maxFeePerGas: 0,
+      maxPriorityFeePerGas: 0,
+      maxCallGas: 0,
+      maxVerificationGas: 0,
+      maxPreVerificationGas: 0,
+      defaultBudgetCapPerEpoch: 0,
+      defaultBudgetEpochLen: 0,
+    };
+  }
+
+  const operatorRoleIndex = paymasterState.operatorRoleIndex === null
+    ? ethers.constants.MaxUint256
+    : Number(paymasterState.operatorRoleIndex);
+
+  // Parse gwei strings to wei
+  const parseGwei = (val) => {
+    const n = parseFloat(val);
+    if (!val || isNaN(n) || n <= 0) return ethers.BigNumber.from(0);
+    return ethers.utils.parseUnits(n.toString(), 'gwei');
+  };
+
+  // Parse gas unit strings to numbers
+  const parseGasUnits = (val) => {
+    const n = parseInt(val, 10);
+    return (!val || isNaN(n) || n <= 0) ? 0 : n;
+  };
+
+  // Parse budget cap from ETH string to wei
+  const budgetCapWei = paymasterState.budgetCapEth && parseFloat(paymasterState.budgetCapEth) > 0
+    ? ethers.utils.parseEther(paymasterState.budgetCapEth)
+    : ethers.BigNumber.from(0);
+
+  // Convert epoch value + unit to seconds
+  const unitToSeconds = { hours: 3600, days: 86400, weeks: 604800 };
+  const epochValue = parseFloat(paymasterState.budgetEpochValue) || 0;
+  const epochSeconds = Math.round(epochValue * (unitToSeconds[paymasterState.budgetEpochUnit] || 86400));
+
+  return {
+    operatorRoleIndex,
+    autoWhitelistContracts: Boolean(paymasterState.autoWhitelistContracts),
+    maxFeePerGas: parseGwei(paymasterState.maxFeePerGas),
+    maxPriorityFeePerGas: parseGwei(paymasterState.maxPriorityFeePerGas),
+    maxCallGas: parseGasUnits(paymasterState.maxCallGas),
+    maxVerificationGas: parseGasUnits(paymasterState.maxVerificationGas),
+    maxPreVerificationGas: parseGasUnits(paymasterState.maxPreVerificationGas),
+    defaultBudgetCapPerEpoch: budgetCapWei,
+    defaultBudgetEpochLen: epochSeconds,
+  };
+}
+
+/**
+ * Get the ETH value to send with deployFullOrg (msg.value for paymaster funding)
+ * @param {Object} paymasterState - Paymaster state from deployer context
+ * @returns {ethers.BigNumber} Value in wei, or 0 if no funding
+ */
+export function getPaymasterFundingValue(paymasterState) {
+  if (!paymasterState?.enabled || !paymasterState.fundingAmountEth) {
+    return ethers.BigNumber.from(0);
+  }
+  const amount = parseFloat(paymasterState.fundingAmountEth);
+  if (isNaN(amount) || amount <= 0) {
+    return ethers.BigNumber.from(0);
+  }
+  return ethers.utils.parseEther(paymasterState.fundingAmountEth);
+}
+
+/**
  * Main mapper function - converts full deployer state to DeploymentParams
  * @param {Object} state - Deployer state from context
  * @param {string} deployerAddress - Address of the deployer wallet
@@ -113,7 +190,7 @@ export function buildRoleAssignments(permissions) {
  * @returns {Object} DeploymentParams for contract
  */
 export function mapStateToDeploymentParams(state, deployerAddress, options = {}) {
-  const { organization, roles, permissions, voting, features } = state;
+  const { organization, roles, permissions, voting, features, paymaster } = state;
   const registryAddress = options.registryAddress;
 
   if (!registryAddress) {
@@ -126,8 +203,20 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
   // Map roles
   const contractRoles = roles.map((role, idx) => mapRole(role, idx, roles.length));
 
-  // Map voting classes
-  const hybridClasses = mapVotingClasses(voting.classes);
+  // Map voting classes.
+  // Safety check: if democracyWeight exists and classes don't match it
+  // (e.g., APPLY_VARIATION updated the weight but not classes), rebuild from the weight.
+  let votingClasses = voting.classes;
+  if (voting.democracyWeight !== undefined && votingClasses && votingClasses.length === 2) {
+    const directClass = votingClasses.find(c => c.strategy === 0 || c.strategy === 'DIRECT');
+    if (directClass && directClass.slicePct !== voting.democracyWeight) {
+      console.warn('[DeployMapper] Voting classes out of sync with democracyWeight. Rebuilding.',
+        { classSlice: directClass.slicePct, democracyWeight: voting.democracyWeight });
+      const { sliderToVotingConfig } = require('../utils/philosophyMapper');
+      votingClasses = sliderToVotingConfig(voting.democracyWeight).classes;
+    }
+  }
+  const hybridClasses = mapVotingClasses(votingClasses);
 
   // Build role assignments
   const roleAssignments = buildRoleAssignments(permissions);
@@ -139,15 +228,27 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     registryAddr: registryAddress,
     deployerAddress,
     deployerUsername: organization.username || '',
+    // EIP-712 registration signature (safe defaults skip registration in contract)
+    regDeadline: options.regSignatureData?.regDeadline ?? 0,
+    regNonce: options.regSignatureData?.regNonce ?? 0,
+    regSignature: options.regSignatureData?.regSignature ?? '0x',
     autoUpgrade: organization.autoUpgrade,
-    hybridQuorumPct: voting.hybridQuorum,
-    ddQuorumPct: voting.ddQuorum,
+    hybridThresholdPct: voting.hybridQuorum,
+    ddThresholdPct: voting.ddQuorum,
     hybridClasses,
     ddInitialTargets: [], // Empty for now
     roles: contractRoles,
     roleAssignments,
-    // Passkey support (boolean - matches deployed contract v1.0.1)
-    passkeyEnabled: false,
+    // Metadata admin: which role's hat gets metadata-admin privilege.
+    // ethers.constants.MaxUint256 = skip (topHat fallback in contract).
+    // Priority: explicit option > state value > MaxUint256 (skip/topHat fallback).
+    metadataAdminRoleIndex: options.metadataAdminRoleIndex != null
+      ? ethers.BigNumber.from(options.metadataAdminRoleIndex)
+      : (state.metadataAdminRoleIndex !== null && state.metadataAdminRoleIndex !== undefined
+        ? ethers.BigNumber.from(state.metadataAdminRoleIndex)
+        : ethers.constants.MaxUint256),
+    // Passkey support - enabled by default for all new orgs
+    passkeyEnabled: true,
     // Education hub configuration
     educationHubConfig: {
       enabled: features.educationHubEnabled || false,
@@ -157,6 +258,8 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
       projects: [],
       tasks: [],
     },
+    // Paymaster configuration (all-zeros = skip)
+    paymasterConfig: mapPaymasterConfig(paymaster),
   };
 }
 
@@ -182,6 +285,7 @@ export function createDeploymentConfig(state, deployerAddress, options = {}) {
     features: {
       educationHubEnabled: state.features.educationHubEnabled,
       electionHubEnabled: state.features.electionHubEnabled,
+      hideTreasury: state.features.hideTreasury,
     },
     summary: {
       orgName: state.organization.name,
@@ -190,6 +294,10 @@ export function createDeploymentConfig(state, deployerAddress, options = {}) {
       votingMode: state.voting.mode,
       votingClassCount: state.voting.classes.length,
       hasVouching: state.roles.some(r => r.vouching.enabled),
+      paymasterEnabled: state.paymaster?.enabled || false,
+      paymasterFundingEth: state.paymaster?.fundingAmountEth || '0',
+      hybridVoterQuorum: state.voting.hybridVoterQuorum || 0,
+      ddVoterQuorum: state.voting.ddVoterQuorum || 0,
     },
   };
 }
@@ -269,6 +377,38 @@ export function validateDeploymentConfig(state) {
     }
   });
 
+  // Metadata admin validation
+  if (state.metadataAdminRoleIndex !== null && state.metadataAdminRoleIndex !== undefined) {
+    if (state.metadataAdminRoleIndex >= state.roles.length) {
+      errors.push('Metadata admin role index is out of range');
+    }
+  }
+
+  // Paymaster validation
+  if (state.paymaster?.enabled) {
+    const pm = state.paymaster;
+    if (pm.operatorRoleIndex !== null && pm.operatorRoleIndex >= state.roles.length) {
+      errors.push('Paymaster operator role index is out of range');
+    }
+    const epochValue = parseFloat(pm.budgetEpochValue) || 0;
+    const unitToSeconds = { hours: 3600, days: 86400, weeks: 604800 };
+    const epochSeconds = Math.round(epochValue * (unitToSeconds[pm.budgetEpochUnit] || 86400));
+    const capEth = parseFloat(pm.budgetCapEth);
+    const hasCapSet = !isNaN(capEth) && capEth > 0;
+    const hasEpochSet = epochSeconds > 0;
+    if (hasCapSet !== hasEpochSet) {
+      errors.push('Budget cap and epoch length must both be set or both be zero');
+    }
+    if (hasEpochSet) {
+      if (epochSeconds < 3600) errors.push('Budget epoch must be at least 1 hour');
+      if (epochSeconds > 31536000) errors.push('Budget epoch must be at most 365 days');
+    }
+    const fundingEth = parseFloat(pm.fundingAmountEth);
+    if (!isNaN(fundingEth) && fundingEth < 0) {
+      errors.push('Paymaster funding amount cannot be negative');
+    }
+  }
+
   return {
     isValid: errors.length === 0,
     errors,
@@ -284,9 +424,13 @@ export function logDeploymentParams(params) {
   console.log('OrgId:', params.orgId);
   console.log('OrgName:', params.orgName);
   console.log('Deployer:', params.deployerAddress);
+  console.log('Username:', params.deployerUsername || '(none)');
+  console.log('Reg Deadline:', params.regDeadline?.toString?.() ?? '0');
+  console.log('Reg Nonce:', params.regNonce?.toString?.() ?? '0');
+  console.log('Reg Signature:', params.regSignature === '0x' ? '(skip)' : params.regSignature?.slice(0, 20) + '...');
   console.log('Auto Upgrade:', params.autoUpgrade);
-  console.log('Hybrid Quorum:', params.hybridQuorumPct);
-  console.log('DD Quorum:', params.ddQuorumPct);
+  console.log('Hybrid Threshold:', params.hybridThresholdPct);
+  console.log('DD Threshold:', params.ddThresholdPct);
   console.log('Roles:', params.roles.length);
   params.roles.forEach((r, i) => {
     console.log(`  [${i}] ${r.name}`, {
@@ -300,6 +444,8 @@ export function logDeploymentParams(params) {
     console.log(`  [${i}] Strategy: ${c.strategy}, Slice: ${c.slicePct}%, Quadratic: ${c.quadratic}`);
   });
   console.log('Role Assignments:', params.roleAssignments);
+  console.log('Metadata Admin Role Index:', params.metadataAdminRoleIndex?.toString?.() ?? 'max (skip)');
+  console.log('Paymaster Config:', params.paymasterConfig);
 }
 
 export default {
@@ -307,6 +453,8 @@ export default {
   mapRole,
   mapVotingClasses,
   buildRoleAssignments,
+  mapPaymasterConfig,
+  getPaymasterFundingValue,
   mapStateToDeploymentParams,
   createDeploymentConfig,
   validateDeploymentConfig,

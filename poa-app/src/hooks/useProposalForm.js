@@ -12,6 +12,8 @@ import {
   CONTRACT_MAP,
   getTemplateById,
 } from '@/config/setterDefinitions';
+import { usePOContext } from '@/context/POContext';
+import { getNetworkByChainId } from '../config/networks';
 
 const defaultProposal = {
   name: "",
@@ -23,8 +25,12 @@ const defaultProposal = {
   transferAddress: "",
   transferAmount: "",
   // Election fields
-  electionCandidates: [], // Array of { name, address }
-  electionRoleId: "",     // Hat ID for the role being elected
+  electionCandidates: [],           // Array of { name, address }
+  electionRoleId: "",               // Hat ID for the role being elected
+  electionCurrentHolders: [],       // Array of { name, address } - all holders of the elected hat
+  electionSelectedIncumbents: [],   // Array of { name, address } - holders whose hat is at stake
+  electionFallbackRoleId: "",       // Hat ID for fallback role given to losers (optional)
+  electionFallbackHolders: [],      // Addresses already holding fallback hat (pre-computed)
   // Voting restriction fields
   isRestricted: false,    // Whether to restrict who can vote
   restrictedHatIds: [],   // Hat IDs that can vote (if restricted)
@@ -40,6 +46,9 @@ const defaultProposal = {
 
 export function useProposalForm({ onSubmit }) {
   const toast = useToast();
+  const { orgChainId } = usePOContext();
+  const orgNetwork = getNetworkByChainId(orgChainId);
+  const nativeCurrencySymbol = orgNetwork?.nativeCurrency?.symbol || 'ETH';
   const [proposal, setProposal] = useState(defaultProposal);
   const [loadingSubmit, setLoadingSubmit] = useState(false);
 
@@ -54,7 +63,19 @@ export function useProposalForm({ onSubmit }) {
   }, []);
 
   const handleProposalTypeChange = useCallback((e) => {
-    setProposal(prev => ({ ...prev, type: e.target.value }));
+    const newType = e.target.value;
+    setProposal(prev => ({
+      ...prev,
+      type: newType,
+      ...(newType !== 'election' ? {
+        electionRoleId: '',
+        electionCandidates: [],
+        electionCurrentHolders: [],
+        electionSelectedIncumbents: [],
+        electionFallbackRoleId: '',
+        electionFallbackHolders: [],
+      } : {}),
+    }));
   }, []);
 
   const handleTransferAddressChange = useCallback((e) => {
@@ -229,7 +250,34 @@ export function useProposalForm({ onSubmit }) {
       // Validate required inputs have values
       for (const input of template.inputs || []) {
         const value = proposal.setterValues?.[input.name];
-        if (value === undefined || value === '' || value === null) {
+
+        // Special validation for voting class weights
+        if (input.type === 'votingClassWeights') {
+          if (!Array.isArray(value) || value.length === 0) {
+            toast({
+              title: "No Voting Classes",
+              description: "At least one voting class is required.",
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            return false;
+          }
+          const totalPct = value.reduce((sum, cls) => sum + Number(cls.slicePct), 0);
+          if (totalPct !== 100) {
+            toast({
+              title: "Invalid Weights",
+              description: `Voting class weights must sum to 100% (currently ${totalPct}%).`,
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            return false;
+          }
+          continue;
+        }
+
+        if (!input.optional && (value === undefined || value === '' || value === null)) {
           toast({
             title: "Missing Value",
             description: `Please provide a value for "${input.label || input.name}".`,
@@ -238,6 +286,11 @@ export function useProposalForm({ onSubmit }) {
             isClosable: true,
           });
           return false;
+        }
+
+        // Skip further validation for optional empty inputs
+        if (input.optional && (value === undefined || value === '' || value === null)) {
+          continue;
         }
 
         // Validate number ranges
@@ -263,6 +316,26 @@ export function useProposalForm({ onSubmit }) {
             });
             return false;
           }
+        }
+      }
+
+      // For templates where all inputs are optional, ensure at least one has a value
+      const allOptional = (template.inputs || []).every(input => input.optional);
+      if (allOptional && template.inputs?.length > 0) {
+        const hasAnyValue = (template.inputs || []).some(input => {
+          const val = proposal.setterValues?.[input.name];
+          if (typeof val === 'string') return val.trim() !== '';
+          return val !== undefined && val !== '' && val !== null;
+        });
+        if (!hasAnyValue) {
+          toast({
+            title: "No Changes",
+            description: "Please provide at least one value to change.",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+          return false;
         }
       }
     } else {
@@ -343,33 +416,96 @@ export function useProposalForm({ onSubmit }) {
       optionNames = ["Yes", "No"];
     } else if (proposal.type === "election") {
       // Election proposal - each candidate is an option
-      // When they win, the execution batch mints the role to them
+      // When they win: revoke hat from current holders who lost, mint to winner
       numOptions = proposal.electionCandidates.length;
       optionNames = proposal.electionCandidates.map(c => c.name);
 
-      // Build execution batch for each candidate winning
-      // Uses mintHatToAddress(uint256 hatId, address wearer) on EligibilityModule
       const iface = new utils.Interface([
-        "function mintHatToAddress(uint256 hatId, address wearer)"
+        "function mintHatToAddress(uint256 hatId, address wearer)",
+        "function setWearerEligibility(address wearer, uint256 hatId, bool eligible, bool standing)"
       ]);
 
+      // Only revoke from the specific incumbents the user selected — not all holders
+      const selectedIncumbents = proposal.electionSelectedIncumbents || [];
+      // All holders is used to check if candidate already holds the hat
+      const allHolders = proposal.electionCurrentHolders || [];
+      // Fallback role: losers get downgraded to this hat instead of being fully removed
+      const fallbackRoleId = proposal.electionFallbackRoleId;
+      const fallbackHolders = proposal.electionFallbackHolders || [];
+
       batches = proposal.electionCandidates.map(candidate => {
-        const mintCall = {
-          target: eligibilityModuleAddress,
-          value: "0",
-          data: iface.encodeFunctionData("mintHatToAddress", [
-            proposal.electionRoleId,
-            candidate.address
-          ]),
-        };
-        return [mintCall];
+        const batch = [];
+
+        // Revoke hat from selected incumbents who are NOT this candidate
+        selectedIncumbents.forEach(incumbent => {
+          if (incumbent.address.toLowerCase() !== candidate.address.toLowerCase()) {
+            // Revoke the elected hat
+            batch.push({
+              target: eligibilityModuleAddress,
+              value: "0",
+              data: iface.encodeFunctionData("setWearerEligibility", [
+                incumbent.address,
+                proposal.electionRoleId,
+                false,
+                false,
+              ]),
+            });
+
+            // Grant fallback role to loser (if configured)
+            if (fallbackRoleId) {
+              // Set eligibility for fallback hat (idempotent, always safe)
+              batch.push({
+                target: eligibilityModuleAddress,
+                value: "0",
+                data: iface.encodeFunctionData("setWearerEligibility", [
+                  incumbent.address,
+                  fallbackRoleId,
+                  true,
+                  true,
+                ]),
+              });
+
+              // Only mint if loser doesn't already hold the fallback hat
+              const alreadyHoldsFallback = fallbackHolders.some(
+                addr => addr.toLowerCase() === incumbent.address.toLowerCase()
+              );
+              if (!alreadyHoldsFallback) {
+                batch.push({
+                  target: eligibilityModuleAddress,
+                  value: "0",
+                  data: iface.encodeFunctionData("mintHatToAddress", [
+                    fallbackRoleId,
+                    incumbent.address,
+                  ]),
+                });
+              }
+            }
+          }
+        });
+
+        // Mint hat to candidate if they don't already hold it
+        const candidateAlreadyHolds = allHolders.some(
+          h => h.address.toLowerCase() === candidate.address.toLowerCase()
+        );
+        if (!candidateAlreadyHolds) {
+          batch.push({
+            target: eligibilityModuleAddress,
+            value: "0",
+            data: iface.encodeFunctionData("mintHatToAddress", [
+              proposal.electionRoleId,
+              candidate.address,
+            ]),
+          });
+        }
+
+        return batch;
       });
     } else if (proposal.type === "setter") {
-      // Setter proposal - call a contract setter function
-      let setterCall;
+      // Setter proposal - call contract setter function(s)
+      let setterCalls = [];
 
       if (proposal.setterMode === 'template' && proposal.setterTemplate) {
-        // Template mode: use template's encode function
+        // Template mode
         const template = getTemplateById(proposal.setterTemplate);
         if (template) {
           const contractKey = template.contract;
@@ -377,16 +513,22 @@ export function useProposalForm({ onSubmit }) {
           const contractAddress = contractAddresses?.[contextKey];
 
           if (contractAddress) {
-            const funcDef = RAW_FUNCTIONS[contractKey]?.find(f => f.name === template.functionName);
-            if (funcDef) {
-              const iface = new utils.Interface([funcDef.signature]);
-              const encodedArgs = template.encode(proposal.setterValues);
+            if (template.buildCalls) {
+              // Multi-call template (e.g. token name + symbol in one proposal)
+              setterCalls = template.buildCalls(proposal.setterValues, contractAddress);
+            } else {
+              // Single-call template: use functionName + encode
+              const funcDef = RAW_FUNCTIONS[contractKey]?.find(f => f.name === template.functionName);
+              if (funcDef) {
+                const iface = new utils.Interface([funcDef.signature]);
+                const encodedArgs = template.encode(proposal.setterValues);
 
-              setterCall = {
-                target: contractAddress,
-                value: "0",
-                data: iface.encodeFunctionData(template.functionName, encodedArgs),
-              };
+                setterCalls = [{
+                  target: contractAddress,
+                  value: "0",
+                  data: iface.encodeFunctionData(template.functionName, encodedArgs),
+                }];
+              }
             }
           }
         }
@@ -401,18 +543,18 @@ export function useProposalForm({ onSubmit }) {
         if (funcDef && contractAddress) {
           const iface = new utils.Interface([funcDef.signature]);
 
-          setterCall = {
+          setterCalls = [{
             target: contractAddress,
             value: "0",
             data: iface.encodeFunctionData(proposal.setterFunction, proposal.setterParams),
-          };
+          }];
         }
       }
 
-      if (setterCall) {
+      if (setterCalls.length > 0) {
         batches = [
-          [setterCall], // Yes wins: execute setter
-          [],           // No wins: do nothing
+          setterCalls, // Yes wins: execute setter(s)
+          [],          // No wins: do nothing
         ];
       } else {
         batches = [[], []];
@@ -510,7 +652,7 @@ export function useProposalForm({ onSubmit }) {
 
       let successDescription;
       if (proposal.type === "transferFunds") {
-        successDescription = `Transfer proposal created. If "Yes" wins, ${proposal.transferAmount} ETH will be sent to ${proposal.transferAddress.slice(0, 6)}...${proposal.transferAddress.slice(-4)}`;
+        successDescription = `Transfer proposal created. If "Yes" wins, ${proposal.transferAmount} ${nativeCurrencySymbol} will be sent to ${proposal.transferAddress.slice(0, 6)}...${proposal.transferAddress.slice(-4)}`;
       } else if (proposal.type === "election") {
         successDescription = `Election created with ${proposal.electionCandidates.length} candidates. The winner will receive the role automatically.`;
       } else if (proposal.type === "setter") {

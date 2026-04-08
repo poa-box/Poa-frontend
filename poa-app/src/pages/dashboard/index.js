@@ -11,9 +11,9 @@ import {
   Link,
   Image,
   Button,
-  Spinner,
   Center,
   useBreakpointValue,
+  useClipboard,
   Flex,
   Wrap,
   WrapItem,
@@ -22,7 +22,9 @@ import {
   StatNumber,
   SimpleGrid,
   Collapse,
+  Tooltip,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useVotingContext } from '@/context/VotingContext';
 import { usePOContext } from '@/context/POContext';
 import { useProjectContext } from '@/context/ProjectContext';
@@ -32,47 +34,48 @@ import OngoingPolls from '@/components/userPage/OngoingPolls';
 import { useRouter } from 'next/router';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { FaLink } from 'react-icons/fa';
-import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus } from 'react-icons/fi';
+import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiCheck } from 'react-icons/fi';
 import { useIPFScontext } from "@/context/ipfsContext";
 import { useOrgStructure, useOrgTheme } from '@/hooks';
 import { VouchingSection } from '@/components/orgStructure/VouchingSection';
 import { OrgStructureCard } from '@/components/dashboard/OrgStructureCard';
+import { glassLayerStyle } from '@/components/shared/glassStyles';
 
 const PerpetualOrgDashboard = () => {
   const { ongoingPolls } = useVotingContext();
-  console.log("ongoingPolls", ongoingPolls);
-  const { poContextLoading, poDescription, poLinks, logoHash, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
+  const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
   const { pageBackground } = useOrgTheme();
 
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const [imageURL, setImageURL] = useState({});
   const [imageFetched, setImageFetched] = useState(false);
   const [isVouchingExpanded, setIsVouchingExpanded] = useState(false);
   const { fetchImageFromIpfs } = useIPFScontext();
 
-  // Responsive design breakpoints
-  const isMobile = useBreakpointValue({ base: true, sm: true, md: false });
-  const logoWidth = useBreakpointValue({ base: "160px", sm: "180px", md: "220px" });
-  const headingSize = useBreakpointValue({ base: "2xl", sm: "3xl", md: "4xl" });
-  const sectionHeadingSize = useBreakpointValue({ base: "xl", md: "2xl" });
-  const textSize = useBreakpointValue({ base: "sm", md: "md" });
-  const statsTextSize = useBreakpointValue({ base: "md", md: "lg" });
-  const leaderboardTitle = useBreakpointValue({
-    base: "Members & Leaderboard",
-    md: "Browse Members and Leaderboard"
-  });
+  const inviteLink = typeof window !== 'undefined' && userDAO
+    ? `${window.location.origin}/join?org=${userDAO}`
+    : '';
+  const { hasCopied, onCopy } = useClipboard(inviteLink);
+
+  // Responsive design breakpoints — single call to reduce matchMedia listeners
+  const bp = useBreakpointValue({
+    base: { isMobile: true, logoWidth: "160px", headingSize: "2xl", sectionHeadingSize: "xl", textSize: "sm", statsTextSize: "md", leaderboardTitle: "Members & Leaderboard" },
+    sm: { isMobile: true, logoWidth: "180px", headingSize: "3xl", sectionHeadingSize: "xl", textSize: "sm", statsTextSize: "md", leaderboardTitle: "Members & Leaderboard" },
+    md: { isMobile: false, logoWidth: "220px", headingSize: "4xl", sectionHeadingSize: "2xl", textSize: "md", statsTextSize: "lg", leaderboardTitle: "Browse Members and Leaderboard" },
+  }) || {};
+  const { isMobile, logoWidth, headingSize, sectionHeadingSize, textSize, statsTextSize, leaderboardTitle } = bp;
 
   useEffect(() => {
     const fetchImage = async () => {
-      if (logoHash && !imageFetched) {
-        const imageUrlFetch = await fetchImageFromIpfs(logoHash);
+      if (logoUrl && !imageFetched) {
+        const imageUrlFetch = await fetchImageFromIpfs(logoUrl);
         setImageURL(imageUrlFetch);
         setImageFetched(true);
       }
     };
     fetchImage();
-  }, [logoHash]);
+  }, [logoUrl]);
 
   const { leaderboardDisplayData } = usePOContext();
   const { recommendedTasks } = useProjectContext();
@@ -108,16 +111,6 @@ const PerpetualOrgDashboard = () => {
     }
   };
 
-  const glassLayerStyle = {
-    position: 'absolute',
-    height: '100%',
-    width: '100%',
-    zIndex: -1,
-    borderRadius: 'inherit',
-    backdropFilter: 'blur(70px)',
-    backgroundColor: 'rgba(0, 0, 0, .79)',
-  };
-
   const difficultyColorScheme = {
     easy: 'green',
     medium: 'yellow',
@@ -130,7 +123,7 @@ const PerpetualOrgDashboard = () => {
       <Navbar />
       {poContextLoading ? (
         <Center height="100vh" background={pageBackground()}>
-          <Spinner size="xl" />
+          <PulseLoader size="xl" />
         </Center>
       ) : (
         <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }} minH="100vh" background={pageBackground()}>
@@ -144,8 +137,8 @@ const PerpetualOrgDashboard = () => {
                   'polls'
                   'leaderboard'
                   'orgStructure'
-                  ${showVouchingSection ? "'vouching'" : ''}
                   'learnAndEarn'
+                  ${showVouchingSection ? "'vouching'" : ''}
                 ` : `
                   'orgInfo'
                   'orgStats'
@@ -159,8 +152,8 @@ const PerpetualOrgDashboard = () => {
                   'orgInfo orgStats'
                   'tasks polls'
                   'leaderboard orgStructure'
-                  ${showVouchingSection ? "'vouching .'" : ''}
                   'learnAndEarn learnAndEarn'
+                  ${showVouchingSection ? "'vouching .'" : ''}
                 ` : `
                   'orgInfo orgStats'
                   'tasks polls'
@@ -233,6 +226,23 @@ const PerpetualOrgDashboard = () => {
                     </Box>
                   </VStack>
                 </Flex>
+                <Box display="flex" justifyContent="flex-end" px={{ base: 3, md: 4 }} pb={{ base: 3, md: 4 }}>
+                  <Tooltip label={hasCopied ? 'Copied!' : 'Copy invite link to clipboard'} closeOnClick={false} hasArrow>
+                    <Button
+                      onClick={onCopy}
+                      size="sm"
+                      variant="outline"
+                      colorScheme={hasCopied ? 'green' : 'purple'}
+                      leftIcon={<Icon as={hasCopied ? FiCheck : FiCopy} />}
+                      borderColor={hasCopied ? 'green.400' : 'purple.400'}
+                      color={hasCopied ? 'green.300' : 'purple.300'}
+                      _hover={{ bg: hasCopied ? 'green.900' : 'purple.900' }}
+                      transition="all 0.2s"
+                    >
+                      {hasCopied ? 'Copied!' : 'Copy Invite Link'}
+                    </Button>
+                  </Tooltip>
+                </Box>
               </Box>
             </GridItem>
 
@@ -329,13 +339,13 @@ const PerpetualOrgDashboard = () => {
                       w={{ base: "100%", md: "31%" }}
                       mb={{ base: 2, md: 0 }}
                       _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
-                      transition="all 0.2s"
+                      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                       p={4}
                       borderRadius="2xl"
                       overflow="hidden"
                       bg="black"
                     >
-                      <Link2 href={`/tasks/?task=${task.id}&projectId=${encodeURIComponent(decodeURIComponent(task.projectId))}&userDAO=${userDAO}`}>
+                      <Link2 href={`/tasks/?task=${task.id}&projectId=${encodeURIComponent(decodeURIComponent(task.projectId))}&org=${userDAO}`}>
                         <VStack textColor="white" align="stretch" spacing={3}>
                           <Text mt="-2" fontSize={textSize} lineHeight="99%" fontWeight="extrabold">
                             {task.isIndexing ? 'Indexing...' : task.title}
@@ -377,7 +387,7 @@ const PerpetualOrgDashboard = () => {
             </GridItem>
 
             <GridItem area={'leaderboard'}>
-              <Link2 href={`/leaderboard?userDAO=${userDAO}`}>
+              <Link2 href={`/leaderboard?org=${userDAO}`}>
                 <Box
                   h="100%"
                   w="100%"
@@ -387,7 +397,7 @@ const PerpetualOrgDashboard = () => {
                   position="relative"
                   zIndex={2}
                   _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
-                  transition="all 0.2s"
+                  transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                 >
                   <div style={glassLayerStyle} />
                   <VStack pb={1} align="flex-start" position="relative" borderTopRadius="2xl">
@@ -441,45 +451,53 @@ const PerpetualOrgDashboard = () => {
                   boxShadow="lg"
                   position="relative"
                   zIndex={2}
+                  cursor="pointer"
+                  onClick={() => setIsVouchingExpanded(!isVouchingExpanded)}
+                  _hover={{ transform: "translateY(-1px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
+                  transition="transform 0.2s, box-shadow 0.2s"
                 >
                   <div style={glassLayerStyle} />
-                  <Box
-                    as="button"
-                    width="100%"
-                    onClick={() => setIsVouchingExpanded(!isVouchingExpanded)}
-                    position="relative"
-                    borderTopRadius="2xl"
-                    _hover={{ bg: 'rgba(148, 115, 220, 0.05)' }}
-                    transition="background-color 0.2s"
-                  >
+                  <VStack pb={1} align="flex-start" position="relative" borderTopRadius="2xl">
                     <div style={glassLayerStyle} />
-                    <HStack justify="space-between" px={{ base: 3, md: 6 }} py={2}>
+                    <HStack justify="space-between" w="100%" px={{ base: 3, md: 6 }}>
                       <HStack spacing={2}>
                         <Icon as={FiUserPlus} color="purple.300" />
                         <Text fontWeight="bold" fontSize={sectionHeadingSize}>
                           Member Vouching
                         </Text>
                       </HStack>
-                      <Icon
-                        as={isVouchingExpanded ? FiChevronDown : FiChevronRight}
-                        color="purple.300"
-                        boxSize={5}
-                        transition="transform 0.2s"
-                      />
+                      <HStack spacing={3}>
+                        <Badge colorScheme="purple" fontSize="xs" borderRadius="full" px={2}>
+                          {rolesWithVouching.length} {rolesWithVouching.length === 1 ? 'role' : 'roles'}
+                        </Badge>
+                        <Icon
+                          as={isVouchingExpanded ? FiChevronDown : FiChevronRight}
+                          color="purple.300"
+                          boxSize={5}
+                          transition="transform 0.2s"
+                        />
+                      </HStack>
                     </HStack>
+                  </VStack>
+                  <Box px={{ base: 3, md: 6 }} py={{ base: 3, md: 4 }}>
+                    <Collapse in={isVouchingExpanded} animateOpacity>
+                      <Box onClick={(e) => e.stopPropagation()} cursor="default" pb={2}>
+                        <VouchingSection
+                          roles={rolesWithVouching}
+                          eligibilityModuleAddress={eligibilityModuleAddress}
+                          userHatIds={userHatIds}
+                          userAddress={userData?.id}
+                          isConnected={true}
+                          embedded={true}
+                        />
+                      </Box>
+                    </Collapse>
+                    {!isVouchingExpanded && (
+                      <Text fontSize={textSize} color="gray.400">
+                        Review and vouch for pending membership requests
+                      </Text>
+                    )}
                   </Box>
-                  <Collapse in={isVouchingExpanded} animateOpacity>
-                    <Box p={{ base: 2, md: 4 }}>
-                      <VouchingSection
-                        roles={rolesWithVouching}
-                        eligibilityModuleAddress={eligibilityModuleAddress}
-                        userHatIds={userHatIds}
-                        userAddress={userData?.id}
-                        isConnected={true}
-                        embedded={true}
-                      />
-                    </Box>
-                  </Collapse>
                 </Box>
               </GridItem>
             )}
@@ -516,10 +534,10 @@ const PerpetualOrgDashboard = () => {
                             h="auto"
                             p={4}
                             borderRadius="xl"
-                            onClick={() => router.push(`/edu-Hub`)}
+                            onClick={() => router.push(`/learn/?org=${userDAO}`)}
                             bg="black"
                             _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
-                            transition="all 0.2s"
+                            transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                             cursor="pointer"
                             mb={{ base: 2, md: 0 }}
                           >
@@ -529,7 +547,7 @@ const PerpetualOrgDashboard = () => {
                               </Text>
                               <HStack mt={6} justifyContent="space-between">
                             {/* <Text mt={2}>{module.description}</Text> */}
-                            <Link2 href={`/edu-Hub`}>
+                            <Link2 href={`/learn/?org=${userDAO}`}>
 
                               <Button colorScheme="teal" size={{ base: "xs", md: "sm" }}>
                                 {module.isIndexing ? 'Coming Soon' : 'Start Module'}

@@ -21,19 +21,17 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { WagmiProvider } from 'wagmi';
 import { defineChain } from 'viem';
+import { NETWORKS, DEFAULT_NETWORK } from '../config/networks';
 
-// Define Hoodi testnet chain
-const hoodi = defineChain({
-  id: 560048,
-  name: 'Hoodi',
-  nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-  rpcUrls: {
-    default: { http: ['https://0xrpc.io/hoodi'] },
-  },
-  blockExplorers: {
-    default: { name: 'Hoodi Explorer', url: 'https://explorer.hoodi.ethpandaops.io' },
-  },
-});
+// Build viem chains for ALL supported networks (needed for useSwitchChain)
+const allChains = Object.values(NETWORKS).map(cfg => defineChain({
+  id: cfg.chainId,
+  name: cfg.name,
+  nativeCurrency: cfg.nativeCurrency,
+  rpcUrls: { default: { http: [cfg.rpcUrl] } },
+  blockExplorers: { default: { name: 'Explorer', url: cfg.blockExplorer } },
+}));
+const defaultChain = allChains.find(c => c.id === NETWORKS[DEFAULT_NETWORK].chainId);
 import {
   QueryClientProvider,
   QueryClient,
@@ -50,8 +48,8 @@ const queryClient = new QueryClient();
 const config = getDefaultConfig({
   appName: 'Poa',
   projectId: '7dc7409d6ef96f46e91e9d5797e4deac',
-  chains: [hoodi],
-  ssr: false,
+  chains: allChains,
+  ssr: true,
 });
 
 
@@ -144,12 +142,11 @@ const theme = extendTheme({
           },
         },
         glass: {
-          bg: 'rgba(255, 255, 255, 0.7)',
-          backdropFilter: 'blur(10px)',
+          bg: 'rgba(255, 255, 255, 0.8)',
           border: '1px solid',
           borderColor: 'rgba(255, 255, 255, 0.2)',
           _hover: {
-            bg: 'rgba(255, 255, 255, 0.85)',
+            bg: 'rgba(255, 255, 255, 0.9)',
           },
         },
       },
@@ -158,8 +155,7 @@ const theme = extendTheme({
       variants: {
         glass: {
           container: {
-            bg: 'rgba(255, 255, 255, 0.7)',
-            backdropFilter: 'blur(12px)',
+            bg: 'rgba(255, 255, 255, 0.8)',
             border: '1px solid',
             borderColor: 'rgba(255, 255, 255, 0.18)',
             boxShadow: '0 4px 30px rgba(0, 0, 0, 0.05)',
@@ -179,8 +175,7 @@ const theme = extendTheme({
       variants: {
         glass: {
           field: {
-            bg: 'rgba(255, 255, 255, 0.6)',
-            backdropFilter: 'blur(8px)',
+            bg: 'rgba(255, 255, 255, 0.75)',
             border: '1px solid',
             borderColor: 'rgba(255, 255, 255, 0.15)',
             _focus: {
@@ -195,43 +190,65 @@ const theme = extendTheme({
   },
 });
 
+import React, { useMemo } from 'react';
+
+// Provider tree wrapped in React.memo. Only re-renders when `children` changes.
+// Since `children` is a memoized page element (see MyApp), this prevents wagmi's
+// Hydrate/reconnect store updates from cascading through all nested providers.
+const StableProviders = React.memo(function StableProviders({ children }) {
+  return (
+    <AuthProvider>
+      <ApolloProvider client={client}>
+        <QueryClientProvider client={queryClient}>
+          <RainbowKitProvider initialChain={defaultChain}>
+            <RefreshProvider>
+            <IPFSprovider>
+              <ProfileHubProvider>
+                <POProvider>
+                  <VotingProvider>
+                    <ProjectProvider>
+                      <UserProvider>
+                        <NotificationProvider>
+                          <Web3Provider>
+                            <DataBaseProvider>
+                              <ChakraProvider theme={theme}>
+                                <NetworkModalControl />
+                                <Notification />
+                                {children}
+                              </ChakraProvider>
+                            </DataBaseProvider>
+                          </Web3Provider>
+                        </NotificationProvider>
+                      </UserProvider>
+                    </ProjectProvider>
+                  </VotingProvider>
+                </POProvider>
+              </ProfileHubProvider>
+            </IPFSprovider>
+            </RefreshProvider>
+          </RainbowKitProvider>
+        </QueryClientProvider>
+      </ApolloProvider>
+    </AuthProvider>
+  );
+});
+
 function MyApp({ Component, pageProps }) {
+  // Memoize the page element so it's a stable reference across wagmi-triggered
+  // re-renders. Only recreated on actual page navigation (Component change).
+  // pageProps excluded from deps — always {} in this static-export app (no
+  // getServerSideProps/getStaticProps), so the spread is a no-op.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const page = useMemo(() => (
+    <Component {...pageProps} />
+  ), [Component]);
+
   return (
     <ErrorBoundary>
       <WagmiProvider config={config}>
-        <AuthProvider>
-        <ApolloProvider client={client}>
-          <QueryClientProvider client={queryClient}>
-            <RainbowKitProvider initialChain={hoodi}>
-              <RefreshProvider>
-              <IPFSprovider>
-                <ProfileHubProvider>
-                  <POProvider>
-                    <VotingProvider>
-                      <ProjectProvider>
-                        <UserProvider>
-                          <NotificationProvider>
-                            <Web3Provider>
-                              <DataBaseProvider>
-                                <ChakraProvider theme={theme}>
-                                  <NetworkModalControl />
-                                  <Notification />
-                                  <Component {...pageProps} />
-                                </ChakraProvider>
-                              </DataBaseProvider>
-                            </Web3Provider>
-                          </NotificationProvider>
-                        </UserProvider>
-                      </ProjectProvider>
-                    </VotingProvider>
-                  </POProvider>
-                </ProfileHubProvider>
-              </IPFSprovider>
-              </RefreshProvider>
-            </RainbowKitProvider>
-          </QueryClientProvider>
-        </ApolloProvider>
-        </AuthProvider>
+        <StableProviders>
+          {page}
+        </StableProviders>
       </WagmiProvider>
     </ErrorBoundary>
   );

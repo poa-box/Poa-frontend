@@ -18,8 +18,8 @@ import {
 import { PiEquals, PiChartPieSlice } from 'react-icons/pi';
 
 export function WeightPresets({ onApplyPreset, classCount, isDisabled = false }) {
-  const buttonBg = useColorModeValue('gray.100', 'gray.700');
-  const buttonHoverBg = useColorModeValue('gray.200', 'gray.600');
+  const buttonBg = useColorModeValue('warmGray.100', 'warmGray.700');
+  const buttonHoverBg = useColorModeValue('warmGray.200', 'warmGray.600');
 
   if (classCount < 2) {
     return null; // No presets needed for single class
@@ -27,7 +27,7 @@ export function WeightPresets({ onApplyPreset, classCount, isDisabled = false })
 
   return (
     <HStack spacing={2}>
-      <Text fontSize="xs" color="gray.500" fontWeight="medium">
+      <Text fontSize="xs" color="warmGray.500" fontWeight="medium">
         Quick presets:
       </Text>
       <Tooltip

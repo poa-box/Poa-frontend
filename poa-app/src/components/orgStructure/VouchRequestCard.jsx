@@ -137,7 +137,7 @@ export function VouchRequestCard({
         bg: 'whiteAlpha.100',
         borderColor: 'whiteAlpha.200',
       }}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
     >
       <VStack spacing={3} align="stretch">
         {/* User Info Row */}

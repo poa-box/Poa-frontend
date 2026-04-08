@@ -52,7 +52,6 @@ function normalizeToIpfsCid(hash) {
     if (hash.startsWith('0x')) {
         const cid = bytes32ToIpfsCid(hash);
         if (cid) {
-            console.log('Converted bytes32 to CID:', hash, '->', cid);
             return cid;
         }
         console.warn('Failed to convert bytes32 to CID:', hash);
@@ -118,19 +117,46 @@ export const IPFSprovider = ({ children }) => {
     const addToIpfs = useCallback(async (content) => {
         console.log("[IPFS] Starting upload to The Graph's IPFS endpoint...");
         console.log("[IPFS] Content type:", typeof content);
-        console.log("[IPFS] Content length:", typeof content === 'string' ? content.length : content?.length || 'unknown');
+        console.log("[IPFS] Content length:", typeof content === 'string' ? content.length : content?.length || content?.size || 'unknown');
         if (typeof content === 'string') {
             console.log("[IPFS] Content preview:", content.substring(0, 200) + (content.length > 200 ? '...' : ''));
         }
 
+        // For binary files (images), use direct fetch to IPFS API with FormData.
+        // ipfs-http-client corrupts binary data even with Uint8Array — an 86KB PNG
+        // becomes 149KB due to UTF-8 multi-byte encoding of high bytes (>0x7F).
+        // Direct FormData upload preserves the raw bytes correctly.
+        // For strings (JSON metadata), ipfs-http-client works fine.
+        const isBinary = content instanceof Blob;
+
         try {
-            const addedData = await withRetry(async () => {
-                console.log("[IPFS] Attempting add to api.thegraph.com/ipfs...");
-                const result = await ipfsClient.add({ content });
-                console.log("[IPFS] Add successful!");
-                console.log("[IPFS] Result:", JSON.stringify(result, null, 2));
-                return result;
-            });
+            let addedData;
+            if (isBinary) {
+                console.log("[IPFS] Binary file detected — using direct FormData upload...");
+                addedData = await withRetry(async () => {
+                    const formData = new FormData();
+                    formData.append('file', content);
+                    const response = await fetch('https://api.thegraph.com/ipfs/api/v0/add', {
+                        method: 'POST',
+                        body: formData,
+                    });
+                    if (!response.ok) {
+                        throw new Error(`IPFS upload failed: ${response.status} ${response.statusText}`);
+                    }
+                    const result = await response.json();
+                    console.log("[IPFS] Direct upload successful!");
+                    console.log("[IPFS] Result:", JSON.stringify(result, null, 2));
+                    return { path: result.Hash, size: result.Size };
+                });
+            } else {
+                addedData = await withRetry(async () => {
+                    console.log("[IPFS] Attempting add to api.thegraph.com/ipfs...");
+                    const result = await ipfsClient.add(content);
+                    console.log("[IPFS] Add successful!");
+                    console.log("[IPFS] Result:", JSON.stringify(result, null, 2));
+                    return result;
+                });
+            }
 
             console.log("[IPFS] Final CID (path):", addedData.path);
             console.log("[IPFS] CID format check - starts with 'Qm':", addedData.path?.startsWith('Qm'));
@@ -162,11 +188,8 @@ export const IPFSprovider = ({ children }) => {
      * @throws {IPFSError} If fetch or parse fails
      */
     const fetchFromIpfs = useCallback(async (ipfsHash) => {
-        console.log("fetching from IPFS", ipfsHash);
-
         // Zero/empty hashes are valid - they mean "no content"
         if (isZeroHash(ipfsHash)) {
-            console.log("IPFS hash is empty/zero, returning null");
             return null;
         }
 
@@ -181,10 +204,8 @@ export const IPFSprovider = ({ children }) => {
             const result = await withRetry(async () => {
                 let stringData = '';
                 for await (const chunk of ipfsClient.cat(validHash)) {
-                    console.log("chunk:", chunk);
                     stringData += new TextDecoder().decode(chunk);
                 }
-                console.log("stringData:", stringData);
                 return stringData;
             });
 
@@ -215,11 +236,8 @@ export const IPFSprovider = ({ children }) => {
      * @throws {IPFSError} If fetch fails
      */
     const fetchImageFromIpfs = useCallback(async (ipfsHash) => {
-        console.log("fetching image from IPFS", ipfsHash);
-
         // Zero/empty hashes are valid - they mean "no image"
         if (isZeroHash(ipfsHash)) {
-            console.log("IPFS image hash is empty/zero, returning null");
             return null;
         }
 
@@ -244,7 +262,6 @@ export const IPFSprovider = ({ children }) => {
 
             // Create Object URL from Blob
             const imageUrl = URL.createObjectURL(blob);
-            console.log("Image URL:", imageUrl);
 
             return imageUrl;
         } catch (error) {

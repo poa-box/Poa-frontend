@@ -7,7 +7,6 @@ import {
   Box,
   useBreakpointValue,
   Tooltip,
-  VStack,
   HStack,
   Text,
   Badge,
@@ -30,8 +29,7 @@ const glassLayerStyle = {
   width: "100%",
   zIndex: -1,
   borderRadius: "inherit",
-  backdropFilter: "blur(20px)",
-  backgroundColor: "rgba(0, 0, 0, .8)",
+  backgroundColor: "rgba(0, 0, 0, .85)",
   boxShadow: "inset 0 0 15px rgba(148, 115, 220, 0.15)",
   border: "1px solid rgba(148, 115, 220, 0.2)",
 };
@@ -44,8 +42,8 @@ const VotingTabs = ({
 }) => {
   // Use responsive sizing based on breakpoints
   const tabFontSize = useBreakpointValue({ base: "md", sm: "xl", md: "2xl" });
-  const tabPadding = useBreakpointValue({ base: 2, sm: 3, md: 4 });
-  const listPadding = useBreakpointValue({ base: 3, sm: 4, md: 6 });
+  const tabPadding = useBreakpointValue({ base: 2, sm: 2, md: 3 });
+  const listPadding = useBreakpointValue({ base: 2, sm: 3, md: 4 });
   
   return (
     <Tabs
@@ -108,22 +106,20 @@ const VotingTabs = ({
             borderRadius="xl"
             py={tabPadding}
             px={{ base: 2, md: 4 }}
-            transition="all 0.3s ease"
+            transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
             flex="1"
             minW={0}
           >
-            <VStack spacing={1}>
-              <HStack spacing={2}>
-                <Box
-                  w="8px"
-                  h="8px"
-                  borderRadius="full"
-                  bg="linear-gradient(135deg, #F6AD55 0%, #ED8936 100%)"
-                  boxShadow="0 0 6px rgba(237, 137, 54, 0.5)"
-                  animation={`${breathe} 2.5s ease-in-out infinite`}
-                />
-                <Text>{PTVoteType}</Text>
-              </HStack>
+            <HStack spacing={2}>
+              <Box
+                w="8px"
+                h="8px"
+                borderRadius="full"
+                bg="linear-gradient(135deg, #F6AD55 0%, #ED8936 100%)"
+                boxShadow="0 0 6px rgba(237, 137, 54, 0.5)"
+                animation={`${breathe} 2.5s ease-in-out infinite`}
+              />
+              <Text>{PTVoteType}</Text>
               <Badge
                 fontSize="2xs"
                 fontWeight="medium"
@@ -137,7 +133,7 @@ const VotingTabs = ({
               >
                 Official Governance
               </Badge>
-            </VStack>
+            </HStack>
           </Tab>
         </Tooltip>
         <Tooltip
@@ -163,21 +159,19 @@ const VotingTabs = ({
             borderRadius="xl"
             py={tabPadding}
             px={{ base: 2, md: 4 }}
-            transition="all 0.3s ease"
+            transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
             flex="1"
             minW={0}
           >
-            <VStack spacing={1}>
-              <HStack spacing={2}>
-                <Box
-                  w="8px"
-                  h="8px"
-                  borderRadius="full"
-                  bg="blue.400"
-                  boxShadow="0 0 6px rgba(66, 153, 225, 0.5)"
-                />
-                <Text>Democracy</Text>
-              </HStack>
+            <HStack spacing={2}>
+              <Box
+                w="8px"
+                h="8px"
+                borderRadius="full"
+                bg="blue.400"
+                boxShadow="0 0 6px rgba(66, 153, 225, 0.5)"
+              />
+              <Text>Democracy</Text>
               <Badge
                 fontSize="2xs"
                 fontWeight="medium"
@@ -190,7 +184,7 @@ const VotingTabs = ({
               >
                 Informal Poll
               </Badge>
-            </VStack>
+            </HStack>
           </Tab>
         </Tooltip>
       </TabList>

@@ -129,13 +129,13 @@ export function VotingClassForm({
               Direct (Role-based) - One vote per member with eligible role
             </option>
             <option value={VOTING_STRATEGY.ERC20_BAL}>
-              Participation Token - Voting power based on token balance
+              Shares-Based - Voting power based on share balance
             </option>
           </Select>
           <FormHelperText>
             {formData.strategy === VOTING_STRATEGY.DIRECT
               ? 'Each member with an eligible role gets one vote'
-              : 'Voting power is proportional to participation token balance'}
+              : 'Voting power is proportional to share balance'}
           </FormHelperText>
         </FormControl>
 
@@ -145,7 +145,7 @@ export function VotingClassForm({
             <HStack>
               <Text>Voting Weight</Text>
               <Tooltip label="Percentage of total voting power this class controls">
-                <Icon as={InfoIcon} color="gray.400" />
+                <Icon as={InfoIcon} color="warmGray.400" />
               </Tooltip>
             </HStack>
           </FormLabel>
@@ -235,10 +235,10 @@ export function VotingClassForm({
             <Alert status="info" borderRadius="md">
               <AlertIcon />
               <Box>
-                <Text fontWeight="medium" fontSize="sm">Participation Token Voting</Text>
+                <Text fontWeight="medium" fontSize="sm">Share-Based Voting</Text>
                 <Text fontSize="sm">
-                  Voting power is based on each member's participation token balance.
-                  The token will be deployed automatically with your organization.
+                  Voting power is based on each member's share balance.
+                  Shares will be deployed automatically with your organization.
                 </Text>
               </Box>
             </Alert>
@@ -246,17 +246,17 @@ export function VotingClassForm({
             {/* Quadratic Voting - Only for ERC20_BAL */}
             <Box
               p={4}
-              bg={formData.quadratic ? 'orange.50' : 'gray.50'}
+              bg={formData.quadratic ? 'orange.50' : 'warmGray.50'}
               borderRadius="lg"
               borderWidth="1px"
-              borderColor={formData.quadratic ? 'orange.200' : 'gray.200'}
-              transition="all 0.2s"
+              borderColor={formData.quadratic ? 'orange.200' : 'warmGray.200'}
+              transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
             >
               <FormControl display="flex" alignItems="center" mb={3}>
                 <HStack flex={1}>
                   <Icon
                     as={PiLightning}
-                    color={formData.quadratic ? 'orange.500' : 'gray.400'}
+                    color={formData.quadratic ? 'orange.500' : 'warmGray.400'}
                     boxSize={5}
                   />
                   <FormLabel mb={0} fontWeight="semibold">
@@ -271,37 +271,37 @@ export function VotingClassForm({
                 />
               </FormControl>
 
-              <Text fontSize="sm" color="gray.600" mb={3}>
-                Reduces the influence of large token holders by using the square root of their balance as voting power.
+              <Text fontSize="sm" color="warmGray.600" mb={3}>
+                Reduces outsized influence by using the square root of share balance as voting power.
               </Text>
 
               {/* Quadratic voting explanation */}
               <Box
                 p={3}
-                bg={formData.quadratic ? 'white' : 'gray.100'}
+                bg={formData.quadratic ? 'white' : 'warmGray.100'}
                 borderRadius="md"
                 fontSize="xs"
               >
-                <Text fontWeight="semibold" color={formData.quadratic ? 'orange.700' : 'gray.600'} mb={2}>
+                <Text fontWeight="semibold" color={formData.quadratic ? 'orange.700' : 'warmGray.600'} mb={2}>
                   How it works:
                 </Text>
-                <VStack align="stretch" spacing={1} color="gray.600">
+                <VStack align="stretch" spacing={1} color="warmGray.600">
                   <HStack justify="space-between">
-                    <Text>100 tokens</Text>
+                    <Text>100 shares</Text>
                     <Text fontWeight="bold">→ {formData.quadratic ? '10 votes' : '100 votes'}</Text>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text>400 tokens</Text>
+                    <Text>400 shares</Text>
                     <Text fontWeight="bold">→ {formData.quadratic ? '20 votes' : '400 votes'}</Text>
                   </HStack>
                   <HStack justify="space-between">
-                    <Text>10,000 tokens</Text>
+                    <Text>10,000 shares</Text>
                     <Text fontWeight="bold">→ {formData.quadratic ? '100 votes' : '10,000 votes'}</Text>
                   </HStack>
                 </VStack>
                 {formData.quadratic && (
                   <Text mt={2} fontSize="xs" color="orange.600" fontStyle="italic">
-                    With quadratic voting, a 100x token difference only gives 10x more voting power
+                    With quadratic voting, a 100x share difference only gives 10x more voting power
                   </Text>
                 )}
               </Box>
@@ -309,7 +309,7 @@ export function VotingClassForm({
 
             {/* Minimum balance */}
             <FormControl>
-              <FormLabel>Minimum Token Balance Required</FormLabel>
+              <FormLabel>Minimum Share Balance Required</FormLabel>
               <NumberInput
                 value={formData.minBalance || 0}
                 onChange={(_, val) => {
@@ -324,7 +324,7 @@ export function VotingClassForm({
                 </NumberInputStepper>
               </NumberInput>
               <FormHelperText>
-                Minimum participation tokens required to vote (0 = no minimum)
+                Minimum shares required to vote (0 = no minimum)
               </FormHelperText>
             </FormControl>
           </>

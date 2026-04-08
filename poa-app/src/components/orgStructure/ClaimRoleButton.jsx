@@ -8,7 +8,6 @@ import {
   Button,
   Tooltip,
   Icon,
-  Spinner,
 } from '@chakra-ui/react';
 import { FiCheckCircle, FiUserPlus, FiLock, FiSend } from 'react-icons/fi';
 
@@ -92,7 +91,7 @@ export function ClaimRoleButton({
             size="sm"
             variant="solid"
             colorScheme="green"
-            leftIcon={isClaiming ? <Spinner size="xs" /> : <Icon as={FiCheckCircle} />}
+            leftIcon={<Icon as={FiCheckCircle} />}
             isLoading={isClaiming}
             loadingText="Claiming..."
             isDisabled={disabled || isClaiming}
@@ -101,7 +100,7 @@ export function ClaimRoleButton({
               transform: 'scale(1.02)',
               boxShadow: '0 0 20px rgba(72, 187, 120, 0.4)',
             }}
-            transition="all 0.2s"
+            transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
           >
             Claim Role
           </Button>
@@ -140,7 +139,7 @@ export function ClaimRoleButton({
             size="sm"
             variant="outline"
             colorScheme="green"
-            leftIcon={isWithdrawing ? <Spinner size="xs" /> : <Icon as={FiCheckCircle} />}
+            leftIcon={<Icon as={FiCheckCircle} />}
             isLoading={isWithdrawing}
             loadingText="Withdrawing..."
             isDisabled={isWithdrawing}
@@ -158,7 +157,7 @@ export function ClaimRoleButton({
           size="sm"
           variant="solid"
           colorScheme="purple"
-          leftIcon={isApplying ? <Spinner size="xs" /> : <Icon as={FiSend} />}
+          leftIcon={<Icon as={FiSend} />}
           isLoading={isApplying}
           loadingText="Applying..."
           isDisabled={disabled || isApplying}
@@ -178,7 +177,7 @@ export function ClaimRoleButton({
           size="sm"
           variant="solid"
           colorScheme="purple"
-          leftIcon={isClaiming ? <Spinner size="xs" /> : <Icon as={FiUserPlus} />}
+          leftIcon={<Icon as={FiUserPlus} />}
           isLoading={isClaiming}
           loadingText="Claiming..."
           isDisabled={disabled || isClaiming}
@@ -187,7 +186,7 @@ export function ClaimRoleButton({
             transform: 'scale(1.02)',
             boxShadow: '0 0 20px rgba(148, 115, 220, 0.4)',
           }}
-          transition="all 0.2s"
+          transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
         >
           Claim Role
         </Button>

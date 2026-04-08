@@ -8,8 +8,6 @@ import rehypeKatex from 'rehype-katex';
 import rehypeStringify from 'rehype-stringify';
 import 'katex/dist/katex.min.css'; // Make sure to import this in your component or global CSS
 import remarkGfm from 'remark-gfm';
-import remarkPrism from 'remark-prism';
-import html from 'remark-html';
 
 const postsDirectory = path.join(process.cwd(), 'posts');
 

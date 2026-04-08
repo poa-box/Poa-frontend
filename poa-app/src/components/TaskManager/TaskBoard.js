@@ -4,7 +4,7 @@
  * Renders mobile or desktop view based on screen size
  */
 
-import { useEffect, useRef } from 'react';
+import { useRef } from 'react';
 import { VStack, Box } from '@chakra-ui/react';
 import { useTaskBoard } from '../../context/TaskBoardContext';
 import TaskBoardMobile from './TaskBoardMobile';
@@ -12,24 +12,18 @@ import TaskBoardDesktop from './TaskBoardDesktop';
 import ProjectHeader from './ProjectHeader';
 
 const TaskBoard = ({
-  columns,
   projectName,
   hideTitleBar,
   sidebarVisible,
   toggleSidebar,
   isDesktop = true, // Default to desktop to prevent flash
 }) => {
-  const { taskColumns, setTaskColumns } = useTaskBoard();
+  const { taskColumns } = useTaskBoard();
   // Use the stable isDesktop prop from MainLayout instead of our own breakpoint detection
   // This prevents flash when component remounts during project switches
   const isMobile = !isDesktop;
   const mobileRef = useRef(null);
   const desktopRef = useRef(null);
-
-  // Sync columns from props
-  useEffect(() => {
-    setTaskColumns(columns);
-  }, [columns, setTaskColumns]);
 
   return (
     <VStack w="100%" align="stretch" h="100%" spacing={0}>

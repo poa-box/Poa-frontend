@@ -18,7 +18,7 @@ const VotingHistoryPreview = ({
   maxItems = 3,
 }) => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
 
   const headingSize = useBreakpointValue({ base: "xl", md: "2xl" });
 
@@ -32,7 +32,7 @@ const VotingHistoryPreview = ({
   };
 
   const handleViewAllClick = () => {
-    router.push(`/voting-history?userDAO=${userDAO}`);
+    router.push(`/votes?org=${userDAO}`);
   };
 
   return (
@@ -66,7 +66,7 @@ const VotingHistoryPreview = ({
             _active={{
               bg: "rgba(148, 115, 220, 0.3)",
             }}
-            transition="all 0.3s ease"
+            transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
             onClick={handleViewAllClick}
           >
             View All History
@@ -85,8 +85,8 @@ const VotingHistoryPreview = ({
             maxW="1200px"
             mx="auto"
           >
-            {displayedProposals.map((proposal, index) => (
-              <Flex w="100%" key={proposal.id || index} justify="center">
+            {displayedProposals.map((proposal) => (
+              <Flex w="100%" key={proposal.id} justify="center">
                 <HistoryCard
                   proposal={proposal}
                   onPollClick={onPollClick}

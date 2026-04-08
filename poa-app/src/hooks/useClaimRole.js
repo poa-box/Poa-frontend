@@ -6,8 +6,9 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { useWeb3Services, useTransactionWithNotification } from './useWeb3Services';
-import { useAccount } from 'wagmi';
+import { useAuth } from '../context/AuthContext';
 import { useIPFScontext } from '../context/ipfsContext';
+import { usePOContext } from '../context/POContext';
 import { FETCH_USER_ROLE_APPLICATIONS } from '../util/queries';
 
 /**
@@ -18,8 +19,11 @@ import { FETCH_USER_ROLE_APPLICATIONS } from '../util/queries';
 export function useClaimRole(eligibilityModuleAddress) {
   const { eligibility, isReady } = useWeb3Services();
   const { executeWithNotification } = useTransactionWithNotification();
-  const { address: userAddress } = useAccount();
+  const { accountAddress: userAddress } = useAuth();
   const { addToIpfs, ipfsCidToBytes32 } = useIPFScontext();
+  const { subgraphUrl } = usePOContext();
+
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
   const [claimingHatId, setClaimingHatId] = useState(null);
   const [vouchingFor, setVouchingFor] = useState(null);
@@ -35,7 +39,8 @@ export function useClaimRole(eligibilityModuleAddress) {
         applicant: userAddress,
       },
       skip: !eligibilityModuleAddress || !userAddress,
-      fetchPolicy: 'cache-and-network',
+      fetchPolicy: 'cache-first',
+      context: apolloContext,
     }
   );
 
@@ -65,7 +70,7 @@ export function useClaimRole(eligibilityModuleAddress) {
 
     try {
       const result = await executeWithNotification(
-        () => eligibility.claimVouchedHat(eligibilityModuleAddress, hatId),
+        () => eligibility.claimVouchedHat(eligibilityModuleAddress, hatId, { paymasterHatIds: [hatId] }),
         {
           pendingMessage: 'Claiming role...',
           successMessage: 'Role claimed successfully!',

@@ -71,7 +71,7 @@ export function RoleCard({
           w="10px"
           borderBottom="2px solid"
           borderLeft="2px solid"
-          borderColor="gray.300"
+          borderColor="warmGray.300"
           h="20px"
           transform="translateY(-100%)"
         />
@@ -81,7 +81,7 @@ export function RoleCard({
         {/* Left side: drag handle and role info */}
         <HStack spacing={3} flex={1}>
           {isDraggable && (
-            <Box cursor="grab" color="gray.400" _hover={{ color: 'gray.600' }}>
+            <Box cursor="grab" color="warmGray.400" _hover={{ color: 'warmGray.600' }}>
               <DragHandleIcon />
             </Box>
           )}
@@ -106,7 +106,7 @@ export function RoleCard({
             </HStack>
 
             {parentRole && (
-              <Text fontSize="xs" color="gray.500">
+              <Text fontSize="xs" color="warmGray.500">
                 Reports to: {parentRole.name}
               </Text>
             )}
@@ -147,8 +147,8 @@ export function RoleCard({
 
       {/* Expanded details */}
       <Collapse in={isOpen}>
-        <Box mt={3} pt={3} borderTopWidth="1px" borderColor="gray.100">
-          <VStack align="start" spacing={2} fontSize="sm" color="gray.600">
+        <Box mt={3} pt={3} borderTopWidth="1px" borderColor="warmGray.100">
+          <VStack align="start" spacing={2} fontSize="sm" color="warmGray.600">
             {/* Hierarchy info */}
             <HStack>
               <Text fontWeight="medium">Parent:</Text>

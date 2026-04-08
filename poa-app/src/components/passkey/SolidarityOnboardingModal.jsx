@@ -40,7 +40,7 @@ const STEP_PROGRESS = {
 };
 
 export default function SolidarityOnboardingModal({ isOpen, onClose, onSuccess }) {
-  const [displayName, setDisplayName] = useState('');
+  const [username, setUsername] = useState('');
   const inputRef = useRef(null);
   const toast = useToast();
 
@@ -61,12 +61,22 @@ export default function SolidarityOnboardingModal({ isOpen, onClose, onSuccess }
   const isError = step === OnboardingStep.ERROR;
 
   const handleStart = async () => {
-    const trimmed = displayName.trim();
+    const trimmed = username.trim();
     if (!trimmed) {
       inputRef.current?.focus();
       toast({
-        title: 'Display name required',
-        description: 'Please enter a name for your account.',
+        title: 'Username required',
+        description: 'Please enter a username for your account.',
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
+
+    if (trimmed.length < 3) {
+      toast({
+        title: 'Username too short',
+        description: 'Username must be at least 3 characters.',
         status: 'warning',
         duration: 3000,
       });
@@ -80,7 +90,7 @@ export default function SolidarityOnboardingModal({ isOpen, onClose, onSuccess }
     if (isInProgress) return;
     const wasSuccess = step === OnboardingStep.SUCCESS;
     reset();
-    setDisplayName('');
+    setUsername('');
     onClose();
     if (wasSuccess && onSuccess) {
       onSuccess(result);
@@ -100,7 +110,7 @@ export default function SolidarityOnboardingModal({ isOpen, onClose, onSuccess }
       closeOnOverlayClick={!isInProgress}
       closeOnEsc={!isInProgress}
     >
-      <ModalOverlay bg="blackAlpha.600" backdropFilter="blur(4px)" />
+      <ModalOverlay bg="blackAlpha.600" />
       <ModalContent
         borderRadius="2xl"
         bg="white"
@@ -131,20 +141,20 @@ export default function SolidarityOnboardingModal({ isOpen, onClose, onSuccess }
                   mb={3}
                 />
                 <Text fontSize="sm" color="warmGray.600" lineHeight="1.6">
-                  Create a free account using your device's biometric authentication.
+                  Create an account using your device's biometric authentication.
                   No wallet extension or ETH needed.
                 </Text>
               </Box>
 
               <Box w="100%">
                 <Text fontSize="sm" fontWeight="600" mb={2} color="warmGray.700">
-                  Choose a display name
+                  Choose a username
                 </Text>
                 <Input
                   ref={inputRef}
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="Enter display name"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter username"
                   size="lg"
                   borderRadius="xl"
                   borderColor="warmGray.200"
@@ -228,7 +238,7 @@ export default function SolidarityOnboardingModal({ isOpen, onClose, onSuccess }
               </Box>
 
               <Text fontSize="sm" color="warmGray.600" textAlign="center">
-                Your passkey account has been created. Browse and join organizations to get started.
+                Your passkey account has been created. Browse and join organizations to get started!
               </Text>
 
               <Box
@@ -285,7 +295,7 @@ export default function SolidarityOnboardingModal({ isOpen, onClose, onSuccess }
               _hover={{ bg: 'amethyst.600', transform: 'translateY(-1px)', boxShadow: 'lg' }}
               _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
               onClick={handleStart}
-              isDisabled={!isReady || !displayName.trim()}
+              isDisabled={!isReady || !username.trim()}
               leftIcon={<FaFingerprint />}
             >
               Create with Passkey

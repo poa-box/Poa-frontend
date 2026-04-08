@@ -3,6 +3,7 @@
  * Handles Education Hub operations for learning modules
  */
 
+import { ethers } from 'ethers';
 import EducationHubABI from '../../../../abi/EducationHubNew.json';
 import { stringToBytes, ipfsCidToBytes32, parseModuleId } from '../utils/encoding';
 import {
@@ -32,10 +33,11 @@ export class EducationService {
    * @param {Object} moduleData - Module data
    * @param {string} moduleData.name - Module name
    * @param {string} moduleData.description - Module description
+   * @param {string} [moduleData.link] - External learning link
    * @param {string[]} moduleData.quiz - Quiz questions
    * @param {string[][]} moduleData.answers - Possible answers for each question
    * @param {number[]} moduleData.correctAnswers - Correct answer indices
-   * @param {number} moduleData.payout - Completion payout
+   * @param {number} moduleData.payout - Completion payout (human-readable, e.g. 5 = 5 tokens)
    * @param {Object} [options={}] - Transaction options
    * @returns {Promise<TransactionResult>}
    */
@@ -47,6 +49,7 @@ export class EducationService {
     const {
       name,
       description = '',
+      link = '',
       quiz = [],
       answers = [],
       correctAnswers = [],
@@ -54,11 +57,12 @@ export class EducationService {
     } = moduleData;
 
     // Upload module content to IPFS if service available
-    let contentHash = '0x0000000000000000000000000000000000000000000000000000000000000000';
+    let contentHash = ethers.constants.HashZero;
     if (this.ipfs) {
       const ipfsData = {
         name,
         description,
+        link,
         quiz,
         answers,
       };
@@ -70,19 +74,25 @@ export class EducationService {
 
     const titleBytes = stringToBytes(name);
 
+    // Convert payout to wei (18 decimals for participation token)
+    const payoutWei = ethers.utils.parseUnits(payout.toString(), 18);
+
+    // Contract expects: createModule(bytes title, bytes32 contentHash, uint256 payout, uint8 correctAnswer)
+    const correctAnswer = Number(correctAnswers[0]);
+
     return this.txManager.execute(
       contract,
       'createModule',
-      [titleBytes, contentHash, correctAnswers, payout],
+      [titleBytes, contentHash, payoutWei, correctAnswer],
       options
     );
   }
 
   /**
-   * Complete a module (submit quiz answers)
+   * Complete a module (submit quiz answer)
    * @param {string} contractAddress - EducationHub contract address
    * @param {string|number} moduleId - Module ID
-   * @param {number[]} answers - User's answer indices
+   * @param {number[]} answers - User's answer indices (first element used)
    * @param {Object} [options={}] - Transaction options
    * @returns {Promise<TransactionResult>}
    */
@@ -92,13 +102,13 @@ export class EducationService {
     const contract = this.factory.createWritable(contractAddress, EducationHubABI);
     const parsedModuleId = parseModuleId(moduleId);
 
-    // Convert answers to numbers
-    const answerIndices = answers.map(a => Number(a));
+    // Contract expects: completeModule(uint256 id, uint8 answer) — single uint8, not an array
+    const answer = Number(answers[0]);
 
     return this.txManager.execute(
       contract,
       'completeModule',
-      [parsedModuleId, answerIndices],
+      [parsedModuleId, answer],
       options
     );
   }

@@ -18,3 +18,7 @@ export { VouchForNewMember } from './VouchForNewMember';
 
 // Role application
 export { RoleApplicationModal } from './RoleApplicationModal';
+export { RoleApplicationForm } from './RoleApplicationForm';
+
+// Vouch link handling
+export { VouchLinkHandler } from './VouchLinkHandler';

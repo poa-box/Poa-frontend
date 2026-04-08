@@ -33,3 +33,11 @@ export {
   isValidIpfsCid,
   requireValidIpfsCid,
 } from './validation';
+
+// EIP-712 signing for username registration
+export {
+  signRegistration,
+  getSkipRegistrationDefaults,
+  fetchRegistryNonce,
+  fetchExistingUsername,
+} from './registrySigner';

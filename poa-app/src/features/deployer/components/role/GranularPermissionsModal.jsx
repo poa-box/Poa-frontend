@@ -34,13 +34,13 @@ import {
 // Permission definitions grouped by category
 const PERMISSION_GROUPS = [
   {
-    name: 'Joining & Tokens',
+    name: 'Joining & Shares',
     icon: PiUserPlus,
-    color: 'coral',
+    color: 'purple',
     permissions: [
       { key: 'quickJoinRoles', label: 'Quick Join', desc: 'Role given when joining without vouching' },
-      { key: 'tokenMemberRoles', label: 'Hold Tokens', desc: 'Can receive and hold participation tokens' },
-      { key: 'tokenApproverRoles', label: 'Approve Tokens', desc: 'Can approve token transfer requests' },
+      { key: 'tokenMemberRoles', label: 'Earn Shares', desc: 'Can earn and hold shares' },
+      { key: 'tokenApproverRoles', label: 'Approve Shares', desc: 'Can approve share requests' },
     ],
   },
   {
@@ -118,7 +118,7 @@ export function GranularPermissionsModal({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg" scrollBehavior="inside">
-      <ModalOverlay bg="blackAlpha.400" backdropFilter="blur(4px)" />
+      <ModalOverlay bg="blackAlpha.500" />
       <ModalContent
         borderRadius="2xl"
         boxShadow="0 25px 50px rgba(0, 0, 0, 0.15)"
@@ -130,12 +130,12 @@ export function GranularPermissionsModal({
               w="40px"
               h="40px"
               borderRadius="lg"
-              bg="coral.100"
+              bg="amethyst.100"
               display="flex"
               alignItems="center"
               justifyContent="center"
             >
-              <Icon as={PiShieldCheck} color="coral.600" boxSize={5} />
+              <Icon as={PiShieldCheck} color="amethyst.600" boxSize={5} />
             </Box>
             <Box>
               <Text fontSize="lg" fontWeight="600" color="warmGray.900">
@@ -198,11 +198,11 @@ export function GranularPermissionsModal({
 
         <ModalFooter borderTop="1px solid" borderColor="warmGray.100" pt={4}>
           <Button
-            bg="coral.500"
+            bg="warmGray.900"
             color="white"
-            _hover={{ bg: 'coral.600' }}
+            _hover={{ bg: 'warmGray.800' }}
             onClick={onClose}
-            borderRadius="lg"
+            borderRadius="full"
           >
             Done
           </Button>

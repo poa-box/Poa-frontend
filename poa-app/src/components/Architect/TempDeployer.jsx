@@ -8,10 +8,10 @@ import {
   ModalFooter,
   ModalBody,
   Button,
-  Spinner,
   useToast,
   Text,
 } from "@chakra-ui/react";
+import PulseLoader from "@/components/shared/PulseLoader";
 
 import { main } from "../../../scripts/newDeployment";
 
@@ -71,7 +71,7 @@ function Deployer({ isOpen, onClose, deploymentDetails, signer }) {
 
         toast({
           title: "Deployment successful!",
-          description: "Your organization has been created on the Hoodi network.",
+          description: "Your organization has been created successfully.",
           status: "success",
           duration: 9000,
           isClosable: true,
@@ -101,7 +101,7 @@ function Deployer({ isOpen, onClose, deploymentDetails, signer }) {
     const formattedOrgName = encodeURIComponent(
       deploymentDetails.POname.trim().replace(/\s+/g, "-")
     );
-    router.push(`/home/?userDAO=${formattedOrgName}`);
+    router.push(`/home/?org=${formattedOrgName}`);
   };
 
   const handleClose = () => {
@@ -122,9 +122,9 @@ function Deployer({ isOpen, onClose, deploymentDetails, signer }) {
         <ModalBody>
           {isDeploying ? (
             <>
-              <Spinner size="xl" />
+              <PulseLoader size="xl" />
               <Text mt={4}>
-                Deploying your organization to Hoodi testnet...
+                Deploying your organization...
               </Text>
               <Text fontSize="sm" color="gray.500" mt={2}>
                 This may take a few minutes. Please do not close this window.

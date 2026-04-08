@@ -5,7 +5,7 @@ import { useDrop } from 'react-dnd';
 import TaskCard from './TaskCard';
 import { useTaskBoard } from '../../context/TaskBoardContext';
 import AddTaskModal from './AddTaskModal';
-import { useAccount } from 'wagmi';
+import { useAuth } from '../../context/AuthContext';
 import {usePOContext} from '@/context/POContext';
 import { useToast } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
@@ -21,7 +21,6 @@ const glassLayerStyle = {
   height: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(60px)',
   backgroundColor: 'rgba(0, 0, 0, .3)',
 };
 
@@ -30,10 +29,10 @@ const glassLayerStyle = {
 
 const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile = false, isEmpty = false, hideTitleInMobile = false }, ref) => {
   const router = useRouter();
-  const {userDAO} = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const { moveTask, addTask, editTask } = useTaskBoard();
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
-  const { address: account } = useAccount();
+  const { accountAddress: account } = useAuth();
   const { taskManagerContractAddress, roleHatIds } = usePOContext();
   const { taskCount, projectsData } = useProjectContext();
   const toast = useToast();
@@ -69,34 +68,16 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
   // Check if user can create tasks in this project
   // Falls back to checking if user has executive+ role when permissions are not configured
   const canCreateTask = useMemo(() => {
-    const hasPermission = userCanCreateTask(userHatIds, projectRolePermissions);
-    if (hasPermission) {
-      console.debug('[TaskColumn] User has create permission via project role permissions');
-      return true;
-    }
-    // Fallback: If no project permissions configured, check if user has executive+ role
-    if (!projectRolePermissions?.length && hasNonMemberRole) {
-      console.debug('[TaskColumn] No project permissions configured, falling back to executive role check');
-      return true;
-    }
-    console.debug('[TaskColumn] User cannot create tasks');
+    if (userCanCreateTask(userHatIds, projectRolePermissions)) return true;
+    if (!projectRolePermissions?.length && hasNonMemberRole) return true;
     return false;
   }, [userHatIds, projectRolePermissions, hasNonMemberRole]);
 
   // Check if user can review tasks in this project
   // Falls back to checking if user has executive+ role when permissions are not configured
   const canReviewTask = useMemo(() => {
-    const hasPermission = userCanReviewTask(userHatIds, projectRolePermissions);
-    if (hasPermission) {
-      console.debug('[TaskColumn] User has review permission via project role permissions');
-      return true;
-    }
-    // Fallback: If no project permissions configured, check if user has executive+ role
-    if (!projectRolePermissions?.length && hasNonMemberRole) {
-      console.debug('[TaskColumn] No project permissions configured, falling back to executive role check');
-      return true;
-    }
-    console.debug('[TaskColumn] User cannot review tasks');
+    if (userCanReviewTask(userHatIds, projectRolePermissions)) return true;
+    if (!projectRolePermissions?.length && hasNonMemberRole) return true;
     return false;
   }, [userHatIds, projectRolePermissions, hasNonMemberRole]);
 
@@ -195,9 +176,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
     accept: 'task',
     canDrop: () => true, // Always allow dropping
     drop: async(item) => {
-      console.log(`Attempting to drop in ${title} column:`, item);
-
-      if (!hasMemberRoleRef.current && title != 'Completed') {
+      if (!hasMemberRoleRef.current && title !== 'Completed') {
         toast({
           title: 'Membership Required',
           description: 'You must be a member to move tasks. Go to user page to join.',
@@ -221,10 +200,20 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
       }
       // Note: Token minting is now handled automatically by the contract on task completion
 
-      if (item.columnId === 'completed') {
+      // Only allow valid forward transitions:
+      // open → inProgress (claim), inProgress → inReview (submit), inReview → completed (complete)
+      const validTransitions = {
+        'open': 'inProgress',
+        'inProgress': 'inReview',
+        'inReview': 'completed',
+      };
+
+      if (validTransitions[item.columnId] !== columnId) {
         toast({
           title: 'Action Not Allowed',
-          description: 'You cannot move tasks from the Completed column.',
+          description: item.columnId === 'completed'
+            ? 'You cannot move tasks from the Completed column.'
+            : 'Tasks can only move forward: Open → In Progress → In Review → Completed.',
           status: 'info',
           duration: 3000,
           isClosable: true,
@@ -239,8 +228,6 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
         const claimedByValue = title === 'In Progress' ? account : item.claimedBy;
         const claimerUserValue = title === 'In Progress' ? graphUsername : item.claimerUsername;
         
-        console.log("Using username:", claimerUserValue);
-        
         const draggedTask = {
           ...item,
           id: item.id,
@@ -252,8 +239,6 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
           claimerUsername: claimerUserValue,
         };
         
-        console.log(`Moving task from ${item.columnId} to ${columnId}, index: ${newIndex}`);
-
         // Use the task's actual projectId (from subgraph), not constructed from projectName
         const safeProjectId = item.projectId ? encodeURIComponent(decodeURIComponent(item.projectId)) : '';
 
@@ -261,7 +246,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
         router.push({
           pathname: `/tasks/`,
           query: {
-            userDAO: router.query.userDAO,
+            org: router.query.org || router.query.userDAO,
             projectId: safeProjectId,
             task: draggedTask.id
           }
@@ -327,7 +312,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
     borderRadius: '8px',
     border: isOver ? '1px dashed rgba(123, 104, 238, 0.5)' : '1px dashed rgba(255, 255, 255, 0.2)',
     margin: '0 auto 16px auto',
-    transition: 'all 0.3s ease',
+    transition: 'transform 0.3s ease, box-shadow 0.3s ease',
   };
 
   const handleOpenAddTaskModal = () => {
@@ -429,17 +414,8 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
           tasks.map((task, index) => (
             <TaskCard
               key={task.id}
-              id={task.id}
-              name={task.name}
-              description={task.description}
-              difficulty={task.difficulty}
-              estHours={task.estHours}
-              submission={task.submission}
-              claimedBy={task.claimedBy}
-              Payout={task.Payout}
-              claimerUsername={task.claimerUsername}
+              task={task}
               columnId={columnId}
-              projectId={task.projectId}
               onEditTask={(updatedTask) => handleEditTask(updatedTask, index)}
               isMobile={isMobile}
             />

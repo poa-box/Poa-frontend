@@ -7,7 +7,7 @@
 import { startRegistration } from '@simplewebauthn/browser';
 import { base64URLStringToBuffer, bufferToBase64URLString } from '@simplewebauthn/browser';
 import { keccak256, encodePacked, pad, toHex } from 'viem';
-import { WEBAUTHN_RP_NAME } from '../../../config/passkey';
+import { WEBAUTHN_RP_NAME, getWebAuthnRpId } from '../../../config/passkey';
 import { computeCredentialId } from './passkeyUtils';
 
 /**
@@ -34,7 +34,7 @@ export async function createPasskeyCredential(username) {
     optionsJSON: {
       rp: {
         name: WEBAUTHN_RP_NAME,
-        id: window.location.hostname,
+        id: getWebAuthnRpId(),
       },
       user: {
         id: userId,

@@ -1,6 +1,6 @@
 //react component gets poll data from votingcontext and displays ongoing polls in cards
 
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useMemo } from 'react';
 
 
 import CountDown from '../../templateComponents/studentOrgDAO/voting/countDown';
@@ -24,7 +24,6 @@ const glassLayerStyle = {
     height: '100%',
     zIndex: -1,
     borderRadius: 'inherit',
-    backdropFilter: 'blur(50px)',
     backgroundColor: 'rgba(0, 0, 0, .9)',
 };
 
@@ -33,17 +32,14 @@ const OngoingPolls = ({OngoingPolls}) => {
 
     // check if ongoing polsl exist
     const router = useRouter();
-    const { userDAO } = router.query;
+    const userDAO = router.query.org || router.query.userDAO || '';
     const ongoingPollsExist = OngoingPolls && OngoingPolls.length > 0;
     if (!ongoingPollsExist) {
         return <Text mt="4" ml="7">No ongoing polls available</Text>;
     }
 
-    //randomize polls
-    const randomPolls = OngoingPolls.sort(() => Math.random() - Math.random()).slice(0, 3);
-
-    // duplicate poll 2 times 
-    //const randomPolls = OngoingPolls.sort(() => Math.random() - Math.random()).slice(0, 3).concat(OngoingPolls.sort(() => Math.random() - Math.random()).slice(0, 3)).concat(OngoingPolls.sort(() => Math.random() - Math.random()).slice(0, 3));
+    // Take first 3 polls without mutating the prop array
+    const randomPolls = useMemo(() => [...OngoingPolls].slice(0, 3), [OngoingPolls]);
 
 
     function calculateRemainingTime(expirationTimestamp) {
@@ -73,7 +69,7 @@ const OngoingPolls = ({OngoingPolls}) => {
                                 
                                 <div style={glassLayerStyle}/>
                                 
-                                <Link2  href={`/voting/?poll=${poll.id}&userDAO=${userDAO}`}>
+                                <Link2  href={`/voting/?poll=${poll.id}&org=${userDAO}`}>
                                 <VStack textColor="white"  spacing={2}>
 
                                     <Heading  ml={4} fontWeight="extrabold" mt={2} size="sm">{poll.title}</Heading>

@@ -17,9 +17,11 @@ import {
 import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { formatTokenAmount } from '@/util/formatToken';
 import { getTokenByAddress } from '@/util/tokens';
-import { NETWORKS } from '@/config/networks';
+import { getNetworkByChainId } from '@/config/networks';
+import { usePOContext } from '@/context/POContext';
 
 const DistributionHistory = ({ distributions = [], payments = [] }) => {
+  const { orgChainId } = usePOContext();
   const isMobile = useBreakpointValue({ base: true, md: false });
 
   // Memoize combined and sorted history to avoid recalculation on every render
@@ -67,7 +69,7 @@ const DistributionHistory = ({ distributions = [], payments = [] }) => {
   };
 
   const getExplorerUrl = (txHash) => {
-    const explorer = NETWORKS.hoodi?.blockExplorer || 'https://explorer.hoodi.ethpandaops.io';
+    const explorer = getNetworkByChainId(orgChainId)?.blockExplorer || 'https://sepolia.etherscan.io';
     return `${explorer}/tx/${txHash}`;
   };
 

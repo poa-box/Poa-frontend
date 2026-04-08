@@ -1,14 +1,16 @@
 import React from 'react';
-import { Box, useDisclosure, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon } from '@chakra-ui/react';
+import { Box, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon, Image } from '@chakra-ui/react';
 import { useDrag } from 'react-dnd';
 import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
-import { TimeIcon, StarIcon, CheckIcon, InfoIcon } from '@chakra-ui/icons';
+import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 
-const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId, submission, claimedBy, claimerUsername, onEditTask, moveTask, projectId, Payout, bountyToken, bountyPayout, isMobile }) => {
+const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
+  const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
+
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   // Use the stable isMobile prop from parent (passed through TaskColumn)
   // This prevents flash when components remount during project switches
   // isMobile prop should always be provided from TaskColumn
@@ -18,19 +20,18 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
     const safeProjectId = encodeURIComponent(decodeURIComponent(projectId));
     router.push({
       pathname: `/tasks/`,
-      query: { userDAO: userDAO, task: id, projectId: safeProjectId },
+      query: { org: userDAO, task: id, projectId: safeProjectId },
     }, undefined, { shallow: true });
   };
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'task',
-    item: { id, index, columnId, name, description, difficulty, estHours, claimedBy, claimerUsername, Payout, submission, projectId },
+    item: { id, columnId, name, description, difficulty, estHours, claimedBy, claimerUsername, Payout, submission: task.submission, projectId },
+    canDrag: () => !task.isIndexing,
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
   }));
-
-  const { isOpen, onOpen, onClose } = useDisclosure();
 
   const truncateDescription = (desc, maxLength) => {
     if (!desc) return '';
@@ -47,7 +48,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
     hard: 'orange',
     veryhard: 'red'
   };
-  
+
   // Difficulty scores for better visualization
   const difficultyScore = {
     easy: 1,
@@ -55,7 +56,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
     hard: 3,
     veryhard: 4
   };
-  
+
   // Get user initials for avatars
   const getUserInitials = (username) => {
     if (!username) return "?";
@@ -66,12 +67,12 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
   const mobileCardStyle = {
     background: 'rgba(255, 255, 255, 0.98)',
     borderRadius: '12px',
-    boxShadow: isDragging 
-      ? '0 10px 25px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(128, 90, 213, 0.4)' 
+    boxShadow: isDragging
+      ? '0 10px 25px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(128, 90, 213, 0.4)'
       : '0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)',
     padding: '14px',
     marginBottom: '14px',
-    transition: 'all 0.25s ease',
+    transition: 'transform 0.25s ease, box-shadow 0.25s ease',
     transform: isDragging ? 'scale(0.98) rotate(-1deg)' : 'scale(1) rotate(0)',
     opacity: isDragging ? 0.9 : 1,
     borderLeft: difficulty ? `4px solid ${getDifficultyColor(difficulty)}` : undefined,
@@ -86,7 +87,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
     marginBottom: '16px',
     cursor: 'grab',
     opacity: isDragging ? 0.7 : 1,
-    transition: 'all 0.2s ease',
+    transition: 'transform 0.2s ease, box-shadow 0.2s ease',
     transform: isDragging ? 'rotate(-1deg)' : 'rotate(0)',
     _hover: {
       boxShadow: 'md',
@@ -126,8 +127,8 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
         role="group"
       >
         {/* Task title with better typography */}
-        <Text 
-          fontWeight="700" 
+        <Text
+          fontWeight="700"
           fontSize={isCardMobile ? "0.95rem" : "0.85rem"}
           color="#2D3748" // gray.700
           mb={isCardMobile ? 2 : 1.5}
@@ -138,9 +139,9 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
         >
           {name}
         </Text>
-        
+
         {/* Improved description section */}
-        <Text 
+        <Text
           fontSize={isCardMobile ? "0.8rem" : "0.75rem"}
           color="#4A5568" // gray.600
           mb={isCardMobile ? 3 : 2}
@@ -149,7 +150,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
         >
           {truncateDescription(description, isCardMobile ? 80 : 50)}
         </Text>
-        
+
         {/* Info and tags with better layout */}
         <Flex direction="column" gap={2}>
           {/* Difficulty and time indicators */}
@@ -158,11 +159,11 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
               <Flex align="center">
                 <HStack spacing={1}>
                   {[...Array(difficultyScore[difficulty.toLowerCase().replace(" ", "")] || 1)].map((_, i) => (
-                    <Box 
-                      key={i} 
-                      w={1.5} 
-                      h={1.5} 
-                      borderRadius="full" 
+                    <Box
+                      key={i}
+                      w={1.5}
+                      h={1.5}
+                      borderRadius="full"
                       bg={getDifficultyColor(difficulty)}
                     />
                   ))}
@@ -172,7 +173,7 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
                 </Text>
               </Flex>
             )}
-            
+
             <HStack spacing={1} align="center">
               <TimeIcon boxSize={3} color="gray.400" />
               <Text fontSize="xs" color="gray.500" fontWeight="medium">
@@ -180,60 +181,86 @@ const TaskCard = ({ id, name, description, difficulty, estHours, index, columnId
               </Text>
             </HStack>
           </Flex>
-          
+
           {/* Reward and assigned user */}
           <Flex justify="space-between" align="center" mt={1}>
             <HStack spacing={1}>
               {Payout && (
-                <Tooltip label="Participation token reward" placement="top">
-                  <Flex align="center" bg="purple.50" px={2} py={0.5} borderRadius="full">
-                    <StarIcon boxSize={3} mr={1} color="purple.500" />
-                    <Text fontWeight="bold" color="purple.700" fontSize="xs">
-                      {Payout} PT
-                    </Text>
-                  </Flex>
-                </Tooltip>
+                <Flex align="center" bg="purple.50" px={2} py={0.5} borderRadius="full">
+                  <StarIcon boxSize={3} mr={1} color="purple.500" />
+                  <Text fontWeight="bold" color="purple.700" fontSize="xs">
+                    {Payout} shares
+                  </Text>
+                </Flex>
               )}
-              {checkHasBounty(bountyToken, bountyPayout) && (
-                <Tooltip label={`Token bounty: ${getTokenByAddress(bountyToken).name}`} placement="top">
-                  <Flex align="center" bg="green.50" px={2} py={0.5} borderRadius="full">
-                    <Text fontWeight="bold" color="green.700" fontSize="xs">
-                      +{bountyPayout} {getTokenByAddress(bountyToken).symbol}
-                    </Text>
-                  </Flex>
-                </Tooltip>
-              )}
+              {checkHasBounty(bountyToken, bountyPayoutRaw) && (() => {
+                const tokenInfo = getTokenByAddress(bountyToken);
+                return (
+                  <Tooltip label={`Token bounty: ${tokenInfo.name}`} placement="top">
+                    <Flex align="center" bg="green.50" px={2} py={0.5} borderRadius="full">
+                      {tokenInfo.logo && (
+                        <Image
+                          src={tokenInfo.logo}
+                          alt={tokenInfo.symbol}
+                          boxSize="14px"
+                          borderRadius="full"
+                          mr={1}
+                          fallback={<></>}
+                        />
+                      )}
+                      <Text fontWeight="bold" color="green.700" fontSize="xs">
+                        +{bountyPayout} {tokenInfo.symbol}
+                      </Text>
+                    </Flex>
+                  </Tooltip>
+                );
+              })()}
             </HStack>
-            
+
             {claimerUsername && (
               <Tooltip label={`Assigned to: ${claimerUsername}`} placement="top">
-                <Avatar 
-                  size="xs" 
-                  name={claimerUsername} 
+                <Avatar
+                  size="xs"
+                  name={claimerUsername}
                   getInitials={getUserInitials}
                   bg="purple.500"
                   color="white"
                 />
               </Tooltip>
             )}
-            
+
             {columnId === 'completed' && (
               <Badge colorScheme="green" {...badgeStyle}>
                 <CheckIcon mr={1} boxSize={2} />
                 Completed
               </Badge>
             )}
+
+            {rejectionCount > 0 && columnId !== 'completed' && (
+              <Tooltip label={`Rejected ${rejectionCount} time${rejectionCount > 1 ? 's' : ''}`} placement="top">
+                <Badge colorScheme="red" {...badgeStyle}>
+                  <WarningIcon mr={1} boxSize={2} />
+                  Rejected
+                </Badge>
+              </Tooltip>
+            )}
+
+            {requiresApplication && columnId === 'open' && applicants?.length > 0 && (
+              <Tooltip label={`${applicants.length} applicant${applicants.length > 1 ? 's' : ''}`} placement="top">
+                <Badge colorScheme="purple" {...badgeStyle}>
+                  <InfoIcon mr={1} boxSize={2} />
+                  {applicants.length} Applied
+                </Badge>
+              </Tooltip>
+            )}
           </Flex>
         </Flex>
       </Box>
-      
+
       <TaskCardModal
-        isOpen={isOpen}
-        onClose={onClose}
-        task={{ id, name, description, difficulty, estHours, Payout, submission, claimedBy, claimerUsername, projectId, bountyToken, bountyPayout }}
+        task={task}
         columnId={columnId}
         onEditTask={onEditTask}
-        moveTask={moveTask}
       />
     </>
   );

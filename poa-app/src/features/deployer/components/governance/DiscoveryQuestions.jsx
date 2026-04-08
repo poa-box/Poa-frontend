@@ -2,11 +2,11 @@
  * DiscoveryQuestions - Step-by-step discovery flow for templates
  *
  * Shows discovery questions one at a time with explanations of why each
- * question matters and the impact of each choice. Calculates and displays
- * the best matching variation based on answers.
+ * question matters and the impact of each choice. When all questions are
+ * answered, "See Recommendation" navigates to the full RecommendationView.
  */
 
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   Box,
   VStack,
@@ -16,72 +16,147 @@ import {
   Button,
   RadioGroup,
   Radio,
-  Progress,
-  Card,
-  CardBody,
-  Badge,
   Alert,
   AlertIcon,
   AlertTitle,
   AlertDescription,
-  Collapse,
   useColorModeValue,
-  Fade,
   ScaleFade,
+  Icon,
 } from '@chakra-ui/react';
-import { ChevronLeftIcon, ChevronRightIcon, CheckIcon } from '@chakra-ui/icons';
+import { PiArrowLeft, PiArrowRight } from 'react-icons/pi';
 import { useDeployer } from '../../context/DeployerContext';
 import { findBestVariation } from '../../templates/variations/variationMatcher';
+
+/**
+ * Custom gradient progress bar with step dots
+ */
+function ProgressBar({ current, total, answers, questions }) {
+  const trackBg = useColorModeValue('warmGray.100', 'warmGray.700');
+  const dotBg = useColorModeValue('warmGray.300', 'warmGray.500');
+  const dotFilledBg = useColorModeValue('amethyst.500', 'amethyst.400');
+  const labelColor = useColorModeValue('warmGray.400', 'warmGray.500');
+  const counterColor = useColorModeValue('warmGray.900', 'white');
+
+  // Fill to the current dot position. With space-between, dots sit at
+  // 0%, 50%, 100% for 3 items — so progress = current / (total - 1).
+  const progress = total > 1 ? (current / (total - 1)) * 100 : 0;
+
+  return (
+    <Box>
+      <HStack justify="space-between" mb={3}>
+        <Text fontSize="sm" color={labelColor}>
+          Tell us about your organization
+        </Text>
+        <Text fontSize="sm">
+          <Text as="span" fontWeight="600" color={counterColor}>{current + 1}</Text>
+          <Text as="span" color={labelColor}> of {total}</Text>
+        </Text>
+      </HStack>
+
+      {/* Track with gradient fill */}
+      <Box position="relative" h="6px" borderRadius="full" bg={trackBg}>
+        <Box
+          h="100%"
+          borderRadius="full"
+          bgGradient="linear(90deg, #9055E8, #E85D85)"
+          w={`${progress}%`}
+          transition="width 0.4s ease"
+        />
+        {/* Step dots */}
+        <HStack
+          position="absolute"
+          top="50%"
+          left="0"
+          right="0"
+          transform="translateY(-50%)"
+          justify="space-between"
+        >
+          {questions.map((q, i) => {
+            const isAnswered = !!answers[q.id];
+            const isCurrent = i === current;
+            return (
+              <Box
+                key={q.id}
+                w="10px"
+                h="10px"
+                borderRadius="full"
+                bg={isAnswered || isCurrent ? dotFilledBg : dotBg}
+                border="2px solid"
+                borderColor={isCurrent ? 'white' : 'transparent'}
+                boxShadow={isCurrent ? '0 0 0 2px rgba(144,85,232,0.4)' : undefined}
+                transition="all 0.3s ease"
+              />
+            );
+          })}
+        </HStack>
+      </Box>
+    </Box>
+  );
+}
 
 /**
  * Single question card with explanation and options
  */
 function QuestionCard({ question, answer, onAnswer, isActive }) {
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
-  const selectedBg = useColorModeValue('blue.50', 'blue.900');
-  const selectedBorder = useColorModeValue('blue.500', 'blue.400');
+  const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(51, 48, 44, 0.8)');
+  const borderColor = useColorModeValue('warmGray.100', 'warmGray.700');
+  const helperColor = useColorModeValue('warmGray.500', 'warmGray.400');
+  const headingColor = useColorModeValue('warmGray.900', 'white');
+  const optionBorder = useColorModeValue('warmGray.200', 'warmGray.600');
+  const selectedBg = useColorModeValue('amethyst.50', 'rgba(144, 85, 232, 0.08)');
+  const selectedBorder = useColorModeValue('amethyst.500', 'amethyst.400');
+  const hoverBg = useColorModeValue('warmGray.50', 'warmGray.800');
+  const hoverBorder = useColorModeValue('warmGray.300', 'warmGray.500');
 
   if (!question) return null;
 
   return (
     <ScaleFade in={isActive} initialScale={0.95}>
-      <Card
+      <Box
         bg={cardBg}
-        borderWidth="1px"
+        border="1px solid"
         borderColor={borderColor}
-        shadow="sm"
+        borderRadius="2xl"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+        backdropFilter="blur(16px)"
+        p={{ base: 6, md: 8 }}
       >
-        <CardBody>
-          <VStack spacing={5} align="stretch">
-            {/* Question */}
-            <Box>
-              <Heading size="md" mb={2}>
-                {question.question}
-              </Heading>
-              <Text color={helperColor} fontSize="sm">
-                {question.why}
-              </Text>
-            </Box>
+        <VStack spacing={6} align="stretch">
+          {/* Question */}
+          <Box>
+            <Heading size="lg" mb={2} color={headingColor} letterSpacing="-0.01em">
+              {question.question}
+            </Heading>
+            <Text color={helperColor} fontSize="md" lineHeight="tall">
+              {question.why}
+            </Text>
+          </Box>
 
-            {/* Options */}
-            <RadioGroup value={answer || ''} onChange={onAnswer}>
-              <VStack spacing={3} align="stretch">
-                {question.options.map((option) => (
+          {/* Options */}
+          <RadioGroup value={answer || ''} onChange={onAnswer}>
+            <VStack spacing={3} align="stretch">
+              {question.options.map((option) => {
+                const isSelected = answer === option.value;
+                return (
                   <Box
                     key={option.value}
-                    p={4}
+                    p={5}
                     borderWidth="2px"
-                    borderRadius="lg"
-                    borderColor={answer === option.value ? selectedBorder : borderColor}
-                    bg={answer === option.value ? selectedBg : 'transparent'}
+                    borderRadius="xl"
+                    borderColor={isSelected ? selectedBorder : optionBorder}
+                    bg={isSelected ? selectedBg : 'transparent'}
+                    boxShadow={
+                      isSelected
+                        ? '0 0 0 3px rgba(144, 85, 232, 0.15)'
+                        : '0 1px 3px rgba(0, 0, 0, 0.04)'
+                    }
                     cursor="pointer"
                     onClick={() => onAnswer(option.value)}
-                    transition="all 0.2s"
+                    transition="all 0.2s ease"
                     _hover={{
-                      borderColor: answer === option.value ? selectedBorder : 'gray.300',
-                      bg: answer === option.value ? selectedBg : 'gray.50',
+                      borderColor: isSelected ? selectedBorder : hoverBorder,
+                      bg: isSelected ? selectedBg : hoverBg,
                     }}
                   >
                     <HStack justify="space-between" align="flex-start">
@@ -99,77 +174,17 @@ function QuestionCard({ question, answer, onAnswer, isActive }) {
                       <Radio
                         value={option.value}
                         size="lg"
-                        colorScheme="blue"
-                        isChecked={answer === option.value}
+                        colorScheme="purple"
+                        isChecked={isSelected}
                       />
                     </HStack>
                   </Box>
-                ))}
-              </VStack>
-            </RadioGroup>
-          </VStack>
-        </CardBody>
-      </Card>
-    </ScaleFade>
-  );
-}
-
-/**
- * Variation result card showing the matched variation
- */
-function VariationResultCard({ variation, variationKey, template, onConfirm, onCustomize }) {
-  const cardBg = useColorModeValue('green.50', 'green.900');
-  const borderColor = useColorModeValue('green.500', 'green.400');
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
-
-  if (!variation) return null;
-
-  return (
-    <ScaleFade in={true} initialScale={0.95}>
-      <Card bg={cardBg} borderWidth="2px" borderColor={borderColor}>
-        <CardBody>
-          <VStack spacing={4} align="stretch">
-            <HStack>
-              <CheckIcon color="green.500" />
-              <Heading size="md">
-                Recommended: {variation.name || variationKey}
-              </Heading>
-            </HStack>
-
-            <Text color={helperColor}>
-              {variation.reasoning}
-            </Text>
-
-            {/* Settings Summary */}
-            <HStack spacing={4} flexWrap="wrap">
-              {variation.settings?.democracyWeight !== undefined && (
-                <Badge colorScheme="blue" fontSize="sm" px={2} py={1}>
-                  {variation.settings.democracyWeight}% Democracy
-                </Badge>
-              )}
-              {variation.settings?.participationWeight !== undefined && (
-                <Badge colorScheme="orange" fontSize="sm" px={2} py={1}>
-                  {variation.settings.participationWeight}% Participation
-                </Badge>
-              )}
-              {variation.settings?.quorum !== undefined && (
-                <Badge colorScheme="purple" fontSize="sm" px={2} py={1}>
-                  {variation.settings.quorum}% Quorum
-                </Badge>
-              )}
-            </HStack>
-
-            <HStack spacing={3} pt={2}>
-              <Button colorScheme="green" onClick={onConfirm}>
-                Use These Settings
-              </Button>
-              <Button variant="outline" onClick={onCustomize}>
-                Customize Further
-              </Button>
-            </HStack>
-          </VStack>
-        </CardBody>
-      </Card>
+                );
+              })}
+            </VStack>
+          </RadioGroup>
+        </VStack>
+      </Box>
     </ScaleFade>
   );
 }
@@ -183,7 +198,7 @@ function SelfAssessmentWarning({ riskLevel, feedback }) {
     : 'success';
 
   return (
-    <Alert status={severity} borderRadius="md" mt={4}>
+    <Alert status={severity} borderRadius="xl" mt={4}>
       <AlertIcon />
       <Box>
         <AlertTitle>
@@ -199,13 +214,17 @@ function SelfAssessmentWarning({ riskLevel, feedback }) {
 /**
  * Main DiscoveryQuestions component
  */
-export function DiscoveryQuestions({ template, onComplete, onSkip }) {
-  const { state, actions, selectors } = useDeployer();
+export function DiscoveryQuestions({ template, onSkip, onSeeRecommendation }) {
+  const { state, actions } = useDeployer();
 
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
+  const helperColor = useColorModeValue('warmGray.500', 'warmGray.400');
+  const navColor = useColorModeValue('warmGray.600', 'warmGray.400');
+  const skipColor = useColorModeValue('warmGray.400', 'warmGray.500');
 
   const { discoveryAnswers, currentQuestionIndex, matchedVariation } = state.templateJourney;
+
+  // Ref for auto-advance timer
+  const autoAdvanceTimer = useRef(null);
 
   // Get questions based on template type
   const questions = useMemo(() => {
@@ -229,7 +248,6 @@ export function DiscoveryQuestions({ template, onComplete, onSkip }) {
 
   const currentQuestion = questions[currentQuestionIndex];
   const totalQuestions = questions.length;
-  const progress = totalQuestions > 0 ? ((currentQuestionIndex + 1) / totalQuestions) * 100 : 0;
 
   // Calculate current answer
   const currentAnswer = isCustomAssessment
@@ -239,24 +257,49 @@ export function DiscoveryQuestions({ template, onComplete, onSkip }) {
   // Find best variation when answers change
   useEffect(() => {
     if (!isCustomAssessment && template?.variations) {
-      const { variationKey, variation } = findBestVariation(template, discoveryAnswers);
+      const { variationKey } = findBestVariation(template, discoveryAnswers);
       if (variationKey !== matchedVariation) {
         actions.setMatchedVariation(variationKey);
       }
     }
   }, [discoveryAnswers, template, isCustomAssessment, matchedVariation, actions]);
 
-  // Handle answer selection
-  const handleAnswer = (value) => {
+  // Cleanup auto-advance timer on unmount
+  useEffect(() => {
+    return () => {
+      if (autoAdvanceTimer.current) {
+        clearTimeout(autoAdvanceTimer.current);
+      }
+    };
+  }, []);
+
+  // Handle answer selection with auto-advance
+  const handleAnswer = useCallback((value) => {
+    // Clear any pending auto-advance
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+    }
+
     if (isCustomAssessment) {
       actions.setSelfAssessmentAnswer(currentQuestion.id, value);
     } else {
       actions.setDiscoveryAnswer(currentQuestion.id, value);
     }
-  };
+
+    // Auto-advance to next question after 400ms (but not on last question)
+    const isLastQuestion = currentQuestionIndex >= totalQuestions - 1;
+    if (!isLastQuestion) {
+      autoAdvanceTimer.current = setTimeout(() => {
+        actions.nextDiscoveryQuestion();
+      }, 400);
+    }
+  }, [isCustomAssessment, currentQuestion, currentQuestionIndex, totalQuestions, actions]);
 
   // Handle next question
   const handleNext = () => {
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+    }
     if (currentQuestionIndex < totalQuestions - 1) {
       actions.nextDiscoveryQuestion();
     }
@@ -264,23 +307,12 @@ export function DiscoveryQuestions({ template, onComplete, onSkip }) {
 
   // Handle previous question
   const handlePrev = () => {
+    if (autoAdvanceTimer.current) {
+      clearTimeout(autoAdvanceTimer.current);
+    }
     if (currentQuestionIndex > 0) {
       actions.prevDiscoveryQuestion();
     }
-  };
-
-  // Handle confirm variation
-  const handleConfirm = () => {
-    const variation = template?.variations?.[matchedVariation];
-    if (variation) {
-      actions.applyVariation(variation, template);
-    }
-    onComplete?.();
-  };
-
-  // Handle customize (skip to next step without applying variation)
-  const handleCustomize = () => {
-    onComplete?.();
   };
 
   // Get self-assessment feedback
@@ -292,15 +324,10 @@ export function DiscoveryQuestions({ template, onComplete, onSkip }) {
 
   const assessmentFeedback = getSelfAssessmentFeedback();
 
-  // Check if all questions answered
-  const allAnswered = questions.every((q) =>
-    isCustomAssessment
-      ? state.templateJourney.selfAssessmentAnswers[q.id]
-      : discoveryAnswers[q.id]
-  );
-
-  // Get matched variation details
-  const matchedVariationData = template?.variations?.[matchedVariation];
+  // Answers map for progress dots
+  const answersMap = isCustomAssessment
+    ? state.templateJourney.selfAssessmentAnswers
+    : discoveryAnswers;
 
   // If no questions, show message and skip button
   if (!questions || questions.length === 0) {
@@ -309,7 +336,13 @@ export function DiscoveryQuestions({ template, onComplete, onSkip }) {
         <Text color={helperColor} mb={4}>
           No discovery questions for this template. Continue to customize your settings.
         </Text>
-        <Button colorScheme="blue" onClick={onSkip}>
+        <Button
+          bg="warmGray.900"
+          color="white"
+          borderRadius="full"
+          onClick={onSkip}
+          _hover={{ bg: 'warmGray.800' }}
+        >
           Continue
         </Button>
       </Box>
@@ -319,22 +352,12 @@ export function DiscoveryQuestions({ template, onComplete, onSkip }) {
   return (
     <VStack spacing={6} align="stretch">
       {/* Progress */}
-      <Box>
-        <HStack justify="space-between" mb={2}>
-          <Text fontSize="sm" fontWeight="medium">
-            {isCustomAssessment ? 'Self-Assessment' : 'Tell Us About Your Organization'}
-          </Text>
-          <Text fontSize="sm" color={helperColor}>
-            {currentQuestionIndex + 1} of {totalQuestions}
-          </Text>
-        </HStack>
-        <Progress
-          value={progress}
-          size="sm"
-          colorScheme="blue"
-          borderRadius="full"
-        />
-      </Box>
+      <ProgressBar
+        current={currentQuestionIndex}
+        total={totalQuestions}
+        answers={answersMap}
+        questions={questions}
+      />
 
       {/* Current Question */}
       <QuestionCard
@@ -355,54 +378,53 @@ export function DiscoveryQuestions({ template, onComplete, onSkip }) {
       {/* Navigation */}
       <HStack justify="space-between">
         <Button
-          leftIcon={<ChevronLeftIcon />}
+          leftIcon={<Icon as={PiArrowLeft} />}
           onClick={handlePrev}
           isDisabled={currentQuestionIndex === 0}
           variant="ghost"
+          color={navColor}
         >
           Previous
         </Button>
 
-        <HStack>
-          <Button variant="ghost" onClick={onSkip}>
+        <HStack spacing={3}>
+          <Button variant="ghost" onClick={onSkip} color={skipColor} fontSize="sm">
             Skip Discovery
           </Button>
           {currentQuestionIndex < totalQuestions - 1 ? (
             <Button
-              rightIcon={<ChevronRightIcon />}
+              rightIcon={<Icon as={PiArrowRight} />}
               onClick={handleNext}
-              colorScheme="blue"
+              bg="warmGray.900"
+              color="white"
+              borderRadius="full"
               isDisabled={!currentAnswer}
+              _hover={{ bg: 'warmGray.800' }}
             >
               Next
             </Button>
           ) : (
             <Button
-              colorScheme="blue"
+              bg="warmGray.900"
+              color="white"
+              borderRadius="full"
               onClick={() => {
-                // If custom assessment, reset to show discovery questions
                 if (isCustomAssessment) {
+                  // Reset to show discovery questions
                   actions.setCurrentQuestionIndex(0);
+                } else if (onSeeRecommendation) {
+                  // Navigate to full recommendation view
+                  onSeeRecommendation();
                 }
               }}
               isDisabled={!currentAnswer}
+              _hover={{ bg: 'warmGray.800' }}
             >
               {isCustomAssessment ? 'Continue to Discovery' : 'See Recommendation'}
             </Button>
           )}
         </HStack>
       </HStack>
-
-      {/* Variation Result (show after all questions answered for non-custom) */}
-      {allAnswered && !isCustomAssessment && matchedVariationData && (
-        <VariationResultCard
-          variation={matchedVariationData}
-          variationKey={matchedVariation}
-          template={template}
-          onConfirm={handleConfirm}
-          onCustomize={handleCustomize}
-        />
-      )}
     </VStack>
   );
 }

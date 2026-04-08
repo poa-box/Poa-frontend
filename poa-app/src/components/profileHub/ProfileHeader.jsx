@@ -20,6 +20,8 @@ import { SettingsIcon, CopyIcon, CheckIcon } from '@chakra-ui/icons';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
 import { truncateAddress } from '@/utils/profileUtils';
+import { useAuth } from '@/context/AuthContext';
+import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
 
 /**
  * ProfileHeader component
@@ -40,6 +42,7 @@ export function ProfileHeader({
   onExecutiveMenuClick,
 }) {
   const { hasCopied, onCopy } = useClipboard(address || '');
+  const { isPasskeyUser } = useAuth();
 
   return (
     <Box
@@ -144,13 +147,17 @@ export function ProfileHeader({
 
         {/* Right: Action buttons */}
         <HStack spacing={2} flexShrink={0}>
-          <Box display={{ base: 'none', md: 'block' }}>
-            <ConnectButton
-              showBalance={false}
-              chainStatus="icon"
-              accountStatus="address"
-            />
-          </Box>
+          {isPasskeyUser ? (
+            <PasskeyAccountInfo />
+          ) : (
+            <Box display={{ base: 'none', md: 'block' }}>
+              <ConnectButton
+                showBalance={false}
+                chainStatus="icon"
+                accountStatus="address"
+              />
+            </Box>
+          )}
 
           <IconButton
             icon={<SettingsIcon />}

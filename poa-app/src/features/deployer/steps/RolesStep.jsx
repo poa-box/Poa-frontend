@@ -16,8 +16,8 @@ import {
   Alert,
   AlertIcon,
   Divider,
-  Spinner,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useDeployer } from '../context/DeployerContext';
 import { validateRolesStep } from '../validation/schemas';
 import { validateAllUsernames } from '../utils/usernameResolver';
@@ -95,12 +95,12 @@ export function RolesStep() {
           <Box
             px={3}
             py={1}
-            bg={state.roles.length > 0 ? 'green.50' : 'gray.50'}
+            bg={state.roles.length > 0 ? 'green.50' : 'warmGray.50'}
             borderRadius="md"
             borderWidth="1px"
-            borderColor={state.roles.length > 0 ? 'green.200' : 'gray.200'}
+            borderColor={state.roles.length > 0 ? 'green.200' : 'warmGray.200'}
           >
-            <Text fontSize="sm" color={state.roles.length > 0 ? 'green.700' : 'gray.500'}>
+            <Text fontSize="sm" color={state.roles.length > 0 ? 'green.700' : 'warmGray.500'}>
               {state.roles.length} role{state.roles.length !== 1 ? 's' : ''} defined
             </Text>
           </Box>
@@ -195,7 +195,7 @@ export function RolesStep() {
         {/* Validating indicator */}
         {isValidating && (
           <HStack spacing={2} color="blue.600">
-            <Spinner size="sm" />
+            <PulseLoader size="sm" />
             <Text fontSize="sm">Validating usernames...</Text>
           </HStack>
         )}

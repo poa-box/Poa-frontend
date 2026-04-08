@@ -46,7 +46,7 @@ function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
       overflow="hidden"
       cursor="pointer"
       onClick={() => onClick(user, rank)}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       _hover={{
         transform: 'translateY(-2px)',
         '& > div:first-of-type': {
@@ -62,7 +62,7 @@ function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
         bg={isTopThree ? 'rgba(0, 0, 0, 0.85)' : 'rgba(0, 0, 0, 0.75)'}
         border={`1px solid ${medalColor ? `${medalColor}40` : 'rgba(148, 115, 220, 0.2)'}`}
         boxShadow={isTopThree ? getMedalGlow(rank) : 'none'}
-        transition="all 0.2s"
+        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
         zIndex={-1}
       />
 
@@ -111,7 +111,7 @@ function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
             <HStack spacing={1.5}>
               <Icon as={PiCoinVerticalBold} color={medalColor || 'yellow.400'} boxSize={4} />
               <Text fontSize="sm" color="gray.300" fontWeight="medium">
-                {user.token} <Text as="span" textTransform="uppercase">Tokens</Text>
+                {user.token} <Text as="span" textTransform="uppercase">Shares</Text>
               </Text>
             </HStack>
             <HStack spacing={1.5}>

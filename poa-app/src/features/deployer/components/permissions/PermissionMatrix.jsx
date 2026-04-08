@@ -27,8 +27,8 @@ export function PermissionMatrix() {
   const { state, actions } = useDeployer();
   const { roles, permissions } = state;
 
-  const headerBg = useColorModeValue('gray.50', 'gray.700');
-  const hoverBg = useColorModeValue('gray.50', 'gray.600');
+  const headerBg = useColorModeValue('warmGray.50', 'warmGray.700');
+  const hoverBg = useColorModeValue('warmGray.50', 'warmGray.600');
 
   // Check if a role has a permission
   const hasPermission = (permissionKey, roleIndex) => {
@@ -98,10 +98,10 @@ export function PermissionMatrix() {
         textAlign="center"
         borderWidth="2px"
         borderStyle="dashed"
-        borderColor="gray.200"
+        borderColor="warmGray.200"
         borderRadius="lg"
       >
-        <Text color="gray.500">
+        <Text color="warmGray.500">
           No roles defined. Go back to create roles first.
         </Text>
       </Box>
@@ -159,10 +159,10 @@ export function PermissionMatrix() {
                           {desc.label}
                         </Text>
                         <Tooltip label={desc.description}>
-                          <Icon as={InfoIcon} color="gray.400" boxSize={3} />
+                          <Icon as={InfoIcon} color="warmGray.400" boxSize={3} />
                         </Tooltip>
                       </HStack>
-                      <Text fontSize="xs" color="gray.500">
+                      <Text fontSize="xs" color="warmGray.500">
                         {selectedCount === 0
                           ? 'No roles'
                           : selectedCount === roles.length
@@ -188,7 +188,7 @@ export function PermissionMatrix() {
       </Table>
 
       {/* Summary */}
-      <Box mt={4} p={3} bg="gray.50" borderRadius="md">
+      <Box mt={4} p={3} bg="warmGray.50" borderRadius="md">
         <Text fontSize="sm" fontWeight="medium" mb={2}>
           Summary
         </Text>

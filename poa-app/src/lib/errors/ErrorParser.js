@@ -63,7 +63,7 @@ const REVERT_PATTERNS = {
   // Membership errors
   'Not a member': 'You must be a member of this organization.',
   'Already a member': 'You are already a member of this organization.',
-  'Unauthorized': 'You do not have permission for this action.',
+  'Unauthorized': 'You do not have permission for this action. The project may need role permissions configured.',
   'Insufficient permissions': 'You do not have the required permissions.',
 
   // Voting errors
@@ -75,7 +75,8 @@ const REVERT_PATTERNS = {
   'AlreadyVoted': 'You have already voted on this proposal.',
   'VotingExpired': 'Voting has ended for this proposal.',
   'VotingOpen': 'Voting is still in progress.',
-  'InvalidQuorum': 'Invalid quorum percentage (must be 1-100).',
+  'InvalidQuorum': 'Invalid quorum value.',
+  'InvalidThreshold': 'Invalid threshold percentage (must be 1-100).',
   'DurationOutOfRange': 'Vote duration is out of allowed range.',
   'TooManyOptions': 'Too many voting options.',
   'TooManyCalls': 'Too many calls in execution batch.',
@@ -120,20 +121,25 @@ const REVERT_PATTERNS = {
   'Insufficient balance': 'Insufficient token balance for this operation.',
   'Transfer failed': 'Token transfer failed.',
 
+  // PaymentManager errors
+  'InsufficientFunds': 'The treasury has insufficient funds for this operation.',
+  'TransferFailed': 'Token transfer failed. Please check your token approval.',
+  'SafeERC20FailedOperation': 'Token transfer failed. The token contract rejected the operation.',
+
   // General errors
   'Paused': 'This contract is currently paused.',
   'Not owner': 'Only the owner can perform this action.',
 
   // ParticipationToken errors
-  'NotMember': 'You must be a member of this organization to request tokens. Please ensure you have been assigned a member role.',
-  'ZeroAmount': 'Token amount must be greater than zero.',
-  'NotApprover': 'You do not have permission to approve token requests.',
-  'AlreadyApproved': 'This token request has already been approved.',
-  'RequestUnknown': 'This token request does not exist.',
+  'NotMember': 'You must be a member of this organization to request shares. Please ensure you have been assigned a member role.',
+  'ZeroAmount': 'Share amount must be greater than zero.',
+  'NotApprover': 'You do not have permission to approve share requests.',
+  'AlreadyApproved': 'This share request has already been approved.',
+  'RequestUnknown': 'This share request does not exist.',
   'NotRequester': 'Only the original requester can cancel this request.',
   'AlreadySet': 'This value has already been configured.',
   'InvalidAddress': 'Invalid address provided.',
-  'TransfersDisabled': 'Token transfers are disabled for participation tokens.',
+  'TransfersDisabled': 'Transfers are disabled for shares.',
 };
 
 /**
@@ -176,11 +182,16 @@ function extractRevertReason(error) {
  * @returns {Object|null} Decoded error or null
  */
 function tryDecodeCustomError(error, abi) {
-  if (!abi || !error.data) return null;
+  if (!abi) return null;
+
+  const errorData = error.data
+    || error.error?.data?.data
+    || (typeof error.error?.data === 'string' ? error.error.data : null);
+  if (!errorData) return null;
 
   try {
     const iface = new ethers.utils.Interface(abi);
-    const decodedError = iface.parseError(error.data);
+    const decodedError = iface.parseError(errorData);
     return {
       name: decodedError.name,
       args: decodedError.args,
@@ -296,7 +307,9 @@ export function parseError(error, abi = null) {
 
     // Try to decode custom error from error data if no reason found
     if (!userMessage) {
-      const errorData = error.error?.data?.data || error.data;
+      const errorData = error.error?.data?.data
+        || (typeof error.error?.data === 'string' ? error.error.data : null)
+        || error.data;
       if (errorData) {
         const customErrorName = decodeCustomErrorSelector(errorData);
         if (customErrorName) {

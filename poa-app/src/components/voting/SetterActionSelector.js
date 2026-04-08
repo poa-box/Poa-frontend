@@ -25,6 +25,7 @@ import {
   FiUsers,
   FiAlertTriangle,
   FiClipboard,
+  FiTag,
   FiChevronRight,
   FiArrowLeft,
 } from 'react-icons/fi';
@@ -37,20 +38,14 @@ import {
   getTemplatesByCategory,
   getTemplateById,
 } from '@/config/setterDefinitions';
+import { inputStyles } from '@/components/shared/glassStyles';
 
 const categoryIcons = {
   voting: FiCheckSquare,
   permissions: FiUsers,
   emergency: FiAlertTriangle,
   tasks: FiClipboard,
-};
-
-const inputStyles = {
-  bg: 'whiteAlpha.100',
-  border: '1px solid rgba(148, 115, 220, 0.3)',
-  color: 'white',
-  _hover: { borderColor: 'purple.400' },
-  _focus: { borderColor: 'purple.500', boxShadow: '0 0 0 1px rgba(148, 115, 220, 0.6)' },
+  tokenSettings: FiTag,
 };
 
 /**
@@ -72,7 +67,7 @@ const CategoryCard = ({ category, categoryKey, isSelected, onClick }) => {
         borderColor: `${category.color}.400`,
         bg: isSelected ? `${category.color}.900` : 'whiteAlpha.100',
       }}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
     >
       <HStack spacing={3}>
         <Icon as={IconComponent} boxSize={5} color={`${category.color}.400`} />
@@ -106,7 +101,7 @@ const TemplateCard = ({ template, isSelected, onClick }) => {
         borderColor: 'purple.400',
         bg: isSelected ? 'purple.900' : 'whiteAlpha.100',
       }}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
     >
       <HStack justify="space-between">
         <VStack align="start" spacing={1}>
@@ -170,6 +165,7 @@ const SetterActionSelector = ({
   allProjects = [],
   roleNames = {},
   projectNames = {},
+  votingClasses = [],
 }) => {
   const [mode, setMode] = useState('template');
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -203,15 +199,21 @@ const SetterActionSelector = ({
   // Handle template selection
   const handleTemplateSelect = (templateId) => {
     const template = getTemplateById(templateId);
+    const initialValues = template?.inputs?.reduce((acc, input) => {
+      if (input.type === 'votingClassWeights') {
+        // Initialize with current on-chain voting classes
+        acc[input.name] = votingClasses.length > 0 ? votingClasses.map(c => ({ ...c })) : [];
+      } else {
+        acc[input.name] = input.default || '';
+      }
+      return acc;
+    }, {}) || {};
     onChange({
       setterMode: 'template',
       setterTemplate: templateId,
       setterContract: template?.contract || '',
       setterFunction: template?.functionName || '',
-      setterValues: template?.inputs?.reduce((acc, input) => {
-        acc[input.name] = input.default || '';
-        return acc;
-      }, {}) || {},
+      setterValues: initialValues,
       setterParams: [],
     });
   };
@@ -356,7 +358,11 @@ const SetterActionSelector = ({
               )}
 
               <SetterParamInputs
-                inputs={selectedTemplate.inputs}
+                inputs={selectedTemplate.inputs.map(input =>
+                  input.type === 'votingClassWeights'
+                    ? { ...input, currentClasses: votingClasses }
+                    : input
+                )}
                 values={proposal.setterValues || {}}
                 onChange={(values) => onChange({ setterValues: values })}
                 allRoles={allRoles}
@@ -418,7 +424,9 @@ const SetterActionSelector = ({
             <>
               <Divider borderColor="rgba(148, 115, 220, 0.2)" />
               <Text fontSize="xs" color="gray.500" fontFamily="mono">
-                {selectedRawFunction.signature}
+                {typeof selectedRawFunction.signature === 'string'
+                  ? selectedRawFunction.signature
+                  : `function ${selectedRawFunction.name}(...)`}
               </Text>
               <SetterParamInputs
                 inputs={selectedRawFunction.params}

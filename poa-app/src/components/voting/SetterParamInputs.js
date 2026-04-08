@@ -21,14 +21,8 @@ import {
   HStack,
   Badge,
 } from '@chakra-ui/react';
-
-const inputStyles = {
-  bg: 'whiteAlpha.100',
-  border: '1px solid rgba(148, 115, 220, 0.3)',
-  color: 'white',
-  _hover: { borderColor: 'purple.400' },
-  _focus: { borderColor: 'purple.500', boxShadow: '0 0 0 1px rgba(148, 115, 220, 0.6)' },
-};
+import VotingClassWeightsInput from './VotingClassWeightsInput';
+import { inputStyles } from '@/components/shared/glassStyles';
 
 /**
  * Render a single parameter input based on its type
@@ -100,7 +94,7 @@ const ParameterInput = ({ param, value, onChange, allRoles, allProjects }) => {
               color="white"
               onClick={() => handleChange(option)}
               _hover={{ borderColor: 'purple.400' }}
-              transition="all 0.2s"
+              transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
             >
               <Text fontSize="sm" fontWeight={value === option ? 'bold' : 'normal'}>
                 {option}
@@ -144,6 +138,15 @@ const ParameterInput = ({ param, value, onChange, allRoles, allProjects }) => {
             ))}
           </Stack>
         </CheckboxGroup>
+      );
+
+    case 'votingClassWeights':
+      return (
+        <VotingClassWeightsInput
+          currentClasses={param.currentClasses || []}
+          value={value}
+          onChange={(newClasses) => handleChange(newClasses)}
+        />
       );
 
     case 'bool':
@@ -200,7 +203,7 @@ const ParameterInput = ({ param, value, onChange, allRoles, allProjects }) => {
         <Input
           value={value || ''}
           onChange={(e) => handleChange(e.target.value)}
-          placeholder={`Enter ${param.label || param.name}`}
+          placeholder={param.placeholder || `Enter ${param.label || param.name}`}
           {...inputStyles}
         />
       );
@@ -221,9 +224,9 @@ const SetterParamInputs = ({
     return (
       <Box
         p={4}
-        bg="rgba(148, 115, 220, 0.1)"
+        bg="whiteAlpha.50"
         borderRadius="md"
-        border="1px solid rgba(148, 115, 220, 0.2)"
+        border="1px solid rgba(148, 115, 220, 0.3)"
       >
         <Text fontSize="sm" color="gray.400">
           This action requires no additional configuration.
@@ -240,7 +243,7 @@ const SetterParamInputs = ({
     <VStack spacing={4} align="stretch">
       {inputs.map((param) => (
         <FormControl key={param.name}>
-          <FormLabel color="white" fontWeight="medium" fontSize="sm">
+          <FormLabel color="gray.200" fontSize="sm">
             {param.label || param.name}
             {param.type === 'permissionMask' && (
               <Badge ml={2} colorScheme="purple" fontSize="xs">

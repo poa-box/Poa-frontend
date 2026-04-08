@@ -1,115 +1,113 @@
 //profileHubContext
 
-import React, { createContext, useReducer, useContext, useState, useEffect } from 'react';
-
+import React, { createContext, useContext, useMemo, useState, useEffect } from 'react';
+import { NETWORKS } from '../config/networks';
 
 const ProfileHubContext = createContext();
 
 export const useprofileHubContext = () => {
     return useContext(ProfileHubContext);
+};
+
+/**
+ * Raw GQL string for fetching all orgs.
+ * Direct fetch() per-subgraph to query all chains in parallel.
+ */
+const ALL_ORGS_QUERY = `
+  query FetchAllOrgs {
+    organizations(first: 100, orderBy: deployedAt, orderDirection: desc) {
+      id
+      name
+      metadataHash
+      deployedAt
+      metadata { description logo }
+      participationToken { id totalSupply }
+      quickJoin { id }
+      hybridVoting { id }
+      directDemocracyVoting { id }
+      taskManager { id }
+      educationHub { id }
+      users { id }
     }
+  }
+`;
 
-
-export const ProfileHubProvider = ({ children }) => {
-    
-    const [profileHubLoaded, setprofileHubLoaded] = useState(false);
-    const [perpetualOrganizations, setPerpetualOrganizations] = useState([]);
-
-    useEffect(() => {
-        console.log("profileHubed load", profileHubLoaded)
-        if (profileHubLoaded) {
-            fetchPOs().then((data) => {
-                console.log(data);
-                setPerpetualOrganizations(data);
-            });
-            
-        }
-    }
-    , [profileHubLoaded]);
-
-
-
-    // POP subgraph on Hoodi testnet
-    const SUBGRAPH_URL = process.env.NEXT_PUBLIC_SUBGRAPH_URL ||
-        'https://api.studio.thegraph.com/query/73367/poa-2/version/latest';
-
-    async function querySubgraph(query) {
-        try {
-            console.log('Fetching from subgraph:', SUBGRAPH_URL);
-            const response = await fetch(SUBGRAPH_URL, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ query }),
-            });
-
-            if (!response.ok) {
-                console.error('Subgraph request failed:', response.status, response.statusText);
-                return null;
-            }
-
-            const data = await response.json();
-
-            if (data.errors) {
-                console.error('Subgraph query errors:', data.errors);
-                return null;
-            }
-
-            return data.data;
-        } catch (error) {
-            console.error('Error querying subgraph:', error);
-            return null;
-        }
-    }
-
-    async function fetchPOs() {
-        // Updated for POP subgraph schema (Hoodi testnet)
-        const query = `
-        {
-          organizations(first: 100, orderBy: deployedAt, orderDirection: desc) {
-            id
-            name
-            metadataHash
-            deployedAt
-            participationToken {
-              id
-              totalSupply
-            }
-            quickJoin {
-              id
-            }
-            users {
-              id
-            }
-          }
-        }`;
-
-        const data = await querySubgraph(query);
-
-        // Transform to match old structure expected by browser page
-        const orgs = data?.organizations || [];
+/**
+ * Fetches orgs from a single subgraph endpoint.
+ * Returns [] on failure so one broken source doesn't block the page.
+ */
+async function fetchOrgsFromSource(endpoint, networkConfig) {
+    try {
+        const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: ALL_ORGS_QUERY }),
+        });
+        const json = await res.json();
+        const orgs = json?.data?.organizations || [];
         return orgs.map(org => ({
-            id: org.name || org.id, // Use name as display ID, fallback to bytes ID
-            orgId: org.id, // Keep original bytes ID for navigation
-            logoHash: org.metadataHash, // Will need IPFS fetch to get actual logo
-            totalMembers: org.users?.length || 0,
-            aboutInfo: null, // Not available in new schema - would need IPFS fetch
-            deployedAt: org.deployedAt,
-            quickJoinContract: org.quickJoin?.id,
-            participationToken: org.participationToken
+            ...org,
+            _network: networkConfig,
         }));
+    } catch (err) {
+        console.warn(`[ProfileHub] Failed to fetch from ${networkConfig.name}:`, err.message);
+        return [];
     }
-
-
-
-    return (
-        <ProfileHubContext.Provider value={{perpetualOrganizations, setprofileHubLoaded}}>
-        {children}
-        </ProfileHubContext.Provider>
-    );
 }
 
+export const ProfileHubProvider = ({ children }) => {
+    const [allOrgs, setAllOrgs] = useState([]);
+    const [loading, setLoading] = useState(true);
 
+    useEffect(() => {
+        let cancelled = false;
 
+        async function fetchAll() {
+            const entries = Object.values(NETWORKS).filter(n => !n.isTestnet);
+            const results = await Promise.all(
+                entries.map(net => fetchOrgsFromSource(net.subgraphUrl, net))
+            );
+            if (!cancelled) {
+                // Flatten, sort by deployedAt ascending (oldest first)
+                const merged = results.flat().sort((a, b) =>
+                    Number(a.deployedAt || 0) - Number(b.deployedAt || 0)
+                );
+                setAllOrgs(merged);
+                setLoading(false);
+            }
+        }
 
+        fetchAll();
+        return () => { cancelled = true; };
+    }, []);
+
+    const perpetualOrganizations = useMemo(() => {
+        return allOrgs.map(org => {
+            const network = org._network;
+            return {
+                id: org.name || org.id,
+                orgId: org.id,
+                logoHash: org.metadataHash,
+                logoCid: org.metadata?.logo || null,
+                totalMembers: org.users?.length || 0,
+                aboutInfo: org.metadata || null,
+                deployedAt: org.deployedAt,
+                quickJoinContract: org.quickJoin?.id,
+                participationToken: org.participationToken,
+                chainId: network.chainId,
+                networkName: network.name,
+            };
+        });
+    }, [allOrgs]);
+
+    const contextValue = useMemo(() => ({
+        perpetualOrganizations,
+        isLoading: loading,
+    }), [perpetualOrganizations, loading]);
+
+    return (
+        <ProfileHubContext.Provider value={contextValue}>
+            {children}
+        </ProfileHubContext.Provider>
+    );
+};

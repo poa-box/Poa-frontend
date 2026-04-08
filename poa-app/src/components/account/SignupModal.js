@@ -23,12 +23,12 @@ import {
   InputRightElement,
   VStack,
   Text,
-  Spinner,
   Icon,
   useToast,
   useColorModeValue,
 } from '@chakra-ui/react';
 import { CheckIcon, WarningIcon } from '@chakra-ui/icons';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useWeb3 } from '@/hooks';
 import { useDeployerUsername } from '@/features/deployer/hooks/useDeployerUsername';
 
@@ -128,14 +128,14 @@ const SignupModal = ({ isOpen, onClose }) => {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} isCentered>
-      <ModalOverlay backdropFilter="blur(4px)" />
+      <ModalOverlay />
       <ModalContent bg={bgColor} borderRadius="xl" mx={4}>
         <ModalHeader>Create Your Account</ModalHeader>
         <ModalCloseButton />
         <ModalBody>
           {isLoadingExisting ? (
             <VStack py={8}>
-              <Spinner size="lg" color="teal.400" />
+              <PulseLoader size="lg" color="teal.400" />
               <Text color="gray.500">Checking account status...</Text>
             </VStack>
           ) : existingUsername ? (
@@ -151,7 +151,7 @@ const SignupModal = ({ isOpen, onClose }) => {
           ) : (
             <VStack spacing={4} align="stretch">
               <Text color="gray.600" fontSize="sm">
-                Choose a username for your account. This will be your identity across all Perpetual Organizations.
+                Choose a username for your account. This will be your identity across all organizations.
               </Text>
 
               <FormControl isInvalid={inputState === 'error'}>
@@ -171,7 +171,7 @@ const SignupModal = ({ isOpen, onClose }) => {
                   />
                   <InputRightElement>
                     {inputState === 'checking' && (
-                      <Spinner size="sm" color="blue.400" />
+                      <PulseLoader size="sm" color="blue.400" />
                     )}
                     {inputState === 'valid' && (
                       <Icon as={CheckIcon} color="green.400" />

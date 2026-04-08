@@ -9,20 +9,20 @@ const LoginButton = () => {
     const { address, hasMemberRole} = useUserContext();
     
     const router = useRouter();
-    const { userDAO } = router.query;
+    const userDAO = router.query.org || router.query.userDAO || '';
 
 
 
     // const [isMounted, setIsMounted] = useState(false); // new state to track mounting
     const [text, setText] = useState("Connect Wallet");
-    const [ route , setRoute] = useState("user");
+    const [ route , setRoute] = useState("join");
 
     // Effect to set text based on accounts, only runs on client side after mount
     useEffect(() => {
 
         if (hasMemberRole) {
             setText("Profile Hub");
-            setRoute("profileHub");
+            setRoute("profile");
         } else {
 
             setText("Join or Connect");
@@ -31,7 +31,7 @@ const LoginButton = () => {
 
 
     return (
-        <NextLink href={`/${route}/?userDAO=${userDAO}`} passHref>
+        <NextLink href={`/${route}/?org=${userDAO}`} passHref>
             <Button
                 bgGradient="linear(to-r, teal.300, green.300)"
                 color="white"

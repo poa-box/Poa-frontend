@@ -3,7 +3,7 @@
  *
  * Features:
  * - Strategy badges (DIRECT = blue, PARTICIPATION TOKEN = amethyst)
- * - Quadratic badge (coral) when enabled for ERC20_BAL classes
+ * - Quadratic badge (orange) when enabled for ERC20_BAL classes
  * - Role pills for DIRECT classes showing selected roles
  * - Colored slider track matching class type
  * - Inline quadratic voting explanation when enabled
@@ -60,13 +60,13 @@ function getClassColors(votingClass) {
       borderHover: 'blue.300',
     };
   }
-  // ERC20_BAL: coral if quadratic, otherwise amethyst
+  // ERC20_BAL: orange if quadratic, otherwise amethyst
   if (votingClass.quadratic) {
     return {
       badge: 'purple',
       slider: 'orange',
-      border: 'coral.200',
-      borderHover: 'coral.300',
+      border: 'orange.200',
+      borderHover: 'orange.300',
     };
   }
   return {
@@ -90,7 +90,7 @@ export function VotingClassCard({
   const { isOpen, onToggle } = useDisclosure();
 
   const isDirectVoting = votingClass.strategy === VOTING_STRATEGY.DIRECT;
-  const strategyLabel = isDirectVoting ? 'Direct (Role-Based)' : 'Participation Token';
+  const strategyLabel = isDirectVoting ? 'Direct (Role-Based)' : 'Shares-Based';
   const colors = getClassColors(votingClass);
   const StrategyIcon = isDirectVoting ? PiUsers : PiChartBar;
 
@@ -113,16 +113,15 @@ export function VotingClassCard({
 
   return (
     <Box
-      borderWidth="2px"
-      borderRadius="lg"
+      borderRadius="2xl"
+      border="1px solid"
       borderColor={borderColor}
-      borderLeftWidth="4px"
-      borderLeftColor={`${colors.badge}.400`}
-      p={4}
-      bg={cardBg}
-      boxShadow="sm"
-      _hover={{ boxShadow: 'md', borderColor: hoverBorderColor }}
-      transition="all 0.2s"
+      p={{ base: 4, md: 5 }}
+      bg="rgba(255, 255, 255, 0.8)"
+      backdropFilter="blur(16px)"
+      boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+      _hover={{ boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)', borderColor: hoverBorderColor }}
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
     >
       {/* Header row */}
       <HStack justify="space-between" align="start" mb={3}>
@@ -136,7 +135,7 @@ export function VotingClassCard({
               {strategyLabel}
             </Badge>
             {votingClass.quadratic && (
-              <Tooltip label="Quadratic voting reduces whale influence by using square root of token balance">
+              <Tooltip label="Quadratic voting reduces outsized influence by using square root of share balance">
                 <Badge colorScheme="orange" variant="solid" fontSize="xs">
                   <HStack spacing={1}>
                     <Icon as={PiLightning} boxSize={3} />
@@ -162,8 +161,8 @@ export function VotingClassCard({
 
           {/* Min balance for ERC20_BAL classes */}
           {!isDirectVoting && votingClass.minBalance > 0 && (
-            <Text fontSize="xs" color="gray.500">
-              Min: {votingClass.minBalance} tokens required
+            <Text fontSize="xs" color="warmGray.500">
+              Min: {votingClass.minBalance} shares required
             </Text>
           )}
         </VStack>
@@ -212,7 +211,7 @@ export function VotingClassCard({
 
       {/* Weight slider - always visible */}
       <Box opacity={votingClass.locked ? 0.6 : 1} transition="opacity 0.2s">
-        <HStack justify="space-between" fontSize="sm" color="gray.600" mb={2}>
+        <HStack justify="space-between" fontSize="sm" color="warmGray.600" mb={2}>
           <HStack>
             <Text fontWeight="medium">Voting Weight</Text>
             {votingClass.locked && (
@@ -261,7 +260,7 @@ export function VotingClassCard({
               <NumberDecrementStepper />
             </NumberInputStepper>
           </NumberInput>
-          <Text fontSize="sm" fontWeight="bold" color="gray.500">%</Text>
+          <Text fontSize="sm" fontWeight="bold" color="warmGray.500">%</Text>
         </HStack>
       </Box>
 
@@ -282,7 +281,7 @@ export function VotingClassCard({
                 Quadratic Voting Enabled
               </Text>
               <Text fontSize="xs" color="orange.600">
-                Large token holders have reduced influence. Example: 100 tokens = 10 votes, 400 tokens = 20 votes.
+                Members with more shares have reduced influence. Example: 100 shares = 10 votes, 400 shares = 20 votes.
               </Text>
             </Box>
           </HStack>
@@ -291,8 +290,8 @@ export function VotingClassCard({
 
       {/* Expanded details */}
       <Collapse in={isOpen}>
-        <Box mt={4} pt={3} borderTopWidth="1px" borderColor="gray.100">
-          <VStack align="start" spacing={3} fontSize="sm" color="gray.600">
+        <Box mt={4} pt={3} borderTopWidth="1px" borderColor="warmGray.100">
+          <VStack align="start" spacing={3} fontSize="sm" color="warmGray.600">
             <HStack>
               <Text fontWeight="medium" minW="100px">Strategy:</Text>
               <Badge colorScheme={colors.badge} variant="outline">
@@ -312,7 +311,7 @@ export function VotingClassCard({
                   <Text fontWeight="medium" minW="100px">Min Balance:</Text>
                   <Text>
                     {votingClass.minBalance > 0
-                      ? `${votingClass.minBalance} tokens`
+                      ? `${votingClass.minBalance} shares`
                       : 'No minimum'}
                   </Text>
                 </HStack>

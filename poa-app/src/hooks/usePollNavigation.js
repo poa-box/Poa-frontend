@@ -3,7 +3,7 @@
  * Hook for managing poll selection, URL handling, and modal state
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useDisclosure } from '@chakra-ui/react';
 
@@ -15,7 +15,11 @@ export function usePollNavigation({
   PTVoteType = 'Hybrid',
 }) {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
+
+  // Ref-stabilize router so callbacks don't re-create on every route change
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
   const [selectedPoll, setSelectedPoll] = useState(null);
   const [selectedOption, setSelectedOption] = useState("");
@@ -45,18 +49,19 @@ export function usePollNavigation({
     setVotingTypeSelected(voteType);
   }, [PTVoteType]);
 
-  // Handle poll click
+  // Handle poll click — uses routerRef to avoid re-creating on every route change
   const handlePollClick = useCallback((poll, isCompleted = false) => {
     setSelectedPoll(poll);
     setIsPollCompleted(isCompleted);
-    router.push(`/voting?poll=${poll.id}&userDAO=${userDAO}`);
+    const currentUserDAO = routerRef.current.query.org || routerRef.current.query.userDAO || '';
+    routerRef.current.push(`/voting?poll=${poll.id}&org=${currentUserDAO}`);
 
     if (isCompleted) {
       onCompletedModalOpen();
     } else {
       onPollModalOpen();
     }
-  }, [router, userDAO, onCompletedModalOpen, onPollModalOpen]);
+  }, [onCompletedModalOpen, onPollModalOpen]);
 
   // Find poll by ID or title in proposals array
   const findPollInProposals = useCallback((proposals, pollId) => {

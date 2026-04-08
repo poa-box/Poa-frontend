@@ -6,7 +6,7 @@
  * - Advanced mode: Multiple voting classes, quadratic voting, granular control
  *
  * Note: Role powers are configured on the Team step, not here.
- * Note: Optional features (Education Hub, Election Hub) are configured on the next step.
+ * Note: Optional features (Education Hub, Election Hub) and gas sponsorship are on the Settings step.
  */
 
 import React, { useState } from 'react';
@@ -40,7 +40,6 @@ import {
   SliderThumb,
   Alert,
   AlertIcon,
-  Divider,
   Progress,
   AlertDialog,
   AlertDialogOverlay,
@@ -67,13 +66,14 @@ import QuadraticVotingExplainer from '../components/voting/QuadraticVotingExplai
 import AdvancedVotingExample from '../components/voting/AdvancedVotingExample';
 import WeightPresets from '../components/voting/WeightPresets';
 
+
 /**
  * Simple Mode Governance UI
  */
 function SimpleGovernanceUI({ state, actions }) {
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
+  const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(51, 48, 44, 0.8)');
+  const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
+  const helperColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   const { philosophy, roles, permissions } = state;
 
@@ -100,8 +100,10 @@ function SimpleGovernanceUI({ state, actions }) {
         bg={cardBg}
         p={6}
         borderRadius="xl"
-        borderWidth="1px"
+        border="1px solid"
         borderColor={borderColor}
+        backdropFilter="blur(16px)"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
       >
         <VStack spacing={4} align="stretch">
           <Heading size="sm">Who Participates in Governance?</Heading>
@@ -118,7 +120,7 @@ function SimpleGovernanceUI({ state, actions }) {
             borderColor="warmGray.100"
           >
             <HStack spacing={3} mb={3}>
-              <Icon as={PiChatDots} color="coral.500" boxSize={5} />
+              <Icon as={PiChatDots} color="amethyst.500" boxSize={5} />
               <Text fontWeight="600" fontSize="sm">
                 Who can vote in polls?
               </Text>
@@ -133,18 +135,18 @@ function SimpleGovernanceUI({ state, actions }) {
                     py={1}
                     borderRadius="full"
                     cursor="pointer"
-                    bg={canVote ? 'coral.100' : 'warmGray.100'}
-                    color={canVote ? 'coral.700' : 'warmGray.500'}
+                    bg={canVote ? 'amethyst.100' : 'warmGray.100'}
+                    color={canVote ? 'amethyst.700' : 'warmGray.500'}
                     border="1px solid"
-                    borderColor={canVote ? 'coral.300' : 'warmGray.200'}
+                    borderColor={canVote ? 'amethyst.300' : 'warmGray.200'}
                     onClick={() =>
                       handleToggleVotingPermission('ddVotingRoles', idx)
                     }
                     _hover={{
-                      borderColor: canVote ? 'coral.400' : 'coral.300',
-                      bg: canVote ? 'coral.200' : 'coral.50',
+                      borderColor: canVote ? 'amethyst.400' : 'amethyst.300',
+                      bg: canVote ? 'amethyst.200' : 'amethyst.50',
                     }}
-                    transition="all 0.15s ease"
+                    transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
                   >
                     {role.name}
                   </Badge>
@@ -193,7 +195,7 @@ function SimpleGovernanceUI({ state, actions }) {
                       borderColor: canCreate ? 'amethyst.400' : 'amethyst.300',
                       bg: canCreate ? 'amethyst.200' : 'amethyst.50',
                     }}
-                    transition="all 0.15s ease"
+                    transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, border-color 0.15s ease"
                   >
                     {role.name}
                   </Badge>
@@ -441,118 +443,22 @@ function AdvancedGovernanceUI({ state, actions }) {
 
   return (
     <>
-      {/* Quorum Settings */}
-      <Box p={4} borderWidth="1px" borderRadius="lg" bg="white">
-        <Heading size="sm" mb={4}>
-          <HStack>
-            <Text>Quorum Requirements</Text>
-            <Tooltip label="Minimum percentage of votes required for a proposal to pass">
-              <Icon as={InfoIcon} color="gray.400" />
-            </Tooltip>
-          </HStack>
-        </Heading>
-
-        <VStack spacing={4} align="stretch">
-          {/* Hybrid Quorum */}
-          <FormControl>
-            <FormLabel fontSize="sm">Hybrid Proposal Quorum</FormLabel>
-            <HStack spacing={4}>
-              <Slider
-                value={voting.hybridQuorum}
-                onChange={(val) => actions.updateVoting({ hybridQuorum: val })}
-                min={1}
-                max={100}
-                flex={1}
-                focusThumbOnChange={false}
-              >
-                <SliderTrack>
-                  <SliderFilledTrack bg="blue.400" />
-                </SliderTrack>
-                <SliderThumb boxSize={6}>
-                  <Text fontSize="xs" fontWeight="bold">
-                    {voting.hybridQuorum}
-                  </Text>
-                </SliderThumb>
-              </Slider>
-              <NumberInput
-                value={voting.hybridQuorum}
-                onChange={(_, val) => {
-                  if (!isNaN(val)) actions.updateVoting({ hybridQuorum: val });
-                }}
-                min={1}
-                max={100}
-                w="80px"
-                size="sm"
-              >
-                <NumberInputField />
-                <NumberInputStepper>
-                  <NumberIncrementStepper />
-                  <NumberDecrementStepper />
-                </NumberInputStepper>
-              </NumberInput>
-              <Text fontSize="sm">%</Text>
-            </HStack>
-            <FormHelperText>For proposals using voting classes</FormHelperText>
-          </FormControl>
-
-          {/* DD Quorum */}
-          <FormControl>
-            <FormLabel fontSize="sm">Direct Democracy Quorum</FormLabel>
-            <HStack spacing={4}>
-              <Slider
-                value={voting.ddQuorum}
-                onChange={(val) => actions.updateVoting({ ddQuorum: val })}
-                min={1}
-                max={100}
-                flex={1}
-                focusThumbOnChange={false}
-              >
-                <SliderTrack>
-                  <SliderFilledTrack bg="purple.400" />
-                </SliderTrack>
-                <SliderThumb boxSize={6}>
-                  <Text fontSize="xs" fontWeight="bold">
-                    {voting.ddQuorum}
-                  </Text>
-                </SliderThumb>
-              </Slider>
-              <NumberInput
-                value={voting.ddQuorum}
-                onChange={(_, val) => {
-                  if (!isNaN(val)) actions.updateVoting({ ddQuorum: val });
-                }}
-                min={1}
-                max={100}
-                w="80px"
-                size="sm"
-              >
-                <NumberInputField />
-                <NumberInputStepper>
-                  <NumberIncrementStepper />
-                  <NumberDecrementStepper />
-                </NumberInputStepper>
-              </NumberInput>
-              <Text fontSize="sm">%</Text>
-            </HStack>
-            <FormHelperText>For direct democracy proposals</FormHelperText>
-          </FormControl>
-        </VStack>
-      </Box>
-
-      <Divider />
-
       {/* Voting Classes */}
       <Box>
         <HStack justify="space-between" mb={4}>
           <VStack align="start" spacing={0}>
             <Heading size="md">Voting Classes ({voting.classes.length})</Heading>
-            <Text fontSize="sm" color="gray.500">
+            <Text fontSize="sm" color="warmGray.500">
               Define how votes are counted and weighted
             </Text>
           </VStack>
           <Button
             leftIcon={<AddIcon />}
-            colorScheme="blue"
+            bg="warmGray.900"
+            color="white"
+            borderRadius="full"
+            _hover={{ bg: 'warmGray.800' }}
+            _active={{ bg: 'warmGray.700' }}
             onClick={handleAddClass}
             isDisabled={voting.classes.length >= 8}
           >
@@ -611,13 +517,21 @@ function AdvancedGovernanceUI({ state, actions }) {
             textAlign="center"
             borderWidth="2px"
             borderStyle="dashed"
-            borderColor="gray.200"
+            borderColor="warmGray.200"
             borderRadius="lg"
           >
-            <Text color="gray.500" mb={4}>
+            <Text color="warmGray.500" mb={4}>
               No voting classes defined. Add your first voting class.
             </Text>
-            <Button leftIcon={<AddIcon />} colorScheme="blue" onClick={handleAddClass}>
+            <Button
+              leftIcon={<AddIcon />}
+              bg="warmGray.900"
+              color="white"
+              borderRadius="full"
+              _hover={{ bg: 'warmGray.800' }}
+              _active={{ bg: 'warmGray.700' }}
+              onClick={handleAddClass}
+            >
               Add First Class
             </Button>
           </Box>
@@ -649,9 +563,9 @@ function AdvancedGovernanceUI({ state, actions }) {
             <br />
             • Use multiple Direct classes to give different roles separate voting weights
             <br />
-            • Participation Token: Voting power based on participation token balance
+            • Shares: Voting power based on share balance
             <br />
-            • Enable Quadratic on token classes to reduce whale influence
+            • Enable Quadratic on share classes to reduce outsized influence
           </Text>
         </Box>
       </Alert>
@@ -665,6 +579,168 @@ function AdvancedGovernanceUI({ state, actions }) {
       {voting.classes.length > 0 && (
         <AdvancedVotingExample votingClasses={voting.classes} roles={roles} />
       )}
+
+      {/* Threshold Settings - after classes so users understand what they're setting thresholds for */}
+      <Box
+        p={5}
+        border="1px solid"
+        borderColor="warmGray.200"
+        borderRadius="2xl"
+        bg="rgba(255, 255, 255, 0.8)"
+        backdropFilter="blur(16px)"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+      >
+        <Heading size="sm" mb={4}>
+          <HStack>
+            <Text>Threshold Requirements</Text>
+            <Tooltip label="Minimum support percentage required for a proposal to pass">
+              <Icon as={InfoIcon} color="warmGray.400" />
+            </Tooltip>
+          </HStack>
+        </Heading>
+
+        <VStack spacing={4} align="stretch">
+          {/* Hybrid Threshold */}
+          <FormControl>
+            <FormLabel fontSize="sm">Hybrid Proposal Threshold</FormLabel>
+            <HStack spacing={4}>
+              <Slider
+                value={voting.hybridQuorum}
+                onChange={(val) => actions.updateVoting({ hybridQuorum: val })}
+                min={1}
+                max={100}
+                flex={1}
+                focusThumbOnChange={false}
+              >
+                <SliderTrack>
+                  <SliderFilledTrack bg="blue.400" />
+                </SliderTrack>
+                <SliderThumb boxSize={6}>
+                  <Text fontSize="xs" fontWeight="bold">
+                    {voting.hybridQuorum}
+                  </Text>
+                </SliderThumb>
+              </Slider>
+              <NumberInput
+                value={voting.hybridQuorum}
+                onChange={(_, val) => {
+                  if (!isNaN(val)) actions.updateVoting({ hybridQuorum: val });
+                }}
+                min={1}
+                max={100}
+                w="80px"
+                size="sm"
+              >
+                <NumberInputField />
+                <NumberInputStepper>
+                  <NumberIncrementStepper />
+                  <NumberDecrementStepper />
+                </NumberInputStepper>
+              </NumberInput>
+              <Text fontSize="sm">%</Text>
+            </HStack>
+            <FormHelperText>For proposals using voting classes</FormHelperText>
+          </FormControl>
+
+          {/* DD Threshold */}
+          <FormControl>
+            <FormLabel fontSize="sm">Direct Democracy Threshold</FormLabel>
+            <HStack spacing={4}>
+              <Slider
+                value={voting.ddQuorum}
+                onChange={(val) => actions.updateVoting({ ddQuorum: val })}
+                min={1}
+                max={100}
+                flex={1}
+                focusThumbOnChange={false}
+              >
+                <SliderTrack>
+                  <SliderFilledTrack bg="purple.400" />
+                </SliderTrack>
+                <SliderThumb boxSize={6}>
+                  <Text fontSize="xs" fontWeight="bold">
+                    {voting.ddQuorum}
+                  </Text>
+                </SliderThumb>
+              </Slider>
+              <NumberInput
+                value={voting.ddQuorum}
+                onChange={(_, val) => {
+                  if (!isNaN(val)) actions.updateVoting({ ddQuorum: val });
+                }}
+                min={1}
+                max={100}
+                w="80px"
+                size="sm"
+              >
+                <NumberInputField />
+                <NumberInputStepper>
+                  <NumberIncrementStepper />
+                  <NumberDecrementStepper />
+                </NumberInputStepper>
+              </NumberInput>
+              <Text fontSize="sm">%</Text>
+            </HStack>
+            <FormHelperText>For direct democracy proposals</FormHelperText>
+          </FormControl>
+
+          {/* Voter Count Quorum (optional) */}
+          <Box mt={4} pt={4} borderTop="1px solid" borderColor="warmGray.100">
+            <Heading size="xs" mb={3}>
+              <HStack>
+                <Text>Minimum Voter Count (Optional)</Text>
+                <Tooltip label="Minimum number of voters required for a proposal to be valid. Set to 0 for no minimum. Configured via governance after deployment.">
+                  <Icon as={InfoIcon} color="warmGray.400" />
+                </Tooltip>
+              </HStack>
+            </Heading>
+
+            <HStack spacing={6}>
+              <FormControl>
+                <FormLabel fontSize="sm">Hybrid Proposals</FormLabel>
+                <NumberInput
+                  value={voting.hybridVoterQuorum}
+                  onChange={(_, val) => {
+                    if (!isNaN(val)) actions.updateVoting({ hybridVoterQuorum: val });
+                  }}
+                  min={0}
+                  max={10000}
+                  w="120px"
+                  size="sm"
+                >
+                  <NumberInputField />
+                  <NumberInputStepper>
+                    <NumberIncrementStepper />
+                    <NumberDecrementStepper />
+                  </NumberInputStepper>
+                </NumberInput>
+                <FormHelperText>0 = no minimum</FormHelperText>
+              </FormControl>
+
+              <FormControl>
+                <FormLabel fontSize="sm">Direct Democracy</FormLabel>
+                <NumberInput
+                  value={voting.ddVoterQuorum}
+                  onChange={(_, val) => {
+                    if (!isNaN(val)) actions.updateVoting({ ddVoterQuorum: val });
+                  }}
+                  min={0}
+                  max={10000}
+                  w="120px"
+                  size="sm"
+                >
+                  <NumberInputField />
+                  <NumberInputStepper>
+                    <NumberIncrementStepper />
+                    <NumberDecrementStepper />
+                  </NumberInputStepper>
+                </NumberInput>
+                <FormHelperText>0 = no minimum</FormHelperText>
+              </FormControl>
+            </HStack>
+          </Box>
+        </VStack>
+      </Box>
 
       {/* Add/Edit Modal */}
       <Modal isOpen={isOpen} onClose={onClose} size="xl">
@@ -721,8 +797,8 @@ function AdvancedGovernanceUI({ state, actions }) {
 export function GovernanceStep() {
   const { state, actions } = useDeployer();
 
-  const sectionBg = useColorModeValue('gray.50', 'gray.900');
-  const helperColor = useColorModeValue('gray.600', 'gray.400');
+  const sectionBg = useColorModeValue('warmGray.50', 'warmGray.900');
+  const helperColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   const { philosophy, roles, permissions, ui, voting } = state;
   const isAdvancedMode = ui.mode === UI_MODES.ADVANCED;
@@ -793,7 +869,7 @@ export function GovernanceStep() {
         <NavigationButtons
           onBack={handleBack}
           onNext={handleNext}
-          nextLabel="Review & Launch"
+          nextLabel="Settings"
         />
       </VStack>
     </>

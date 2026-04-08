@@ -32,16 +32,13 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(20px)',
   backgroundColor: 'rgba(0, 0, 0, 0.8)',
   boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
   border: '1px solid rgba(148, 115, 220, 0.2)',
 };
 
-/**
- * Block explorer URL for Hoodi testnet
- */
-const BLOCK_EXPLORER_URL = 'https://hoodi.cloud.blockscout.com/address';
+import { getNetworkByChainId } from '../../config/networks';
+import { usePOContext } from '../../context/POContext';
 
 /**
  * Contract labels for display
@@ -53,13 +50,13 @@ const CONTRACT_LABELS = {
   taskManager: 'Task Manager',
   educationHub: 'Education Hub',
   quickJoin: 'Quick Join',
-  participationToken: 'Participation Token',
+  participationToken: 'Shares',
 };
 
 /**
  * Single contract address row
  */
-function ContractRow({ label, address }) {
+function ContractRow({ label, address, explorerUrl }) {
   const { hasCopied, onCopy } = useClipboard(address || '');
 
   if (!address) return null;
@@ -70,7 +67,7 @@ function ContractRow({ label, address }) {
       borderRadius="lg"
       bg="rgba(30, 30, 40, 0.5)"
       border="1px solid rgba(148, 115, 220, 0.1)"
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       _hover={{
         borderColor: 'rgba(148, 115, 220, 0.3)',
       }}
@@ -104,7 +101,7 @@ function ContractRow({ label, address }) {
           <Tooltip label="View on block explorer">
             <IconButton
               as={Link}
-              href={`${BLOCK_EXPLORER_URL}/${address}`}
+              href={`${explorerUrl}/${address}`}
               isExternal
               icon={<FiExternalLink />}
               size="sm"
@@ -121,6 +118,8 @@ function ContractRow({ label, address }) {
 
 export function DeveloperInfoSection({ contracts = {} }) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const { orgChainId } = usePOContext();
+  const blockExplorerUrl = `${getNetworkByChainId(orgChainId)?.blockExplorer || 'https://sepolia.etherscan.io'}/address`;
 
   const hasContracts = Object.values(contracts).some(Boolean);
 
@@ -140,7 +139,7 @@ export function DeveloperInfoSection({ contracts = {} }) {
         bg="rgba(30, 30, 40, 0.3)"
         border="1px solid rgba(148, 115, 220, 0.1)"
         textAlign="left"
-        transition="all 0.2s"
+        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
         _hover={{
           bg: 'rgba(30, 30, 40, 0.5)',
           borderColor: 'rgba(148, 115, 220, 0.2)',
@@ -194,7 +193,7 @@ export function DeveloperInfoSection({ contracts = {} }) {
                 if (!address) return null;
                 return (
                   <GridItem key={key}>
-                    <ContractRow label={label} address={address} />
+                    <ContractRow label={label} address={address} explorerUrl={blockExplorerUrl} />
                   </GridItem>
                 );
               })}

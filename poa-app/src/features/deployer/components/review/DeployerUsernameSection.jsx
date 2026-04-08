@@ -17,10 +17,10 @@ import {
   InputRightElement,
   Badge,
   Icon,
-  Spinner,
   Button,
   useColorModeValue,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import {
   PiUser,
   PiCheckCircle,
@@ -66,7 +66,6 @@ export function DeployerUsernameSection({ onUsernameReady }) {
     return (
       <Box
         bg={cardBg}
-        backdropFilter="blur(8px)"
         borderRadius="xl"
         borderWidth="1px"
         borderColor={borderColor}
@@ -75,7 +74,7 @@ export function DeployerUsernameSection({ onUsernameReady }) {
         maxW="400px"
       >
         <HStack spacing={3} justify="center">
-          <Spinner size="sm" color="coral.500" />
+          <PulseLoader size="sm" color="amethyst.500" />
           <Text fontSize="sm" color={helperColor}>Checking your username...</Text>
         </HStack>
       </Box>
@@ -87,7 +86,6 @@ export function DeployerUsernameSection({ onUsernameReady }) {
     return (
       <Box
         bg={cardBg}
-        backdropFilter="blur(8px)"
         borderRadius="xl"
         borderWidth="1px"
         borderColor="red.200"
@@ -119,7 +117,6 @@ export function DeployerUsernameSection({ onUsernameReady }) {
     return (
       <Box
         bg={cardBg}
-        backdropFilter="blur(8px)"
         borderRadius="xl"
         borderWidth="1px"
         borderColor="green.200"
@@ -171,15 +168,14 @@ export function DeployerUsernameSection({ onUsernameReady }) {
   // User needs to enter a username
   const hasError = validationState.error && inputUsername.length > 0;
   const isValid = validationState.isValid && !validationState.isChecking;
-  const statusColor = hasError ? 'coral' : isValid ? 'green' : 'warmGray';
+  const statusColor = hasError ? 'red' : isValid ? 'green' : 'warmGray';
 
   return (
     <Box
       bg={cardBg}
-      backdropFilter="blur(8px)"
       borderRadius="xl"
       borderWidth="1px"
-      borderColor={hasError ? 'coral.200' : isValid ? 'green.200' : borderColor}
+      borderColor={hasError ? 'red.200' : isValid ? 'green.200' : borderColor}
       overflow="hidden"
       w="100%"
       maxW="400px"
@@ -187,7 +183,7 @@ export function DeployerUsernameSection({ onUsernameReady }) {
       {/* Status bar */}
       <Box
         h="3px"
-        bg={hasError ? 'coral.400' : isValid ? 'green.400' : 'warmGray.300'}
+        bg={hasError ? 'red.400' : isValid ? 'green.400' : 'warmGray.300'}
       />
 
       <Box p={5}>
@@ -197,11 +193,11 @@ export function DeployerUsernameSection({ onUsernameReady }) {
               <Box
                 p={2}
                 borderRadius="lg"
-                bg={hasError ? 'coral.50' : isValid ? 'green.50' : 'warmGray.100'}
+                bg={hasError ? 'red.50' : isValid ? 'green.50' : 'warmGray.100'}
               >
                 <Icon
                   as={PiUser}
-                  color={hasError ? 'coral.500' : isValid ? 'green.500' : 'warmGray.500'}
+                  color={hasError ? 'red.500' : isValid ? 'green.500' : 'warmGray.500'}
                   boxSize={5}
                 />
               </Box>
@@ -225,31 +221,31 @@ export function DeployerUsernameSection({ onUsernameReady }) {
               value={inputUsername}
               onChange={(e) => setInputUsername(e.target.value)}
               bg={inputBg}
-              borderColor={hasError ? 'coral.300' : isValid ? 'green.300' : 'warmGray.200'}
+              borderColor={hasError ? 'red.300' : isValid ? 'green.300' : 'warmGray.200'}
               _hover={{
-                borderColor: hasError ? 'coral.400' : isValid ? 'green.400' : 'warmGray.300',
+                borderColor: hasError ? 'red.400' : isValid ? 'green.400' : 'warmGray.300',
               }}
               _focus={{
-                borderColor: hasError ? 'coral.400' : 'coral.400',
-                boxShadow: `0 0 0 2px rgba(240, 101, 67, 0.15)`,
+                borderColor: hasError ? 'red.400' : 'amethyst.400',
+                boxShadow: `0 0 0 2px rgba(139, 92, 246, 0.15)`,
               }}
             />
             <InputRightElement>
               {validationState.isChecking && (
-                <Spinner size="sm" color="coral.500" />
+                <PulseLoader size="sm" color="amethyst.500" />
               )}
               {isValid && !validationState.isChecking && (
                 <Icon as={PiCheckCircle} color="green.500" boxSize={5} />
               )}
               {hasError && !validationState.isChecking && (
-                <Icon as={PiWarningCircle} color="coral.500" boxSize={5} />
+                <Icon as={PiWarningCircle} color="red.500" boxSize={5} />
               )}
             </InputRightElement>
           </InputGroup>
 
           {/* Error message */}
           {hasError && (
-            <Text fontSize="sm" color="coral.600">
+            <Text fontSize="sm" color="red.600">
               {validationState.error}
             </Text>
           )}

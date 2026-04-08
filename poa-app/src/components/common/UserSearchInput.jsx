@@ -14,10 +14,10 @@ import {
   VStack,
   Text,
   Icon,
-  Spinner,
   Avatar,
 } from '@chakra-ui/react';
 import { FiSearch, FiCheck, FiUserPlus } from 'react-icons/fi';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useUserSearch } from '@/hooks/useUserSearch';
 
 /**
@@ -75,7 +75,7 @@ export function UserSearchInput({
           }}
         />
         <InputRightElement>
-          {isSearching && <Spinner size="sm" color="purple.400" />}
+          {isSearching && <PulseLoader size="sm" color="purple.400" />}
           {!isSearching && searchResult && (
             <Icon as={FiCheck} color="green.400" />
           )}

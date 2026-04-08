@@ -1,6 +1,5 @@
 /**
  * NavigationButtons - Back/Next buttons for wizard navigation
- * Styled with warm coral color scheme
  */
 
 import React from 'react';
@@ -79,14 +78,15 @@ export function NavigationButtons({
       {showNext && (
         <Button
           size={buttonSize}
-          bg="coral.500"
+          bg="warmGray.900"
           color="white"
+          borderRadius="full"
           _hover={{
-            bg: 'coral.600',
+            bg: 'warmGray.800',
             transform: 'translateY(-1px)',
             boxShadow: 'md',
           }}
-          _active={{ bg: 'coral.700' }}
+          _active={{ bg: 'warmGray.700' }}
           _disabled={{
             bg: 'warmGray.300',
             cursor: 'not-allowed',

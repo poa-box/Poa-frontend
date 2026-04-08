@@ -5,7 +5,7 @@
  * Color coding:
  * - blue.400 for DIRECT classes (role-based)
  * - amethyst.500 for ERC20_BAL classes (token-based)
- * - coral.400 for ERC20_BAL + Quadratic enabled
+ * - orange.400 for ERC20_BAL + Quadratic enabled
  */
 
 import React from 'react';
@@ -29,8 +29,8 @@ function getClassColor(votingClass) {
   if (votingClass.strategy === VOTING_STRATEGY.DIRECT) {
     return 'blue';
   }
-  // ERC20_BAL with quadratic gets coral, otherwise amethyst
-  return votingClass.quadratic ? 'coral' : 'amethyst';
+  // ERC20_BAL with quadratic gets orange, otherwise amethyst
+  return votingClass.quadratic ? 'orange' : 'amethyst';
 }
 
 /**
@@ -61,7 +61,7 @@ function getClassLabel(votingClass, index, roles = []) {
     }
     return `Direct ${index + 1}`;
   }
-  return votingClass.quadratic ? 'Token (Quadratic)' : 'Token';
+  return votingClass.quadratic ? 'Shares (Quadratic)' : 'Shares';
 }
 
 export function MultiClassWeightBar({ classes, roles = [], showLabels = true }) {
@@ -142,7 +142,7 @@ export function MultiClassWeightBar({ classes, roles = [], showLabels = true }) 
                 w={`${cls.slicePct}%`}
                 h="100%"
                 bg={`${color}.400`}
-                transition="all 0.2s ease"
+                transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                 display="flex"
                 alignItems="center"
                 justifyContent="center"

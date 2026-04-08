@@ -75,10 +75,10 @@ const WORKER_COOP_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 2,
-          voucherRoleIndex: 0, // Workers vouch for workers
-          combineWithHierarchy: false,
+          voucherRoleIndex: 0, // Workers vouch for other Workers
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: 1 }, // Managed by Steward
         distribution: {
           mintToDeployer: true,
@@ -93,12 +93,12 @@ const WORKER_COOP_TEMPLATE = {
         image: '',
         canVote: true,
         vouching: {
-          enabled: false,
-          quorum: 0,
-          voucherRoleIndex: 0,
-          combineWithHierarchy: false,
+          enabled: true,
+          quorum: 1,
+          voucherRoleIndex: 1, // Stewards vouch for other Stewards
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: null }, // Top-level
         distribution: {
           mintToDeployer: true,
@@ -125,6 +125,8 @@ const WORKER_COOP_TEMPLATE = {
       mode: 'DIRECT',
       hybridQuorum: 50,
       ddQuorum: 50,
+      hybridVoterQuorum: 0,
+      ddVoterQuorum: 0,
       quadraticEnabled: false,
       democracyWeight: 100,
       participationWeight: 0,
@@ -145,6 +147,9 @@ const WORKER_COOP_TEMPLATE = {
       educationHubEnabled: false,
       electionHubEnabled: true,
     },
+
+    // Governance Only - democratic orgs should vote on metadata changes
+    metadataAdminRoleIndex: null,
 
     governancePhilosophy: 'democratic',
   },
@@ -187,10 +192,10 @@ const OPEN_SOURCE_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 1,
-          voucherRoleIndex: 1, // Maintainers vouch
-          combineWithHierarchy: false,
+          voucherRoleIndex: 0, // Contributors vouch for other Contributors
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: 1 }, // Managed by Maintainer
         distribution: {
           mintToDeployer: true,
@@ -205,12 +210,12 @@ const OPEN_SOURCE_TEMPLATE = {
         image: '',
         canVote: true,
         vouching: {
-          enabled: false,
-          quorum: 0,
-          voucherRoleIndex: 0,
-          combineWithHierarchy: false,
+          enabled: true,
+          quorum: 1,
+          voucherRoleIndex: 1, // Maintainers vouch for other Maintainers
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: null }, // Top-level
         distribution: {
           mintToDeployer: true,
@@ -237,6 +242,8 @@ const OPEN_SOURCE_TEMPLATE = {
       mode: 'HYBRID',
       hybridQuorum: 40,
       ddQuorum: 40,
+      hybridVoterQuorum: 0,
+      ddVoterQuorum: 0,
       quadraticEnabled: false,
       democracyWeight: 30,
       participationWeight: 70,
@@ -266,6 +273,9 @@ const OPEN_SOURCE_TEMPLATE = {
       educationHubEnabled: false,
       electionHubEnabled: true,
     },
+
+    // Maintainers manage the project page - they ship releases and manage docs
+    metadataAdminRoleIndex: 1,
 
     governancePhilosophy: 'hybrid',
   },
@@ -308,10 +318,10 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 2,
-          voucherRoleIndex: 0, // Artists vouch for artists
-          combineWithHierarchy: false,
+          voucherRoleIndex: 0, // Artists vouch for other Artists
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: 1 }, // Managed by Curator
         distribution: {
           mintToDeployer: true,
@@ -326,12 +336,12 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
         image: '',
         canVote: true,
         vouching: {
-          enabled: false,
-          quorum: 0,
-          voucherRoleIndex: 0,
-          combineWithHierarchy: false,
+          enabled: true,
+          quorum: 1,
+          voucherRoleIndex: 1, // Curators vouch for other Curators
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: null }, // Top-level
         distribution: {
           mintToDeployer: true,
@@ -358,6 +368,8 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
       mode: 'DIRECT',
       hybridQuorum: 60,
       ddQuorum: 60,
+      hybridVoterQuorum: 0,
+      ddVoterQuorum: 0,
       quadraticEnabled: false,
       democracyWeight: 100,
       participationWeight: 0,
@@ -378,6 +390,9 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
       educationHubEnabled: false,
       electionHubEnabled: false,
     },
+
+    // Governance Only - flat structure, collective decisions
+    metadataAdminRoleIndex: null,
 
     governancePhilosophy: 'democratic',
   },
@@ -400,7 +415,7 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
  */
 const COMMUNITY_DAO_TEMPLATE = {
   id: TEMPLATE_IDS.COMMUNITY_DAO,
-  name: 'Community DAO',
+  name: 'Community Organization',
   tagline: 'Neighbors governing together',
   description: 'For neighborhoods, local communities, and interest groups. Balanced governance with elected representatives and direct community input.',
   bestFor: [
@@ -420,10 +435,10 @@ const COMMUNITY_DAO_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 1,
-          voucherRoleIndex: 1, // Delegates vouch
-          combineWithHierarchy: false,
+          voucherRoleIndex: 0, // Neighbors vouch for other Neighbors
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: 1 }, // Managed by Delegate
         distribution: {
           mintToDeployer: true,
@@ -438,12 +453,12 @@ const COMMUNITY_DAO_TEMPLATE = {
         image: '',
         canVote: true,
         vouching: {
-          enabled: false,
-          quorum: 0,
-          voucherRoleIndex: 0,
-          combineWithHierarchy: false,
+          enabled: true,
+          quorum: 1,
+          voucherRoleIndex: 1, // Delegates vouch for other Delegates
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: null }, // Top-level
         distribution: {
           mintToDeployer: true,
@@ -470,6 +485,8 @@ const COMMUNITY_DAO_TEMPLATE = {
       mode: 'HYBRID',
       hybridQuorum: 50,
       ddQuorum: 50,
+      hybridVoterQuorum: 0,
+      ddVoterQuorum: 0,
       quadraticEnabled: false,
       democracyWeight: 50,
       participationWeight: 50,
@@ -500,6 +517,9 @@ const COMMUNITY_DAO_TEMPLATE = {
       electionHubEnabled: true,
     },
 
+    // Delegates handle admin operations as elected representatives
+    metadataAdminRoleIndex: 1,
+
     governancePhilosophy: 'hybrid',
   },
 
@@ -510,7 +530,7 @@ const COMMUNITY_DAO_TEMPLATE = {
       identity: 'Name your community and describe what brings you together.',
       team: 'Neighbors are community members. Delegates are elected to help coordinate.',
       governance: 'Your 50/50 split balances participation with direct democracy.',
-      review: 'Your community DAO is ready! Neighbors and delegates will govern together.',
+      review: 'Your community organization is ready! Neighbors and delegates will govern together.',
     },
   },
 };
@@ -541,10 +561,10 @@ const STUDENT_ORG_TEMPLATE = {
         vouching: {
           enabled: true,
           quorum: 1,
-          voucherRoleIndex: 1, // Executives vouch for members
-          combineWithHierarchy: false,
+          voucherRoleIndex: 1, // Executives vouch for new Members
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: 1 }, // Managed by Executive
         distribution: {
           mintToDeployer: true,
@@ -559,12 +579,12 @@ const STUDENT_ORG_TEMPLATE = {
         image: '',
         canVote: true,
         vouching: {
-          enabled: false,
-          quorum: 0,
-          voucherRoleIndex: 0,
-          combineWithHierarchy: false,
+          enabled: true,
+          quorum: 1,
+          voucherRoleIndex: 1, // Executives vouch for other Executives
+          combineWithHierarchy: true,
         },
-        defaults: { eligible: true, standing: true },
+        defaults: { eligible: false, standing: true },
         hierarchy: { adminRoleIndex: null }, // Top-level
         distribution: {
           mintToDeployer: true, // Deployer becomes first executive
@@ -591,6 +611,8 @@ const STUDENT_ORG_TEMPLATE = {
       mode: 'HYBRID',
       hybridQuorum: 50,
       ddQuorum: 50,
+      hybridVoterQuorum: 0,
+      ddVoterQuorum: 0,
       quadraticEnabled: false,
       democracyWeight: 50,
       participationWeight: 50,
@@ -620,6 +642,9 @@ const STUDENT_ORG_TEMPLATE = {
       educationHubEnabled: true,   // Education hub for training
       electionHubEnabled: true,    // For democratic executive elections
     },
+
+    // Executives handle day-to-day ops including org profile updates
+    metadataAdminRoleIndex: 1,
 
     governancePhilosophy: 'hybrid',
   },
@@ -711,6 +736,8 @@ const CUSTOM_TEMPLATE = {
       mode: 'DIRECT',
       hybridQuorum: 50,
       ddQuorum: 50,
+      hybridVoterQuorum: 0,
+      ddVoterQuorum: 0,
       quadraticEnabled: false,
       democracyWeight: 100,
       participationWeight: 0,
@@ -731,6 +758,9 @@ const CUSTOM_TEMPLATE = {
       educationHubEnabled: false,
       electionHubEnabled: false,
     },
+
+    // Governance Only - safe default, user can override
+    metadataAdminRoleIndex: null,
 
     governancePhilosophy: 'democratic',
   },
