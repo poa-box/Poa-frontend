@@ -36,7 +36,8 @@ import OngoingPolls from '@/components/userPage/OngoingPolls';
 import { useRouter } from 'next/router';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { FaLink } from 'react-icons/fa';
-import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiCheck } from 'react-icons/fi';
+import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiCheck, FiMap } from 'react-icons/fi';
+import { useTour } from '@/features/tour';
 import { useIPFScontext } from "@/context/ipfsContext";
 import { useOrgStructure, useOrgTheme } from '@/hooks';
 import { VouchingSection } from '@/components/orgStructure/VouchingSection';
@@ -47,6 +48,7 @@ const PerpetualOrgDashboard = () => {
   const { ongoingPolls } = useVotingContext();
   const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
   const { pageBackground } = useOrgTheme();
+  const { startTour, isActive: isTourActive } = useTour();
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
   const [imageURL, setImageURL] = useState({});
@@ -240,6 +242,22 @@ const PerpetualOrgDashboard = () => {
                   </VStack>
                 </Flex>
                 <HStack display="flex" justifyContent="flex-end" px={{ base: 3, md: 4 }} pb={{ base: 3, md: 4 }} spacing={2}>
+                  {!isTourActive && (
+                    <Tooltip label="Take a guided tour of your organization" hasArrow>
+                      <Button
+                        onClick={() => startTour(userDAO)}
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<Icon as={FiMap} />}
+                        borderColor="amethyst.400"
+                        color="amethyst.300"
+                        _hover={{ bg: 'purple.900' }}
+                        transition="all 0.2s"
+                      >
+                        Tour Org
+                      </Button>
+                    </Tooltip>
+                  )}
                   <Tooltip label={hasCopied ? 'Copied!' : 'Copy invite link to clipboard'} closeOnClick={false} hasArrow>
                     <Button
                       onClick={onCopy}
