@@ -120,6 +120,7 @@ const initialState = {
     executorContractAddress: '',
     eligibilityModuleAddress: '',
     participationTokenAddress: '',
+    paymentManagerAddress: '',
 
     // Derived data
     leaderboardData: [],
@@ -348,6 +349,7 @@ export const POProvider = ({ children }) => {
                     executorContractAddress: org.executorContract?.id || '',
                     eligibilityModuleAddress: org.eligibilityModule?.id || '',
                     participationTokenAddress: org.participationToken?.id || '',
+                    paymentManagerAddress: org.paymentManager?.id || '',
                     participationVotingContractAddress: org.hybridVoting?.id || '',
                     votingContractAddress: org.hybridVoting?.id || '',
                     treasuryContractAddress: org.executorContract?.id || '',
@@ -496,6 +498,7 @@ export const POProvider = ({ children }) => {
         executorContractAddress: state.executorContractAddress,
         eligibilityModuleAddress: state.eligibilityModuleAddress,
         participationTokenAddress: state.participationTokenAddress,
+        paymentManagerAddress: state.paymentManagerAddress,
 
         // Derived data
         loading,
