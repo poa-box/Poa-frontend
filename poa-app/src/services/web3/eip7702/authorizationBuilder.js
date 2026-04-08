@@ -56,8 +56,9 @@ export async function checkWallet7702Support(walletClient) {
     // getCapabilities not supported — fall through to method check
   }
 
-  // signAuthorization method exists on the client — trust it.
-  // Runtime failures are handled gracefully in EOA7702TransactionManager
-  // and useProfileUpdate (both fall back to direct tx on error).
+  // signAuthorization exists on all viem wallet clients (it's part of the
+  // client API), but not all wallets actually support the underlying RPC.
+  // Return true optimistically — runtime failures trigger fallback to
+  // direct tx in both EOA7702TransactionManager and useProfileUpdate.
   return typeof walletClient.signAuthorization === 'function';
 }
