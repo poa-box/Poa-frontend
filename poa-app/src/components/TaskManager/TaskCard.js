@@ -120,6 +120,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   return (
     <>
       <Box
+        data-tour="task-card"
         ref={drag}
         sx={isCardMobile ? mobileCardStyle : desktopCardStyle}
         onClick={openTask}

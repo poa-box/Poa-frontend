@@ -263,6 +263,7 @@ const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCrea
       {/* Create project section */}
       <Flex direction="column" p={3} bg="whiteAlpha.050">
         <Button
+          data-tour="create-project-btn"
           onClick={handleCreateProject}
           width="100%"
           size="md"

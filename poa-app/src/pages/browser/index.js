@@ -37,6 +37,8 @@ import { motion } from "framer-motion";
 import { FaSearch, FaUsers, FaArrowRight, FaGlobe, FaInfoCircle, FaBuilding, FaUserFriends, FaShieldAlt } from "react-icons/fa";
 import Navbar from "@/components/landing/Navbar";
 import SignInModal from "@/components/passkey/SignInModal";
+import { FiMap } from "react-icons/fi";
+import { useTour } from "@/features/tour";
 
 const MotionBox = motion(Box);
 
@@ -169,6 +171,7 @@ const BrowserPage = () => {
   const [mounted, setMounted] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
+  const { startTour } = useTour();
 
   useEffect(() => { setMounted(true); }, []);
 
@@ -305,35 +308,39 @@ const BrowserPage = () => {
               </Flex>
             )}
           </ModalBody>
-          <ModalFooter flexDirection={{ base: "column", sm: "row" }} gap={{ base: 2, sm: 0 }}>
-            <Button
-              variant="outline"
-              borderColor="warmGray.200"
-              color="warmGray.700"
-              borderRadius="full"
-              fontWeight="600"
-              _hover={{ bg: "warmGray.50", borderColor: "warmGray.300" }}
-              mr={{ base: 0, sm: 3 }}
-              mb={{ base: 2, sm: 0 }}
-              w={{ base: "100%", sm: "auto" }}
-              onClick={onClose}
-            >
-              Close
-            </Button>
-            <Link href={`/home?userDAO=${selectedOrg?.id}`} passHref style={{ width: "100%" }}>
+          <ModalFooter flexDirection="column" gap={2}>
+            <HStack w="100%" spacing={2}>
               <Button
-                bg="warmGray.900"
-                color="white"
+                variant="outline"
+                borderColor="amethyst.200"
+                color="amethyst.600"
                 borderRadius="full"
                 fontWeight="600"
-                _hover={{ bg: "warmGray.800" }}
-                _active={{ bg: "warmGray.700" }}
-                rightIcon={<FaArrowRight />}
-                w={{ base: "100%", sm: "auto" }}
+                _hover={{ bg: "amethyst.50", borderColor: "amethyst.300" }}
+                leftIcon={<FiMap />}
+                flex={1}
+                onClick={() => {
+                  onClose();
+                  startTour(selectedOrg?.id);
+                }}
               >
-                Visit Organization
+                Tour Org
               </Button>
+              <Link href={`/home?userDAO=${selectedOrg?.id}`} passHref style={{ flex: 1 }}>
+                <Button
+                  bg="warmGray.900"
+                  color="white"
+                  borderRadius="full"
+                  fontWeight="600"
+                  _hover={{ bg: "warmGray.800" }}
+                  _active={{ bg: "warmGray.700" }}
+                  rightIcon={<FaArrowRight />}
+                  w="100%"
+                >
+                  Visit Organization
+                </Button>
             </Link>
+            </HStack>
           </ModalFooter>
         </ModalContent>
       </Modal>

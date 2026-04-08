@@ -102,6 +102,7 @@ const TreasuryPage = () => {
       ) : (
         <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }}>
           <Grid
+            data-tour="treasury-content"
             color="whitesmoke"
             templateAreas={{
               base: `

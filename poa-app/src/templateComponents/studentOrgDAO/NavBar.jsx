@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button } from "@chakra-ui/react";
+import { Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, Tooltip } from "@chakra-ui/react";
 import NextImage from "next/image";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
 import { FaHome } from 'react-icons/fa';
@@ -121,6 +121,7 @@ const Navbar = () => {
         
         {/* Desktop Navigation */}
         <Flex
+          data-tour="nav-links"
           justifyContent="space-between"
           flexGrow={1}
           ml={4}

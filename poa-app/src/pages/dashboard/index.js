@@ -25,6 +25,7 @@ import {
   Collapse,
   Tooltip,
 } from '@chakra-ui/react';
+import PostDeployLoadingScreen from '@/components/shared/PostDeployLoadingScreen';
 import { useVotingContext } from '@/context/VotingContext';
 import { usePOContext } from '@/context/POContext';
 import { useProjectContext } from '@/context/ProjectContext';
@@ -44,7 +45,6 @@ import { glassLayerStyle } from '@/components/shared/glassStyles';
 const PerpetualOrgDashboard = () => {
   const { ongoingPolls } = useVotingContext();
   const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
-
   const router = useRouter();
   const { userDAO } = router.query;
   const [imageURL, setImageURL] = useState({});
@@ -121,12 +121,17 @@ const PerpetualOrgDashboard = () => {
     <>
       <Navbar />
       {poContextLoading ? (
-        <Center height="100vh">
-          <Spinner size="xl" />
-        </Center>
+        router.query.newOrg === 'true' ? (
+          <PostDeployLoadingScreen orgName={userDAO} />
+        ) : (
+          <Center height="100vh">
+            <Spinner size="xl" />
+          </Center>
+        )
       ) : (
         <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }}>
             <Grid
+              data-tour="dashboard-grid"
               color="whitesmoke"
               templateAreas={{
                 base: educationHubEnabled ? `
@@ -165,6 +170,7 @@ const PerpetualOrgDashboard = () => {
             >
             <GridItem area={'orgInfo'}>
               <Box
+                data-tour="org-info"
                 w={{ base: "100%", md: "125%" }}
                 borderRadius="2xl"
                 bg="transparent"
@@ -225,7 +231,7 @@ const PerpetualOrgDashboard = () => {
                     </Box>
                   </VStack>
                 </Flex>
-                <Box display="flex" justifyContent="flex-end" px={{ base: 3, md: 4 }} pb={{ base: 3, md: 4 }}>
+                <HStack display="flex" justifyContent="flex-end" px={{ base: 3, md: 4 }} pb={{ base: 3, md: 4 }} spacing={2}>
                   <Tooltip label={hasCopied ? 'Copied!' : 'Copy invite link to clipboard'} closeOnClick={false} hasArrow>
                     <Button
                       onClick={onCopy}
@@ -241,12 +247,13 @@ const PerpetualOrgDashboard = () => {
                       {hasCopied ? 'Copied!' : 'Copy Invite Link'}
                     </Button>
                   </Tooltip>
-                </Box>
+                </HStack>
               </Box>
             </GridItem>
 
             <GridItem area={'orgStats'}>
               <Box
+                data-tour="org-stats"
                 h="100%"
                 ml={{ base: 0, md: "25%" }}
                 w={{ base: "100%", md: "75%" }}

@@ -741,11 +741,15 @@ function DeployerPageContent() {
   };
 
   // Handle navigation after deployment celebration
+  // Navigate immediately — the transition overlay stays visible during navigation,
+  // and the dashboard shows a loading screen while the subgraph indexes
   const handleDeploySuccess = () => {
-    // Delay redirect to allow subgraph indexing
-    setTimeout(() => {
-      router.push(`/profileHub?userDAO=${encodeURIComponent(state.organization.name)}`);
-    }, 2000);
+    const orgName = state.organization.name;
+    localStorage.setItem('poa-new-org-deploy', JSON.stringify({
+      orgName,
+      deployedAt: Date.now(),
+    }));
+    router.push(`/dashboard?userDAO=${encodeURIComponent(orgName)}&newOrg=true`);
   };
 
   // Handlers for modals that OrganizationStep needs

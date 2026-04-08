@@ -53,7 +53,7 @@ import { usePOContext } from '../../context/POContext';
  * @param {Object} props.roleNames - Map of hatId -> role name
  * @param {string[]} props.creatorHatIds - Hat IDs that can create projects
  */
-const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [] }) => {
+const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [], defaultName = '', defaultDescription = '' }) => {
   const toast = useToast();
   const { orgChainId } = usePOContext();
   const [loading, setLoading] = useState(false);
@@ -61,6 +61,18 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
   // Basic fields
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+
+  // Pre-fill defaults when modal opens with tour defaults
+  // The existing handleClose/resetForm clears fields on close, so
+  // name/description will be '' when the modal re-opens
+  useEffect(() => {
+    if (isOpen && defaultName) {
+      setName(defaultName);
+    }
+    if (isOpen && defaultDescription) {
+      setDescription(defaultDescription);
+    }
+  }, [isOpen, defaultName, defaultDescription]);
 
   // Token cap (0 = unlimited)
   const [hasCap, setHasCap] = useState(false);

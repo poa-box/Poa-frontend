@@ -34,11 +34,12 @@ const glassLayerStyle = {
   border: "1px solid rgba(148, 115, 220, 0.2)",
 };
 
-const VotingTabs = ({ 
-  selectedTab, 
-  handleTabsChange, 
-  PTVoteType, 
-  children 
+const VotingTabs = ({
+  selectedTab,
+  handleTabsChange,
+  PTVoteType,
+  children,
+  headerSlot,
 }) => {
   // Use responsive sizing based on breakpoints
   const tabFontSize = useBreakpointValue({ base: "md", sm: "xl", md: "2xl" });
@@ -53,7 +54,10 @@ const VotingTabs = ({
       onChange={handleTabsChange}
       mb={{ base: 4, md: 6 }}
     >
+      <Box data-tour="voting-header">
+        {headerSlot}
       <TabList
+        data-tour="voting-tabs"
         alignItems="center"
         justifyContent="center"
         borderRadius="3xl"
@@ -188,6 +192,7 @@ const VotingTabs = ({
           </Tab>
         </Tooltip>
       </TabList>
+      </Box>
 
       <TabPanels>
         {children}

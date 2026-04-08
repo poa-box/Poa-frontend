@@ -366,6 +366,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
           {title}
           {title === 'Open' && (
             <IconButton
+              data-tour="add-task-btn"
               ml={8}
               icon={<AddIcon color="white" />}
               aria-label="Add task"

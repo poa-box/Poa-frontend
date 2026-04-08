@@ -159,7 +159,7 @@ const EducationHub = () => {
           <Spinner size="xl" />
         </Center>
       ) : (
-        <Box position="relative">
+        <Box position="relative" data-tour="education-hub-content">
           {/* Main Box */}
           <Box
             p={5}

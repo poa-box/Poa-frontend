@@ -3,8 +3,9 @@
  * Main voting page component for proposal management and voting
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
+  Box,
   Container,
   Center,
   Spinner,
@@ -29,9 +30,25 @@ import { usePollNavigation } from "../../hooks/usePollNavigation";
 import { useVotingPagination } from "../../hooks/useVotingPagination";
 import { useProposalForm } from "../../hooks/useProposalForm";
 import { useWinnerStatus } from "../../hooks/useWinnerStatus";
+import { useTour } from "@/features/tour";
 
 const VotingPage = () => {
   const [showCreatePoll, setShowCreatePoll] = useState(false);
+  const { currentStepDef, isActive: isTourActive } = useTour();
+  const tourOpenedModalRef = useRef(false);
+
+  // Auto-open/close CreateVoteModal when tour reaches the create-vote-preview step
+  useEffect(() => {
+    const tourWantsModal = isTourActive && currentStepDef?.id === 'create-vote-preview';
+    if (tourWantsModal && !showCreatePoll) {
+      tourOpenedModalRef.current = true;
+      setShowCreatePoll(true);
+    } else if (!tourWantsModal && tourOpenedModalRef.current) {
+      // Only close if the tour opened it (not if user opened it manually)
+      tourOpenedModalRef.current = false;
+      setShowCreatePoll(false);
+    }
+  }, [isTourActive, currentStepDef?.id, showCreatePoll]);
 
   // Web3 services hook
   const { voting, executeWithNotification, isReady } = useWeb3();
@@ -234,12 +251,11 @@ const VotingPage = () => {
         </Center>
       ) : (
         <Container maxW="container.2xl" py={{ base: 20, md: 4 }} px={{ base: "1%", md: "3%" }}>
-          <VotingEducationHeader selectedTab={selectedTab} PTVoteType={PTVoteType} />
-
           <VotingTabs
             selectedTab={selectedTab}
             handleTabsChange={handleTabsChange}
             PTVoteType={PTVoteType}
+            headerSlot={<VotingEducationHeader selectedTab={selectedTab} PTVoteType={PTVoteType} />}
           >
             <TabPanel>
               <VotingPanel

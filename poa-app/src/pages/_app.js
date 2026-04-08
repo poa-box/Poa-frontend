@@ -11,6 +11,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { RefreshProvider } from "@/context/RefreshContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
+import { TourProvider, TourOverlay, TourPrompt } from "@/features/tour";
 import '@rainbow-me/rainbowkit/styles.css';
 import '../styles/globals.css';
 import '/public/css/prism.css';
@@ -209,9 +210,13 @@ function MyApp({ Component, pageProps }) {
                             <Web3Provider>
                               <DataBaseProvider>
                                 <ChakraProvider theme={theme}>
-                                  <NetworkModalControl />
-                                  <Notification />
-                                  <Component {...pageProps} />
+                                  <TourProvider>
+                                    <NetworkModalControl />
+                                    <Notification />
+                                    <TourOverlay />
+                                    <TourPrompt />
+                                    <Component {...pageProps} />
+                                  </TourProvider>
                                 </ChakraProvider>
                               </DataBaseProvider>
                             </Web3Provider>
