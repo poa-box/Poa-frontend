@@ -18,7 +18,7 @@ function UsernameLink({
 }) {
   if (!hasUsername || !username) {
     return (
-      <Text color={color} fontSize={fontSize} fontWeight={fontWeight} isTruncated={isTruncated} maxW={maxW}>
+      <Text as="span" color={color} fontSize={fontSize} fontWeight={fontWeight} isTruncated={isTruncated} maxW={maxW}>
         {children || username}
       </Text>
     );

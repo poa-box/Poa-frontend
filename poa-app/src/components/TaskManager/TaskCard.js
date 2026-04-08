@@ -230,7 +230,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
                       bg="purple.500"
                       color="white"
                       cursor="pointer"
-                      _hover={{ ring: '2px', ringColor: 'purple.400' }}
+                      _hover={{ boxShadow: '0 0 0 2px var(--chakra-colors-purple-400)' }}
                     />
                   </Box>
                 </Link>

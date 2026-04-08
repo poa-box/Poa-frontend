@@ -22,12 +22,11 @@ import {
   IconButton,
   Tooltip,
   Skeleton,
-  SkeletonText,
   Icon,
   useToast,
   useColorModeValue,
 } from '@chakra-ui/react';
-import { CopyIcon, CheckIcon, ExternalLinkIcon } from '@chakra-ui/icons';
+import { CopyIcon, CheckIcon } from '@chakra-ui/icons';
 import { FiGithub, FiTwitter, FiGlobe } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -57,7 +56,12 @@ const PublicProfilePage = () => {
   const username = router.query.username;
 
   useEffect(() => {
-    if (!router.isReady || !username) return;
+    if (!router.isReady) return;
+    if (!username) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
 
     async function loadProfile() {
@@ -130,7 +134,9 @@ const PublicProfilePage = () => {
                 <VStack spacing={4} align="center" py={8}>
                   <Heading size="lg" color={textColor}>User not found</Heading>
                   <Text color={subtextColor}>
-                    No account registered with the username "{username}".
+                    {username
+                      ? `No account registered with the username "${username}".`
+                      : 'No username specified.'}
                   </Text>
                   <Link href="/explore" passHref legacyBehavior>
                     <Text as="a" color="purple.400" fontWeight="medium" _hover={{ textDecoration: 'underline' }}>
@@ -195,7 +201,6 @@ const PublicProfilePage = () => {
                               variant="ghost"
                               colorScheme="gray"
                               size="lg"
-                              onClick={(e) => e.stopPropagation()}
                             />
                           </Tooltip>
                         )}
@@ -211,7 +216,6 @@ const PublicProfilePage = () => {
                               variant="ghost"
                               colorScheme="gray"
                               size="lg"
-                              onClick={(e) => e.stopPropagation()}
                             />
                           </Tooltip>
                         )}
@@ -227,7 +231,6 @@ const PublicProfilePage = () => {
                               variant="ghost"
                               colorScheme="gray"
                               size="lg"
-                              onClick={(e) => e.stopPropagation()}
                             />
                           </Tooltip>
                         )}

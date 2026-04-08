@@ -773,7 +773,14 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                       )}
                       {task.rejections && task.rejections.length > 0 && task.rejections[0].rejectorUsername && (
                         <Text fontSize="xs" color="gray.400">
-                          Rejected by {task.rejections[0].rejectorUsername}
+                          Rejected by{' '}
+                          <UsernameLink
+                            username={task.rejections[0].rejectorUsername}
+                            hasUsername={!!task.rejections[0].rejectorUsername}
+                            color="gray.300"
+                            fontWeight="medium"
+                            fontSize="xs"
+                          />
                           {task.rejections[0].rejectedAt && (
                             <> on {new Date(task.rejections[0].rejectedAt * 1000).toLocaleDateString()}</>
                           )}
@@ -854,9 +861,13 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                             >
                               <Flex justify="space-between" align="start" mb={appContent || applicationsLoading ? 2 : 0}>
                                 <VStack align="start" spacing={0}>
-                                  <Text fontSize="sm" fontWeight="bold" color="white">
-                                    {applicant.username || `${applicant.address?.slice(0, 6)}...${applicant.address?.slice(-4)}`}
-                                  </Text>
+                                  <UsernameLink
+                                    username={applicant.username || `${applicant.address?.slice(0, 6)}...${applicant.address?.slice(-4)}`}
+                                    hasUsername={!!applicant.username}
+                                    fontSize="sm"
+                                    fontWeight="bold"
+                                    color="white"
+                                  />
                                   <Text fontSize="xs" color="gray.500">
                                     {applicant.appliedAt
                                       ? `Applied ${new Date(applicant.appliedAt * 1000).toLocaleDateString()}`
