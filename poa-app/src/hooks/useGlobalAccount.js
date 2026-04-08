@@ -1,65 +1,123 @@
 /**
  * useGlobalAccount Hook
  * Provides global account state (username, account existence) independent of organization context.
- * Uses the UniversalAccountRegistry subgraph data.
+ * Queries ALL chain subgraphs to find the account — accounts may be registered on any chain
+ * (e.g., Gnosis via solidarity onboarding, Arbitrum via org onboarding).
  * Supports both wallet (EOA) and passkey authentication.
  */
 
-import { useEffect } from 'react';
-import { useQuery } from '@apollo/client';
+import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
-import { FETCH_USERNAME_NEW } from '@/util/queries';
 import { useRefresh } from '@/context/RefreshContext';
 import { useAuth } from '@/context/AuthContext';
+import { getAllSubgraphUrls } from '@/config/networks';
+
+const ACCOUNT_QUERY = `
+  query FetchAccount($id: Bytes!) {
+    account(id: $id) {
+      id
+      username
+      profileMetadataHash
+      metadata {
+        id
+        bio
+        avatar
+        github
+        twitter
+        website
+      }
+    }
+  }
+`;
 
 /**
  * Hook to check if the authenticated user has a registered account.
  * Works for both wallet and passkey users via AuthContext's unified accountAddress.
- * @returns {Object} Account state
- * @returns {string|null} globalUsername - The registered username or null
- * @returns {boolean} hasAccount - Whether the user has a registered account
- * @returns {boolean} isLoading - Whether the query is loading
- * @returns {Function} refetchAccount - Function to manually refetch account data
+ * Searches across ALL mainnet subgraphs (Arbitrum, Gnosis, etc.) to find the account.
  */
 export function useGlobalAccount() {
   const { address: wagmiAddress } = useAccount();
   const { accountAddress } = useAuth();
   const { subscribe } = useRefresh();
 
-  // Use unified accountAddress (works for both passkey and wallet users),
-  // falling back to wagmi address for compatibility
   const lookupAddress = accountAddress || wagmiAddress;
 
-  const { data, loading, refetch } = useQuery(FETCH_USERNAME_NEW, {
-    variables: { id: lookupAddress?.toLowerCase() },
-    skip: !lookupAddress,
-    fetchPolicy: 'cache-first',
-  });
+  const [username, setUsername] = useState(null);
+  const [profileMetadata, setProfileMetadata] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  // Refetch immediately — executeWithNotification already waited for the
-  // subgraph to index the transaction block before emitting these events.
+  const fetchAccount = useCallback(async () => {
+    if (!lookupAddress) {
+      setUsername(null);
+      setProfileMetadata(null);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const sources = getAllSubgraphUrls();
+    const id = lookupAddress.toLowerCase();
+
+    try {
+      const results = await Promise.allSettled(
+        sources.map(async (source) => {
+          const res = await fetch(source.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query: ACCOUNT_QUERY, variables: { id } }),
+          });
+          const json = await res.json();
+          return json?.data?.account || null;
+        })
+      );
+
+      // Use the first chain that has the account
+      for (const result of results) {
+        if (result.status !== 'fulfilled' || !result.value) continue;
+        const account = result.value;
+        if (account.username) {
+          setUsername(account.username);
+          setProfileMetadata(account.metadata || null);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Not found on any chain
+      setUsername(null);
+      setProfileMetadata(null);
+    } catch (err) {
+      console.error('[useGlobalAccount] Cross-chain lookup failed:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [lookupAddress]);
+
+  // Initial fetch
+  useEffect(() => {
+    fetchAccount();
+  }, [fetchAccount]);
+
+  // Refetch on relevant events
   useEffect(() => {
     if (!subscribe) return;
 
-    const unsub1 = subscribe('user:created', () => refetch());
-    const unsub2 = subscribe('user:username_changed', () => refetch());
-    const unsub3 = subscribe('user:profile_updated', () => refetch());
+    const unsub1 = subscribe('user:created', () => fetchAccount());
+    const unsub2 = subscribe('user:username_changed', () => fetchAccount());
+    const unsub3 = subscribe('user:profile_updated', () => fetchAccount());
 
     return () => {
       unsub1();
       unsub2();
       unsub3();
     };
-  }, [subscribe, refetch]);
-
-  const username = data?.account?.username || null;
-  const profileMetadata = data?.account?.metadata || null;
+  }, [subscribe, fetchAccount]);
 
   return {
     globalUsername: username,
     hasAccount: !!username,
     isLoading: loading,
-    refetchAccount: refetch,
+    refetchAccount: fetchAccount,
     profileMetadata,
   };
 }
