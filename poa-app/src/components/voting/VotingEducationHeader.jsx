@@ -181,6 +181,11 @@ const LearnMoreDropdown = ({ classWeights, classConfig }) => {
                   <Text fontSize="xs" color="green.200" fontWeight="semibold">
                     Your total voting power: {((democracyWeight / 6) + (contributionWeight * 10 / 100)).toFixed(1)}%
                   </Text>
+                  {isQuadratic && (
+                    <Text fontSize="xs" color="gray.400" fontStyle="italic">
+                      With quadratic scaling, contribution uses √(shares) for fairer distribution — actual percentages will differ from this simplified example.
+                    </Text>
+                  )}
                 </VStack>
               </VStack>
             </Box>
@@ -200,8 +205,9 @@ const LearnMoreDropdown = ({ classWeights, classConfig }) => {
  * Visual component showing the "Two Voices" voting power breakdown
  * with actual numerical values and class weights
  */
-const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, isLoading, hasMemberRole }) => {
+const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classConfig, isLoading, hasMemberRole }) => {
   const totalPower = membershipPower + contributionPower;
+  const isQuadratic = classConfig?.some(c => c.strategy === 'ERC20_BAL' && c.quadratic) ?? false;
   const democracyWeight = classWeights?.democracy ?? 50;
   const contributionWeight = classWeights?.contribution ?? 50;
 
@@ -268,8 +274,13 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, isLoad
           <Tooltip
             label={
               <VStack spacing={1} align="start" p={1}>
-                <Text fontWeight="bold">Contribution</Text>
-                <Text fontSize="xs">Based on your shares — {contributionWeight}% of the final decision.</Text>
+                <Text fontWeight="bold">Contribution{isQuadratic ? ' (Quadratic)' : ''}</Text>
+                <Text fontSize="xs">
+                  {isQuadratic
+                    ? `Shares are square-root weighted — ${contributionWeight}% of the final decision. This gives fairer representation across holders.`
+                    : `Based on your shares — ${contributionWeight}% of the final decision.`
+                  }
+                </Text>
               </VStack>
             }
             placement="top"
@@ -292,7 +303,7 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, isLoad
                   {contributionWeight}%
                 </Text>
                 <Text fontSize="2xs" color="whiteAlpha.800">
-                  contribution
+                  contribution{isQuadratic ? ' √' : ''}
                 </Text>
               </HStack>
             </Flex>
@@ -307,7 +318,8 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, isLoad
 /**
  * Stats panel showing user's effective voting share breakdown by class
  */
-const VotingPowerStats = ({ classWeights, orgStats, poMembers }) => {
+const VotingPowerStats = ({ classWeights, orgStats, poMembers, classConfig }) => {
+  const isQuadratic = classConfig?.some(c => c.strategy === 'ERC20_BAL' && c.quadratic) ?? false;
   const membershipPct = orgStats?.membershipPercent ?? 0;
   const contributionPct = orgStats?.contributionPercent ?? 0;
   const totalPct = orgStats?.percentOfTotal ?? 0;
@@ -342,7 +354,22 @@ const VotingPowerStats = ({ classWeights, orgStats, poMembers }) => {
           <Text fontSize="md" fontWeight="bold" color="blue.300">
             {contributionPct.toFixed(1)}%
           </Text>
-          <Text fontSize="2xs" color="gray.500">contribution</Text>
+          <HStack spacing={1} justify="center">
+            <Text fontSize="2xs" color="gray.500">contribution</Text>
+            {isQuadratic && (
+              <Tooltip
+                label="Square-root weighted — your influence is based on √(your shares) vs the sum of √(everyone's shares), giving fairer representation"
+                placement="top"
+                hasArrow
+                bg="gray.700"
+                p={2}
+                maxW="240px"
+                fontSize="xs"
+              >
+                <Text fontSize="2xs" color="blue.400" cursor="help" opacity={0.7}>√</Text>
+              </Tooltip>
+            )}
+          </HStack>
         </VStack>
         <Text color="gray.600" fontSize="xs">=</Text>
         <VStack spacing={0} flex={1}>
@@ -362,7 +389,7 @@ const VotingPowerStats = ({ classWeights, orgStats, poMembers }) => {
                       Membership ({democracyWeight}% weight): Your equal share among {poMembers} members
                     </Text>
                     <Text fontSize="xs" color="blue.200">
-                      Contribution ({contributionWeight}% weight): Your share based on shares earned
+                      Contribution ({contributionWeight}% weight): Your share based on shares earned{isQuadratic ? ' (√ weighted)' : ''}
                     </Text>
                   </VStack>
                   <Text fontSize="xs" color="gray.300" fontStyle="italic">
@@ -553,6 +580,7 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
               membershipPower={membershipPower}
               contributionPower={contributionPower}
               classWeights={classWeights}
+              classConfig={classConfig}
               isLoading={isLoading}
               hasMemberRole={hasMemberRole}
             />
@@ -563,6 +591,7 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
                 classWeights={classWeights}
                 poMembers={poMembers}
                 orgStats={orgStats}
+                classConfig={classConfig}
               />
             )}
 

@@ -97,7 +97,8 @@ export function TokenActivityCard({
   const [countFinished, setCountFinished] = useState(false);
   const hasAnimatedRef = useRef(false);
 
-  const { percentOfTotal, classWeights, isHybrid, isLoading: votingLoading } = useVotingPower();
+  const { percentOfTotal, classWeights, classConfig, isHybrid, isLoading: votingLoading } = useVotingPower();
+  const isQuadratic = classConfig?.some(c => c.strategy === 'ERC20_BAL' && c.quadratic) ?? false;
   const { treasuryShare, isLoading: treasuryLoading, isHidden: treasuryHidden } = useTreasuryShare();
 
   const duration = hasAnimatedRef.current ? 500 : 1700;
@@ -184,7 +185,7 @@ export function TokenActivityCard({
             <Tooltip
               label={
                 isHybrid
-                  ? `Your voting power combines membership (${classWeights.democracy}% weight) and contribution (${classWeights.contribution}% weight) to determine your share of organizational decisions.`
+                  ? `Your voting power combines membership (${classWeights.democracy}% weight) and contribution (${classWeights.contribution}% weight${isQuadratic ? ', √ weighted' : ''}) to determine your share of organizational decisions.`
                   : 'In direct democracy, every member has an equal vote.'
               }
               placement="top"
