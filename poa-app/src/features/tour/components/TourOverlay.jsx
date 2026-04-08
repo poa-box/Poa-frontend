@@ -323,7 +323,7 @@ function TooltipCard({ step, stepIndex, totalSteps, StepIcon, isFirst, isLast, i
         {(step.id === 'join-prompt' || (isLast && !tourCtx?.isAuthenticated)) && inviteLink && (
           <Button
             as="a"
-            href={joinLink}
+            href={inviteLink}
             size="sm"
             bg="amethyst.500"
             color="white"
