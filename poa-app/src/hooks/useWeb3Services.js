@@ -9,6 +9,7 @@ import { useQuery } from '@apollo/client';
 import { getClient } from '@/util/apolloClient';
 import { encodeFunctionData } from 'viem';
 import { useEthersSigner, useEthersProvider } from '@/components/ProviderConverter';
+import { useWalletClient } from 'wagmi';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useRefreshEmit } from '../context/RefreshContext';
@@ -27,6 +28,9 @@ import PasskeyAccountFactoryABI from '../../abi/PasskeyAccountFactory.json';
 import { ContractFactory, createContractFactory } from '../services/web3/core/ContractFactory';
 import { TransactionManager, createTransactionManager } from '../services/web3/core/TransactionManager';
 import { createSmartAccountTransactionManager } from '../services/web3/core/SmartAccountTransactionManager';
+import { createEOA7702TransactionManager } from '../services/web3/eip7702/EOA7702TransactionManager';
+import { checkWallet7702Support } from '../services/web3/eip7702/authorizationBuilder';
+import { EOA_DELEGATION_ADDRESS } from '../config/contracts';
 
 // Domain services
 import { UserService, createUserService } from '../services/web3/domain/UserService';
@@ -207,6 +211,17 @@ export function useWeb3Services(options = {}) {
     return createContractFactory(signer);
   }, [signer, provider, isPasskeyUser]);
 
+  // EIP-7702 capability detection for EOA users
+  const { data: walletClient } = useWalletClient();
+  const [eoa7702Capable, setEoa7702Capable] = useState(false);
+  useEffect(() => {
+    if (isPasskeyUser || !walletClient) {
+      setEoa7702Capable(false);
+      return;
+    }
+    checkWallet7702Support(walletClient).then(setEoa7702Capable).catch(() => setEoa7702Capable(false));
+  }, [walletClient, isPasskeyUser]);
+
   const txManager = useMemo(() => {
     if (isPasskeyUser) {
       // Passkey: create SmartAccountTransactionManager
@@ -224,10 +239,28 @@ export function useWeb3Services(options = {}) {
         initCode: crossChainInitCode,
       });
     }
-    // EOA: create standard TransactionManager
+
+    // EOA with EIP-7702: gas-sponsored via PaymasterHub (same flow as passkey)
+    // Only activate when inside org context with active paymaster + hat budget
+    if (eoa7702Capable && walletClient && paymasterAddress && orgId && hatIds?.length > 0
+        && effectivePublicClient && effectiveBundlerClient) {
+      return createEOA7702TransactionManager({
+        accountAddress: walletClient.account.address,
+        walletClient,
+        publicClient: effectivePublicClient,
+        bundlerClient: effectiveBundlerClient,
+        paymasterAddress,
+        orgId,
+        hatIds,
+        chainId: effectiveChainId,
+        eoaDelegationAddress: EOA_DELEGATION_ADDRESS,
+      });
+    }
+
+    // EOA fallback: standard direct transactions (no sponsorship)
     if (!signer) return null;
     return createTransactionManager(signer);
-  }, [signer, isPasskeyUser, passkeyState, effectivePublicClient, effectiveBundlerClient, paymasterAddress, orgId, hatIds, effectiveChainId, crossChainInitCode]);
+  }, [signer, isPasskeyUser, passkeyState, effectivePublicClient, effectiveBundlerClient, paymasterAddress, orgId, hatIds, effectiveChainId, crossChainInitCode, eoa7702Capable, walletClient]);
 
   // Create domain services
   const services = useMemo(() => {
