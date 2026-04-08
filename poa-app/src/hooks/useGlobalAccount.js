@@ -43,20 +43,24 @@ export function useGlobalAccount() {
 
     const unsub1 = subscribe('user:created', () => refetch());
     const unsub2 = subscribe('user:username_changed', () => refetch());
+    const unsub3 = subscribe('user:profile_updated', () => refetch());
 
     return () => {
       unsub1();
       unsub2();
+      unsub3();
     };
   }, [subscribe, refetch]);
 
   const username = data?.account?.username || null;
+  const profileMetadata = data?.account?.metadata || null;
 
   return {
     globalUsername: username,
     hasAccount: !!username,
     isLoading: loading,
     refetchAccount: refetch,
+    profileMetadata,
   };
 }
 

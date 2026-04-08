@@ -58,6 +58,7 @@ export const RefreshEvent = {
   // User events
   USER_CREATED: 'user:created',
   USERNAME_CHANGED: 'user:username_changed',
+  PROFILE_UPDATED: 'user:profile_updated',
 
   // Generic events
   ALL: '*',

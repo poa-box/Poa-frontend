@@ -77,6 +77,15 @@ export const FETCH_USERNAME_NEW = gql`
     account(id: $id) {
       id
       username
+      profileMetadataHash
+      metadata {
+        id
+        bio
+        avatar
+        github
+        twitter
+        website
+      }
     }
   }
 `;
