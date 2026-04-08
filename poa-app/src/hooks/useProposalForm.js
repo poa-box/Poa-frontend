@@ -20,7 +20,7 @@ const defaultProposal = {
   description: "",
   execution: "",
   time: 0,
-  options: [],
+  options: ["", ""],
   type: "normal",
   transferAddress: "",
   transferAmount: "",
@@ -57,9 +57,22 @@ export function useProposalForm({ onSubmit }) {
     setProposal(prev => ({ ...prev, [name]: value }));
   }, []);
 
-  const handleOptionsChange = useCallback((e) => {
-    const options = e.target.value.split(", ");
-    setProposal(prev => ({ ...prev, options }));
+  const handleOptionChange = useCallback((index, value) => {
+    setProposal(prev => ({
+      ...prev,
+      options: prev.options.map((opt, i) => (i === index ? value : opt)),
+    }));
+  }, []);
+
+  const addOption = useCallback(() => {
+    setProposal(prev => ({ ...prev, options: [...prev.options, ""] }));
+  }, []);
+
+  const removeOption = useCallback((index) => {
+    setProposal(prev => ({
+      ...prev,
+      options: prev.options.filter((_, i) => i !== index),
+    }));
   }, []);
 
   const handleProposalTypeChange = useCallback((e) => {
@@ -67,6 +80,7 @@ export function useProposalForm({ onSubmit }) {
     setProposal(prev => ({
       ...prev,
       type: newType,
+      options: newType === 'normal' ? ["", ""] : [],
       ...(newType !== 'election' ? {
         electionRoleId: '',
         electionCandidates: [],
@@ -221,6 +235,21 @@ export function useProposalForm({ onSubmit }) {
 
     return true;
   }, [proposal.electionRoleId, proposal.electionCandidates, toast]);
+
+  const validateNormalProposal = useCallback(() => {
+    const nonEmpty = (proposal.options || []).filter(opt => opt.trim() !== '');
+    if (nonEmpty.length < 2) {
+      toast({
+        title: "Not Enough Options",
+        description: "Please provide at least 2 voting options.",
+        status: "error",
+        duration: 5000,
+        isClosable: true,
+      });
+      return false;
+    }
+    return true;
+  }, [proposal.options, toast]);
 
   const validateSetterProposal = useCallback(() => {
     if (proposal.setterMode === 'template') {
@@ -563,8 +592,9 @@ export function useProposalForm({ onSubmit }) {
       numOptions = 2;
       optionNames = ["Apply Changes", "Reject"];
     } else {
-      numOptions = proposal.options?.length || 2;
-      optionNames = proposal.options || [];
+      const filteredOptions = (proposal.options || []).filter(opt => opt.trim() !== '');
+      numOptions = filteredOptions.length || 2;
+      optionNames = filteredOptions;
       batches = [];
     }
 
@@ -619,6 +649,11 @@ export function useProposalForm({ onSubmit }) {
       }
 
       if (proposal.type === "setter" && !validateSetterProposal()) {
+        setLoadingSubmit(false);
+        return;
+      }
+
+      if (proposal.type === "normal" && !validateNormalProposal()) {
         setLoadingSubmit(false);
         return;
       }
@@ -684,13 +719,15 @@ export function useProposalForm({ onSubmit }) {
       setLoadingSubmit(false);
       return false;
     }
-  }, [proposal, validateBasicFields, validateTransferProposal, validateElectionProposal, validateSetterProposal, buildProposalData, onSubmit, resetForm, toast]);
+  }, [proposal, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, buildProposalData, onSubmit, resetForm, toast]);
 
   return {
     proposal,
     loadingSubmit,
     handleInputChange,
-    handleOptionsChange,
+    handleOptionChange,
+    addOption,
+    removeOption,
     handleProposalTypeChange,
     handleTransferAddressChange,
     handleTransferAmountChange,

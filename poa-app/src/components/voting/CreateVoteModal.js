@@ -24,8 +24,9 @@ import {
   Checkbox,
   Wrap,
   WrapItem,
+  IconButton,
 } from "@chakra-ui/react";
-import { InfoOutlineIcon } from "@chakra-ui/icons";
+import { InfoOutlineIcon, AddIcon, CloseIcon } from "@chakra-ui/icons";
 import { useRoleNames } from "@/hooks";
 import { usePOContext } from "@/context/POContext";
 import { getNetworkByChainId } from "../../config/networks";
@@ -59,7 +60,9 @@ const CreateVoteModal = ({
   onClose,
   proposal,
   handleInputChange,
-  handleOptionsChange,
+  handleOptionChange,
+  addOption,
+  removeOption,
   handleProposalTypeChange,
   handleTransferAddressChange,
   handleTransferAmountChange,
@@ -178,7 +181,7 @@ const CreateVoteModal = ({
                     onChange={handleProposalTypeChange}
                     {...selectStyles}
                   >
-                    <option value="normal">Normal Vote</option>
+                    <option value="normal">Standard Poll</option>
                     <option value="election">Election (assign role to winner)</option>
                     <option value="transferFunds">Transfer Funds</option>
                     <option value="setter">Change Contract Settings</option>
@@ -188,14 +191,41 @@ const CreateVoteModal = ({
                 {proposal.type === "normal" && (
                   <FormControl>
                     <FormLabel color="gray.200" fontSize="sm">
-                      Options (comma separated)
+                      Voting Options
                     </FormLabel>
-                    <Input
-                      placeholder="e.g. Yes, No, Abstain"
-                      value={proposal.options.join(", ")}
-                      onChange={handleOptionsChange}
-                      {...inputStyles}
-                    />
+                    <VStack spacing={2} align="stretch">
+                      {proposal.options.map((option, index) => (
+                        <HStack key={index} spacing={2}>
+                          <Input
+                            placeholder={`Option ${index + 1}`}
+                            value={option}
+                            onChange={(e) => handleOptionChange(index, e.target.value)}
+                            {...inputStyles}
+                          />
+                          <IconButton
+                            aria-label="Remove option"
+                            icon={<CloseIcon boxSize={2.5} />}
+                            size="sm"
+                            variant="ghost"
+                            color="gray.400"
+                            _hover={{ color: "red.300", bg: "whiteAlpha.100" }}
+                            onClick={() => removeOption(index)}
+                            isDisabled={proposal.options.length <= 2}
+                          />
+                        </HStack>
+                      ))}
+                      <Button
+                        leftIcon={<AddIcon boxSize={3} />}
+                        size="sm"
+                        variant="ghost"
+                        color="purple.300"
+                        _hover={{ bg: "whiteAlpha.100" }}
+                        onClick={addOption}
+                        alignSelf="flex-start"
+                      >
+                        Add Option
+                      </Button>
+                    </VStack>
                   </FormControl>
                 )}
 
