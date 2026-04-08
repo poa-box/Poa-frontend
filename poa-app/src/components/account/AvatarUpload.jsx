@@ -40,6 +40,11 @@ const IPFS_GATEWAY = 'https://ipfs.io/ipfs/';
  * Outputs a square PNG at the given size, suitable for avatar use.
  */
 async function getCroppedBlob(imageSrc, pixelCrop, outputSize = 256) {
+  if (!imageSrc) throw new Error('Image source is required');
+  if (!pixelCrop || pixelCrop.width <= 0 || pixelCrop.height <= 0) {
+    throw new Error('Invalid crop area');
+  }
+
   const image = await loadImage(imageSrc);
   const canvas = document.createElement('canvas');
   canvas.width = outputSize;
@@ -58,8 +63,12 @@ async function getCroppedBlob(imageSrc, pixelCrop, outputSize = 256) {
     outputSize,
   );
 
-  return new Promise((resolve) => {
-    canvas.toBlob((blob) => resolve(blob), 'image/png', 0.92);
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => blob ? resolve(blob) : reject(new Error('Failed to create image')),
+      'image/png',
+      0.92,
+    );
   });
 }
 
@@ -77,6 +86,7 @@ function AvatarUpload({ avatarCid, localPreview, onUpload, onRemove, isDisabled 
   const { addToIpfs } = useIPFScontext();
   const toast = useToast();
   const fileInputRef = useRef(null);
+  const prevPreviewRef = useRef(null);
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   const [isUploading, setIsUploading] = useState(false);
@@ -84,6 +94,17 @@ function AvatarUpload({ avatarCid, localPreview, onUpload, onRemove, isDisabled 
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+  // Revoke previous blob URL when localPreview changes to prevent memory leaks
+  React.useEffect(() => {
+    if (prevPreviewRef.current && prevPreviewRef.current !== localPreview) {
+      URL.revokeObjectURL(prevPreviewRef.current);
+    }
+    prevPreviewRef.current = localPreview;
+    return () => {
+      if (prevPreviewRef.current) URL.revokeObjectURL(prevPreviewRef.current);
+    };
+  }, [localPreview]);
 
   const previewSrc = localPreview || (avatarCid ? `${IPFS_GATEWAY}${avatarCid}` : null);
 
@@ -219,7 +240,8 @@ function AvatarUpload({ avatarCid, localPreview, onUpload, onRemove, isDisabled 
           {!isUploading && <ModalCloseButton color="white" />}
 
           <ModalBody>
-            <Box position="relative" height="300px" borderRadius="xl" overflow="hidden">
+            <Box position="relative" height="300px" borderRadius="xl" overflow="hidden"
+              opacity={isUploading ? 0.5 : 1} pointerEvents={isUploading ? 'none' : 'auto'}>
               {rawImage && (
                 <Cropper
                   image={rawImage}
