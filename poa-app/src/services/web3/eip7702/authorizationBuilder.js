@@ -56,7 +56,9 @@ export async function checkWallet7702Support(walletClient) {
     // getCapabilities not supported — fall through
   }
 
-  // Method exists on the client object — assume supported
-  // Actual signing will fail at transaction time if the wallet rejects
-  return typeof walletClient.signAuthorization === 'function';
+  // signAuthorization method exists but we couldn't confirm via capabilities.
+  // Return false to be safe — we'd rather fall back to direct tx than risk
+  // a confusing runtime error. Wallets that support 7702 should also support
+  // getCapabilities to advertise it.
+  return false;
 }

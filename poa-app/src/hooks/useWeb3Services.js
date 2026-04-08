@@ -214,8 +214,9 @@ export function useWeb3Services(options = {}) {
   // EIP-7702 capability detection for EOA users
   const { data: walletClient } = useWalletClient();
   const [eoa7702Capable, setEoa7702Capable] = useState(false);
+  const eoa7702DisabledRef = useRef(false); // Disabled for session if runtime fails
   useEffect(() => {
-    if (isPasskeyUser || !walletClient) {
+    if (isPasskeyUser || !walletClient || eoa7702DisabledRef.current) {
       setEoa7702Capable(false);
       return;
     }

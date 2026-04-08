@@ -126,11 +126,6 @@ export class EOA7702TransactionManager {
     } catch (error) {
       console.error('[7702] Transaction error:', error.message);
 
-      // If 7702 authorization failed, signal caller to fall back to direct tx
-      if (error.message === 'WALLET_7702_UNSUPPORTED') {
-        throw error; // Let useWeb3Services handle fallback
-      }
-
       const parsedError = this._parseAAError(error.message || 'Unknown error', error);
       this._notifyState(onStateChange, TransactionState.ERROR, { error: parsedError });
       return TransactionResult.failure(parsedError);
@@ -195,7 +190,6 @@ export class EOA7702TransactionManager {
       return TransactionResult.success(txReceipt);
 
     } catch (error) {
-      if (error.message === 'WALLET_7702_UNSUPPORTED') throw error;
       const parsedError = this._parseAAError(error.message || 'Unknown error', error);
       this._notifyState(onStateChange, TransactionState.ERROR, { error: parsedError });
       return TransactionResult.failure(parsedError);
@@ -229,6 +223,29 @@ export class EOA7702TransactionManager {
   }
 
   _parseAAError(message, originalError = null) {
+    // 7702-specific error: wallet doesn't support delegation
+    if (message === 'WALLET_7702_UNSUPPORTED') {
+      return {
+        category: 'delegation_unsupported',
+        userMessage: 'Your wallet does not support gas sponsorship (EIP-7702). The transaction was not sent. Please try again — it will use your own gas.',
+        technicalMessage: message,
+        originalError,
+      };
+    }
+
+    // User rejected the delegation or signing prompt
+    if (message.includes('User rejected') || message.includes('user rejected') ||
+        message.includes('User denied') || message.includes('denied by user') ||
+        originalError?.code === 4001) {
+      return {
+        category: 'user_rejected',
+        userMessage: 'Transaction was cancelled.',
+        technicalMessage: message,
+        originalError,
+      };
+    }
+
+    // ERC-4337 AA error codes
     for (const [code, userMessage] of Object.entries(AA_ERROR_MESSAGES)) {
       if (message.includes(code)) {
         return {
