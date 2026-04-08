@@ -34,7 +34,7 @@ export function OrgStructureCard({
   sectionHeadingSize = '2xl',
 }) {
   return (
-    <Link href={`/org-structure?userDAO=${userDAO}`} passHref legacyBehavior>
+    <Link href={`/team?org=${userDAO}`} passHref legacyBehavior>
       <Box
         as="a"
         display="block"

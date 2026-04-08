@@ -63,7 +63,7 @@ const Footer = () => (
           title="Product"
           links={[
             { label: "Create Organization", href: "/create" },
-            { label: "Browse Organizations", href: "/browser" },
+            { label: "Browse Organizations", href: "/explore" },
             { label: "Documentation", href: "/docs" },
             { label: "Protocol Dashboard", href: "/protocol" },
             { label: "About", href: "/about" },

@@ -69,7 +69,7 @@ const Navigation = () => {
               Docs
             </Button>
           </Link>
-          <Link href="/browser" passHref>
+          <Link href="/explore" passHref>
             <Button variant="outline" p={4} colorScheme="black">
               Browser
             </Button>

@@ -88,7 +88,7 @@ const GradientAvatar = ({ name, orgGradient }) => (
 const Home = () => {
   const { logoUrl, poDescription, poLinks, poMembers, activeTaskAmount, completedTaskAmount } = usePOContext();
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const { fetchImageFromIpfs } = useIPFScontext();
 
   const { isPasskeyUser, isAuthenticated } = useAuth();
@@ -252,7 +252,7 @@ const Home = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              <Link href={`/user/?userDAO=${userDAO}`} passHref legacyBehavior>
+              <Link href={`/join/?org=${userDAO}`} passHref legacyBehavior>
                 <Button
                   as="a"
                   size="lg"
@@ -293,28 +293,28 @@ const Home = () => {
                     icon: FiGrid,
                     label: "Dashboard",
                     description: "View org activity and stats",
-                    path: `/dashboard/?userDAO=${userDAO}`,
+                    path: `/dashboard/?org=${userDAO}`,
                     color: "purple.300",
                   },
                   {
                     icon: FiCheckSquare,
                     label: "Tasks",
                     description: "Browse and claim tasks",
-                    path: `/tasks/?userDAO=${userDAO}`,
+                    path: `/tasks/?org=${userDAO}`,
                     color: "blue.300",
                   },
                   {
                     icon: FiBarChart2,
                     label: "Voting",
                     description: "Vote on active proposals",
-                    path: `/voting/?userDAO=${userDAO}`,
+                    path: `/voting/?org=${userDAO}`,
                     color: "green.300",
                   },
                   {
                     icon: FiUser,
                     label: "Profile Hub",
                     description: "Manage your profile and roles",
-                    path: `/profileHub/?userDAO=${userDAO}`,
+                    path: `/profile/?org=${userDAO}`,
                     color: "coral.300",
                   },
                 ].map((item) => (

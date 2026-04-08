@@ -10,7 +10,7 @@ import { usePOContext } from '@/context/POContext';
 
 const Tasks = () => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const { setSelectedProjectId, projects } = useDataBaseContext();
   const { poContextLoading } = usePOContext();
   const containerRef = useRef();

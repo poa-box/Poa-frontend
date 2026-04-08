@@ -3,7 +3,7 @@ Allow: /
 Allow: /about/
 Allow: /docs/
 Allow: /blog/
-Allow: /browser/
+Allow: /explore/
 Allow: /protocol/
 Allow: /create/
 
@@ -14,13 +14,18 @@ Disallow: /tasks/
 Disallow: /treasury/
 Disallow: /voting/
 Disallow: /voting-history/
+Disallow: /votes/
 Disallow: /settings/
 Disallow: /leaderboard/
 Disallow: /org-structure/
+Disallow: /team/
 Disallow: /profileHub/
+Disallow: /profile/
 Disallow: /user/
+Disallow: /join/
 Disallow: /executive/
 Disallow: /edu-Hub/
-Disallow: /hudson/
+Disallow: /learn/
+Disallow: /browser/
 
 Sitemap: https://poa.box/sitemap.xml

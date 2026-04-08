@@ -15,7 +15,7 @@ export const useUserContext = () => useContext(UserContext);
 export const UserProvider = ({ children }) => {
     const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
-    const { userDAO } = router.query;
+    const userDAO = router.query.org || router.query.userDAO || '';
     const { orgId, roleHatIds, participationTokenAddress, subgraphUrl } = usePOContext();
 
     const [userData, setUserData] = useState({});
