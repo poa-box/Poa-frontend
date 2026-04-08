@@ -1,4 +1,5 @@
 import React, { useMemo, useEffect, useState, useCallback } from 'react';
+import { useTour } from '@/features/tour';
 import {
   Box,
   VStack,
@@ -69,12 +70,13 @@ const TreasuryPage = () => {
   const { hasExecRole } = useUserContext();
   const { pageBackground } = useOrgTheme();
 
-  // Redirect to dashboard if treasury is hidden
+  // Redirect to dashboard if treasury is hidden (skip during tour to prevent bricking)
+  const { isActive: isTourActive } = useTour();
   useEffect(() => {
-    if (hideTreasury && !poContextLoading) {
+    if (hideTreasury && !poContextLoading && !isTourActive) {
       router.replace(`/dashboard/?org=${userDAO}`);
     }
-  }, [hideTreasury, poContextLoading, router, userDAO]);
+  }, [hideTreasury, poContextLoading, isTourActive, router, userDAO]);
 
   // Modal state
   const { isOpen: isPTModalOpen, onOpen: onPTModalOpen, onClose: onPTModalClose } = useDisclosure();

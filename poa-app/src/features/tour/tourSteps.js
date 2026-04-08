@@ -130,8 +130,8 @@ export const TOUR_STEPS = [
     description: 'As an admin, you can create different types of proposals: Normal votes for general decisions, Elections to assign roles, Fund Transfers to move tokens, and Contract Setting changes. Each creates a structured on-chain vote.',
     icon: PiPencilLine,
     action: null,
-    target: '[data-tour="create-vote-modal"]',
-    placement: 'left',
+    target: null, // Modal renders above overlay via z-index, so no spotlight cutout needed
+    placement: 'center',
     forceInteraction: false,
     skip: (ctx) => !ctx.isAuthenticated || !ctx.hasExecRole,
   },
