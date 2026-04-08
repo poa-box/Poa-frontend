@@ -6,8 +6,11 @@ import { useRouter } from 'next/router';
 import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import Link from 'next/link';
+import { usePOContext } from '../../context/POContext';
 
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
+  const poContext = usePOContext();
+  const avatarMap = poContext?.avatarMap || {};
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
 
   const router = useRouter();
@@ -226,6 +229,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
                     <Avatar
                       size="xs"
                       name={claimerUsername}
+                      src={avatarMap[claimerUsername]}
                       getInitials={getUserInitials}
                       bg="purple.500"
                       color="white"
