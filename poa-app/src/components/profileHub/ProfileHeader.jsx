@@ -36,6 +36,7 @@ import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
 export function ProfileHeader({
   username,
   address,
+  avatarUrl,
   userRoles = [],
   isExec,
   onSettingsClick,
@@ -68,6 +69,7 @@ export function ProfileHeader({
           <Avatar
             size={{ base: 'lg', md: 'xl' }}
             name={username || address}
+            src={avatarUrl}
             bg="purple.500"
             color="white"
             boxShadow="lg"
