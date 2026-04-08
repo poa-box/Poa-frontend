@@ -167,7 +167,7 @@ const EducationHub = () => {
           <PulseLoader size="xl" />
         </Center>
       ) : (
-        <Box position="relative" background={pageBackground()}>
+        <Box position="relative" minH="100vh" background={pageBackground()}>
           {/* Main Box */}
           <Box
             p={5}
