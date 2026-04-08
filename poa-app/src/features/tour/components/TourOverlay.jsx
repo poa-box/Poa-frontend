@@ -71,6 +71,9 @@ function getTooltipStyle(rect, placement, isMobile) {
   if (isMobile) {
     return { position: 'fixed', bottom: 0, left: 0, right: 0 };
   }
+  if (placement === 'bottom-fixed') {
+    return { position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', width: `${TOOLTIP_W}px` };
+  }
   if (!rect || placement === 'center') {
     return { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: `${TOOLTIP_W}px` };
   }

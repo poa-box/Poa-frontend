@@ -130,8 +130,8 @@ export const TOUR_STEPS = [
     description: 'As an admin, you can create different types of proposals: Normal votes for general decisions, Elections to assign roles, Fund Transfers to move tokens, and Contract Setting changes. Each creates a structured on-chain vote.',
     icon: PiPencilLine,
     action: null,
-    target: null, // Modal renders above overlay via z-index, so no spotlight cutout needed
-    placement: 'center',
+    target: null,
+    placement: 'bottom-fixed', // Position at bottom so it doesn't cover the modal
     forceInteraction: false,
     skip: (ctx) => !ctx.isAuthenticated || !ctx.hasExecRole,
   },
@@ -144,8 +144,8 @@ export const TOUR_STEPS = [
     description: 'Track your organization\'s token balances, active profit shares, and distribution history. This page will populate as your org completes tasks and distributes rewards.',
     icon: PiBank,
     action: null,
-    target: '[data-tour="treasury-content"]',
-    placement: 'bottom',
+    target: null, // Treasury Grid is too large to spotlight, just show the page
+    placement: 'bottom-fixed',
     forceInteraction: false,
     skip: (ctx) => ctx.hideTreasury,
   },
@@ -234,7 +234,7 @@ export const TOUR_STEPS = [
     skip: (ctx) => ctx.isAuthenticated,
   },
 
-  // --- Completion (always shown) ---
+  // --- Completion (only for admins who created project/task) ---
   {
     id: 'complete',
     page: null,
@@ -245,5 +245,7 @@ export const TOUR_STEPS = [
     target: null,
     placement: 'center',
     forceInteraction: false,
+    // Skip when member (got claim-task-prompt) or visitor (got join-prompt)
+    skip: (ctx) => (ctx.isAuthenticated && ctx.hasMemberRole && ctx.hasProjects) || !ctx.isAuthenticated,
   },
 ];
