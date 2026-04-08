@@ -172,7 +172,7 @@ export function WelcomeClaimPage({
                 />
               ) : (
                 <Image
-                  src="/images/high_res_poa.png"
+                  src="/images/poa_og.webp"
                   alt="Organization"
                   maxH="100px"
                   maxW="100px"

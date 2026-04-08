@@ -33,7 +33,7 @@ const Navigation = () => {
       {/* Logo or Brand Name */}
       <Box>
         <Link href="/" passHref>
-          <Image src="/images/poa_logo.png" alt="Logo" width={50} height={50} />
+          <Image src="/images/poa_logo.webp" alt="Logo" width={50} height={50} />
         </Link>
       </Box>
 

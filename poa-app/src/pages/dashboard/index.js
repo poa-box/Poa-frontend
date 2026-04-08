@@ -1,3 +1,4 @@
+import SEOHead from "@/components/common/SEOHead";
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
@@ -119,6 +120,12 @@ const PerpetualOrgDashboard = () => {
 
   return (
     <>
+      <SEOHead
+        title="Dashboard"
+        description="Your organization dashboard."
+        path="/dashboard"
+        noIndex
+      />
       <Navbar />
       {poContextLoading ? (
         <Center height="100vh">

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
+import SEOHead from "@/components/common/SEOHead";
 import {
   Box,
   Container,
@@ -188,9 +189,19 @@ const VotingHistoryPage = () => {
     return index === 0 ? PTVoteType : "Democracy";
   };
 
+  const seoHead = (
+    <SEOHead
+      title="Voting History"
+      description="View past votes and proposals."
+      path="/votes"
+      noIndex
+    />
+  );
+
   if (poContextLoading) {
     return (
       <>
+        {seoHead}
         <Navbar />
         <Center height="90vh">
           <PulseLoader size="xl" color="purple.400" />
@@ -201,6 +212,7 @@ const VotingHistoryPage = () => {
 
   return (
     <>
+      {seoHead}
       <Navbar />
       <Box position="relative" w="100%" minH="100vh" p={containerPadding}>
         <Container maxW="1400px" mx="auto">

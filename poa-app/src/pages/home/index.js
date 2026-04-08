@@ -1,3 +1,4 @@
+import SEOHead from "@/components/common/SEOHead";
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/router";
 import {
@@ -122,6 +123,12 @@ const Home = () => {
 
   return (
     <>
+      <SEOHead
+        title="Organization Home"
+        description="Organization overview and activity."
+        path="/home"
+        noIndex
+      />
       {isNavbarReady && <Navbar userDAO={userDAO} />}
 
       <Box
@@ -373,7 +380,7 @@ const Home = () => {
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
-                    onClick={() => window.open("https://poa.community", "_blank")}
+                    onClick={() => window.open("https://poa.box", "_blank")}
                   >
                     Website
                   </Button>
@@ -385,7 +392,7 @@ const Home = () => {
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
-                    onClick={() => window.open("https://docs.poa.community", "_blank")}
+                    onClick={() => window.open("https://docs.poa.box", "_blank")}
                   >
                     Docs
                   </Button>

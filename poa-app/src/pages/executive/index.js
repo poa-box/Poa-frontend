@@ -1,5 +1,6 @@
 // pages/executive.js
 
+import SEOHead from "@/components/common/SEOHead";
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -106,19 +107,33 @@ const ExecutivePage = () => {
     }
   };
 
+  const seoHead = (
+    <SEOHead
+      title="Executive Dashboard"
+      description="Executive organization overview."
+      path="/executive"
+      noIndex
+    />
+  );
+
   if (loading || poContextLoading) {
     return (
-      <Box textAlign="center" mt={20}>
-        <PulseLoader size="xl" />
-      </Box>
+      <>
+        {seoHead}
+        <Box textAlign="center" mt={20}>
+          <PulseLoader size="xl" />
+        </Box>
+      </>
     );
   }
 
   if (error) {
-    return <Text>Error loading data: {error.message}</Text>;
+    return <>{seoHead}<Text>Error loading data: {error.message}</Text></>;
   }
 
   return (
+    <>
+      {seoHead}
     <VStack spacing={8} align="stretch" maxW="1000px" mx="auto" mt={8}>
       {/* Header Box */}
       <Box
@@ -189,6 +204,7 @@ const ExecutivePage = () => {
         </VStack>
       </Box>
     </VStack>
+    </>
   );
 };
 

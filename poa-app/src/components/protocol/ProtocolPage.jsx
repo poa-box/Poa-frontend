@@ -1,5 +1,5 @@
 import React from 'react';
-import Head from 'next/head';
+import SEOHead from '@/components/common/SEOHead';
 import { Box, Container, Spinner, Center, Text } from '@chakra-ui/react';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -16,10 +16,11 @@ const ProtocolPage = () => {
 
   return (
     <>
-      <Head>
-        <title>POA Protocol Dashboard</title>
-        <meta name="description" content="Real-time transparency dashboard for the POA Protocol — infrastructure, solidarity fund, gas sponsorship, and upgrade history across all chains." />
-      </Head>
+      <SEOHead
+        title="POA Protocol Dashboard"
+        description="Real-time transparency dashboard for the POA Protocol — infrastructure, solidarity fund, gas sponsorship, and upgrade history across all chains."
+        path="/protocol"
+      />
 
       <Box minH="100vh" bg="white">
         <Navbar />
