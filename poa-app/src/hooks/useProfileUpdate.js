@@ -18,7 +18,7 @@ import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';
 import { encodeSolidarityOnboardingPaymasterData } from '@/services/web3/passkey/paymasterData';
 import { createChainClients } from '@/services/web3/utils/chainClients';
 import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
-import { DEFAULT_DEPLOY_CHAIN_ID, getSubgraphUrl } from '@/config/networks';
+import { DEFAULT_DEPLOY_CHAIN_ID, DEFAULT_CHAIN_ID, getSubgraphUrl } from '@/config/networks';
 import UniversalAccountRegistryABI from '../../abi/UniversalAccountRegistry.json';
 import PasskeyAccountABI from '../../abi/PasskeyAccount.json';
 import { ethers } from 'ethers';
@@ -40,16 +40,18 @@ export function useProfileUpdate() {
   const publicClient = gnosisClients?.publicClient;
   const bundlerClient = gnosisClients?.bundlerClient;
 
-  // Infrastructure state (fetched from Gnosis subgraph)
+  // Infrastructure: Gnosis registry + paymaster (for passkey), home chain registry (for EOA)
   const [paymasterAddress, setPaymasterAddress] = useState(null);
-  const [registryAddress, setRegistryAddress] = useState(null);
+  const [gnosisRegistryAddress, setGnosisRegistryAddress] = useState(null);
+  const [homeRegistryAddress, setHomeRegistryAddress] = useState(null);
 
   useEffect(() => {
-    const subgraphUrl = getSubgraphUrl(SOLIDARITY_CHAIN_ID);
-    if (!subgraphUrl) return;
-
+    // Fetch from both chains — EOA users call the home chain registry,
+    // passkey users call the Gnosis registry via solidarity sponsorship
     async function fetchInfra() {
-      try {
+      const fetches = [SOLIDARITY_CHAIN_ID, DEFAULT_CHAIN_ID].map(async (chainId) => {
+        const subgraphUrl = getSubgraphUrl(chainId);
+        if (!subgraphUrl) return { chainId, data: null };
         const query = `{
           poaManagerContracts(first: 1) { paymasterHubProxy }
           universalAccountRegistries(first: 1) { id }
@@ -60,16 +62,31 @@ export function useProfileUpdate() {
           body: JSON.stringify({ query }),
         });
         const json = await res.json();
-        const data = json?.data;
-        setPaymasterAddress(data?.poaManagerContracts?.[0]?.paymasterHubProxy || null);
-        setRegistryAddress(data?.universalAccountRegistries?.[0]?.id || null);
+        return { chainId, data: json?.data };
+      });
+
+      try {
+        const results = await Promise.all(fetches);
+        for (const { chainId, data } of results) {
+          if (!data) continue;
+          if (chainId === SOLIDARITY_CHAIN_ID) {
+            setPaymasterAddress(data.poaManagerContracts?.[0]?.paymasterHubProxy || null);
+            setGnosisRegistryAddress(data.universalAccountRegistries?.[0]?.id || null);
+          }
+          if (chainId === DEFAULT_CHAIN_ID) {
+            setHomeRegistryAddress(data.universalAccountRegistries?.[0]?.id || null);
+          }
+        }
       } catch (err) {
-        console.error('[ProfileUpdate] Failed to fetch Gnosis infrastructure:', err);
+        console.error('[ProfileUpdate] Failed to fetch infrastructure:', err);
       }
     }
 
     fetchInfra();
   }, []);
+
+  // EOA uses home chain registry (matches wallet chain), passkey uses Gnosis
+  const registryAddress = isPasskeyUser ? gnosisRegistryAddress : homeRegistryAddress;
 
   /**
    * Update profile metadata.
