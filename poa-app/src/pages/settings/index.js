@@ -22,7 +22,7 @@ import { useRouter } from 'next/router';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { useAuth } from '@/context/AuthContext';
 import { usePOContext } from '@/context/POContext';
-import { useIsOrgAdmin } from '@/hooks/useIsOrgAdmin';
+import { useIsOrgAdmin, useOrgTheme } from '@/hooks';
 import OrgMetadataEditor from '@/components/settings/OrgMetadataEditor';
 
 const SettingsPage = () => {
@@ -36,6 +36,7 @@ const SettingsPage = () => {
     poDescription,
     poLinks,
     logoUrl,
+    backgroundColor,
     hideTreasury,
     poContextLoading,
     error: contextError,
@@ -43,6 +44,7 @@ const SettingsPage = () => {
 
   // Check if user is an org admin using unified accountAddress
   const { isAdmin, loading: adminLoading, error: adminError } = useIsOrgAdmin(orgId, accountAddress);
+  const { pageBackground } = useOrgTheme();
 
   const seoHead = (
     <SEOHead
@@ -58,7 +60,7 @@ const SettingsPage = () => {
     return (
       <>
         {seoHead}
-        <Box minH="100vh">
+        <Box minH="100vh" background={pageBackground()}>
           <Navbar />
           <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
             <VStack spacing={4}>
@@ -76,7 +78,7 @@ const SettingsPage = () => {
     return (
       <>
         {seoHead}
-        <Box minH="100vh">
+        <Box minH="100vh" background={pageBackground()}>
           <Navbar />
           <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
             <Alert status="error" maxW="lg" borderRadius="xl" bg="red.50">
@@ -97,7 +99,7 @@ const SettingsPage = () => {
     return (
       <>
         {seoHead}
-        <Box minH="100vh">
+        <Box minH="100vh" background={pageBackground()}>
           <Navbar />
           <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
             <Alert status="warning" maxW="lg" borderRadius="xl" bg="orange.50">
@@ -118,7 +120,7 @@ const SettingsPage = () => {
     return (
       <>
         {seoHead}
-        <Box minH="100vh">
+        <Box minH="100vh" background={pageBackground()}>
           <Navbar />
           <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
             <Alert status="warning" maxW="lg" borderRadius="xl" bg="orange.50">
@@ -139,7 +141,7 @@ const SettingsPage = () => {
   return (
     <>
       {seoHead}
-    <Box minH="100vh">
+    <Box minH="100vh" background={pageBackground()}>
       <Navbar />
       <Box maxW="2xl" mx="auto" px={4} pt={{ base: "80px", md: 10 }} pb={12}>
         <VStack spacing={8} align="stretch">
@@ -159,6 +161,7 @@ const SettingsPage = () => {
             currentDescription={poDescription}
             currentLinks={poLinks}
             currentLogoHash={logoUrl}
+            currentBackgroundColor={backgroundColor}
             currentHideTreasury={hideTreasury}
           />
         </VStack>

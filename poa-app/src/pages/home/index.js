@@ -18,6 +18,7 @@ import { FaExternalLinkAlt } from "react-icons/fa";
 import { FiUsers, FiActivity, FiCheckCircle, FiGrid, FiCheckSquare, FiBarChart2, FiUser } from "react-icons/fi";
 import Link from "next/link";
 import { usePOContext } from "@/context/POContext";
+import { useOrgTheme } from "@/hooks";
 import { useIPFScontext } from "@/context/ipfsContext";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { useAuth } from "@/context/AuthContext";
@@ -87,6 +88,7 @@ const GradientAvatar = ({ name, orgGradient }) => (
 
 const Home = () => {
   const { logoUrl, poDescription, poLinks, poMembers, activeTaskAmount, completedTaskAmount } = usePOContext();
+  const { pageBackground } = useOrgTheme();
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
   const { fetchImageFromIpfs } = useIPFScontext();
@@ -141,6 +143,7 @@ const Home = () => {
         alignItems="center"
         justifyContent="flex-start"
         zIndex={1}
+        background={pageBackground()}
       >
         <VStack
           spacing={{ base: 6, md: 8 }}

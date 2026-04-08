@@ -99,6 +99,7 @@ const initialState = {
     poLinks: [],
     logoHash: '',
     logoUrl: '',
+    backgroundColor: null,
     metadataAdminHatId: null,
     poMembers: 0,
     activeTaskAmount: 0,
@@ -315,6 +316,7 @@ export const POProvider = ({ children }) => {
                 payload: {
                     logoHash: org.metadataHash || '',
                     logoUrl: org.metadata?.logo || '',
+                    backgroundColor: org.metadata?.backgroundColor || null,
                     hideTreasury: org.metadata?.hideTreasury === true,
                     poMembers: org.users?.length || 0,
                     ptTokenBalance: formatTokenAmount(org.participationToken?.totalSupply || '0'),
@@ -383,7 +385,10 @@ export const POProvider = ({ children }) => {
             try {
                 const metadata = await safeFetchFromIpfs(org.metadataHash);
                 dispatch({ type: 'SET_LOGO_URL', payload: metadata?.logo || '' });
-                dispatch({ type: 'SET_ORG_DATA', payload: { hideTreasury: metadata?.hideTreasury === true } });
+                dispatch({ type: 'SET_ORG_DATA', payload: {
+                    hideTreasury: metadata?.hideTreasury === true,
+                    backgroundColor: metadata?.backgroundColor || null,
+                } });
             } catch (e) {
                 console.warn('[POContext] Failed to fetch metadata from IPFS:', e);
             }
@@ -450,6 +455,7 @@ export const POProvider = ({ children }) => {
         poLinks: state.poLinks,
         logoHash: state.logoHash,
         logoUrl: state.logoUrl,
+        backgroundColor: state.backgroundColor,
         metadataAdminHatId: state.metadataAdminHatId,
         poMembers: state.poMembers,
         activeTaskAmount: state.activeTaskAmount,

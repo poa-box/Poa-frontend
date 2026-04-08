@@ -234,6 +234,7 @@ export default function OrgMetadataEditor({
   currentLinks,
   currentLogoHash,
   currentHideTreasury,
+  currentBackgroundColor,
 }) {
   const toast = useToast();
   const { addToIpfs } = useIPFScontext();
@@ -271,6 +272,7 @@ export default function OrgMetadataEditor({
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hideTreasury, setHideTreasury] = useState(currentHideTreasury || false);
+  const [bgColor, setBgColor] = useState(currentBackgroundColor || '');
 
   // Update form when props change (e.g., after successful save + subgraph re-index).
   // Do NOT reset logoURL here — it's set by user actions (upload/remove) only.
@@ -284,7 +286,8 @@ export default function OrgMetadataEditor({
         : Object.entries(currentLinks || {}).map(([name, url]) => ({ name, url }))
     );
     setHideTreasury(currentHideTreasury || false);
-  }, [currentName, currentDescription, currentLinks, currentHideTreasury]);
+    setBgColor(currentBackgroundColor || '');
+  }, [currentName, currentDescription, currentLinks, currentHideTreasury, currentBackgroundColor]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -329,6 +332,7 @@ export default function OrgMetadataEditor({
         links: validLinks,
         template: 'default',
         logo: logoURL || null,
+        backgroundColor: bgColor.trim() || null,
         hideTreasury,
       };
 
@@ -498,6 +502,56 @@ export default function OrgMetadataEditor({
               }}
               onUploadingChange={setLogoUploading}
             />
+          </FormControl>
+
+          {/* Background Color */}
+          <FormControl>
+            <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={2}>
+              Background Color
+            </FormLabel>
+            <HStack spacing={3}>
+              <Input
+                type="color"
+                value={bgColor && bgColor.startsWith('#') ? bgColor : '#1a1a2e'}
+                onChange={(e) => setBgColor(e.target.value)}
+                w="60px"
+                h="40px"
+                p={1}
+                cursor="pointer"
+                borderColor="warmGray.200"
+              />
+              <Input
+                value={bgColor}
+                onChange={(e) => setBgColor(e.target.value)}
+                placeholder="#1a1a2e or linear-gradient(...)"
+                bg="white"
+                borderColor="warmGray.200"
+                flex={1}
+              />
+              {bgColor && (
+                <IconButton
+                  icon={<CloseIcon />}
+                  size="sm"
+                  variant="ghost"
+                  colorScheme="red"
+                  onClick={() => setBgColor('')}
+                  aria-label="Clear background color"
+                />
+              )}
+            </HStack>
+            <FormHelperText color="warmGray.400" fontSize="xs">
+              CSS color (hex, rgba) or gradient. Leave empty for default.
+            </FormHelperText>
+            {bgColor && (
+              <Box
+                mt={2}
+                h="40px"
+                borderRadius="md"
+                background={bgColor}
+                border="1px solid"
+                borderColor="warmGray.200"
+              />
+            )}
           </FormControl>
 
           <Divider borderColor="warmGray.100" />

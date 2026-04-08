@@ -37,7 +37,7 @@ import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { FaLink } from 'react-icons/fa';
 import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiCheck } from 'react-icons/fi';
 import { useIPFScontext } from "@/context/ipfsContext";
-import { useOrgStructure } from '@/hooks/useOrgStructure';
+import { useOrgStructure, useOrgTheme } from '@/hooks';
 import { VouchingSection } from '@/components/orgStructure/VouchingSection';
 import { OrgStructureCard } from '@/components/dashboard/OrgStructureCard';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
@@ -45,6 +45,7 @@ import { glassLayerStyle } from '@/components/shared/glassStyles';
 const PerpetualOrgDashboard = () => {
   const { ongoingPolls } = useVotingContext();
   const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
+  const { pageBackground } = useOrgTheme();
 
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
@@ -128,11 +129,11 @@ const PerpetualOrgDashboard = () => {
       />
       <Navbar />
       {poContextLoading ? (
-        <Center height="100vh">
+        <Center height="100vh" background={pageBackground()}>
           <PulseLoader size="xl" />
         </Center>
       ) : (
-        <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }}>
+        <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }} minH="100vh" background={pageBackground()}>
             <Grid
               color="whitesmoke"
               templateAreas={{
