@@ -741,7 +741,7 @@ function DeployerPageContent() {
   const handleDeploySuccess = () => {
     // Delay redirect to allow subgraph indexing
     setTimeout(() => {
-      router.push(`/profileHub?userDAO=${encodeURIComponent(state.organization.name)}`);
+      router.push(`/profile?org=${encodeURIComponent(state.organization.name)}`);
     }, 2000);
   };
 

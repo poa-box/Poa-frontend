@@ -119,7 +119,7 @@ export function UserRolesCard({ userHatIds = [], roles = [], permissionsMatrix, 
             <Text color="gray.400" textAlign="center">
               You haven't claimed any roles yet
             </Text>
-            <Link href={`/org-structure?userDAO=${userDAO}`} passHref>
+            <Link href={`/team?org=${userDAO}`} passHref>
               <Button
                 size="sm"
                 variant="outline"
@@ -144,7 +144,7 @@ export function UserRolesCard({ userHatIds = [], roles = [], permissionsMatrix, 
               </Text>
             )}
 
-            <Link href={`/org-structure?userDAO=${userDAO}`} passHref>
+            <Link href={`/team?org=${userDAO}`} passHref>
               <Button
                 size="sm"
                 variant="ghost"

@@ -602,7 +602,7 @@ const AboutPage = () => {
                       Get Started
                     </Button>
                   </Link>
-                  <Link href="/browser" style={{ textDecoration: "none" }}>
+                  <Link href="/explore" style={{ textDecoration: "none" }}>
                     <Button
                       size="lg"
                       variant="outline"

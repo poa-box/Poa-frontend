@@ -26,7 +26,7 @@ import OrgMetadataEditor from '@/components/settings/OrgMetadataEditor';
 
 const SettingsPage = () => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const { isAuthenticated, accountAddress } = useAuth();
 
   const {

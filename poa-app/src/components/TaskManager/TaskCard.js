@@ -10,7 +10,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
 
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   // Use the stable isMobile prop from parent (passed through TaskColumn)
   // This prevents flash when components remount during project switches
   // isMobile prop should always be provided from TaskColumn
@@ -20,7 +20,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
     const safeProjectId = encodeURIComponent(decodeURIComponent(projectId));
     router.push({
       pathname: `/tasks/`,
-      query: { userDAO: userDAO, task: id, projectId: safeProjectId },
+      query: { org: userDAO, task: id, projectId: safeProjectId },
     }, undefined, { shallow: true });
   };
 

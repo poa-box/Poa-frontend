@@ -40,7 +40,7 @@ export default function Home() {
   // Prefetch key routes
   useEffect(() => {
     router.prefetch('/create');
-    router.prefetch('/browser');
+    router.prefetch('/explore');
   }, [router]);
 
   const { isOpen: isOnboardingOpen, onOpen: onOnboardingOpen, onClose: onOnboardingClose } = useDisclosure();

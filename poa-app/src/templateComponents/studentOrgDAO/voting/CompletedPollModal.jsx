@@ -35,7 +35,7 @@ const glassLayerStyle = {
 
 const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, skipRedirect = false }) => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const [processedOptions, setProcessedOptions] = useState([]);
   const { getRoleNamesString, votingEligibleRoles } = useRoleNames();
 
@@ -54,7 +54,7 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
   const handleModalClose = () => {
     onClose();
     if (!skipRedirect) {
-      router.push(`/voting/?userDAO=${userDAO}`);
+      router.push(`/voting/?org=${userDAO}`);
     }
   };
 
