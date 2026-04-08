@@ -116,6 +116,8 @@ export async function buildUserOpWithFallback({
   paymasterAddress,
   paymasterData,
   paymasterDataEntries,
+  authorization, // EIP-7702 authorization (optional — for delegated EOAs)
+  dummySignatureLength, // Override dummy sig length (65 for ECDSA, 640 for passkey)
 }) {
   const entryPoint = ENTRY_POINT_ADDRESS;
 
@@ -141,6 +143,10 @@ export async function buildUserOpWithFallback({
     factoryData = '0x' + initCode.slice(42);
   }
 
+  const dummySig = dummySignatureLength
+    ? '0x' + 'ff'.repeat(dummySignatureLength)
+    : DUMMY_SIGNATURE;
+
   const baseFields = {
     sender,
     nonce,
@@ -152,7 +158,8 @@ export async function buildUserOpWithFallback({
     preVerificationGas: 100_000n,
     maxFeePerGas: gasPrices?.standard?.maxFeePerGas ?? 500_000_000n,
     maxPriorityFeePerGas: gasPrices?.standard?.maxPriorityFeePerGas ?? 100_000_000n,
-    signature: DUMMY_SIGNATURE,
+    signature: dummySig,
+    ...(authorization ? { authorization } : {}),
   };
 
   // Normalize: support both single paymasterData and paymasterDataEntries array
@@ -217,7 +224,10 @@ async function estimateGas(userOp, bundlerClient) {
     // When initCode is present (cross-chain account creation), account deployment +
     // P-256 verification needs more gas than subsequent calls.
     const hasInitCode = userOp.factory && userOp.factoryData;
-    const MIN_VERIFICATION_GAS = hasInitCode ? 1_000_000n : 500_000n;
+    const has7702Auth = !!userOp.authorization;
+    // ECDSA verification (~3k gas) is much cheaper than P-256 (~300-400k).
+    // 7702 delegated EOAs use ECDSA, so they need far less verification gas.
+    const MIN_VERIFICATION_GAS = has7702Auth ? 100_000n : (hasInitCode ? 1_000_000n : 500_000n);
     const estimatedVerification = applyBuffer(gasEstimate.verificationGasLimit);
     userOp.verificationGasLimit = estimatedVerification < MIN_VERIFICATION_GAS
       ? MIN_VERIFICATION_GAS

@@ -33,6 +33,14 @@ export const INFRASTRUCTURE_CONTRACTS = {
 };
 
 /**
+ * EOADelegation contract address (EIP-7702 delegation target).
+ * Deployed via DeterministicDeployer — same address on all chains.
+ * EOA wallets delegate to this contract to become ERC-4337 compatible
+ * and receive gas sponsorship through PaymasterHub.
+ */
+export const EOA_DELEGATION_ADDRESS = '0x776ec88A88E86e38d54a985983377f1A2A25ef8b';
+
+/**
  * Get infrastructure contract address
  * @param {string} contractName - Name of the contract (e.g., 'universalAccountRegistry')
  * @param {number} [chainId] - Network chain ID (defaults to Sepolia)
