@@ -1,3 +1,4 @@
+import SEOHead from "@/components/common/SEOHead";
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useWeb3, useOrgStructure, useClaimRole, useVouches, useVouchFirstOnboarding } from "@/hooks";
 import { usePOContext } from "@/context/POContext";
@@ -510,12 +511,22 @@ const User = () => {
     },
   ];
 
+  const seoHead = (
+    <SEOHead
+      title="User Profile"
+      description="View user profile and contributions."
+      path="/user"
+      noIndex
+    />
+  );
+
   if (isSSR) {
-    return null;
+    return seoHead;
   }
 
   return (
     <>
+      {seoHead}
       <Navbar />
       <Box
         position="fixed"

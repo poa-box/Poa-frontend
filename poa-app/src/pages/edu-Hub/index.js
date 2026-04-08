@@ -1,3 +1,4 @@
+import SEOHead from "@/components/common/SEOHead";
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box,
@@ -153,6 +154,12 @@ const EducationHub = () => {
 
   return (
     <>
+      <SEOHead
+        title="Education Hub"
+        description="Learning resources and educational content."
+        path="/edu-Hub"
+        noIndex
+      />
       <Navbar />
       {poContextLoading ? (
         <Center height="90vh">

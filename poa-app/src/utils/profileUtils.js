@@ -92,9 +92,9 @@ export function getTierColorScheme(tier) {
  */
 export function getTierIcon(tier) {
   if (!tier || tier === 'Basic') {
-    return '/images/high_res_poa.png';
+    return '/images/poa_og.webp';
   }
-  return `/images/${tier.toLowerCase()}Medal.png`;
+  return `/images/${tier.toLowerCase()}Medal.webp`;
 }
 
 /**

@@ -48,7 +48,7 @@ const Footer = () => (
         {/* Brand */}
         <VStack align={["center", "flex-start"]} spacing={3}>
           <HStack spacing={2}>
-            <Image src="/images/poa_logo.png" alt="Poa" h="28px" />
+            <Image src="/images/poa_logo.webp" alt="Poa" h="28px" />
             <Text fontWeight="700" fontSize="lg" color="white">
               Poa
             </Text>

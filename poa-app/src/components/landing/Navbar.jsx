@@ -80,7 +80,7 @@ const Navbar = ({
         <Link href="/" style={{ textDecoration: "none" }}>
           <HStack spacing={1.5} cursor="pointer">
             <Image
-              src="/images/poa_logo.png"
+              src="/images/poa_logo.webp"
               alt="Poa"
               h={scrolled ? ["20px", "22px", "24px"] : ["24px", "28px", "32px"]}
               transition="height 0.35s cubic-bezier(0.4, 0, 0.2, 1)"

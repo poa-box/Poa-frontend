@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import Head from "next/head";
+import dynamic from "next/dynamic";
 import { Box, useDisclosure } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useAccount } from "wagmi";
@@ -8,24 +8,24 @@ import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useGlobalAccount } from "@/hooks/useGlobalAccount";
 import { useAuth } from "@/context/AuthContext";
 import { FETCH_SOLIDARITY_FUND_STATUS } from "@/util/passkeyQueries";
+import SEOHead from "@/components/common/SEOHead";
 
-// Auth modals
-import SignupModal from "@/components/account/SignupModal";
-import SolidarityOnboardingModal from "@/components/passkey/SolidarityOnboardingModal";
-import SignInModal from "@/components/passkey/SignInModal";
+// Auth modals (lazy — only shown on user interaction)
+const SignupModal = dynamic(() => import("@/components/account/SignupModal"), { ssr: false });
+const SolidarityOnboardingModal = dynamic(() => import("@/components/passkey/SolidarityOnboardingModal"), { ssr: false });
+const SignInModal = dynamic(() => import("@/components/passkey/SignInModal"), { ssr: false });
 
-// Landing page sections
+// Landing page — above fold (static imports)
 import Navbar from "@/components/landing/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
 
-import ValuesSection from "@/components/landing/ValuesSection";
-import WhatIsPoa from "@/components/landing/WhatIsPoa";
-import UseCaseShowcase from "@/components/landing/UseCaseShowcase";
-// import HowItWorks from "@/components/landing/HowItWorks";
-import FeatureCards from "@/components/landing/FeatureCards";
-
-import ClosingCTA from "@/components/landing/ClosingCTA";
-import Footer from "@/components/landing/Footer";
+// Landing page — below fold (code-split)
+const ValuesSection = dynamic(() => import("@/components/landing/ValuesSection"));
+const WhatIsPoa = dynamic(() => import("@/components/landing/WhatIsPoa"));
+const UseCaseShowcase = dynamic(() => import("@/components/landing/UseCaseShowcase"));
+const FeatureCards = dynamic(() => import("@/components/landing/FeatureCards"));
+const ClosingCTA = dynamic(() => import("@/components/landing/ClosingCTA"));
+const Footer = dynamic(() => import("@/components/landing/Footer"));
 
 export default function Home() {
   const router = useRouter();
@@ -74,18 +74,18 @@ export default function Home() {
   const accountMenuItem = getAccountMenuItem();
 
   const jsonLD = {
-    "@context": "http://schema.org",
+    "@context": "https://schema.org",
     "@type": "Organization",
     "name": "Poa",
     "url": "https://poa.community",
-    "logo": "https://poa.community/images/high_res_poa.png",
+    "logo": "https://poa.community/images/poa_og.webp",
     "sameAs": ["https://twitter.com/PoaPerpetual"],
     "description":
       "Poa is a no-code DAO builder for creating community-owned, democratically governed organizations. Voting power is earned through contribution, not purchased with capital.",
   };
 
   const breadcrumb = {
-    "@context": "http://schema.org",
+    "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://poa.community" },
@@ -95,46 +95,12 @@ export default function Home() {
 
   return (
     <>
-      <Head>
-        <title>Poa — Community-Owned Organization Builder</title>
-        <meta
-          name="description"
-          content="Manage projects, track participation, and govern collectively — no code required. Build community-owned organizations with Poa."
-        />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <link rel="icon" href="/favicon.ico" />
-        <link rel="canonical" href="https://poa.community" />
-        <meta property="og:title" content="Poa — Build Community-Owned Organizations" />
-        <meta
-          property="og:description"
-          content="Manage projects, track participation, and govern collectively — no code required. Build community-owned organizations with Poa."
-        />
-        <meta property="og:url" content="https://poa.community" />
-        <meta property="og:image" content="https://poa.community/images/high_res_poa.png" />
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="Poa — Build Community-Owned Organizations" />
-        <meta
-          name="twitter:description"
-          content="Manage projects, track participation, and govern collectively — no code required. Build community-owned organizations with Poa."
-        />
-        <meta name="twitter:image" content="https://poa.community/images/high_res_poa.png" />
-
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
-          rel="stylesheet"
-        />
-
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLD) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumb) }}
-        />
-      </Head>
+      <SEOHead
+        title="Poa — Community-Owned Organization Builder"
+        description="Manage projects, track participation, and govern collectively — no code required. Build community-owned organizations with Poa."
+        path="/"
+        jsonLd={[jsonLD, breadcrumb]}
+      />
 
       <Box minH="100vh" overflowX="hidden" bg="white">
         <Navbar

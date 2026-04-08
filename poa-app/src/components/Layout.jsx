@@ -22,7 +22,7 @@ const Layout = ({ children, isArchitectPage }) => {
               icon={
                 <Image
                   mt="2"
-                  src="/images/poa_logo.png"
+                  src="/images/poa_logo.webp"
                   alt="Home"
                   width="auto"
                   height={["50px","60px"]}

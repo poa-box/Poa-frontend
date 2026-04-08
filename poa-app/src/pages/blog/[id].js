@@ -1,4 +1,5 @@
 import { getAllPostIds, getPostData } from '../../util/posts';
+import SEOHead from '@/components/common/SEOHead';
 
 import  Navigation from '@/components/Navigation';
 import { useEffect, useState } from 'react';
@@ -110,6 +111,23 @@ export default function Post({ postData }) {
     return <p>No Post Found</p>;
   }
 
+  const articleJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": postData.title,
+    "description": postData.description,
+    "datePublished": postData.date,
+    "dateModified": postData.date,
+    "author": { "@type": "Organization", "name": "Poa", "url": "https://poa.community" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Poa",
+      "url": "https://poa.community",
+      "logo": { "@type": "ImageObject", "url": "https://poa.community/images/poa_og.webp" },
+    },
+    "mainEntityOfPage": { "@type": "WebPage", "@id": `https://poa.community/blog/${postData.id}` },
+  };
+
   const showSidebar = useBreakpointValue({ base: false, md: true });
   const [marginLeft, setMarginLeft] = useState('0px');
 
@@ -136,6 +154,14 @@ export default function Post({ postData }) {
   }, [showSidebar]);
 
   return (
+    <>
+    <SEOHead
+      title={`${postData.title} - Poa Blog`}
+      description={postData.description}
+      path={`/blog/${postData.id}`}
+      ogType="article"
+      jsonLd={articleJsonLd}
+    />
     <ChakraProvider theme={theme}>
       <Navigation />
       <Flex position="relative" minHeight="110vh" width="100%">
@@ -167,6 +193,7 @@ export default function Post({ postData }) {
         </Flex>
       </Flex>
     </ChakraProvider>
+    </>
   );
 }
 

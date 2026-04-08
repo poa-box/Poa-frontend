@@ -1,0 +1,26 @@
+User-agent: *
+Allow: /
+Allow: /about/
+Allow: /docs/
+Allow: /blog/
+Allow: /browser/
+Allow: /protocol/
+Allow: /create/
+
+Disallow: /account/
+Disallow: /dashboard/
+Disallow: /home/
+Disallow: /tasks/
+Disallow: /treasury/
+Disallow: /voting/
+Disallow: /voting-history/
+Disallow: /settings/
+Disallow: /leaderboard/
+Disallow: /org-structure/
+Disallow: /profileHub/
+Disallow: /user/
+Disallow: /executive/
+Disallow: /edu-Hub/
+Disallow: /hudson/
+
+Sitemap: https://poa.community/sitemap.xml

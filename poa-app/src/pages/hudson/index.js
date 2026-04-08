@@ -1,4 +1,5 @@
 // pages/hudson.js
+import SEOHead from "@/components/common/SEOHead";
 import {
     Box,
     Avatar,
@@ -16,6 +17,12 @@ import {
   const HudsonPage = () => {
     return (
     <>
+     <SEOHead
+        title="Hudson"
+        description="Hudson profile page."
+        path="/hudson"
+        noIndex
+      />
      <Navigation />
       <Box
         display="flex"
@@ -39,7 +46,7 @@ import {
             w="40%"
             h="auto"
             name="Hudson Headley"
-            src="/images/hudson.png" 
+            src="/images/hudson.webp" 
             mb={6}
           />
   

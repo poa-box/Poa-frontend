@@ -109,7 +109,7 @@ const Navbar = React.memo(() => {
             w="100%"
           >
             <NextImage
-              src="/images/high_res_poa.png"
+              src="/images/poa_og.webp"
               alt="PoA Logo"
               width={40}
               height={40}
@@ -239,7 +239,7 @@ const Navbar = React.memo(() => {
           <DrawerHeader borderBottomWidth="1px" borderColor="rgba(255, 255, 255, 0.1)" color="white">
             <Flex align="center">
               <NextImage
-                src="/images/high_res_poa.png"
+                src="/images/poa_og.webp"
                 alt="PoA Logo"
                 width={30}
                 height={30}

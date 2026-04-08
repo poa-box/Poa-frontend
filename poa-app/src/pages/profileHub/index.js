@@ -1,3 +1,4 @@
+import SEOHead from "@/components/common/SEOHead";
 import React, { useState, useMemo } from 'react';
 import {
   Box,
@@ -235,19 +236,31 @@ const UserprofileHub = () => {
   // Composite loading state
   const isFullyLoaded = !orgLoading && !userDataLoading && orgName;
 
+  const seoHead = (
+    <SEOHead
+      title="Profile"
+      description="Your community profile and activity."
+      path="/profileHub"
+      noIndex
+    />
+  );
+
   if (!isFullyLoaded) {
-    return <WelcomePageSkeleton />;
+    return <>{seoHead}<WelcomePageSkeleton /></>;
   }
 
   // Show welcome/claim page if user hasn't claimed any role yet
   if (!hasClaimedRole && claimableRoles.length > 0) {
     return (
-      <WelcomeClaimPage
-        orgName={orgName}
-        orgMetadata={orgMetadata}
-        claimableRoles={claimableRoles}
-        eligibilityModuleAddress={eligibilityModuleAddress}
-      />
+      <>
+        {seoHead}
+        <WelcomeClaimPage
+          orgName={orgName}
+          orgMetadata={orgMetadata}
+          claimableRoles={claimableRoles}
+          eligibilityModuleAddress={eligibilityModuleAddress}
+        />
+      </>
     );
   }
 
@@ -255,6 +268,7 @@ const UserprofileHub = () => {
   if (error) {
     return (
       <>
+        {seoHead}
         <Navbar />
         <Center height="100vh">
           <Text color="white">Error: {error.message}</Text>
@@ -265,6 +279,7 @@ const UserprofileHub = () => {
 
   return (
     <>
+      {seoHead}
       <Navbar />
       <Box mt={-2} p={4}>
         <Grid

@@ -3,7 +3,7 @@
  * Merges token status (tier, progress) with activity metrics (tasks, votes, member since)
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import {
   Box,
   HStack,
@@ -19,9 +19,37 @@ import {
   chakra,
 } from '@chakra-ui/react';
 import { FiCheckCircle, FiThumbsUp, FiCalendar } from 'react-icons/fi';
-import { useSpring, animated } from 'react-spring';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
 import { getTierColorScheme, getTierIcon } from '@/utils/profileUtils';
+
+function useAnimatedCounter(target, duration, onComplete) {
+  const [value, setValue] = useState(0);
+  const rafRef = useRef(null);
+  const startRef = useRef(null);
+
+  useEffect(() => {
+    if (duration <= 0) {
+      setValue(target);
+      onComplete?.();
+      return;
+    }
+    startRef.current = performance.now();
+    const animate = (now) => {
+      const elapsed = now - startRef.current;
+      const progress = Math.min(elapsed / duration, 1);
+      setValue(Math.round(progress * target));
+      if (progress < 1) {
+        rafRef.current = requestAnimationFrame(animate);
+      } else {
+        onComplete?.();
+      }
+    };
+    rafRef.current = requestAnimationFrame(animate);
+    return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+  }, [target, duration, onComplete]);
+
+  return value;
+}
 
 const glowAnimation = keyframes`
   from { text-shadow: 0 0 0px white; }
@@ -71,16 +99,11 @@ export function TokenActivityCard({
   const [countFinished, setCountFinished] = useState(false);
   const hasAnimatedRef = useRef(false);
 
-  // Only animate from 0 on initial mount, then animate from previous value
-  const animatedPT = useSpring({
-    pt: ptBalance,
-    from: { pt: hasAnimatedRef.current ? ptBalance : 0 },
-    config: { duration: hasAnimatedRef.current ? 500 : 1700 },
-    onRest: () => {
-      setCountFinished(true);
-      hasAnimatedRef.current = true;
-    },
-  });
+  const duration = hasAnimatedRef.current ? 500 : 1700;
+  const animatedValue = useAnimatedCounter(ptBalance, duration, useCallback(() => {
+    setCountFinished(true);
+    hasAnimatedRef.current = true;
+  }, []));
 
   const animationProps = prefersReducedMotion
     ? {}
@@ -133,9 +156,7 @@ export function TokenActivityCard({
                 {countFinished ? (
                   <chakra.span {...animationProps}>{ptBalance}</chakra.span>
                 ) : (
-                  <animated.span>
-                    {animatedPT.pt.to((pt) => pt.toFixed(0))}
-                  </animated.span>
+                  <span>{animatedValue}</span>
                 )}
               </Text>
               <Text fontSize="md" color="gray.400">
