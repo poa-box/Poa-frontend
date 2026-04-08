@@ -5,7 +5,7 @@
  * Pre-flight gas check prevents cryptic bundler errors.
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -54,6 +54,14 @@ function TransferModal({ isOpen, onClose, token, accountAddress, nativeBalance, 
   const [amount, setAmount] = useState('');
   const [step, setStep] = useState('form'); // form | sending | success
   const [error, setError] = useState(null);
+
+  // Reset form when a different token is selected
+  useEffect(() => {
+    setRecipient('');
+    setAmount('');
+    setStep('form');
+    setError(null);
+  }, [token?.address, token?.chainId]);
 
   const hasGas = useMemo(() => {
     if (!nativeBalance) return false;
@@ -130,8 +138,8 @@ function TransferModal({ isOpen, onClose, token, accountAddress, nativeBalance, 
     if (!clients) throw new Error(`Chain ${token.chainId} not supported`);
 
     // Check if account is deployed on this chain
-    const code = await clients.publicClient.getCode({ address: accountAddress });
-    if (!code || code === '0x') {
+    const bytecode = await clients.publicClient.getBytecode({ address: accountAddress });
+    if (!bytecode) {
       throw new Error(`Your account is not deployed on ${token.chainName} yet. Join an organization on this chain first.`);
     }
 

@@ -16,7 +16,6 @@ import {
   Image,
   Icon,
   Skeleton,
-  SkeletonText,
 } from '@chakra-ui/react';
 import { PiCoinVerticalBold } from 'react-icons/pi';
 import { formatTokenAmount } from '@/util/formatToken';

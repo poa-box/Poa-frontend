@@ -28,7 +28,7 @@ export function useTokenBalances(address) {
     clientsRef.current = clients;
   }
 
-  const fetchBalances = useCallback(async () => {
+  const fetchBalances = useCallback(async (signal) => {
     if (!address) {
       setBalances([]);
       setNativeBalances({});
@@ -80,13 +80,16 @@ export function useTokenBalances(address) {
     }
 
     await Promise.allSettled(promises);
+    if (signal?.aborted) return;
     setBalances(allBalances);
     setNativeBalances(natives);
     setIsLoading(false);
   }, [address]);
 
   useEffect(() => {
-    fetchBalances();
+    const controller = new AbortController();
+    fetchBalances(controller.signal);
+    return () => controller.abort();
   }, [fetchBalances]);
 
   return { balances, nativeBalances, isLoading, refetch: fetchBalances };
