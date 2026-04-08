@@ -38,6 +38,7 @@ import { useGlobalAccount } from '@/hooks/useGlobalAccount';
 import { getAllSubgraphUrls } from '@/config/networks';
 import { formatTokenAmount } from '@/util/formatToken';
 import GlobalAccountSettingsModal from '@/components/account/GlobalAccountSettingsModal';
+import ProfileEditor from '@/components/account/ProfileEditor';
 import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
 import SignInModal from '@/components/passkey/SignInModal';
 import Link from 'next/link';
@@ -47,7 +48,7 @@ const AccountPage = () => {
   const toast = useToast();
   const { isConnected } = useAccount();
   const { isAuthenticated, isPasskeyUser, accountAddress } = useAuth();
-  const { globalUsername, hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
+  const { globalUsername, hasAccount, isLoading: isAccountLoading, profileMetadata, refetchAccount } = useGlobalAccount();
   const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
 
   const [isSSR, setIsSSR] = useState(true);
@@ -312,6 +313,24 @@ const AccountPage = () => {
                     </Badge>
                   </VStack>
                 </HStack>
+              </VStack>
+            </CardBody>
+          </Card>
+
+          {/* Profile Section */}
+          <Card borderRadius="2xl" boxShadow="2xl" style={glassStyle}>
+            <CardBody p={[4, 6, 8]}>
+              <VStack spacing={4} align="stretch">
+                <Heading size="md" color={textColor}>
+                  Profile
+                </Heading>
+                <Text color={subtextColor} fontSize="sm">
+                  Your profile is stored on-chain and visible across all organizations.
+                </Text>
+                <ProfileEditor
+                  currentMetadata={profileMetadata}
+                  onSuccess={() => refetchAccount()}
+                />
               </VStack>
             </CardBody>
           </Card>
