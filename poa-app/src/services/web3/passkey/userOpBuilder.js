@@ -38,6 +38,8 @@ export async function buildUserOp({
   initCode = '0x',
   paymasterAddress,
   paymasterData,
+  authorization,
+  dummySignatureLength,
 }) {
   const entryPoint = ENTRY_POINT_ADDRESS;
 
@@ -64,6 +66,10 @@ export async function buildUserOp({
   }
 
   // 2. Build base UserOp with placeholder gas values and dummy signature
+  const dummySig = dummySignatureLength
+    ? '0x' + 'ff'.repeat(dummySignatureLength)
+    : DUMMY_SIGNATURE;
+
   const userOp = {
     sender,
     nonce,
@@ -81,7 +87,8 @@ export async function buildUserOp({
       paymasterPostOpGasLimit: 200_000n,
       paymasterData,
     } : {}),
-    signature: DUMMY_SIGNATURE,
+    ...(authorization ? { authorization } : {}),
+    signature: dummySig,
   };
 
   // 3. Estimate gas via bundler
