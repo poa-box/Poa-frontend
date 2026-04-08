@@ -236,7 +236,7 @@ export function DeployerWizard({
   deployerAddress,
 }) {
   const { state, actions, selectors } = useDeployer();
-  // Deployment status: 'idle' | 'deploying' | 'success' | 'error'
+  // Deployment status: 'idle' | 'deploying' | 'success' | 'transitioning' | 'error'
   const [deploymentStatus, setDeploymentStatus] = useState('idle');
   const [deploymentResult, setDeploymentResult] = useState(null);
   const toast = useToast();
@@ -394,8 +394,9 @@ export function DeployerWizard({
   };
 
   // Handle continuing after celebration (called when user clicks "Go to Your Organization")
+  // Keep overlay visible as 'transitioning' during navigation to avoid showing the wizard
   const handleCelebrationContinue = () => {
-    setDeploymentStatus('idle');
+    setDeploymentStatus('transitioning');
     if (onDeploySuccess && deploymentResult) {
       onDeploySuccess(deploymentResult);
     }

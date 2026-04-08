@@ -3,8 +3,9 @@
  * Main voting page component for proposal management and voting
  */
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
+  Box,
   Container,
   Center,
   TabPanel,
@@ -12,7 +13,7 @@ import {
 import PulseLoader from "@/components/shared/PulseLoader";
 import { usePOContext } from "@/context/POContext";
 import { useVotingContext } from "@/context/VotingContext";
-import { useWeb3 } from "@/hooks";
+import { useWeb3, useOrgTheme } from "@/hooks";
 import { VotingType } from "@/services/web3/domain/VotingService";
 
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
@@ -29,12 +30,29 @@ import { usePollNavigation } from "../../hooks/usePollNavigation";
 import { useVotingPagination } from "../../hooks/useVotingPagination";
 import { useProposalForm } from "../../hooks/useProposalForm";
 import { useWinnerStatus } from "../../hooks/useWinnerStatus";
+import { useTour } from "@/features/tour";
 
 const VotingPage = () => {
   const [showCreatePoll, setShowCreatePoll] = useState(false);
+  const { currentStepDef, isActive: isTourActive } = useTour();
+  const tourOpenedModalRef = useRef(false);
+
+  // Auto-open/close CreateVoteModal when tour reaches the create-vote-preview step
+  useEffect(() => {
+    const tourWantsModal = isTourActive && currentStepDef?.id === 'create-vote-preview';
+    if (tourWantsModal && !showCreatePoll) {
+      tourOpenedModalRef.current = true;
+      setShowCreatePoll(true);
+    } else if (!tourWantsModal && tourOpenedModalRef.current) {
+      // Only close if the tour opened it (not if user opened it manually)
+      tourOpenedModalRef.current = false;
+      setShowCreatePoll(false);
+    }
+  }, [isTourActive, currentStepDef?.id, showCreatePoll]);
 
   // Web3 services hook
   const { voting, executeWithNotification, isReady } = useWeb3();
+  const { pageBackground } = useOrgTheme();
 
   const {
     directDemocracyVotingContractAddress,
@@ -144,7 +162,9 @@ const VotingPage = () => {
     proposal,
     loadingSubmit,
     handleInputChange,
-    handleOptionsChange,
+    handleOptionChange,
+    addOption,
+    removeOption,
     handleProposalTypeChange,
     handleTransferAddressChange,
     handleTransferAmountChange,
@@ -227,17 +247,16 @@ const VotingPage = () => {
     <>
       <Navbar />
       {poContextLoading ? (
-        <Center height="90vh">
+        <Center height="90vh" background={pageBackground()}>
           <PulseLoader size="xl" />
         </Center>
       ) : (
-        <Container maxW="container.2xl" py={{ base: 20, md: 4 }} px={{ base: "1%", md: "3%" }}>
-          <VotingEducationHeader selectedTab={selectedTab} PTVoteType={PTVoteType} />
-
+        <Container maxW="container.2xl" py={{ base: 20, md: 4 }} px={{ base: "1%", md: "3%" }} minH="100vh" background={pageBackground()}>
           <VotingTabs
             selectedTab={selectedTab}
             handleTabsChange={handleTabsChange}
             PTVoteType={PTVoteType}
+            headerSlot={<VotingEducationHeader selectedTab={selectedTab} PTVoteType={PTVoteType} />}
           >
             <TabPanel>
               <VotingPanel
@@ -276,7 +295,9 @@ const VotingPage = () => {
             onClose={handleCreatePollClick}
             proposal={proposal}
             handleInputChange={handleInputChange}
-            handleOptionsChange={handleOptionsChange}
+            handleOptionChange={handleOptionChange}
+            addOption={addOption}
+            removeOption={removeOption}
             handleProposalTypeChange={handleProposalTypeChange}
             handleTransferAddressChange={handleTransferAddressChange}
             handleTransferAmountChange={handleTransferAmountChange}

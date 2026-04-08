@@ -13,6 +13,187 @@ import { usePOContext } from '@/context/POContext';
 import { useRouter } from 'next/router';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
+import { SimpleGrid, Avatar } from '@chakra-ui/react';
+import { StarIcon, TimeIcon } from '@chakra-ui/icons';
+import { Modal, ModalOverlay, ModalContent, ModalCloseButton, ModalBody, ModalFooter, Spacer } from '@chakra-ui/react';
+import { useTour } from '@/features/tour';
+import { glassLayerStyle as boardGlassStyle } from './styles/taskBoardStyles';
+
+// --- Example task board shown during tour when no real projects exist ---
+
+const DIFF_COLORS = { easy: '#68D391', medium: '#F6E05E', hard: '#F6AD55' };
+const DIFF_DOTS = { easy: 1, medium: 2, hard: 3 };
+
+const EXAMPLE_COLUMNS = [
+  { id: 'open', title: 'Open', tasks: [
+    { title: 'Design the org logo', desc: 'Create a logo that represents the organization', difficulty: 'easy', payout: '10', hours: 2 },
+    { title: 'Write a welcome post', desc: 'Draft a welcome message for new members joining', difficulty: 'medium', payout: '25', hours: 3 },
+  ]},
+  { id: 'inProgress', title: 'In Progress', tasks: [
+    { title: 'Set up social accounts', desc: 'Create Twitter and Discord for the org', difficulty: 'medium', payout: '15', hours: 2, assignee: 'alice' },
+  ]},
+  { id: 'inReview', title: 'In Review', tasks: [
+    { title: 'Draft governance rules', desc: 'Write the initial proposal and voting rules', difficulty: 'hard', payout: '40', hours: 5, assignee: 'bob' },
+  ]},
+  { id: 'completed', title: 'Completed', tasks: [
+    { title: 'Deploy the organization', desc: 'Set up the on-chain org contracts', difficulty: 'hard', payout: '50', hours: 1, assignee: 'you' },
+  ]},
+];
+
+function ExampleTaskCard({ title, desc, difficulty, payout, hours, assignee }) {
+  const color = DIFF_COLORS[difficulty] || '#CBD5E0';
+  const dots = DIFF_DOTS[difficulty] || 1;
+
+  return (
+    <Box
+      data-tour="task-card"
+      bg="ghostwhite"
+      borderRadius="md"
+      boxShadow="sm"
+      p="8px"
+      mb="16px"
+      borderLeft={`3px solid ${color}`}
+      cursor="default"
+      _hover={{ boxShadow: 'md' }}
+      transition="box-shadow 0.2s ease"
+    >
+      <Text fontWeight="700" fontSize="0.85rem" color="#2D3748" mb={1.5} noOfLines={2} lineHeight="tight" letterSpacing="tight">
+        {title}
+      </Text>
+      <Text fontSize="0.75rem" color="#4A5568" mb={2} noOfLines={2} lineHeight="1.4">
+        {desc}
+      </Text>
+      <Flex direction="column" gap={1.5}>
+        <Flex justify="space-between" align="center">
+          <HStack spacing={1}>
+            {Array.from({ length: dots }).map((_, i) => (
+              <Box key={i} w="6px" h="6px" borderRadius="full" bg={color} />
+            ))}
+            <Text fontSize="xs" color="gray.500" ml={1} fontWeight="medium">{difficulty}</Text>
+          </HStack>
+          <HStack spacing={1}>
+            <TimeIcon boxSize={3} color="gray.400" />
+            <Text fontSize="xs" color="gray.500" fontWeight="medium">{hours} hr{hours !== 1 ? 's' : ''}</Text>
+          </HStack>
+        </Flex>
+        <Flex justify="space-between" align="center">
+          <HStack spacing={1}>
+            <Box bg="purple.50" px={2} py={0.5} borderRadius="full" display="flex" alignItems="center" gap="4px">
+              <StarIcon boxSize={3} color="purple.500" />
+              <Text fontWeight="bold" color="purple.700" fontSize="xs">{payout} PT</Text>
+            </Box>
+          </HStack>
+          {assignee && (
+            <Avatar size="xs" name={assignee} bg="purple.500" color="white" />
+          )}
+        </Flex>
+      </Flex>
+    </Box>
+  );
+}
+
+function ExampleTaskBoard() {
+  return (
+    <Box width="100%" height="100%" pt={3} pb={0} mt={0} overflow="hidden">
+      <SimpleGrid
+        data-tour="task-board"
+        columns={{ base: 1, md: 2, lg: 4 }}
+        spacing={2}
+        width="100%"
+        height="100%"
+        mb={0}
+      >
+        {EXAMPLE_COLUMNS.map(col => (
+          <Box
+            key={col.id}
+            height={{ base: 'auto', md: '78vh' }}
+            minH="400px"
+            borderRadius="xl"
+            position="relative"
+            sx={boardGlassStyle}
+            display="flex"
+            flexDirection="column"
+            alignItems="center"
+            p={2}
+            overflow="hidden"
+          >
+            <Box w="100%" h="100%">
+              <Heading size="md" mb={3} mt={0} ml={3} color="white">
+                {col.title}
+              </Heading>
+              <Box h="calc(100% - 3rem)" borderRadius="md" p={2} overflowY="auto"
+                sx={{ '&::-webkit-scrollbar': { width: '4px' }, '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.2)', borderRadius: '24px' } }}
+              >
+                {col.tasks.length > 0 ? (
+                  col.tasks.map((t, i) => <ExampleTaskCard key={i} {...t} />)
+                ) : (
+                  <Flex w="100%" minH="200px" direction="column" align="center" justify="center" p={4} textAlign="center"
+                    bg="rgba(255,255,255,0.05)" borderRadius="8px" border="1px dashed rgba(255,255,255,0.2)"
+                  >
+                    <Text fontSize="sm" color="white" fontWeight="medium">{col.title}</Text>
+                    <Text fontSize="xs" color="whiteAlpha.700">No tasks yet</Text>
+                  </Flex>
+                )}
+              </Box>
+            </Box>
+          </Box>
+        ))}
+      </SimpleGrid>
+    </Box>
+  );
+}
+
+// --- Example task detail modal shown during tour ---
+
+const modalGlassStyle = {
+  position: 'absolute',
+  height: '100%',
+  width: '100%',
+  zIndex: -1,
+  borderRadius: 'inherit',
+  backgroundColor: 'rgba(33, 33, 33, 0.97)',
+};
+
+function ExampleTaskModal({ isOpen, onClose }) {
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="3xl" isCentered zIndex={10001}>
+      <ModalOverlay bg="transparent" />
+      <ModalContent bg="transparent" textColor="white" data-tour="example-task-modal">
+        <div style={modalGlassStyle} />
+        <ModalCloseButton zIndex={1} />
+        <Box pt={4} borderTopRadius="2xl" bg="transparent" boxShadow="lg" position="relative">
+          <div style={modalGlassStyle} />
+          <Text ml="6" fontSize="2xl" fontWeight="bold">Design the org logo</Text>
+        </Box>
+        <ModalBody>
+          <VStack spacing={4} align="start">
+            <Box>
+              <Text mb="4" mt="4" lineHeight="6" fontSize="md" fontWeight="bold" style={{ whiteSpace: 'pre-wrap' }}>
+                Create a logo that represents the organization. It should be clean, modern, and work well at small sizes. Consider the org&apos;s mission and values when designing.
+              </Text>
+            </Box>
+            <HStack width="100%">
+              <Badge colorScheme="green">Easy</Badge>
+              <Badge colorScheme="blue">2 hrs</Badge>
+              <Spacer />
+            </HStack>
+          </VStack>
+        </ModalBody>
+        <ModalFooter borderTop="1.5px solid" borderColor="gray.200" py={2}>
+          <Box flexGrow={1}>
+            <VStack align="start" spacing={0}>
+              <Text fontWeight="bold" fontSize="m">Reward: 10 PT</Text>
+            </VStack>
+          </Box>
+          <Box>
+            <Button textColor="white" variant="outline" mr={2} isDisabled>Share</Button>
+            <Button colorScheme="teal" isDisabled>Claim Task</Button>
+          </Box>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  );
+}
 
 // Enhanced styles for mobile project selector
 const mobileHeaderStyle = {
@@ -68,6 +249,18 @@ const MainLayout = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isProjectModalOpen, onOpen: onProjectModalOpen, onClose: onProjectModalClose } = useDisclosure();
   const [showHelp, setShowHelp] = useState(true);
+  const { pendingAction, isActive: isTourActive, currentStepDef } = useTour();
+  const currentStepId = currentStepDef?.id;
+  const [tourDefaultProjectName, setTourDefaultProjectName] = useState('');
+  const [tourDefaultProjectDesc, setTourDefaultProjectDesc] = useState('');
+
+  // Pre-fill defaults when modal opens during tour's create-project step
+  useEffect(() => {
+    if (isProjectModalOpen && isTourActive && pendingAction === 'create-project') {
+      setTourDefaultProjectName('My First Project');
+      setTourDefaultProjectDesc('A place to organize tasks for your team.');
+    }
+  }, [isProjectModalOpen, isTourActive, pendingAction]);
 
   // State to track sidebar visibility
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -410,6 +603,15 @@ const MainLayout = () => {
                 <Text fontSize="md" mb={4}>Choose a project from the dropdown above to view tasks</Text>
               </Flex>
             </Box>
+          ) : isTourActive && pendingAction !== 'create-project' && pendingAction !== 'create-task' ? (
+            /* Tour is active with no projects — show example board */
+            <Box flex="1" width="100%">
+              <ExampleTaskBoard />
+              <ExampleTaskModal
+                isOpen={isTourActive && pendingAction === null && currentStepId === 'task-detail'}
+                onClose={() => {}}
+              />
+            </Box>
           ) : (
             <Box flex="1" width="100%">
               <Flex
@@ -425,6 +627,7 @@ const MainLayout = () => {
                 <Heading size="md" mb={2}>Create Your First Project</Heading>
                 <Text fontSize="md" mb={4}>Get started by creating a project</Text>
                 <Button
+                  data-tour="create-project-mobile-btn"
                   colorScheme="purple"
                   onClick={onProjectModalOpen}
                   leftIcon={<AddIcon />}
@@ -440,11 +643,17 @@ const MainLayout = () => {
       {/* Create Project Modal */}
       <CreateProjectModal
         isOpen={isProjectModalOpen}
-        onClose={onProjectModalClose}
+        onClose={() => {
+          setTourDefaultProjectName('');
+          setTourDefaultProjectDesc('');
+          onProjectModalClose();
+        }}
         onCreateProject={handleCreateProject}
         roleHatIds={roleHatIds || []}
         roleNames={roleNames || {}}
         creatorHatIds={creatorHatIds || []}
+        defaultName={tourDefaultProjectName}
+        defaultDescription={tourDefaultProjectDesc}
       />
     </DndProvider>
   );

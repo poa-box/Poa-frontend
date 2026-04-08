@@ -25,6 +25,7 @@ import {
   Collapse,
   Tooltip,
 } from '@chakra-ui/react';
+import PostDeployLoadingScreen from '@/components/shared/PostDeployLoadingScreen';
 import PulseLoader from "@/components/shared/PulseLoader";
 import { useVotingContext } from '@/context/VotingContext';
 import { usePOContext } from '@/context/POContext';
@@ -34,10 +35,10 @@ import Link2 from 'next/link';
 import OngoingPolls from '@/components/userPage/OngoingPolls';
 import { useRouter } from 'next/router';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
-import { FaLink } from 'react-icons/fa';
-import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiCheck } from 'react-icons/fi';
+import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiCheck, FiExternalLink, FiInbox, FiBarChart2, FiBookOpen, FiArrowRight, FiMap } from 'react-icons/fi';
+import { useTour } from '@/features/tour';
 import { useIPFScontext } from "@/context/ipfsContext";
-import { useOrgStructure } from '@/hooks/useOrgStructure';
+import { useOrgStructure, useOrgTheme } from '@/hooks';
 import { VouchingSection } from '@/components/orgStructure/VouchingSection';
 import { OrgStructureCard } from '@/components/dashboard/OrgStructureCard';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
@@ -45,7 +46,8 @@ import { glassLayerStyle } from '@/components/shared/glassStyles';
 const PerpetualOrgDashboard = () => {
   const { ongoingPolls } = useVotingContext();
   const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
-
+  const { pageBackground } = useOrgTheme();
+  const { startTour, isActive: isTourActive } = useTour();
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
   const [imageURL, setImageURL] = useState({});
@@ -60,11 +62,11 @@ const PerpetualOrgDashboard = () => {
 
   // Responsive design breakpoints — single call to reduce matchMedia listeners
   const bp = useBreakpointValue({
-    base: { isMobile: true, logoWidth: "160px", headingSize: "2xl", sectionHeadingSize: "xl", textSize: "sm", statsTextSize: "md", leaderboardTitle: "Members & Leaderboard" },
-    sm: { isMobile: true, logoWidth: "180px", headingSize: "3xl", sectionHeadingSize: "xl", textSize: "sm", statsTextSize: "md", leaderboardTitle: "Members & Leaderboard" },
-    md: { isMobile: false, logoWidth: "220px", headingSize: "4xl", sectionHeadingSize: "2xl", textSize: "md", statsTextSize: "lg", leaderboardTitle: "Browse Members and Leaderboard" },
+    base: { isMobile: true, logoWidth: "160px", headingSize: "2xl", sectionHeadingSize: "xl", textSize: "sm", statsTextSize: "md" },
+    sm: { isMobile: true, logoWidth: "180px", headingSize: "3xl", sectionHeadingSize: "xl", textSize: "sm", statsTextSize: "md" },
+    md: { isMobile: false, logoWidth: "220px", headingSize: "4xl", sectionHeadingSize: "2xl", textSize: "md", statsTextSize: "lg" },
   }) || {};
-  const { isMobile, logoWidth, headingSize, sectionHeadingSize, textSize, statsTextSize, leaderboardTitle } = bp;
+  const { isMobile, logoWidth, headingSize, sectionHeadingSize, textSize, statsTextSize } = bp;
 
   useEffect(() => {
     const fetchImage = async () => {
@@ -128,12 +130,17 @@ const PerpetualOrgDashboard = () => {
       />
       <Navbar />
       {poContextLoading ? (
-        <Center height="100vh">
-          <PulseLoader size="xl" />
-        </Center>
+        router.query.newOrg === 'true' ? (
+          <PostDeployLoadingScreen orgName={userDAO} />
+        ) : (
+          <Center height="100vh" background={pageBackground()}>
+            <PulseLoader size="xl" />
+          </Center>
+        )
       ) : (
-        <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }}>
+        <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }} minH="100vh" background={pageBackground()}>
             <Grid
+              data-tour="dashboard-grid"
               color="whitesmoke"
               templateAreas={{
                 base: educationHubEnabled ? `
@@ -172,6 +179,7 @@ const PerpetualOrgDashboard = () => {
             >
             <GridItem area={'orgInfo'}>
               <Box
+                data-tour="org-info"
                 w={{ base: "100%", md: "125%" }}
                 borderRadius="2xl"
                 bg="transparent"
@@ -203,36 +211,60 @@ const PerpetualOrgDashboard = () => {
                       <Text fontWeight={"bold"} fontSize={{ base: "lg", md: "xl" }} mt={0}>
                         Description:
                       </Text>
-                      <Text mt="-1" fontSize={textSize} ml="2">
+                      <Text mt={1} mb={1} fontSize={textSize} ml="2" lineHeight="tall">
                         {poDescription}
                       </Text>
                     </Box>
-                    <Box>
-                      <HStack spacing={2} align="center">
-                        <Icon as={FaLink} boxSize={4} />
-                        <Text fontSize={{ base: "md", md: "lg" }} fontWeight="bold">
-                          Links
-                        </Text>
-                      </HStack>
-                      <Wrap ml="4" mt="1" spacing={2} align="center">
-                        {poLinks && poLinks.length > 0 ? (
-                          poLinks.map((link, index) => (
-                            <WrapItem key={index}>
-                              <Text mt="-2" fontSize={textSize}>
-                                <Link fontSize={{ base: "md", md: "xl" }} fontWeight={"bold"} href={link.url} isExternal color="blue.400">
+                    {poLinks && poLinks.length > 0 && (
+                      <Wrap spacing={2} align="center">
+                        {poLinks.map((link, index) => (
+                          <WrapItem key={index}>
+                            <Link href={link.url} isExternal _hover={{ textDecoration: 'none' }}>
+                              <HStack
+                                spacing={1.5}
+                                px={3}
+                                py={1}
+                                borderRadius="full"
+                                bg="whiteAlpha.100"
+                                border="1px solid"
+                                borderColor="whiteAlpha.200"
+                                _hover={{
+                                  bg: 'whiteAlpha.200',
+                                  borderColor: 'purple.400',
+                                  transform: 'translateY(-1px)',
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                                }}
+                                transition="all 0.2s"
+                              >
+                                <Icon as={FiExternalLink} boxSize={3} color="purple.300" />
+                                <Text fontSize={textSize} fontWeight="medium" color="whiteAlpha.900">
                                   {link.name}
-                                </Link>
-                              </Text>
-                            </WrapItem>
-                          ))
-                        ) : (
-                          <Text fontSize={{ base: "md", md: "lg" }} mt={2}>No links available</Text>
-                        )}
+                                </Text>
+                              </HStack>
+                            </Link>
+                          </WrapItem>
+                        ))}
                       </Wrap>
-                    </Box>
+                    )}
                   </VStack>
                 </Flex>
-                <Box display="flex" justifyContent="flex-end" px={{ base: 3, md: 4 }} pb={{ base: 3, md: 4 }}>
+                <HStack display="flex" justifyContent="flex-end" px={{ base: 3, md: 4 }} pb={{ base: 3, md: 4 }} spacing={2}>
+                  {!isTourActive && (
+                    <Tooltip label="Take a guided tour of your organization" hasArrow>
+                      <Button
+                        onClick={() => startTour(userDAO)}
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<Icon as={FiMap} />}
+                        borderColor="amethyst.400"
+                        color="amethyst.300"
+                        _hover={{ bg: 'purple.900' }}
+                        transition="all 0.2s"
+                      >
+                        Tour Org
+                      </Button>
+                    </Tooltip>
+                  )}
                   <Tooltip label={hasCopied ? 'Copied!' : 'Copy invite link to clipboard'} closeOnClick={false} hasArrow>
                     <Button
                       onClick={onCopy}
@@ -248,12 +280,13 @@ const PerpetualOrgDashboard = () => {
                       {hasCopied ? 'Copied!' : 'Copy Invite Link'}
                     </Button>
                   </Tooltip>
-                </Box>
+                </HStack>
               </Box>
             </GridItem>
 
             <GridItem area={'orgStats'}>
               <Box
+                data-tour="org-stats"
                 h="100%"
                 ml={{ base: 0, md: "25%" }}
                 w={{ base: "100%", md: "75%" }}
@@ -330,41 +363,53 @@ const PerpetualOrgDashboard = () => {
                     Recommended Tasks
                   </Text>
                 </VStack>
-                <Flex 
-                  direction={{ base: "column", md: "row" }}
-                  wrap={{ base: "nowrap", md: "wrap" }}
-                  justify="space-between" 
-                  gap={3}
-                  pb={2} 
-                  px={{ base: 3, md: 4 }} 
-                  pt={2}
-                >
-                  {recommendedTasks?.slice(0, 3).map((task) => (
-                    <Box
-                      key={task.id}
-                      w={{ base: "100%", md: "31%" }}
-                      mb={{ base: 2, md: 0 }}
-                      _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
-                      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
-                      p={4}
-                      borderRadius="2xl"
-                      overflow="hidden"
-                      bg="black"
-                    >
-                      <Link2 href={`/tasks/?task=${task.id}&projectId=${encodeURIComponent(decodeURIComponent(task.projectId))}&org=${userDAO}`}>
-                        <VStack textColor="white" align="stretch" spacing={3}>
-                          <Text mt="-2" fontSize={textSize} lineHeight="99%" fontWeight="extrabold">
-                            {task.isIndexing ? 'Indexing...' : task.title}
-                          </Text>
-                          <HStack justify="space-between">
-                            <Badge colorScheme="purple">{task.status}</Badge>
-                            <Text fontWeight="bold">{task.payout} Tokens</Text>
-                          </HStack>
-                        </VStack>
-                      </Link2>
-                    </Box>
-                  ))}
-                </Flex>
+                {recommendedTasks?.length > 0 ? (
+                  <Flex
+                    direction={{ base: "column", md: "row" }}
+                    wrap={{ base: "nowrap", md: "wrap" }}
+                    justify="space-between"
+                    gap={3}
+                    pb={2}
+                    px={{ base: 3, md: 4 }}
+                    pt={2}
+                  >
+                    {recommendedTasks.slice(0, 3).map((task) => (
+                      <Box
+                        key={task.id}
+                        w={{ base: "100%", md: "31%" }}
+                        mb={{ base: 2, md: 0 }}
+                        _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
+                        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
+                        p={4}
+                        borderRadius="2xl"
+                        overflow="hidden"
+                        bg="black"
+                      >
+                        <Link2 href={`/tasks/?task=${task.id}&projectId=${encodeURIComponent(decodeURIComponent(task.projectId))}&org=${userDAO}`}>
+                          <VStack textColor="white" align="stretch" spacing={3}>
+                            <Text mt="-2" fontSize={textSize} lineHeight="99%" fontWeight="extrabold">
+                              {task.isIndexing ? 'Indexing...' : task.title}
+                            </Text>
+                            <HStack justify="space-between">
+                              <Badge colorScheme="purple">{task.status}</Badge>
+                              <Text fontWeight="bold">{task.payout} Tokens</Text>
+                            </HStack>
+                          </VStack>
+                        </Link2>
+                      </Box>
+                    ))}
+                  </Flex>
+                ) : (
+                  <Center py={8} flexDirection="column">
+                    <Icon as={FiInbox} boxSize={8} color="whiteAlpha.300" mb={3} />
+                    <Text fontSize={textSize} color="whiteAlpha.500" fontWeight="medium">
+                      No recommended tasks yet
+                    </Text>
+                    <Text fontSize="xs" color="whiteAlpha.300" mt={1}>
+                      Tasks will appear here as they become available
+                    </Text>
+                  </Center>
+                )}
               </Box>
             </GridItem>
 
@@ -402,16 +447,29 @@ const PerpetualOrgDashboard = () => {
                   boxShadow="lg"
                   position="relative"
                   zIndex={2}
-                  _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
-                  transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
+                  sx={{
+                    '& .arrow-icon': {
+                      transition: 'transform 0.2s ease',
+                    },
+                  }}
+                  _hover={{
+                    transform: "translateY(-2px)",
+                    boxShadow: "0 8px 25px rgba(0,0,0,0.3)",
+                    '& .arrow-icon': {
+                      transform: 'translateX(4px)',
+                      color: 'purple.300',
+                    },
+                  }}
+                  transition="transform 0.2s, box-shadow 0.2s"
                 >
                   <div style={glassLayerStyle} />
-                  <VStack pb={1} align="flex-start" position="relative" borderTopRadius="2xl">
+                  <HStack pb={1} justify="space-between" align="center" position="relative" borderTopRadius="2xl" pr={{ base: 3, md: 6 }}>
                     <div style={glassLayerStyle} />
                     <Text pl={{ base: 3, md: 6 }} fontWeight="bold" fontSize={sectionHeadingSize}>
-                      {leaderboardTitle}
+                      Members
                     </Text>
-                  </VStack>
+                    <Icon as={FiArrowRight} className="arrow-icon" color="gray.500" boxSize={5} />
+                  </HStack>
                   <Box p={{ base: 2, md: 4 }}>
                     {Array.isArray(leaderboardDisplayData) && leaderboardDisplayData.length > 0 ? (
                       leaderboardDisplayData.slice(0, 5).map((entry, index) => {
@@ -566,9 +624,15 @@ const PerpetualOrgDashboard = () => {
                         ))}
                       </Flex>
                     ) : (
-                      <Text pl={{ base: 3, md: 6 }} fontSize={textSize} mt={2}>
-                        No modules available at this time.
-                      </Text>
+                      <Center py={8} flexDirection="column">
+                        <Icon as={FiBookOpen} boxSize={8} color="whiteAlpha.300" mb={3} />
+                        <Text fontSize={textSize} color="whiteAlpha.500" fontWeight="medium">
+                          No modules available yet
+                        </Text>
+                        <Text fontSize="xs" color="whiteAlpha.300" mt={1}>
+                          Learning modules will be listed here once published
+                        </Text>
+                      </Center>
                     )}
                   </Box>
                 </Box>

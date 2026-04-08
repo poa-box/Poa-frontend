@@ -56,8 +56,8 @@ export function OrgStructureCard({
           },
         }}
         _hover={{
-          transform: 'translateY(-4px) scale(1.02)',
-          boxShadow: '0 12px 28px rgba(148, 115, 220, 0.25)',
+          transform: 'translateY(-2px)',
+          boxShadow: '0 8px 25px rgba(0,0,0,0.3)',
           '& .glass-layer': {
             borderColor: 'rgba(148, 115, 220, 0.5)',
             boxShadow: 'inset 0 0 25px rgba(148, 115, 220, 0.15)',

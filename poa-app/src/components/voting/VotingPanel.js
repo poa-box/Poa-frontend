@@ -29,6 +29,7 @@ const VotingPanel = ({
 }) => {
   return (
     <Flex
+      data-tour="voting-panel"
       align="center"
       mb={8}
       flexDirection="column"

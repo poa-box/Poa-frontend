@@ -99,6 +99,7 @@ const initialState = {
     poLinks: [],
     logoHash: '',
     logoUrl: '',
+    backgroundColor: null,
     metadataAdminHatId: null,
     poMembers: 0,
     activeTaskAmount: 0,
@@ -162,6 +163,7 @@ export const POProvider = ({ children }) => {
     // Step 1: Look up org by name across all chains via parallel fetch
     const [orgLookupLoading, setOrgLookupLoading] = useState(!!poName);
     const [orgLookupError, setOrgLookupError] = useState(null);
+    const isNewOrg = router.query.newOrg === 'true';
 
     useEffect(() => {
         if (!poName) {
@@ -169,6 +171,9 @@ export const POProvider = ({ children }) => {
             return;
         }
         let cancelled = false;
+        let retryCount = 0;
+        const MAX_RETRIES = 20;
+        const RETRY_INTERVAL = 3000;
         setOrgLookupLoading(true);
         setOrgLookupError(null);
 
@@ -200,17 +205,26 @@ export const POProvider = ({ children }) => {
                         type: 'SET_ORG_DATA',
                         payload: { orgId: found.id, orgChainId: found.chainId },
                     });
+                    setOrgLookupLoading(false);
+                } else if (isNewOrg && retryCount < MAX_RETRIES) {
+                    // Newly deployed org — subgraph may not have indexed yet, retry
+                    retryCount++;
+                    console.log(`[POContext] New org "${poName}" not indexed yet, retrying (${retryCount}/${MAX_RETRIES})...`);
+                    setTimeout(() => {
+                        if (!cancelled) findOrg();
+                    }, RETRY_INTERVAL);
+                    // Don't set loading to false — still polling
                 } else {
                     console.warn(`[POContext] Organization "${poName}" not found on any chain`);
+                    setOrgLookupLoading(false);
                     dispatch({ type: 'SET_LOADING', payload: false });
                 }
             } catch (err) {
                 if (!cancelled) {
                     console.error('[POContext] Org lookup failed:', err);
                     setOrgLookupError(err);
+                    setOrgLookupLoading(false);
                 }
-            } finally {
-                if (!cancelled) setOrgLookupLoading(false);
             }
         }
 
@@ -315,6 +329,7 @@ export const POProvider = ({ children }) => {
                 payload: {
                     logoHash: org.metadataHash || '',
                     logoUrl: org.metadata?.logo || '',
+                    backgroundColor: org.metadata?.backgroundColor || null,
                     hideTreasury: org.metadata?.hideTreasury === true,
                     poMembers: org.users?.length || 0,
                     ptTokenBalance: formatTokenAmount(org.participationToken?.totalSupply || '0'),
@@ -365,8 +380,15 @@ export const POProvider = ({ children }) => {
                     poContextLoading: false,
                 },
             });
+
+            // Clean up newOrg query param now that full data is loaded
+            // (deferred from org lookup to prevent flashing from PostDeployLoadingScreen to bare Spinner)
+            if (router.query.newOrg === 'true') {
+                const { newOrg, ...restQuery } = router.query;
+                router.replace({ pathname: router.pathname, query: restQuery }, undefined, { shallow: true });
+            }
         }
-    }, [orgData]);
+    }, [orgData, router]);
 
     // Fetch logo and hideTreasury from IPFS metadata — only as fallback
     // when the subgraph hasn't indexed org metadata yet.
@@ -383,7 +405,10 @@ export const POProvider = ({ children }) => {
             try {
                 const metadata = await safeFetchFromIpfs(org.metadataHash);
                 dispatch({ type: 'SET_LOGO_URL', payload: metadata?.logo || '' });
-                dispatch({ type: 'SET_ORG_DATA', payload: { hideTreasury: metadata?.hideTreasury === true } });
+                dispatch({ type: 'SET_ORG_DATA', payload: {
+                    hideTreasury: metadata?.hideTreasury === true,
+                    backgroundColor: metadata?.backgroundColor || null,
+                } });
             } catch (e) {
                 console.warn('[POContext] Failed to fetch metadata from IPFS:', e);
             }
@@ -450,6 +475,7 @@ export const POProvider = ({ children }) => {
         poLinks: state.poLinks,
         logoHash: state.logoHash,
         logoUrl: state.logoUrl,
+        backgroundColor: state.backgroundColor,
         metadataAdminHatId: state.metadataAdminHatId,
         poMembers: state.poMembers,
         activeTaskAmount: state.activeTaskAmount,

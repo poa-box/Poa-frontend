@@ -11,6 +11,7 @@ import { NotificationProvider } from "@/context/NotificationContext";
 import { RefreshProvider } from "@/context/RefreshContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
+import { TourProvider, TourOverlay, TourPrompt } from "@/features/tour";
 import '@rainbow-me/rainbowkit/styles.css';
 import '../styles/globals.css';
 import '/public/css/prism.css';
@@ -212,9 +213,13 @@ const StableProviders = React.memo(function StableProviders({ children }) {
                           <Web3Provider>
                             <DataBaseProvider>
                               <ChakraProvider theme={theme}>
-                                <NetworkModalControl />
-                                <Notification />
-                                {children}
+                                <TourProvider>
+                                  <NetworkModalControl />
+                                  <Notification />
+                                  <TourOverlay />
+                                  <TourPrompt />
+                                  {children}
+                                </TourProvider>
                               </ChakraProvider>
                             </DataBaseProvider>
                           </Web3Provider>

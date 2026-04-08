@@ -31,6 +31,7 @@ import DepositModal from './DepositModal';
 import CreateDistributionModal from './CreateDistributionModal';
 import GasPoolSection from './GasPoolSection';
 import GasPoolDepositModal from './GasPoolDepositModal';
+import { useOrgTheme } from '@/hooks';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -66,6 +67,7 @@ const TreasuryPage = () => {
     orgChainId,
   } = usePOContext();
   const { hasExecRole } = useUserContext();
+  const { pageBackground } = useOrgTheme();
 
   // Redirect to dashboard if treasury is hidden
   useEffect(() => {
@@ -195,15 +197,16 @@ const TreasuryPage = () => {
     <>
       <Navbar />
       {isLoading ? (
-        <Center height="100vh">
+        <Center height="100vh" background={pageBackground()}>
           <VStack spacing={4}>
             <PulseLoader size="xl" color="purple.400" />
             <Text color="gray.400">Loading treasury data...</Text>
           </VStack>
         </Center>
       ) : (
-        <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }}>
+        <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }} minH="100vh" background={pageBackground()}>
           <Grid
+            data-tour="treasury-content"
             color="whitesmoke"
             templateAreas={{
               base: `

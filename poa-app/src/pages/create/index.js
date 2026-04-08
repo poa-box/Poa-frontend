@@ -740,10 +740,14 @@ function DeployerPageContent() {
 
   // Handle navigation after deployment celebration
   const handleDeploySuccess = () => {
-    // Delay redirect to allow subgraph indexing
-    setTimeout(() => {
-      router.push(`/profile?org=${encodeURIComponent(state.organization.name)}`);
-    }, 2000);
+    // Store deploy info for the tour prompt, then navigate immediately
+    try {
+      localStorage.setItem('poa-new-org-deploy', JSON.stringify({
+        orgName: state.organization.name,
+        deployedAt: Date.now(),
+      }));
+    } catch {}
+    router.push(`/dashboard?org=${encodeURIComponent(state.organization.name)}&newOrg=true`);
   };
 
   // Handlers for modals that OrganizationStep needs

@@ -35,7 +35,7 @@ import { useAccount, useSwitchChain } from 'wagmi';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { usePOContext } from '@/context/POContext';
 import { useAuth } from '@/context/AuthContext';
-import { useWeb3 } from '@/hooks';
+import { useWeb3, useOrgTheme } from '@/hooks';
 import { useUserContext } from '@/context/UserContext';
 import { getNetworkByChainId } from '@/config/networks';
 import QuizModal from '@/components/eduHub/QuizModal';
@@ -43,6 +43,7 @@ import { useRouter } from 'next/router';
 
 const EducationHub = () => {
   const { poContextLoading, educationModules, educationHubAddress, educationHubEnabled, orgChainId } = usePOContext();
+  const { pageBackground } = useOrgTheme();
   const { completedModules, hasExecRole } = useUserContext();
   const { education, executeWithNotification } = useWeb3();
   const { isPasskeyUser } = useAuth();
@@ -160,13 +161,14 @@ const EducationHub = () => {
         path="/learn"
         noIndex
       />
+      <Box minH="100vh" background={pageBackground()}>
       <Navbar />
       {poContextLoading ? (
         <Center height="90vh">
           <PulseLoader size="xl" />
         </Center>
       ) : (
-        <Box position="relative">
+        <Box position="relative" data-tour="education-hub-content">
           {/* Main Box */}
           <Box
             p={5}
@@ -428,6 +430,7 @@ const EducationHub = () => {
           </Box>
         </Box>
       )}
+      </Box>
     </>
   );
 };

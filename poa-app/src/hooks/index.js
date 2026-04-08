@@ -38,3 +38,6 @@ export { useVouchFirstOnboarding } from './useVouchFirstOnboarding';
 
 // Global Account
 export { useGlobalAccount } from './useGlobalAccount';
+
+// Org Theme
+export { useOrgTheme } from './useOrgTheme';
