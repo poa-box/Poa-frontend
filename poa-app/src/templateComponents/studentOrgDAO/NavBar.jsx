@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button } from "@chakra-ui/react";
+import { Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, Tooltip } from "@chakra-ui/react";
 import NextImage from "next/image";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
 import { FaHome } from 'react-icons/fa';
@@ -177,19 +177,19 @@ const Navbar = React.memo(() => {
             </Link>
           )}
           {isAdmin && (
-            <Link
-              as={NextLink}
-              href={orgUrl(org, 'settings')}
-              color="white"
-              fontWeight="extrabold"
-              fontSize="xl"
-              mx={"2%"}
-            >
-              <Flex align="center" gap={1}>
-                <SettingsIcon boxSize={4} />
-                Settings
-              </Flex>
-            </Link>
+            <Tooltip label="Settings — Edit org appearance, description, links, etc." placement="bottom" hasArrow>
+              <IconButton
+                as={NextLink}
+                href={orgUrl(org, 'settings')}
+                icon={<SettingsIcon boxSize={5} />}
+                aria-label="Settings"
+                variant="ghost"
+                color="white"
+                _hover={{ bg: "whiteAlpha.200" }}
+                size="md"
+                mx={"2%"}
+              />
+            </Tooltip>
           )}
           {mounted && (isPasskeyUser || isAuthenticated) ? (
             <LoginButton />
