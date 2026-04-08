@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { useTour } from '@/features/tour';
 import SEOHead from "@/components/common/SEOHead";
 import {
   Box,
@@ -54,12 +55,13 @@ const EducationHub = () => {
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
 
-  // Redirect to dashboard if education hub is disabled for this organization
+  // Redirect to dashboard if education hub is disabled (skip during tour)
+  const { isActive: isTourActive } = useTour();
   useEffect(() => {
-    if (!poContextLoading && !educationHubEnabled && userDAO) {
+    if (!poContextLoading && !educationHubEnabled && userDAO && !isTourActive) {
       router.replace(`/dashboard/?org=${userDAO}`);
     }
-  }, [poContextLoading, educationHubEnabled, userDAO, router]);
+  }, [poContextLoading, educationHubEnabled, userDAO, isTourActive, router]);
 
   // Form state
   const [moduleTitle, setModuleTitle] = useState('');
