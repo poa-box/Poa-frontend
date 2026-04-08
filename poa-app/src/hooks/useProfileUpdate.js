@@ -2,29 +2,32 @@
  * useProfileUpdate
  * Hook for updating user profile metadata on the UniversalAccountRegistry.
  * Handles both EOA (direct contract call) and passkey (ERC-4337 UserOp) flows.
- * Profile updates are sponsored via the solidarity onboarding path.
+ *
+ * Passkey profile updates are sponsored via solidarity onboarding on GNOSIS chain
+ * (Arbitrum does not have onboarding enabled).
  */
 
-import { useState, useCallback } from 'react';
-import { useQuery } from '@apollo/client';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { encodeFunctionData } from 'viem';
 import { useAuth } from '@/context/AuthContext';
 import { useIPFScontext } from '@/context/ipfsContext';
 import { useEthersSigner } from '@/components/ProviderConverter';
-import { FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
-import { FETCH_PASSKEY_FACTORY_ADDRESS } from '@/util/passkeyQueries';
 import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
 import { buildUserOp, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
 import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';
 import { encodeSolidarityOnboardingPaymasterData } from '@/services/web3/passkey/paymasterData';
+import { createChainClients } from '@/services/web3/utils/chainClients';
 import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
-import { DEFAULT_CHAIN_ID } from '@/config/networks';
+import { DEFAULT_DEPLOY_CHAIN_ID, getSubgraphUrl } from '@/config/networks';
 import UniversalAccountRegistryABI from '../../abi/UniversalAccountRegistry.json';
 import PasskeyAccountABI from '../../abi/PasskeyAccount.json';
 import { ethers } from 'ethers';
 
+// Solidarity-funded operations target Gnosis (onboarding enabled there, not Arbitrum)
+const SOLIDARITY_CHAIN_ID = DEFAULT_DEPLOY_CHAIN_ID;
+
 export function useProfileUpdate() {
-  const { isPasskeyUser, accountAddress, passkeyState, publicClient, bundlerClient } = useAuth();
+  const { isPasskeyUser, accountAddress, passkeyState } = useAuth();
   const { addToIpfs } = useIPFScontext();
   const signer = useEthersSigner();
 
@@ -32,16 +35,41 @@ export function useProfileUpdate() {
   const [error, setError] = useState(null);
   const [step, setStep] = useState('idle');
 
-  // Fetch infrastructure addresses
-  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
-  const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
-  const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
+  // Gnosis-specific clients for passkey UserOps
+  const gnosisClients = useMemo(() => createChainClients(SOLIDARITY_CHAIN_ID), []);
+  const publicClient = gnosisClients?.publicClient;
+  const bundlerClient = gnosisClients?.bundlerClient;
 
-  // Fetch factory address (needed for passkey users)
-  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
-    skip: !isPasskeyUser,
-  });
-  const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
+  // Infrastructure state (fetched from Gnosis subgraph)
+  const [paymasterAddress, setPaymasterAddress] = useState(null);
+  const [registryAddress, setRegistryAddress] = useState(null);
+
+  useEffect(() => {
+    const subgraphUrl = getSubgraphUrl(SOLIDARITY_CHAIN_ID);
+    if (!subgraphUrl) return;
+
+    async function fetchInfra() {
+      try {
+        const query = `{
+          poaManagerContracts(first: 1) { paymasterHubProxy }
+          universalAccountRegistries(first: 1) { id }
+        }`;
+        const res = await fetch(subgraphUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+        const json = await res.json();
+        const data = json?.data;
+        setPaymasterAddress(data?.poaManagerContracts?.[0]?.paymasterHubProxy || null);
+        setRegistryAddress(data?.universalAccountRegistries?.[0]?.id || null);
+      } catch (err) {
+        console.error('[ProfileUpdate] Failed to fetch Gnosis infrastructure:', err);
+      }
+    }
+
+    fetchInfra();
+  }, []);
 
   /**
    * Update profile metadata.
@@ -86,7 +114,7 @@ export function useProfileUpdate() {
     } finally {
       setIsUpdating(false);
     }
-  }, [accountAddress, registryAddress, isPasskeyUser, addToIpfs, signer, publicClient, bundlerClient, paymasterAddress, passkeyState, factoryAddress]);
+  }, [accountAddress, registryAddress, isPasskeyUser, addToIpfs, signer, publicClient, bundlerClient, paymasterAddress, passkeyState]);
 
   /**
    * EOA flow: direct contract write using ethers signer.
@@ -145,7 +173,7 @@ export function useProfileUpdate() {
     const userOpHash = getUserOpHash(
       userOp,
       ENTRY_POINT_ADDRESS,
-      DEFAULT_CHAIN_ID,
+      SOLIDARITY_CHAIN_ID,
     );
     const signature = await signUserOpWithPasskey(userOpHash, passkeyState.rawCredentialId);
     userOp.signature = signature;

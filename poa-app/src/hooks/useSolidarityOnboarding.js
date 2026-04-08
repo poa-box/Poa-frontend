@@ -2,40 +2,80 @@
  * useSolidarityOnboarding
  * React hook for solidarity-funded passkey account creation (no org context needed).
  * Used on the homepage where there is no POContext available.
+ *
+ * Targets GNOSIS chain where the solidarity fund is active and onboarding is enabled.
+ * Arbitrum does not have onboarding enabled, so all solidarity-funded operations go through Gnosis.
  */
 
-import { useState, useCallback } from 'react';
-import { useQuery } from '@apollo/client';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useAuth } from '../context/AuthContext';
 import {
   createPasskeyOnboardingService,
   OnboardingStep,
   STEP_MESSAGES,
 } from '../services/web3/domain/PasskeyOnboardingService';
-import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
-import { FETCH_PASSKEY_FACTORY_ADDRESS, FETCH_SOLIDARITY_FUND_STATUS } from '../util/passkeyQueries';
+import { createChainClients } from '../services/web3/utils/chainClients';
+import { DEFAULT_DEPLOY_CHAIN_ID, getSubgraphUrl } from '../config/networks';
+
+// Gnosis chain — solidarity fund is active here, not on Arbitrum
+const SOLIDARITY_CHAIN_ID = DEFAULT_DEPLOY_CHAIN_ID;
 
 export function useSolidarityOnboarding() {
-  const { publicClient, bundlerClient, activatePasskey } = useAuth();
+  const { activatePasskey } = useAuth();
 
   const [step, setStep] = useState(OnboardingStep.IDLE);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
   const [isOnboarding, setIsOnboarding] = useState(false);
 
-  // Fetch infrastructure addresses (no org context needed)
-  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES);
-  const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
-  const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
+  // Infrastructure state (fetched from Gnosis subgraph)
+  const [paymasterAddress, setPaymasterAddress] = useState(null);
+  const [registryAddress, setRegistryAddress] = useState(null);
+  const [factoryAddress, setFactoryAddress] = useState(null);
+  const [isSolidarityFundActive, setIsSolidarityFundActive] = useState(false);
+  const [solidarityLoading, setSolidarityLoading] = useState(true);
 
-  // Fetch factory address from subgraph
-  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS);
-  const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
+  // Create Gnosis-specific clients for the UserOp
+  const gnosisClients = useMemo(() => createChainClients(SOLIDARITY_CHAIN_ID), []);
+  const publicClient = gnosisClients?.publicClient;
+  const bundlerClient = gnosisClients?.bundlerClient;
 
-  // Fetch solidarity fund status
-  const { data: solidarityData, loading: solidarityLoading } = useQuery(FETCH_SOLIDARITY_FUND_STATUS);
-  const solidarityBalance = solidarityData?.paymasterHubContracts?.[0]?.solidarityBalance || '0';
-  const isSolidarityFundActive = BigInt(solidarityBalance) > 0n;
+  // Fetch infrastructure from Gnosis subgraph via direct fetch (not Apollo)
+  useEffect(() => {
+    const subgraphUrl = getSubgraphUrl(SOLIDARITY_CHAIN_ID);
+    if (!subgraphUrl) return;
+
+    async function fetchInfra() {
+      try {
+        const query = `{
+          poaManagerContracts(first: 1) { paymasterHubProxy }
+          universalAccountRegistries(first: 1) { id }
+          passkeyAccountFactories(first: 1) { id }
+          paymasterHubContracts(first: 1) { solidarityBalance }
+        }`;
+        const res = await fetch(subgraphUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query }),
+        });
+        const json = await res.json();
+        const data = json?.data;
+
+        setPaymasterAddress(data?.poaManagerContracts?.[0]?.paymasterHubProxy || null);
+        setRegistryAddress(data?.universalAccountRegistries?.[0]?.id || null);
+        setFactoryAddress(data?.passkeyAccountFactories?.[0]?.id || null);
+
+        const balance = data?.paymasterHubContracts?.[0]?.solidarityBalance || '0';
+        setIsSolidarityFundActive(BigInt(balance) > 0n);
+      } catch (err) {
+        console.error('[SolidarityOnboarding] Failed to fetch Gnosis infrastructure:', err);
+      } finally {
+        setSolidarityLoading(false);
+      }
+    }
+
+    fetchInfra();
+  }, []);
 
   // Check if all required infrastructure is available
   const isReady = Boolean(
@@ -71,6 +111,7 @@ export function useSolidarityOnboarding() {
         registryAddress,
         paymasterAddress,
         mode: 'solidarity',
+        chainId: SOLIDARITY_CHAIN_ID,
       });
 
       const onboardResult = await service.onboard(displayName, (newStep, data) => {
