@@ -223,13 +223,13 @@ export const TOUR_STEPS = [
   // --- Ending: Non-authenticated visitor ---
   {
     id: 'join-prompt',
-    page: null,
+    page: '/join',
     title: 'Join This Organization',
-    description: 'You\'re viewing this organization as a guest. To participate in tasks, voting, and governance, connect your wallet and join as a member.',
+    description: 'This is where new members join. Connect your wallet or create a passkey account, then apply for a role to start participating in tasks, voting, and governance.',
     icon: PiSignIn,
     action: null,
-    target: null,
-    placement: 'center',
+    target: '[data-tour="join-content"]',
+    placement: 'right',
     forceInteraction: false,
     skip: (ctx) => ctx.isAuthenticated,
   },

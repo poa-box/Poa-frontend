@@ -27,17 +27,14 @@ function saveTourState(orgName, stateToSave) {
   if (!orgName || typeof window === 'undefined') return;
   try {
     localStorage.setItem(getTourStorageKey(orgName), JSON.stringify(stateToSave));
-  } catch {
-    // localStorage full or unavailable
-  }
+  } catch {}
 }
 
 const initialState = {
   isActive: false,
-  currentStep: 0,
+  currentStepId: null, // track by ID, not index, so reactive filtering works
   orgName: null,
   showPrompt: false,
-  frozenSteps: null, // filtered step list, set at tour start
 };
 
 function tourReducer(state, action) {
@@ -47,22 +44,13 @@ function tourReducer(state, action) {
     case 'DISMISS_PROMPT':
       return { ...state, showPrompt: false };
     case 'START_TOUR':
-      return {
-        ...state,
-        isActive: true,
-        currentStep: 0,
-        orgName: action.payload.orgName,
-        frozenSteps: action.payload.steps,
-        showPrompt: false,
-      };
-    case 'NEXT_STEP':
-      return { ...state, currentStep: state.currentStep + 1 };
-    case 'PREV_STEP':
-      return { ...state, currentStep: Math.max(0, state.currentStep - 1) };
+      return { ...state, isActive: true, currentStepId: action.payload.firstStepId, orgName: action.payload.orgName, showPrompt: false };
+    case 'SET_STEP':
+      return { ...state, currentStepId: action.payload };
     case 'COMPLETE_TOUR':
-      return { ...state, isActive: false, currentStep: 0, frozenSteps: null };
+      return { ...state, isActive: false, currentStepId: null };
     case 'SKIP_TOUR':
-      return { ...state, isActive: false, showPrompt: false, currentStep: 0, frozenSteps: null };
+      return { ...state, isActive: false, showPrompt: false, currentStepId: null };
     default:
       return state;
   }
@@ -87,6 +75,21 @@ export function TourProvider({ children }) {
     educationHubEnabled: !!educationHubEnabled,
   }), [isAuthenticated, hasMemberRole, hasExecRole, projects, hideTreasury, educationHubEnabled]);
 
+  // Reactively compute effective steps from tourCtx (not frozen)
+  const effectiveSteps = useMemo(() =>
+    TOUR_STEPS.filter(step => !step.skip || !step.skip(tourCtx)),
+    [tourCtx]
+  );
+
+  // Resolve current step index from ID
+  const currentStepIndex = state.isActive
+    ? effectiveSteps.findIndex(s => s.id === state.currentStepId)
+    : -1;
+  // If the current step was removed by a skip change, clamp to last step
+  const safeIndex = currentStepIndex >= 0 ? currentStepIndex : Math.max(0, effectiveSteps.length - 1);
+  const currentStepDef = state.isActive ? effectiveSteps[safeIndex] ?? null : null;
+  const pendingAction = currentStepDef?.action || null;
+
   // After a new org deploy, auto-show the tour prompt once org data has loaded
   const orgName = router.query.org || router.query.userDAO || '';
   useEffect(() => {
@@ -101,21 +104,12 @@ export function TourProvider({ children }) {
           dispatch({ type: 'SHOW_PROMPT', payload: orgName });
         }, 500);
       }
-    } catch {
-      // Ignore parse errors
-    }
+    } catch {}
   }, [poContextLoading, orgName]);
-
-  // Derive current step from frozen steps
-  const steps = state.frozenSteps || TOUR_STEPS;
-  const currentStepDef = state.isActive ? steps[state.currentStep] ?? null : null;
-  const pendingAction = currentStepDef?.action || null;
 
   const showPrompt = useCallback((orgName) => {
     const saved = loadTourState(orgName);
-    if (saved && (saved.status === 'completed' || saved.status === 'dismissed')) {
-      return;
-    }
+    if (saved && (saved.status === 'completed' || saved.status === 'dismissed')) return;
     dispatch({ type: 'SHOW_PROMPT', payload: orgName });
   }, []);
 
@@ -127,12 +121,12 @@ export function TourProvider({ children }) {
   }, [state.orgName]);
 
   const startTour = useCallback((orgName) => {
-    // Filter steps based on current user/org state (frozen for tour duration)
-    const filtered = TOUR_STEPS.filter(step => !step.skip || !step.skip(tourCtx));
-    dispatch({ type: 'START_TOUR', payload: { orgName, steps: filtered } });
-    saveTourState(orgName, { status: 'active', stepId: filtered[0]?.id, startedAt: Date.now() });
+    const steps = TOUR_STEPS.filter(step => !step.skip || !step.skip(tourCtx));
+    const firstId = steps[0]?.id;
+    dispatch({ type: 'START_TOUR', payload: { orgName, firstStepId: firstId } });
+    saveTourState(orgName, { status: 'active', stepId: firstId, startedAt: Date.now() });
 
-    const firstStep = filtered[0];
+    const firstStep = steps[0];
     if (firstStep?.page && firstStep.page !== router.pathname) {
       const dao = router.query.org || router.query.userDAO || orgName;
       router.push(`${firstStep.page}?org=${encodeURIComponent(dao)}`).catch(() => {});
@@ -140,43 +134,36 @@ export function TourProvider({ children }) {
   }, [router, tourCtx]);
 
   const nextStep = useCallback(() => {
-    const frozen = state.frozenSteps;
-    if (!frozen) return;
-
-    const nextIdx = state.currentStep + 1;
-    if (nextIdx >= frozen.length) {
+    const nextIdx = safeIndex + 1;
+    if (nextIdx >= effectiveSteps.length) {
       saveTourState(state.orgName, { status: 'completed', completedAt: Date.now() });
       dispatch({ type: 'COMPLETE_TOUR' });
       return;
     }
 
-    const nextStepDef = frozen[nextIdx];
-
+    const nextStepDef = effectiveSteps[nextIdx];
     if (nextStepDef.page && nextStepDef.page !== router.pathname) {
       const dao = router.query.org || router.query.userDAO || state.orgName;
       router.push(`${nextStepDef.page}?org=${encodeURIComponent(dao)}`).catch(() => {});
     }
 
-    dispatch({ type: 'NEXT_STEP' });
+    dispatch({ type: 'SET_STEP', payload: nextStepDef.id });
     saveTourState(state.orgName, { status: 'active', stepId: nextStepDef.id });
-  }, [state.currentStep, state.orgName, state.frozenSteps, router]);
+  }, [safeIndex, effectiveSteps, state.orgName, router]);
 
   const prevStep = useCallback(() => {
-    const frozen = state.frozenSteps;
-    if (!frozen) return;
-
-    const prevIdx = state.currentStep - 1;
+    const prevIdx = safeIndex - 1;
     if (prevIdx < 0) return;
 
-    const prevStepDef = frozen[prevIdx];
+    const prevStepDef = effectiveSteps[prevIdx];
     if (prevStepDef.page && prevStepDef.page !== router.pathname) {
       const dao = router.query.org || router.query.userDAO || state.orgName;
       router.push(`${prevStepDef.page}?org=${encodeURIComponent(dao)}`).catch(() => {});
     }
 
-    dispatch({ type: 'PREV_STEP' });
+    dispatch({ type: 'SET_STEP', payload: prevStepDef.id });
     saveTourState(state.orgName, { status: 'active', stepId: prevStepDef.id });
-  }, [state.currentStep, state.orgName, state.frozenSteps, router]);
+  }, [safeIndex, effectiveSteps, state.orgName, router]);
 
   const skipTour = useCallback(() => {
     if (state.orgName) {
@@ -215,9 +202,9 @@ export function TourProvider({ children }) {
 
   const value = useMemo(() => ({
     isActive: state.isActive,
-    currentStep: state.currentStep,
+    currentStep: safeIndex,
     currentStepDef,
-    totalSteps: state.frozenSteps?.length ?? 0,
+    totalSteps: effectiveSteps.length,
     pendingAction,
     orgName: state.orgName,
     showPromptModal: state.showPrompt,
@@ -229,7 +216,7 @@ export function TourProvider({ children }) {
     prevStep,
     skipTour,
     completeTour,
-  }), [state, currentStepDef, pendingAction, tourCtx, showPrompt, dismissPrompt, startTour, nextStep, prevStep, skipTour, completeTour]);
+  }), [state, safeIndex, currentStepDef, effectiveSteps.length, pendingAction, tourCtx, showPrompt, dismissPrompt, startTour, nextStep, prevStep, skipTour, completeTour]);
 
   return (
     <TourContext.Provider value={value}>
