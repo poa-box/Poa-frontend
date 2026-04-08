@@ -43,22 +43,21 @@ export async function buildEOAAuthorization(walletClient) {
 export async function checkWallet7702Support(walletClient) {
   if (!walletClient?.signAuthorization) return false;
 
+  // Try getCapabilities first (EIP-5792) for explicit confirmation
   try {
-    // Probe with the real delegation address — wallet may prompt but we catch early
-    // Some wallets expose capabilities without prompting
     if (walletClient.getCapabilities) {
       const caps = await walletClient.getCapabilities();
-      // EIP-5792 capabilities response — check for 7702 support
       const chainCaps = Object.values(caps || {});
-      return chainCaps.some(c => c?.atomicBatch?.supported || c?.authorization?.supported);
+      if (chainCaps.some(c => c?.atomicBatch?.supported || c?.authorization?.supported)) {
+        return true;
+      }
     }
   } catch {
-    // getCapabilities not supported — fall through
+    // getCapabilities not supported — fall through to method check
   }
 
-  // signAuthorization method exists but we couldn't confirm via capabilities.
-  // Return false to be safe — we'd rather fall back to direct tx than risk
-  // a confusing runtime error. Wallets that support 7702 should also support
-  // getCapabilities to advertise it.
-  return false;
+  // signAuthorization method exists on the client — trust it.
+  // Runtime failures are handled gracefully in EOA7702TransactionManager
+  // and useProfileUpdate (both fall back to direct tx on error).
+  return typeof walletClient.signAuthorization === 'function';
 }
