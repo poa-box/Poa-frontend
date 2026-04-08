@@ -11,7 +11,9 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { encodeFunctionData } from 'viem';
 import { useAuth } from '@/context/AuthContext';
 import { useIPFScontext } from '@/context/ipfsContext';
-import { useEthersSigner } from '@/components/ProviderConverter';
+import { useEthersSigner, clientToSigner } from '@/components/ProviderConverter';
+import { useSwitchChain, useConfig } from 'wagmi';
+import { getConnectorClient } from 'wagmi/actions';
 import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
 import { buildUserOp, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
 import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';
@@ -30,6 +32,8 @@ export function useProfileUpdate() {
   const { isPasskeyUser, accountAddress, passkeyState } = useAuth();
   const { addToIpfs } = useIPFScontext();
   const signer = useEthersSigner();
+  const { switchChainAsync } = useSwitchChain();
+  const wagmiConfig = useConfig();
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState(null);
@@ -117,13 +121,20 @@ export function useProfileUpdate() {
   }, [accountAddress, registryAddress, isPasskeyUser, addToIpfs, signer, publicClient, bundlerClient, paymasterAddress, passkeyState]);
 
   /**
-   * EOA flow: direct contract write using ethers signer.
+   * EOA flow: switch to Gnosis chain + direct contract write.
+   * Profile metadata lives on Gnosis, so we must ensure the wallet is on the right chain.
    */
   async function _updateViaEOA(metadataHash) {
     if (!signer) throw new Error('Wallet not connected');
 
     setStep('signing');
-    const contract = new ethers.Contract(registryAddress, UniversalAccountRegistryABI, signer);
+
+    // Switch to Gnosis if not already there
+    await switchChainAsync({ chainId: SOLIDARITY_CHAIN_ID });
+    const freshClient = await getConnectorClient(wagmiConfig, { chainId: SOLIDARITY_CHAIN_ID });
+    const gnosisSigner = clientToSigner(freshClient);
+
+    const contract = new ethers.Contract(registryAddress, UniversalAccountRegistryABI, gnosisSigner);
     const tx = await contract.setProfileMetadata(metadataHash);
 
     setStep('confirming');
