@@ -3,6 +3,7 @@
  * Provides global account state (username, account existence) independent of organization context.
  * Queries ALL chain subgraphs to find the account — accounts may be registered on any chain
  * (e.g., Gnosis via solidarity onboarding, Arbitrum via org onboarding).
+ * Merges metadata across chains, preferring the most complete/recent version.
  * Supports both wallet (EOA) and passkey authentication.
  */
 
@@ -31,9 +32,25 @@ const ACCOUNT_QUERY = `
 `;
 
 /**
+ * Count non-null fields in a metadata object.
+ * Used to pick the most complete metadata across chains.
+ */
+function metadataRichness(meta) {
+  if (!meta) return 0;
+  let count = 0;
+  if (meta.bio) count++;
+  if (meta.avatar) count++;
+  if (meta.github) count++;
+  if (meta.twitter) count++;
+  if (meta.website) count++;
+  return count;
+}
+
+/**
  * Hook to check if the authenticated user has a registered account.
  * Works for both wallet and passkey users via AuthContext's unified accountAddress.
  * Searches across ALL mainnet subgraphs (Arbitrum, Gnosis, etc.) to find the account.
+ * When the account exists on multiple chains, picks the metadata with the most fields populated.
  */
 export function useGlobalAccount() {
   const { address: wagmiAddress } = useAccount();
@@ -71,21 +88,29 @@ export function useGlobalAccount() {
         })
       );
 
-      // Use the first chain that has the account
+      // Collect all valid accounts across chains
+      let bestUsername = null;
+      let bestMetadata = null;
+      let bestRichness = -1;
+
       for (const result of results) {
         if (result.status !== 'fulfilled' || !result.value) continue;
         const account = result.value;
-        if (account.username) {
-          setUsername(account.username);
-          setProfileMetadata(account.metadata || null);
-          setLoading(false);
-          return;
+        if (!account.username) continue;
+
+        // Always take the username (should be consistent across chains)
+        if (!bestUsername) bestUsername = account.username;
+
+        // Pick the metadata with the most populated fields
+        const richness = metadataRichness(account.metadata);
+        if (richness > bestRichness) {
+          bestRichness = richness;
+          bestMetadata = account.metadata || null;
         }
       }
 
-      // Not found on any chain
-      setUsername(null);
-      setProfileMetadata(null);
+      setUsername(bestUsername);
+      setProfileMetadata(bestMetadata);
     } catch (err) {
       console.error('[useGlobalAccount] Cross-chain lookup failed:', err);
     } finally {

@@ -194,13 +194,34 @@ export async function findUserProfileByUsername(username) {
     })
   );
 
+  // Collect all valid accounts and pick the metadata with the most fields populated.
+  // Profile may be updated on one chain but not another — prefer the richest version.
+  let bestResult = null;
+  let bestRichness = -1;
+
   for (const result of results) {
     if (result.status !== 'fulfilled' || !result.value) continue;
     const account = result.value;
+    const meta = account.metadata;
+    let richness = 0;
+    if (meta) {
+      if (meta.bio) richness++;
+      if (meta.avatar) richness++;
+      if (meta.github) richness++;
+      if (meta.twitter) richness++;
+      if (meta.website) richness++;
+    }
+    if (!bestResult || richness > bestRichness) {
+      bestResult = account;
+      bestRichness = richness;
+    }
+  }
+
+  if (bestResult) {
     return {
-      address: account.id,
-      username: account.username,
-      metadata: account.metadata || null,
+      address: bestResult.id,
+      username: bestResult.username,
+      metadata: bestResult.metadata || null,
     };
   }
 
