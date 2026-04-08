@@ -54,6 +54,9 @@ export const FETCH_ORG_BY_ID = gql`
         address
         account {
           username
+          metadata {
+            avatar
+          }
         }
         participationTokenBalance
         membershipStatus
@@ -231,6 +234,9 @@ export const FETCH_ORG_FULL_DATA = gql`
         address
         account {
           username
+          metadata {
+            avatar
+          }
         }
         participationTokenBalance
         membershipStatus
@@ -591,6 +597,9 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
         address
         account {
           username
+          metadata {
+            avatar
+          }
         }
         participationTokenBalance
         membershipStatus

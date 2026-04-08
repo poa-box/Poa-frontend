@@ -92,6 +92,7 @@ function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
         <Avatar
           size={isTopThree ? 'md' : 'sm'}
           name={user.name}
+          src={user.avatarCid ? `https://ipfs.io/ipfs/${user.avatarCid}` : undefined}
           bg="purple.500"
         />
 
