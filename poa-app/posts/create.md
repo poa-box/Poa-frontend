@@ -5,13 +5,13 @@ Welcome to the future of decentralized organization management, where Poa, your 
 ![Poa](https://ipfs.io/ipfs/QmbgTrMGLBEKoqUG9PQoT8M3FoTGuQXxxApyRPt45XEdwK "Poa")
 
 
-The journey begins with Poa asking you basic yet crucial details about your new organization. You'll start by selecting an organization name, logo, and a concise description that captures the essence of your mission. Next, Poa walks you through the advanced feature selection. [Talk to Poa Now](https://poa.community/create)
+The journey begins with Poa asking you basic yet crucial details about your new organization. You'll start by selecting an organization name, logo, and a concise description that captures the essence of your mission. Next, Poa walks you through the advanced feature selection. [Talk to Poa Now](https://poa.box/create)
 
 ## Deciding on Voting Mechanisms
 
 One of the core features of any organization is its voting system, and with Poa, you have the flexibility to choose from several innovative options:
 
-- **Hybrid Voting**: This method allows you to balance between contribution-based voting and direct democracy, tailoring how each is weighted in decision-making processes. [Learn about why this is useful](https://poa.community/docs/hybridVoting).
+- **Hybrid Voting**: This method allows you to balance between contribution-based voting and direct democracy, tailoring how each is weighted in decision-making processes. [Learn about why this is useful](https://poa.box/docs/hybridVoting).
 - **Contribution-based Voting**: Your members' voting power correlates with their activity and contributions to the organization, ensuring that those who invest effort have a greater say.
 - **Direct Democracy**: Each member has an equal vote, promoting fairness and equality within your organization.
 
@@ -27,4 +27,4 @@ Poa will ask you what voting type can update the smart contracts and move money 
 
 ## Conclusion
 
-Poa the Perpetual Organization Architect transforms the complex process of creating and managing a decentralized organization into an interactive and user-friendly experience. With Poa's guidance, you're not just setting up an organization; you're future-proofing it to be adaptable, transparent, and aligned with your community's values and contributions. [Talk to Poa Now](https://poa.community/create)
+Poa the Perpetual Organization Architect transforms the complex process of creating and managing a decentralized organization into an interactive and user-friendly experience. With Poa's guidance, you're not just setting up an organization; you're future-proofing it to be adaptable, transparent, and aligned with your community's values and contributions. [Talk to Poa Now](https://poa.box/create)

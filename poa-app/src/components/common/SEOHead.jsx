@@ -1,6 +1,6 @@
 import Head from "next/head";
 
-const SITE_URL = "https://poa.community";
+const SITE_URL = "https://poa.box";
 const DEFAULT_OG_IMAGE = `${SITE_URL}/images/poa_og.webp`;
 
 export default function SEOHead({

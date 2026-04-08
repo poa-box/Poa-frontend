@@ -23,4 +23,4 @@ Disallow: /executive/
 Disallow: /edu-Hub/
 Disallow: /hudson/
 
-Sitemap: https://poa.community/sitemap.xml
+Sitemap: https://poa.box/sitemap.xml

@@ -100,7 +100,7 @@ const Navbar = React.memo(() => {
           width="40%"
         >
           <Link 
-            href="https://poa.community" 
+            href="https://poa.box" 
             isExternal 
             display="flex"
             justifyContent="center"

@@ -99,7 +99,7 @@ import {
                 variant="ghost"
               />
             </Link>
-            <Link href="mailto:hudson@poa.community">
+            <Link href="mailto:hudson@poa.box">
               <IconButton
                 aria-label="Email"
                 icon={<FaEnvelope />}

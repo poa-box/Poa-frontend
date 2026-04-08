@@ -380,7 +380,7 @@ const Home = () => {
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
-                    onClick={() => window.open("https://poa.community", "_blank")}
+                    onClick={() => window.open("https://poa.box", "_blank")}
                   >
                     Website
                   </Button>
@@ -392,7 +392,7 @@ const Home = () => {
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
-                    onClick={() => window.open("https://docs.poa.community", "_blank")}
+                    onClick={() => window.open("https://docs.poa.box", "_blank")}
                   >
                     Docs
                   </Button>

@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-const SITE_URL = 'https://poa.community';
+const SITE_URL = 'https://poa.box';
 const POSTS_DIR = path.join(process.cwd(), 'posts');
 const OUTPUT = path.join(process.cwd(), 'public', 'sitemap.xml');
 const TEST_FILES = new Set(['test', 'test2', 'letsSee']);

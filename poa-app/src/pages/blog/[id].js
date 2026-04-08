@@ -118,14 +118,14 @@ export default function Post({ postData }) {
     "description": postData.description,
     "datePublished": postData.date,
     "dateModified": postData.date,
-    "author": { "@type": "Organization", "name": "Poa", "url": "https://poa.community" },
+    "author": { "@type": "Organization", "name": "Poa", "url": "https://poa.box" },
     "publisher": {
       "@type": "Organization",
       "name": "Poa",
-      "url": "https://poa.community",
-      "logo": { "@type": "ImageObject", "url": "https://poa.community/images/poa_og.webp" },
+      "url": "https://poa.box",
+      "logo": { "@type": "ImageObject", "url": "https://poa.box/images/poa_og.webp" },
     },
-    "mainEntityOfPage": { "@type": "WebPage", "@id": `https://poa.community/blog/${postData.id}` },
+    "mainEntityOfPage": { "@type": "WebPage", "@id": `https://poa.box/blog/${postData.id}` },
   };
 
   const showSidebar = useBreakpointValue({ base: false, md: true });

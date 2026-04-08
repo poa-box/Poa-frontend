@@ -77,8 +77,8 @@ export default function Home() {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "Poa",
-    "url": "https://poa.community",
-    "logo": "https://poa.community/images/poa_og.webp",
+    "url": "https://poa.box",
+    "logo": "https://poa.box/images/poa_og.webp",
     "sameAs": ["https://twitter.com/PoaPerpetual"],
     "description":
       "Poa is a no-code DAO builder for creating community-owned, democratically governed organizations. Voting power is earned through contribution, not purchased with capital.",
@@ -88,8 +88,8 @@ export default function Home() {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://poa.community" },
-      { "@type": "ListItem", "position": 2, "name": "Docs", "item": "https://poa.community/docs" },
+      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://poa.box" },
+      { "@type": "ListItem", "position": 2, "name": "Docs", "item": "https://poa.box/docs" },
     ],
   };
 
