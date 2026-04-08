@@ -23,24 +23,12 @@ import {
   FiUserPlus,
   FiDollarSign,
   FiCheckCircle,
-  FiClipboard,
   FiBook,
   FiBookOpen,
   FiFileText,
   FiThumbsUp,
   FiPlusSquare,
 } from 'react-icons/fi';
-
-const glassLayerStyle = {
-  position: 'absolute',
-  height: '100%',
-  width: '100%',
-  zIndex: -1,
-  borderRadius: 'inherit',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
-  border: '1px solid rgba(148, 115, 220, 0.2)',
-};
 
 /**
  * Icon mapping for permission types
@@ -96,16 +84,16 @@ function PermissionCell({ allowed }) {
       {allowed ? (
         <Icon
           as={FiCheck}
-          color="green.400"
+          color="green.500"
           boxSize={5}
-          bg="rgba(72, 187, 120, 0.1)"
+          bg="green.50"
           p={1}
           borderRadius="md"
         />
       ) : (
         <Icon
           as={FiMinus}
-          color="gray.600"
+          color="warmGray.300"
           boxSize={5}
         />
       )}
@@ -122,12 +110,13 @@ export function PermissionsMatrix({
   if (loading) {
     return (
       <Box
-        position="relative"
+        bg="rgba(255, 255, 255, 0.8)"
+        border="1px solid"
+        borderColor="warmGray.200"
         borderRadius="2xl"
         p={{ base: 4, md: 6 }}
-        overflow="hidden"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
       >
-        <Box style={glassLayerStyle} />
         <Skeleton height="200px" borderRadius="xl" />
       </Box>
     );
@@ -136,38 +125,43 @@ export function PermissionsMatrix({
   if (roles.length === 0 || permissionColumns.length === 0) {
     return (
       <Box
-        position="relative"
+        bg="rgba(255, 255, 255, 0.8)"
+        border="1px solid"
+        borderColor="warmGray.200"
         borderRadius="2xl"
         p={{ base: 4, md: 6 }}
-        overflow="hidden"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
         textAlign="center"
       >
-        <Box style={glassLayerStyle} />
-        <Text color="gray.400">No permissions configured</Text>
+        <Text color="warmGray.500">No permissions configured</Text>
       </Box>
     );
   }
 
   return (
     <Box
-      position="relative"
+      bg="rgba(255, 255, 255, 0.8)"
+      border="1px solid"
+      borderColor="warmGray.200"
       borderRadius="2xl"
       overflow="hidden"
+      boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
     >
-      <Box style={glassLayerStyle} />
-
       <Box overflowX="auto">
         <Table
           variant="unstyled"
           size="sm"
           sx={{
             'th, td': {
-              borderBottom: '1px solid rgba(148, 115, 220, 0.1)',
+              borderBottom: '1px solid var(--chakra-colors-warmGray-100)',
+            },
+            'tbody tr:nth-of-type(even)': {
+              backgroundColor: 'var(--chakra-colors-warmGray-50)',
             },
             'tbody tr': {
               transition: 'background-color 0.2s',
               _hover: {
-                backgroundColor: 'rgba(148, 115, 220, 0.05)',
+                backgroundColor: 'var(--chakra-colors-amethyst-50)',
               },
             },
           }}
@@ -175,7 +169,7 @@ export function PermissionsMatrix({
           <Thead>
             <Tr>
               <Th
-                color="gray.400"
+                color="warmGray.600"
                 textTransform="none"
                 fontSize="sm"
                 fontWeight="semibold"
@@ -183,7 +177,7 @@ export function PermissionsMatrix({
                 px={4}
                 position="sticky"
                 left={0}
-                bg="rgba(20, 20, 30, 0.95)"
+                bg="rgba(255, 255, 255, 0.95)"
                 zIndex={1}
                 minW="150px"
               >
@@ -198,7 +192,7 @@ export function PermissionsMatrix({
                   <Th
                     key={col.key}
                     textAlign="center"
-                    color="gray.400"
+                    color="warmGray.600"
                     textTransform="none"
                     fontSize="xs"
                     fontWeight="semibold"
@@ -208,7 +202,7 @@ export function PermissionsMatrix({
                   >
                     <Tooltip label={description} placement="top">
                       <HStack justify="center" spacing={1}>
-                        <Icon as={IconComponent} boxSize={4} color="purple.300" />
+                        <Icon as={IconComponent} boxSize={4} color="amethyst.500" />
                         <Text display={{ base: 'none', md: 'block' }}>
                           {shortLabel}
                         </Text>
@@ -228,17 +222,17 @@ export function PermissionsMatrix({
                 <Tr key={role.id || role.hatId}>
                   <Td
                     fontWeight="medium"
-                    color="white"
+                    color="warmGray.900"
                     py={3}
                     px={4}
                     position="sticky"
                     left={0}
-                    bg="rgba(20, 20, 30, 0.95)"
+                    bg="rgba(255, 255, 255, 0.95)"
                     zIndex={1}
                   >
                     <HStack spacing={2}>
                       <Text>{role.name}</Text>
-                      <Text color="gray.500" fontSize="xs">
+                      <Text color="warmGray.400" fontSize="xs">
                         ({role.memberCount})
                       </Text>
                     </HStack>

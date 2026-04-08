@@ -27,17 +27,6 @@ import {
 } from 'react-icons/fi';
 import PulseLoader from "@/components/shared/PulseLoader";
 
-const glassLayerStyle = {
-  position: 'absolute',
-  height: '100%',
-  width: '100%',
-  zIndex: -1,
-  borderRadius: 'inherit',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
-  border: '1px solid rgba(148, 115, 220, 0.2)',
-};
-
 /**
  * Format timestamp to readable date
  */
@@ -78,34 +67,26 @@ function MemberCard({ member }) {
 
   return (
     <Box
-      position="relative"
+      bg="white"
+      border="1px solid"
+      borderColor="warmGray.100"
+      borderLeft="3px solid"
+      borderLeftColor="coral.400"
       borderRadius="lg"
       p={4}
-      overflow="hidden"
-      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s"
       _hover={{
         transform: 'translateY(-2px)',
-        '& > div:first-of-type': {
-          borderColor: 'rgba(148, 115, 220, 0.4)',
-        },
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
+        borderColor: 'coral.300',
       }}
     >
-      <Box
-        position="absolute"
-        inset={0}
-        borderRadius="inherit"
-        bg="rgba(40, 40, 50, 0.5)"
-        border="1px solid rgba(148, 115, 220, 0.15)"
-        transition="border-color 0.2s"
-        zIndex={-1}
-      />
-
       <VStack align="stretch" spacing={3}>
         {/* Name and status */}
         <HStack justify="space-between">
           <HStack spacing={2}>
-            <Icon as={FiUser} color="purple.300" />
-            <Text fontWeight="medium" color="white">
+            <Icon as={FiUser} color="coral.500" />
+            <Text fontWeight="medium" color="warmGray.900">
               {displayName}
             </Text>
           </HStack>
@@ -122,25 +103,25 @@ function MemberCard({ member }) {
         {/* Stats grid */}
         <Grid templateColumns="repeat(2, 1fr)" gap={2}>
           <GridItem>
-            <HStack spacing={1} color="gray.400" fontSize="xs">
+            <HStack spacing={1} color="warmGray.500" fontSize="xs">
               <Icon as={FiActivity} />
               <Text>{participationTokenBalance} tokens</Text>
             </HStack>
           </GridItem>
           <GridItem>
-            <HStack spacing={1} color="gray.400" fontSize="xs">
+            <HStack spacing={1} color="warmGray.500" fontSize="xs">
               <Icon as={FiCheckSquare} />
               <Text>{totalTasksCompleted} tasks</Text>
             </HStack>
           </GridItem>
           <GridItem>
-            <HStack spacing={1} color="gray.400" fontSize="xs">
+            <HStack spacing={1} color="warmGray.500" fontSize="xs">
               <Icon as={FiThumbsUp} />
               <Text>{totalVotes} votes</Text>
             </HStack>
           </GridItem>
           <GridItem>
-            <HStack spacing={1} color="gray.400" fontSize="xs">
+            <HStack spacing={1} color="warmGray.500" fontSize="xs">
               <Icon as={FiCalendar} />
               <Text>Joined {formatDate(firstSeenAt)}</Text>
             </HStack>
@@ -169,20 +150,13 @@ function RoleAccordionItem({ role, members = [], defaultExpanded = false }) {
 
   return (
     <Box
-      position="relative"
+      bg="white"
+      border="1px solid"
+      borderColor="warmGray.100"
       borderRadius="xl"
       overflow="hidden"
       mb={3}
     >
-      <Box
-        position="absolute"
-        inset={0}
-        borderRadius="inherit"
-        bg="rgba(30, 30, 40, 0.6)"
-        border="1px solid rgba(148, 115, 220, 0.15)"
-        zIndex={-1}
-      />
-
       {/* Header - clickable */}
       <Box
         as="button"
@@ -191,7 +165,7 @@ function RoleAccordionItem({ role, members = [], defaultExpanded = false }) {
         p={4}
         textAlign="left"
         _hover={{
-          bg: 'rgba(148, 115, 220, 0.05)',
+          bg: 'warmGray.50',
         }}
         transition="background-color 0.2s"
       >
@@ -199,14 +173,15 @@ function RoleAccordionItem({ role, members = [], defaultExpanded = false }) {
           <HStack spacing={3}>
             <Icon
               as={isExpanded ? FiChevronDown : FiChevronRight}
-              color="purple.300"
+              color="coral.500"
               transition="transform 0.2s"
             />
-            <Text fontWeight="semibold" color="white">
+            <Text fontWeight="semibold" color="warmGray.900">
               {role.name}
             </Text>
             <Badge
-              colorScheme="purple"
+              bg="amethyst.100"
+              color="amethyst.700"
               borderRadius="full"
               px={2}
               display="flex"
@@ -225,11 +200,11 @@ function RoleAccordionItem({ role, members = [], defaultExpanded = false }) {
         <Box px={4} pb={4}>
           {isLoading ? (
             <HStack justify="center" py={4}>
-              <PulseLoader size="sm" color="purple.300" />
-              <Text color="gray.400" fontSize="sm">Loading members...</Text>
+              <PulseLoader size="sm" color="coral.400" />
+              <Text color="warmGray.500" fontSize="sm">Loading members...</Text>
             </HStack>
           ) : members.length === 0 ? (
-            <Text color="gray.500" fontSize="sm" textAlign="center" py={4}>
+            <Text color="warmGray.500" fontSize="sm" textAlign="center" py={4}>
               No members with this role
             </Text>
           ) : (
@@ -260,12 +235,13 @@ export function MembersSection({
   if (loading) {
     return (
       <Box
-        position="relative"
+        bg="rgba(255, 255, 255, 0.8)"
+        border="1px solid"
+        borderColor="warmGray.200"
         borderRadius="2xl"
         p={{ base: 4, md: 6 }}
-        overflow="hidden"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
       >
-        <Box style={glassLayerStyle} />
         <VStack spacing={3} align="stretch">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} height="60px" borderRadius="xl" />
@@ -278,27 +254,28 @@ export function MembersSection({
   if (roles.length === 0) {
     return (
       <Box
-        position="relative"
+        bg="rgba(255, 255, 255, 0.8)"
+        border="1px solid"
+        borderColor="warmGray.200"
         borderRadius="2xl"
         p={{ base: 4, md: 6 }}
-        overflow="hidden"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
         textAlign="center"
       >
-        <Box style={glassLayerStyle} />
-        <Text color="gray.400">No roles defined</Text>
+        <Text color="warmGray.500">No roles defined</Text>
       </Box>
     );
   }
 
   return (
     <Box
-      position="relative"
+      bg="rgba(255, 255, 255, 0.8)"
+      border="1px solid"
+      borderColor="warmGray.200"
       borderRadius="2xl"
       p={{ base: 4, md: 6 }}
-      overflow="hidden"
+      boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
     >
-      <Box style={glassLayerStyle} />
-
       <VStack spacing={0} align="stretch">
         {roles.map((role, index) => (
           <RoleAccordionItem

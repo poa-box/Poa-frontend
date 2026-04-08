@@ -71,7 +71,7 @@ function transformRolesData(roles, roleHatIds, roleNamesFromIPFS = {}, users = [
   // Note: Roles are already filtered by isUserRole: true in the GraphQL query
   // No need for frontend filtering
 
-  return roles.map((role, index) => {
+  const mapped = roles.map((role, index) => {
     const hatId = role.hatId;
     const hatIdNorm = normalizeHatId(hatId);
 
@@ -123,7 +123,56 @@ function transformRolesData(roles, roleHatIds, roleNamesFromIPFS = {}, users = [
       vouchingMembershipHatId: vouchConfig?.membershipHatId,
       permissions: role.permissions || [],
     };
-  }).sort((a, b) => a.level - b.level); // Sort by hierarchy level
+  });
+
+  // Build tree order from parentHatId relationships.
+  // A role whose parentHatId matches another role's hatId is that role's child.
+  const hatIdSet = new Set(mapped.map(r => normalizeHatId(r.hatId)));
+  const childrenOf = new Map(); // parentHatId -> [child roles]
+  const roots = [];
+
+  for (const role of mapped) {
+    const parentNorm = normalizeHatId(role.parentHatId);
+    if (parentNorm && hatIdSet.has(parentNorm)) {
+      const kids = childrenOf.get(parentNorm) || [];
+      kids.push(role);
+      childrenOf.set(parentNorm, kids);
+    } else {
+      roots.push(role);
+    }
+  }
+
+  // DFS to produce display order and assign tree depth
+  const ordered = [];
+  const visited = new Set();
+  function walk(role, depth) {
+    const key = normalizeHatId(role.hatId);
+    if (visited.has(key)) return; // cycle guard
+    visited.add(key);
+    ordered.push({ ...role, level: depth });
+    const kids = childrenOf.get(key) || [];
+    // Sort siblings by roleHatIds position for stable order
+    kids.sort((a, b) => {
+      const aIdx = normalizedRoleHatIds.indexOf(normalizeHatId(a.hatId));
+      const bIdx = normalizedRoleHatIds.indexOf(normalizeHatId(b.hatId));
+      return aIdx - bIdx;
+    });
+    for (const child of kids) {
+      walk(child, depth + 1);
+    }
+  }
+
+  // Sort roots by roleHatIds position
+  roots.sort((a, b) => {
+    const aIdx = normalizedRoleHatIds.indexOf(normalizeHatId(a.hatId));
+    const bIdx = normalizedRoleHatIds.indexOf(normalizeHatId(b.hatId));
+    return aIdx - bIdx;
+  });
+  for (const root of roots) {
+    walk(root, 0);
+  }
+
+  return ordered;
 }
 
 /**

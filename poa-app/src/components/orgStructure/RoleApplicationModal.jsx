@@ -69,48 +69,50 @@ export function RoleApplicationModal({ isOpen, onClose, onApply, roleName }) {
   return (
     <Modal isOpen={isOpen} onClose={handleClose} size="md">
       <ModalOverlay />
-      <ModalContent bg="gray.800">
-        <ModalHeader color="white">Apply for: {roleName}</ModalHeader>
-        <ModalCloseButton color="gray.400" />
+      <ModalContent bg="white">
+        <ModalHeader color="warmGray.900">Apply for: {roleName}</ModalHeader>
+        <ModalCloseButton color="warmGray.400" />
         <ModalBody>
           <VStack spacing={4} align="stretch">
-            <Text fontSize="sm" color="gray.400">
+            <Text fontSize="sm" color="warmGray.600">
               Submit an application for this role. Existing members will be able to
               see your application and vouch for you.
             </Text>
 
             <FormControl isRequired>
-              <FormLabel color="white">Why do you want this role?</FormLabel>
+              <FormLabel color="warmGray.700">Why do you want this role?</FormLabel>
               <Textarea
                 placeholder="Explain your interest and what you'd contribute..."
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 rows={4}
-                bg="whiteAlpha.100"
-                color="white"
-                borderColor="whiteAlpha.300"
-                _placeholder={{ color: 'gray.500' }}
+                bg="warmGray.50"
+                color="warmGray.900"
+                borderColor="warmGray.200"
+                _placeholder={{ color: 'warmGray.400' }}
+                _focus={{ borderColor: 'amethyst.400', boxShadow: '0 0 0 1px var(--chakra-colors-amethyst-400)' }}
               />
             </FormControl>
 
             <FormControl>
-              <FormLabel color="white">Relevant Experience (Optional)</FormLabel>
+              <FormLabel color="warmGray.700">Relevant Experience (Optional)</FormLabel>
               <Textarea
                 placeholder="Describe any relevant experience or skills..."
                 value={experience}
                 onChange={(e) => setExperience(e.target.value)}
                 rows={3}
-                bg="whiteAlpha.100"
-                color="white"
-                borderColor="whiteAlpha.300"
-                _placeholder={{ color: 'gray.500' }}
+                bg="warmGray.50"
+                color="warmGray.900"
+                borderColor="warmGray.200"
+                _placeholder={{ color: 'warmGray.400' }}
+                _focus={{ borderColor: 'amethyst.400', boxShadow: '0 0 0 1px var(--chakra-colors-amethyst-400)' }}
               />
             </FormControl>
           </VStack>
         </ModalBody>
 
         <ModalFooter>
-          <Button variant="ghost" mr={3} onClick={handleClose} color="gray.400">
+          <Button variant="ghost" mr={3} onClick={handleClose} color="warmGray.500">
             Cancel
           </Button>
           <Button

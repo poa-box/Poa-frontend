@@ -63,11 +63,11 @@ export function VouchProgressBar({
               value={percentage}
               size="xs"
               colorScheme={colorScheme}
-              bg="whiteAlpha.200"
+              bg="warmGray.200"
               borderRadius="full"
             />
           </Box>
-          <Text fontSize="xs" color={isComplete ? 'green.300' : 'gray.400'} whiteSpace="nowrap">
+          <Text fontSize="xs" color={isComplete ? 'green.600' : 'warmGray.500'} whiteSpace="nowrap">
             {current}/{quorum}
           </Text>
         </HStack>
@@ -79,13 +79,13 @@ export function VouchProgressBar({
     <Box w="100%">
       {showLabel && (
         <HStack justify="space-between" mb={config.spacing}>
-          <Text fontSize={config.fontSize} color="gray.400">
+          <Text fontSize={config.fontSize} color="warmGray.500">
             Vouches
           </Text>
           <Text
             fontSize={config.fontSize}
             fontWeight="medium"
-            color={isComplete ? 'green.300' : 'white'}
+            color={isComplete ? 'green.600' : 'warmGray.900'}
           >
             {current} / {quorum}
             {isComplete && ' (Complete!)'}
@@ -96,7 +96,7 @@ export function VouchProgressBar({
         value={percentage}
         height={config.height}
         colorScheme={colorScheme}
-        bg="whiteAlpha.200"
+        bg="warmGray.200"
         borderRadius="full"
         hasStripe={isComplete}
         isAnimated={isComplete}

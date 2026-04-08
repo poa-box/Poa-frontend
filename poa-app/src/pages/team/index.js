@@ -126,15 +126,12 @@ const OrgStructurePage = () => {
     return (
       <>
         {seoHead}
-        <Box
-          minH="100vh"
-          bg="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
-        >
+        <Box minH="100vh">
           <Navbar />
           <Center minH="60vh">
             <VStack spacing={4}>
-              <PulseLoader size="xl" color="purple.400" />
-              <Text color="gray.400">Loading organization structure...</Text>
+              <PulseLoader size="xl" color="coral.500" />
+              <Text color="warmGray.500">Loading organization structure...</Text>
             </VStack>
           </Center>
         </Box>
@@ -147,10 +144,7 @@ const OrgStructurePage = () => {
     return (
       <>
         {seoHead}
-        <Box
-          minH="100vh"
-          bg="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
-        >
+        <Box minH="100vh">
           <Navbar />
           <Center minH="60vh">
             <VStack spacing={4}>
@@ -159,7 +153,7 @@ const OrgStructurePage = () => {
                 Failed to load organization data
               </Alert>
               <Link href={`/dashboard?org=${userDAO}`} passHref>
-                <Button leftIcon={<FiArrowLeft />} variant="ghost" colorScheme="purple">
+                <Button leftIcon={<FiArrowLeft />} variant="ghost" color="warmGray.600" _hover={{ color: 'coral.500' }}>
                   Back to Dashboard
                 </Button>
               </Link>
@@ -173,10 +167,7 @@ const OrgStructurePage = () => {
   return (
     <>
     {seoHead}
-    <Box
-      minH="100vh"
-      bg="linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%)"
-    >
+    <Box minH="100vh">
       <Navbar />
 
       <Box
@@ -193,17 +184,18 @@ const OrgStructurePage = () => {
               <Button
                 leftIcon={<FiArrowLeft />}
                 variant="ghost"
-                colorScheme="gray"
+                color="warmGray.600"
+                _hover={{ color: 'coral.500' }}
                 size="sm"
                 mb={4}
               >
                 Back to Dashboard
               </Button>
             </Link>
-            <Heading size="xl" color="white" mb={2}>
+            <Heading size="xl" color="warmGray.900" mb={2}>
               Organization Structure
             </Heading>
-            <Text color="gray.400">
+            <Text color="warmGray.600">
               Explore the governance structure, roles, and permissions of this organization
             </Text>
           </Box>
@@ -223,10 +215,10 @@ const OrgStructurePage = () => {
 
           {/* Role Hierarchy Section */}
           <Box as="section">
-            <Heading size="lg" color="white" mb={4}>
+            <Heading size="lg" color="warmGray.900" mb={4}>
               Roles
             </Heading>
-            <Text color="gray.400" mb={4}>
+            <Text color="warmGray.600" mb={4}>
               The organizational hierarchy defines who can do what within the organization
             </Text>
             <RoleHierarchyTree
@@ -249,10 +241,10 @@ const OrgStructurePage = () => {
 
           {/* Permissions Matrix Section */}
           <Box as="section">
-            <Heading size="lg" color="white" mb={4}>
+            <Heading size="lg" color="warmGray.900" mb={4}>
               Permissions
             </Heading>
-            <Text color="gray.400" mb={4}>
+            <Text color="warmGray.600" mb={4}>
               What each role can do across the organization&apos;s systems
             </Text>
             <PermissionsMatrix
@@ -265,10 +257,10 @@ const OrgStructurePage = () => {
 
           {/* Members Section */}
           <Box as="section">
-            <Heading size="lg" color="white" mb={4}>
+            <Heading size="lg" color="warmGray.900" mb={4}>
               Members
             </Heading>
-            <Text color="gray.400" mb={4}>
+            <Text color="warmGray.600" mb={4}>
               Members of the organization grouped by their roles
             </Text>
             <MembersSection
@@ -281,10 +273,10 @@ const OrgStructurePage = () => {
           {/* Vouching Section - only shown if org has vouching enabled */}
           {roles.some(role => role.vouchingEnabled) && (
             <Box as="section">
-              <Heading size="lg" color="white" mb={4}>
+              <Heading size="lg" color="warmGray.900" mb={4}>
                 Member Vouching
               </Heading>
-              <Text color="gray.400" mb={4}>
+              <Text color="warmGray.600" mb={4}>
                 Vouch for new members seeking roles in the organization
               </Text>
               <VouchingSection
@@ -299,10 +291,10 @@ const OrgStructurePage = () => {
 
           {/* Governance Section */}
           <Box as="section">
-            <Heading size="lg" color="white" mb={4}>
+            <Heading size="lg" color="warmGray.900" mb={4}>
               Governance
             </Heading>
-            <Text color="gray.400" mb={4}>
+            <Text color="warmGray.600" mb={4}>
               How decisions are made in this organization
             </Text>
             <GovernanceConfigSection
