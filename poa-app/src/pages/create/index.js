@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import SEOHead from "@/components/common/SEOHead";
 import {
   Box,
   useToast,
@@ -16,15 +17,20 @@ import {
 } from "@chakra-ui/react";
 import { CloseIcon } from "@chakra-ui/icons";
 import { useQuery } from "@apollo/client";
+import { getClient } from "@/util/apolloClient";
 import LogoDropzoneModal from "@/components/Architect/LogoDropzoneModal";
 import LinksModal from "@/components/Architect/LinksModal";
-import { useAccount } from "wagmi";
-import { useEthersSigner } from "@/components/ProviderConverter";
+import { useAccount, useDisconnect, useSwitchChain, useConfig } from "wagmi";
+import { getConnectorClient } from "wagmi/actions";
+import { useEthersSigner, clientToSigner } from "@/components/ProviderConverter";
+import { useAuth } from "@/context/AuthContext";
 import { useIPFScontext } from "@/context/ipfsContext";
-import { main } from "../../../scripts/newDeployment";
+import { main, buildDeployCalldata } from "../../../scripts/newDeployment";
 import { useRouter } from "next/router";
-import { FETCH_INFRASTRUCTURE_ADDRESSES } from "@/util/queries";
+import { FETCH_INFRASTRUCTURE_ADDRESSES, FETCH_USERNAME_NEW } from "@/util/queries";
 import { ipfsCidToBytes32 } from "@/services/web3/utils/encoding";
+import { signRegistration, getSkipRegistrationDefaults } from "@/services/web3/utils/registrySigner";
+import { ethers } from 'ethers';
 
 // New deployer imports
 import {
@@ -32,27 +38,91 @@ import {
   useDeployer,
   DeployerWizard,
   mapStateToDeploymentParams,
+  mapPaymasterConfig,
+  getPaymasterFundingValue,
 } from "@/features/deployer";
 import { resolveRoleUsernames } from "@/features/deployer/utils/usernameResolver";
+
+// Passkey deployment via ERC-4337 UserOp
+import { encodeFunctionData, createPublicClient, http, defineChain } from "viem";
+import { createPimlicoClient } from "permissionless/clients/pimlico";
+import PasskeyAccountABI from "../../../abi/PasskeyAccount.json";
+import PasskeyAccountFactoryABI from "../../../abi/PasskeyAccountFactory.json";
+import UniversalAccountRegistryABI from "../../../abi/UniversalAccountRegistry.json";
+import { buildUserOp, getUserOpHash } from "@/services/web3/passkey/userOpBuilder";
+import { signUserOpWithPasskey } from "@/services/web3/passkey/passkeySign";
+import { encodeOrgDeployPaymasterData } from "@/services/web3/passkey/paymasterData";
+import { getBundlerUrl, ENTRY_POINT_ADDRESS } from "@/config/passkey";
+import { DEFAULT_DEPLOY_CHAIN_ID, getNetworkByChainId, getSubgraphUrl } from "@/config/networks";
+import { FETCH_PASSKEY_FACTORY_ADDRESS } from "@/util/passkeyQueries";
 
 /**
  * Inner component that has access to DeployerContext
  */
 function DeployerPageContent() {
-  const { address } = useAccount();
+  const { address, status, chainId: connectedChainId } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
+  const { passkeyState } = useAuth();
   const signer = useEthersSigner();
+  const wagmiConfig = useConfig();
+
+  const { disconnect } = useDisconnect();
+
+  // Clear any auto-reconnected wallet so users must explicitly choose auth method.
+  // Passkey sessions are unaffected (managed separately in AuthContext).
+  // Uses a ref so we only disconnect once (the first auto-reconnect), not after user-initiated connects.
+  const hasDisconnectedAutoReconnect = useRef(false);
+  const [walletUserConnected, setWalletUserConnected] = useState(false);
+  const isPasskeyUser = !!passkeyState?.accountAddress;
+
+  useEffect(() => {
+    if (!hasDisconnectedAutoReconnect.current && (status === 'reconnecting' || status === 'connected')) {
+      hasDisconnectedAutoReconnect.current = true;
+      // Only force auth choice when the user has a passkey — wallet-only users
+      // shouldn't be disconnected because re-triggering connect can stall
+      // in some wallet extensions (e.g. Brave) that consider the dapp already authorized.
+      if (isPasskeyUser) {
+        disconnect();
+      } else {
+        setWalletUserConnected(true);
+      }
+    }
+  }, [status, disconnect, isPasskeyUser]);
+  useEffect(() => {
+    if (status === 'connecting') setWalletUserConnected(true);
+    if (status === 'disconnected') setWalletUserConnected(false);
+  }, [status]);
   const { addToIpfs } = useIPFScontext();
   const toast = useToast();
   const router = useRouter();
   const { state, actions } = useDeployer();
 
-  // Fetch infrastructure addresses from subgraph
-  const { data: infraData, loading: infraLoading, error: infraError } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    fetchPolicy: 'network-only',
+  // Fetch infrastructure addresses from the target deploy chain's subgraph
+  const deployChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
+  const deploySubgraphUrl = getSubgraphUrl(deployChainId);
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache,
+  // so Arbitrum infrastructure addresses can't leak into Gnosis queries.
+  const deployClient = useMemo(() => getClient(deploySubgraphUrl), [deploySubgraphUrl]);
+  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
+    client: deployClient,
+    skip: !deploySubgraphUrl,
   });
 
-  // Debug logging for infrastructure addresses
-  console.log('Infrastructure query:', { loading: infraLoading, error: infraError, data: infraData });
+  // Fetch passkey factory address on deploy chain (needed for cross-chain account creation)
+  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
+    client: deployClient,
+    skip: !deploySubgraphUrl || !isPasskeyUser,
+  });
+  const deployChainFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
+
+  // Check if deployer already has a username on the deploy chain (via subgraph)
+  const deployerAddr = passkeyState?.accountAddress || address;
+  const { data: deployChainAccountData } = useQuery(FETCH_USERNAME_NEW, {
+    variables: { id: deployerAddr?.toLowerCase() },
+    client: deployClient,
+    skip: !deployerAddr || !deploySubgraphUrl,
+  });
+  const deployChainHasUsername = !!deployChainAccountData?.account?.username;
 
   // Extract addresses from subgraph data
   const infrastructureAddresses = useMemo(() => {
@@ -69,45 +139,14 @@ function DeployerPageContent() {
     const poaManagerAddress = poaManager?.id || null;
     const orgRegistryAddress = orgRegistryProxy;
 
-    // Helper to find beacon by type name (beacons are for org-level contract implementations)
-    const findBeacon = (typeName) => {
-      const beacon = infraData?.beacons?.find(b => b.typeName === typeName);
-      return beacon?.beaconAddress || null;
-    };
-
-    // Extract beacon addresses (for reference - not typically called directly)
-    const taskManagerBeacon = findBeacon('TaskManager');
-    const hybridVotingBeacon = findBeacon('HybridVoting');
-    const directDemocracyVotingBeacon = findBeacon('DirectDemocracyVoting');
-    const educationHubBeacon = findBeacon('EducationHub');
-    const participationTokenBeacon = findBeacon('ParticipationToken');
-    const quickJoinBeacon = findBeacon('QuickJoin');
-    const executorBeacon = findBeacon('Executor');
-    const paymentManagerBeacon = findBeacon('PaymentManager');
-    const eligibilityModuleBeacon = findBeacon('EligibilityModule');
-    const toggleModuleBeacon = findBeacon('ToggleModule');
-
     return {
-      // Core contracts
       registryAddress,
       poaManagerAddress,
       orgRegistryAddress,
-      // Infrastructure proxies (the actual contracts to interact with)
       orgDeployerAddress,
       orgRegistryProxy,
       paymasterHubProxy,
       globalAccountRegistryProxy,
-      // Beacons (for reference)
-      taskManagerBeacon,
-      hybridVotingBeacon,
-      directDemocracyVotingBeacon,
-      educationHubBeacon,
-      participationTokenBeacon,
-      quickJoinBeacon,
-      executorBeacon,
-      paymentManagerBeacon,
-      eligibilityModuleBeacon,
-      toggleModuleBeacon,
     };
   }, [infraData]);
 
@@ -128,7 +167,7 @@ function DeployerPageContent() {
 
   const handleExitConfirm = () => {
     setIsExitModalOpen(false);
-    router.push("/landing");
+    router.push("/");
   };
 
   const handleExitCancel = () => {
@@ -138,6 +177,44 @@ function DeployerPageContent() {
   // Handle deployment from DeployerWizard
   const handleDeployStart = async (config) => {
     setIsDeploying(true);
+
+    // Passkey deploys use chain-specific viem/bundler clients — they never
+    // touch the wallet provider, so we skip chain switching and signer refresh.
+    const targetChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
+    const isPasskeyDeployer = !!passkeyState?.accountAddress;
+    const needsChainSwitch = !isPasskeyDeployer && connectedChainId && connectedChainId !== targetChainId;
+
+    if (needsChainSwitch) {
+      try {
+        await switchChainAsync({ chainId: targetChainId });
+      } catch (e) {
+        const networkName = getNetworkByChainId(targetChainId)?.name || 'the correct network';
+        toast({
+          title: 'Chain switch required',
+          description: `Please switch to ${networkName} to deploy.`,
+          status: 'error',
+          duration: 5000,
+          isClosable: true,
+        });
+        setIsDeploying(false);
+        return;
+      }
+    }
+
+    // After a chain switch the signer from useEthersSigner() is stale (captured
+    // at render time with the old chain's transport/network). Fetch a fresh
+    // connector client for the target chain so RPC calls and signatures use the
+    // correct chain.
+    let deploySigner = signer;
+    if (needsChainSwitch) {
+      try {
+        const freshClient = await getConnectorClient(wagmiConfig, { chainId: targetChainId });
+        deploySigner = clientToSigner(freshClient);
+        console.log('[DEPLOY] Got fresh signer for target chain', targetChainId);
+      } catch (e) {
+        console.warn('[DEPLOY] Could not get fresh signer, using hook signer:', e.message);
+      }
+    }
 
     // Extract deployer username from config (validated by ReviewStep)
     const deployerUsername = config?.deployerUsername || state.organization.username || '';
@@ -156,6 +233,8 @@ function DeployerPageContent() {
           url: link.url,
         })),
         template: state.organization.template || 'default',
+        logo: state.organization.logoURL || null,
+        hideTreasury: state.features.hideTreasury || false,
       };
 
       console.log('[DEPLOY] Preparing IPFS metadata:', jsonData);
@@ -222,7 +301,6 @@ function DeployerPageContent() {
       const deployParams = mapStateToDeploymentParams(stateWithResolvedRoles, address, infrastructureAddresses);
 
       console.log('Deployment params:', deployParams);
-      console.log('Deploying with params:', deployParams);
 
       // Check if any role has custom distribution settings (additionalWearers or mintToDeployer)
       const hasCustomDistribution = deployParams.roles.some(
@@ -249,9 +327,105 @@ function DeployerPageContent() {
         });
       });
 
+      // === EIP-712 Registration Signature (EOA only) ===
+      // The deploy contract's HatsTreeSetup calls registerAccountBySig atomically.
+      // It checks: registryAddr != 0 && username.length > 0 && regSignature.length > 0
+      // and is idempotent (skips if user already has a username on-chain).
+      // We use the subgraph to avoid signing when the user already has a username,
+      // and a public RPC provider for on-chain reads (nonce, block) so they work
+      // reliably after a chain switch.
+      let regSignatureData = getSkipRegistrationDefaults();
+      const hasNewUsername = deployerUsername && deployerUsername.trim().length > 0;
+
+      if (!isPasskeyDeployer && deploySigner && hasNewUsername && !deployChainHasUsername) {
+        const registryAddress = infrastructureAddresses.registryAddress;
+        if (registryAddress) {
+          try {
+            toast({
+              title: 'Signature Required',
+              description: 'Please sign the message in your wallet to register your username.',
+              status: 'info',
+              duration: 5000,
+              isClosable: true,
+            });
+
+            // Use a public RPC provider for reads — the wallet provider can be stale
+            // after switchChainAsync (transport/network metadata not yet updated).
+            const targetNetwork = getNetworkByChainId(targetChainId);
+            const readProvider = new ethers.providers.JsonRpcProvider(
+              targetNetwork.rpcUrl,
+              { chainId: targetChainId, name: targetNetwork.name }
+            );
+
+            const sigResult = await signRegistration({
+              signer: deploySigner,
+              registryAddress,
+              username: deployerUsername,
+              deadlineSeconds: 1209600,
+              chainId: targetChainId,
+              readProvider,
+            });
+
+            regSignatureData = {
+              regDeadline: sigResult.deadline,
+              regNonce: sigResult.nonce,
+              regSignature: sigResult.signature,
+            };
+
+            console.log('[DEPLOY] EIP-712 signature obtained:', {
+              deadline: sigResult.deadline.toString(),
+              nonce: sigResult.nonce.toString(),
+              signatureLength: sigResult.signature.length,
+            });
+          } catch (sigError) {
+            if (sigError.code === 4001 || sigError.code === 'ACTION_REJECTED') {
+              throw new Error('Username registration signature was rejected. Deployment cancelled.');
+            }
+            // Retry once after a brief delay — chain switch may not have fully propagated
+            console.warn('[DEPLOY] EIP-712 signing failed, retrying after delay...', sigError.message);
+            try {
+              await new Promise(r => setTimeout(r, 2000));
+              // Re-fetch fresh signer in case the first one was stale
+              const retryClient = await getConnectorClient(wagmiConfig, { chainId: targetChainId });
+              const retrySigner = clientToSigner(retryClient);
+              const sigResult = await signRegistration({
+                signer: retrySigner,
+                registryAddress,
+                username: deployerUsername,
+                deadlineSeconds: 1209600,
+                chainId: targetChainId,
+                readProvider,
+              });
+              regSignatureData = {
+                regDeadline: sigResult.deadline,
+                regNonce: sigResult.nonce,
+                regSignature: sigResult.signature,
+              };
+              console.log('[DEPLOY] EIP-712 signature obtained on retry');
+            } catch (retryError) {
+              if (retryError.code === 4001 || retryError.code === 'ACTION_REJECTED') {
+                throw new Error('Username registration signature was rejected. Deployment cancelled.');
+              }
+              console.error('[DEPLOY] EIP-712 signing failed on retry, deploying without registration:', retryError);
+              toast({
+                title: 'Username registration skipped',
+                description: 'Could not prepare the username signature. Your org will deploy without on-chain username registration. You can register your username later.',
+                status: 'warning',
+                duration: 8000,
+                isClosable: true,
+              });
+            }
+          }
+        }
+      } else if (!isPasskeyDeployer) {
+        console.log('[DEPLOY] Skipping EIP-712 signing:', {
+          hasSigner: !!deploySigner,
+          hasNewUsername,
+          deployChainHasUsername,
+        });
+      }
+
       // Call the deployment function
-      // Note: The existing `main` function signature may need to be updated
-      // to accept the new params format. For now, mapping to existing format:
       const membershipTypeNames = state.roles.map(r => r.name);
       const executiveRoleNames = state.roles
         .filter(r => r.hierarchy.adminRoleIndex === null)
@@ -263,29 +437,288 @@ function DeployerPageContent() {
       // Pass customRoles if there are any custom distribution settings
       // This ensures mintToDeployer and additionalWearers settings are respected
       const customRoles = hasCustomDistribution ? deployParams.roles : null;
-      console.log('Passing customRoles:', customRoles !== null);
 
-      await main(
-        membershipTypeNames,
-        executiveRoleNames,
-        state.organization.name,
-        hasQuadratic,
-        50, // democracyVoteWeight - will be replaced by voting classes
-        50, // participationVoteWeight
-        hybridVotingEnabled,
-        !hybridVotingEnabled, // participationVotingEnabled
-        state.features.electionHubEnabled,
-        state.features.educationHubEnabled,
-        state.organization.logoURL,
-        infoIPFSHash,
-        'DirectDemocracy', // votingControlType
-        state.voting.ddQuorum,
-        state.voting.hybridQuorum,
-        deployerUsername,
-        signer,
-        customRoles,  // Only pass custom roles if there are additionalWearers
-        infrastructureAddresses  // Addresses fetched from subgraph
-      );
+      // Paymaster config
+      const paymasterConfig = mapPaymasterConfig(state.paymaster);
+      const paymasterFundingWei = getPaymasterFundingValue(state.paymaster);
+
+      if (isPasskeyDeployer) {
+        // === PASSKEY DEPLOYMENT via ERC-4337 UserOp ===
+        const { calldata, orgDeployerAddress } = buildDeployCalldata({
+          memberTypeNames: membershipTypeNames,
+          executivePermissionNames: executiveRoleNames,
+          POname: state.organization.name,
+          quadraticVotingEnabled: hasQuadratic,
+          democracyVoteWeight: 50,
+          participationVoteWeight: 50,
+          hybridVotingEnabled,
+          participationVotingEnabled: !hybridVotingEnabled,
+          electionEnabled: state.features.electionHubEnabled,
+          educationHubEnabled: state.features.educationHubEnabled,
+          infoIPFSHash,
+          quorumPercentageDD: state.voting.ddQuorum,
+          quorumPercentagePV: state.voting.hybridQuorum,
+          username: deployerUsername,
+          deployerAddress: passkeyState.accountAddress,
+          customRoles,
+          infrastructureAddresses,
+          regSignatureData,
+          paymasterConfig,
+          metadataAdminRoleIndex: state.metadataAdminRoleIndex,
+        });
+
+        const fundingBigInt = paymasterFundingWei.gt(0) ? BigInt(paymasterFundingWei.toString()) : 0n;
+
+        // Create chain-specific clients for deployment target.
+        // AuthContext clients are pinned to the home chain for login/reconnect flows.
+        const targetNetwork = getNetworkByChainId(targetChainId);
+        const targetChain = defineChain({
+          id: targetNetwork.chainId,
+          name: targetNetwork.name,
+          nativeCurrency: targetNetwork.nativeCurrency,
+          rpcUrls: { default: { http: [targetNetwork.rpcUrl] } },
+          blockExplorers: { default: { name: 'Explorer', url: targetNetwork.blockExplorer } },
+        });
+        const deployPublicClient = createPublicClient({
+          chain: targetChain,
+          transport: http(targetNetwork.rpcUrl),
+        });
+        const deployBundlerClient = createPimlicoClient({
+          chain: targetChain,
+          transport: http(getBundlerUrl(targetChainId)),
+          entryPoint: { address: ENTRY_POINT_ADDRESS, version: '0.7' },
+        });
+
+        // --- Cross-chain account handling ---
+        // Check if the passkey smart account exists on the target chain.
+        // If not, include initCode so the EntryPoint deploys it via the factory.
+        let initCode = '0x';
+        const accountBytecode = await deployPublicClient.getBytecode({
+          address: passkeyState.accountAddress,
+        });
+        const accountExistsOnTargetChain = accountBytecode && accountBytecode !== '0x';
+
+        if (!accountExistsOnTargetChain) {
+          if (!deployChainFactoryAddress) {
+            throw new Error(
+              `Passkey account factory not found on ${targetNetwork.name}. ` +
+              `The protocol infrastructure may not be deployed on this chain yet.`
+            );
+          }
+
+          // Verify the target chain's factory produces the same address as our home-chain account.
+          // CREATE2 address depends on factory address, so if factories differ across chains
+          // the account address would differ — causing AA14 (initCode must return sender).
+          const targetAccountAddress = await deployPublicClient.readContract({
+            address: deployChainFactoryAddress,
+            abi: PasskeyAccountFactoryABI,
+            functionName: 'getAddress',
+            args: [
+              passkeyState.credentialId,
+              passkeyState.publicKeyX,
+              passkeyState.publicKeyY,
+              BigInt(passkeyState.salt),
+            ],
+          });
+
+          if (targetAccountAddress.toLowerCase() !== passkeyState.accountAddress.toLowerCase()) {
+            throw new Error(
+              `Account address mismatch: home chain account is ${passkeyState.accountAddress} ` +
+              `but ${targetNetwork.name} factory would create ${targetAccountAddress}. ` +
+              `Cross-chain deployment is not supported for this configuration.`
+            );
+          }
+
+          const factoryCallData = encodeFunctionData({
+            abi: PasskeyAccountFactoryABI,
+            functionName: 'createAccount',
+            args: [
+              passkeyState.credentialId,
+              passkeyState.publicKeyX,
+              passkeyState.publicKeyY,
+              BigInt(passkeyState.salt),
+            ],
+          });
+          initCode = deployChainFactoryAddress + factoryCallData.slice(2);
+          console.log('[DEPLOY] Account not found on target chain — initCode will deploy it');
+        }
+
+        // Check if the deployer's username is registered on the target chain's registry.
+        // The home chain (Arbitrum) has the username, but this chain's registry may not.
+        let needsUsernameRegistration = false;
+        const registryAddress = infrastructureAddresses.registryAddress;
+        if (deployerUsername && registryAddress) {
+          try {
+            const existingName = await deployPublicClient.readContract({
+              address: registryAddress,
+              abi: UniversalAccountRegistryABI,
+              functionName: 'getUsername',
+              args: [passkeyState.accountAddress],
+            });
+            needsUsernameRegistration = !existingName || existingName.trim().length === 0;
+            console.log('[DEPLOY] Username on target chain:', existingName || '(none)');
+          } catch {
+            // If account doesn't exist yet, getUsername will revert — treat as unregistered
+            needsUsernameRegistration = true;
+            console.log('[DEPLOY] Could not read username on target chain — will register');
+          }
+        }
+
+        // Build the UserOp callData:
+        // - If username needs registration: executeBatch([registerAccount, deployFullOrg])
+        // - Otherwise: single execute(deployFullOrg) (existing behavior)
+        let sponsoredCallData;
+        let selfFundedCallData;
+
+        if (needsUsernameRegistration && registryAddress) {
+          const registerCallData = encodeFunctionData({
+            abi: UniversalAccountRegistryABI,
+            functionName: 'registerAccount',
+            args: [deployerUsername],
+          });
+
+          sponsoredCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'executeBatch',
+            args: [
+              [registryAddress, orgDeployerAddress],
+              [0n, 0n],
+              [registerCallData, calldata],
+            ],
+          });
+
+          selfFundedCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'executeBatch',
+            args: [
+              [registryAddress, orgDeployerAddress],
+              [0n, fundingBigInt],
+              [registerCallData, calldata],
+            ],
+          });
+
+          console.log('[DEPLOY] Using executeBatch: registerAccount + deployFullOrg');
+        } else {
+          sponsoredCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'execute',
+            args: [orgDeployerAddress, 0n, calldata],
+          });
+
+          selfFundedCallData = encodeFunctionData({
+            abi: PasskeyAccountABI,
+            functionName: 'execute',
+            args: [orgDeployerAddress, fundingBigInt, calldata],
+          });
+        }
+
+        // Try sponsored deployment first (solidarity fund pays gas via PaymasterHub),
+        // then fall back to self-funded if sponsorship is unavailable.
+        let userOp;
+        const paymasterHubAddress = infrastructureAddresses.paymasterHubProxy;
+
+        if (paymasterHubAddress) {
+          try {
+            userOp = await buildUserOp({
+              sender: passkeyState.accountAddress,
+              callData: sponsoredCallData,
+              bundlerClient: deployBundlerClient,
+              publicClient: deployPublicClient,
+              initCode,
+              paymasterAddress: paymasterHubAddress,
+              paymasterData: encodeOrgDeployPaymasterData(),
+            });
+
+            console.log('[DEPLOY] UserOp built with gas sponsorship (solidarity fund)');
+          } catch (e) {
+            const msg = e.message || e.shortMessage || e.details || '';
+            const isPaymasterRejection = msg.includes('AA31') || msg.includes('AA32') || msg.includes('AA33')
+              || msg.includes('paymaster') || msg.includes('Paymaster')
+              || msg.includes('validatePaymasterUserOp');
+
+            if (isPaymasterRejection) {
+              console.warn('[DEPLOY] Gas sponsorship unavailable, falling back to self-funded:', msg);
+              userOp = null;
+            } else {
+              throw e;
+            }
+          }
+        }
+
+        if (!userOp) {
+          // Self-funded: account pays gas, can include ETH for org paymaster funding
+          userOp = await buildUserOp({
+            sender: passkeyState.accountAddress,
+            callData: selfFundedCallData,
+            bundlerClient: deployBundlerClient,
+            publicClient: deployPublicClient,
+            initCode,
+          });
+
+          console.log('[DEPLOY] UserOp built self-funded (account pays gas)');
+        }
+
+        // Sign with passkey (triggers biometric prompt)
+        toast({
+          title: 'Passkey Signature Required',
+          description: 'Please authenticate with your passkey to deploy.',
+          status: 'info',
+          duration: 5000,
+          isClosable: true,
+        });
+
+        const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, targetChainId);
+        const signature = await signUserOpWithPasskey(userOpHash, passkeyState.rawCredentialId);
+        userOp.signature = signature;
+
+        // Submit to target-chain bundler
+        const opHash = await deployBundlerClient.sendUserOperation({
+          ...userOp,
+          entryPointAddress: ENTRY_POINT_ADDRESS,
+        });
+
+        console.log('[DEPLOY] UserOp submitted:', opHash);
+
+        // Wait for confirmation on target chain
+        const receipt = await deployBundlerClient.waitForUserOperationReceipt({
+          hash: opHash,
+          timeout: 120_000,
+        });
+
+        if (!receipt.success) {
+          throw new Error('Deployment transaction failed on-chain.');
+        }
+
+        console.log('[DEPLOY] Passkey deployment confirmed:', receipt.receipt.transactionHash);
+      } else {
+        // === WALLET DEPLOYMENT via ethers signer ===
+        await main(
+          membershipTypeNames,
+          executiveRoleNames,
+          state.organization.name,
+          hasQuadratic,
+          50, // democracyVoteWeight
+          50, // participationVoteWeight
+          hybridVotingEnabled,
+          !hybridVotingEnabled, // participationVotingEnabled
+          state.features.electionHubEnabled,
+          state.features.educationHubEnabled,
+          state.organization.logoURL,
+          infoIPFSHash,
+          'DirectDemocracy', // votingControlType
+          state.voting.ddQuorum,
+          state.voting.hybridQuorum,
+          deployerUsername,
+          deploySigner,
+          customRoles,
+          infrastructureAddresses,
+          regSignatureData,
+          undefined, // overrideDeployerAddress
+          paymasterConfig,
+          paymasterFundingWei,
+          state.metadataAdminRoleIndex
+        );
+      }
 
       // Return success - let DeployerWizard handle the celebration
       return { success: true, orgName: state.organization.name };
@@ -309,7 +742,7 @@ function DeployerPageContent() {
   const handleDeploySuccess = () => {
     // Delay redirect to allow subgraph indexing
     setTimeout(() => {
-      router.push(`/profileHub?userDAO=${encodeURIComponent(state.organization.name)}`);
+      router.push(`/profile?org=${encodeURIComponent(state.organization.name)}`);
     }, 2000);
   };
 
@@ -326,25 +759,50 @@ function DeployerPageContent() {
 
   return (
     <Box height="100vh" overflow="hidden" position="relative">
-      {/* Beta Badge */}
+      {/* Ambient morphing orbs - matching landing page */}
       <Box
         position="absolute"
-        top="14px"
-        left="14px"
-        display={["none", "none", "block"]}
-        bg="coral.500"
-        color="white"
-        fontSize="12px"
-        w="120px"
-        px={3}
-        py={2}
-        borderRadius="md"
-        fontWeight="500"
-        zIndex={2}
-        textAlign="center"
-      >
-        Beta on Hoodi
-      </Box>
+        top="-8%"
+        left="-6%"
+        w={["250px", "350px", "450px"]}
+        h={["250px", "350px", "450px"]}
+        bg="#7DD3FC"
+        opacity={0.15}
+        filter="blur(80px)"
+        pointerEvents="none"
+        zIndex={0}
+        sx={{
+          animation: "createOrb1 20s ease-in-out infinite",
+          "@keyframes createOrb1": {
+            "0%": { borderRadius: "40% 60% 60% 40% / 60% 40% 60% 40%", transform: "translate(0, 0) rotate(0deg)" },
+            "33%": { borderRadius: "60% 40% 50% 50% / 40% 60% 40% 60%", transform: "translate(25px, 15px) rotate(60deg)" },
+            "66%": { borderRadius: "50% 50% 40% 60% / 50% 40% 60% 50%", transform: "translate(-10px, 30px) rotate(120deg)" },
+            "100%": { borderRadius: "40% 60% 60% 40% / 60% 40% 60% 40%", transform: "translate(0, 0) rotate(0deg)" },
+          },
+        }}
+      />
+      <Box
+        position="absolute"
+        bottom="-5%"
+        right="-4%"
+        w={["200px", "300px", "400px"]}
+        h={["200px", "300px", "400px"]}
+        bg="#67E8F9"
+        opacity={0.12}
+        filter="blur(80px)"
+        pointerEvents="none"
+        zIndex={0}
+        sx={{
+          animation: "createOrb2 24s ease-in-out infinite",
+          "@keyframes createOrb2": {
+            "0%": { borderRadius: "60% 40% 50% 50% / 50% 60% 40% 50%", transform: "translate(0, 0) rotate(0deg)" },
+            "33%": { borderRadius: "40% 60% 60% 40% / 60% 40% 60% 40%", transform: "translate(-20px, 25px) rotate(-60deg)" },
+            "66%": { borderRadius: "50% 40% 50% 60% / 40% 60% 50% 40%", transform: "translate(15px, -10px) rotate(-120deg)" },
+            "100%": { borderRadius: "60% 40% 50% 50% / 50% 60% 40% 50%", transform: "translate(0, 0) rotate(0deg)" },
+          },
+        }}
+      />
+
 
       {/* Exit Button */}
       <Box position="absolute" top={exitButtonTop} right={exitButtonRight} zIndex={10}>
@@ -368,7 +826,7 @@ function DeployerPageContent() {
         <DeployerWizard
           onDeployStart={handleDeployStart}
           onDeploySuccess={handleDeploySuccess}
-          deployerAddress={address}
+          deployerAddress={passkeyState?.accountAddress || (walletUserConnected ? address : undefined)}
         />
       </Box>
 
@@ -414,9 +872,16 @@ function DeployerPageContent() {
  */
 const ArchitectPage = () => {
   return (
+    <>
+    <SEOHead
+      title="Create an Organization"
+      description="Build a community-owned organization with democratic governance, contribution-based voting, and on-chain treasury. No code required."
+      path="/create"
+    />
     <DeployerProvider>
       <DeployerPageContent />
     </DeployerProvider>
+    </>
   );
 };
 

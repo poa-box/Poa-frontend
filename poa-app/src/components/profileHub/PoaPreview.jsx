@@ -18,14 +18,14 @@ const PoaPreview = () => {
       m="5"
     >
       <Image
-        src="/images/poa_character.png"
+        src="/images/poa_character.webp"
         alt="Character"
         width={115}
         height={115}
       />
       <Text fontSize="lg">This is Poa</Text>
       <Text fontSize="xl" mt="4" fontWeight={"600"}>
-        The Perpetual Organization Architect
+        Community-Owned Organization Builder
       </Text>
 
       <Link href={"/create"} passHref>

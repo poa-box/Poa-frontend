@@ -7,7 +7,7 @@ import CreateProjectModal from './CreateProjectModal';
 import { TaskBoardProvider } from '../../context/TaskBoardContext';
 import { useDataBaseContext} from '../../context/dataBaseContext';
 import { useIPFScontext } from '../../context/ipfsContext';
-import { useAccount } from 'wagmi';
+import { useAuth } from '../../context/AuthContext';
 import { useWeb3 } from '../../hooks';
 import { usePOContext } from '@/context/POContext';
 import { useRouter } from 'next/router';
@@ -17,7 +17,6 @@ import { HTML5Backend } from 'react-dnd-html5-backend';
 // Enhanced styles for mobile project selector
 const mobileHeaderStyle = {
   background: 'linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(20,20,20,0.75) 100%)',
-  backdropFilter: 'blur(10px)',
   borderRadius: '8px',
   padding: '8px 12px',
   boxShadow: '0 3px 10px rgba(0, 0, 0, 0.2)',
@@ -34,9 +33,9 @@ const MainLayout = () => {
     handleUpdateColumns,
   } = useDataBaseContext();
 
-  const { address: account } = useAccount();
+  const { accountAddress: account } = useAuth();
   const { task: taskService, executeWithNotification } = useWeb3();
-  const { taskManagerContractAddress, roleHatIds } = usePOContext();
+  const { taskManagerContractAddress, roleHatIds, roleNames, creatorHatIds } = usePOContext();
   const { addToIpfs } = useIPFScontext();
   const router = useRouter();
 
@@ -77,27 +76,18 @@ const MainLayout = () => {
      // Decode first to handle any prior encoding, then encode properly
      const safeProjectId = encodeURIComponent(decodeURIComponent(projectId));
 
-    router.push(`/tasks?projectId=${safeProjectId}&userDAO=${router.query.userDAO}`);
-    console.log("selecting project",projectId);
+    router.push(`/tasks?projectId=${safeProjectId}&org=${router.query.org || router.query.userDAO}`);
     const selected = projects.find((project) => project.id === projectId);
     setSelectedProject(selected);
-    console.log('selected', selected);
   };
 
   // Create project using the new service
   const handleCreateProject = useCallback(async (projectData) => {
     if (!taskService) return;
 
-    console.log('=== handleCreateProject DEBUG ===');
-    console.log('Raw projectData:', projectData);
-    console.log('projectData type:', typeof projectData);
-
     // Handle both simple string (for backwards compat) and full object
     const isSimpleCreate = typeof projectData === 'string';
     const projectName = isSimpleCreate ? projectData : projectData.name;
-
-    console.log('isSimpleCreate:', isSimpleCreate);
-    console.log('projectName:', projectName);
 
     // Upload description to IPFS if provided
     let metadataHash = '';
@@ -105,39 +95,42 @@ const MainLayout = () => {
       try {
         const result = await addToIpfs(JSON.stringify({ description: projectData.description }));
         metadataHash = result.path;
-        console.log('IPFS metadataHash:', metadataHash);
       } catch (error) {
         console.warn('Failed to upload project metadata to IPFS:', error);
       }
     }
 
-    // Get hat IDs for default permissions from org's roleHatIds
-    // roleHatIds[0] = Member, roleHatIds[1] = Executive, etc.
-    // Members can claim tasks, non-members (executives+) can create/review/assign
-    const nonMemberHatIds = roleHatIds?.slice(1) || [];
+    // Build default permissions using creatorHatIds (roles trusted to manage tasks)
+    // For the simple-create path (quick project creation without the modal)
+    if (!roleHatIds || roleHatIds.length === 0) {
+      console.error('Cannot create project: roleHatIds not loaded yet');
+      throw new Error('Organization roles are still loading. Please wait a moment and try again.');
+    }
 
-    // For simple creates, assign default permissions based on org roles
-    // All roles (member + non-member) can claim tasks
-    // Non-member roles (executive+) can create, review, and assign
-    const defaultClaimHats = roleHatIds || [];
-    const defaultCreateHats = nonMemberHatIds;
-    const defaultReviewHats = nonMemberHatIds;
-    const defaultAssignHats = nonMemberHatIds;
+    const creatorSet = new Set((creatorHatIds || []).map(String));
+    const adminRoles = creatorSet.size > 0
+      ? roleHatIds.filter(id => creatorSet.has(String(id)))
+      : roleHatIds.slice(1);
+    // If no admin roles resolved, give all roles full permissions
+    const effectiveAdminRoles = adminRoles.length > 0 ? adminRoles : roleHatIds;
+
+    const defaultCreateHats = effectiveAdminRoles;
+    const defaultClaimHats = roleHatIds; // all roles can claim
+    const defaultReviewHats = effectiveAdminRoles;
+    const defaultAssignHats = effectiveAdminRoles;
 
     const createProjectData = {
       name: projectName,
       metadataHash,
       cap: isSimpleCreate ? 0 : (projectData.cap || 0),
       managers: isSimpleCreate ? [] : (projectData.managers || []),
-      createHats: isSimpleCreate ? defaultCreateHats : (projectData.createHats || []),
-      claimHats: isSimpleCreate ? defaultClaimHats : (projectData.claimHats || []),
-      reviewHats: isSimpleCreate ? defaultReviewHats : (projectData.reviewHats || []),
-      assignHats: isSimpleCreate ? defaultAssignHats : (projectData.assignHats || []),
+      createHats: isSimpleCreate ? defaultCreateHats : (projectData.createHats?.length > 0 ? projectData.createHats : defaultCreateHats),
+      claimHats: isSimpleCreate ? defaultClaimHats : (projectData.claimHats?.length > 0 ? projectData.claimHats : defaultClaimHats),
+      reviewHats: isSimpleCreate ? defaultReviewHats : (projectData.reviewHats?.length > 0 ? projectData.reviewHats : defaultReviewHats),
+      assignHats: isSimpleCreate ? defaultAssignHats : (projectData.assignHats?.length > 0 ? projectData.assignHats : defaultAssignHats),
+      bountyTokens: isSimpleCreate ? [] : (projectData.bountyTokens || []),
+      bountyCaps: isSimpleCreate ? [] : (projectData.bountyCaps || []),
     };
-
-    console.log('Final createProjectData:', createProjectData);
-    console.log('taskManagerContractAddress:', taskManagerContractAddress);
-    console.log('=== END handleCreateProject DEBUG ===');
 
     await executeWithNotification(
       () => taskService.createProject(taskManagerContractAddress, createProjectData),
@@ -147,7 +140,7 @@ const MainLayout = () => {
         refreshEvent: 'project:created',
       }
     );
-  }, [taskService, executeWithNotification, taskManagerContractAddress, addToIpfs, roleHatIds]);
+  }, [taskService, executeWithNotification, taskManagerContractAddress, addToIpfs, roleHatIds, creatorHatIds]);
 
   const handleCreateNewProject = () => {
     if (newProjectName.trim()) {
@@ -370,7 +363,7 @@ const MainLayout = () => {
           height={isMobile ? "100%" : "auto"}
           width="100%"
           zIndex={2}
-          transition="all 0.3s ease"
+          transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
           display="flex"
           flexDirection="column"
           pb={isMobile ? "1px" : undefined} // Add extra padding at bottom for mobile
@@ -384,14 +377,14 @@ const MainLayout = () => {
           
           {selectedProject ? (
             <Box flex="1" width="100%" overflow={isMobile ? "visible" : "auto"}>
-              <TaskBoardProvider 
+              <TaskBoardProvider
                 key={selectedProject.id}
                 projectId={selectedProject.id}
                 initialColumns={selectedProject.columns}
+                onUpdateColumns={handleUpdateColumns}
                 account={account}
               >
-                <TaskBoard 
-                  columns={selectedProject.columns} 
+                <TaskBoard
                   projectName={selectedProject.name}
                   hideTitleBar={isMobile}
                   sidebarVisible={sidebarVisible}
@@ -449,6 +442,9 @@ const MainLayout = () => {
         isOpen={isProjectModalOpen}
         onClose={onProjectModalClose}
         onCreateProject={handleCreateProject}
+        roleHatIds={roleHatIds || []}
+        roleNames={roleNames || {}}
+        creatorHatIds={creatorHatIds || []}
       />
     </DndProvider>
   );

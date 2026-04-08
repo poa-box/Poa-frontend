@@ -34,7 +34,7 @@ function RoleCard({ role }) {
       borderLeftColor="purple.400"
       spacing={3}
       _hover={{ bg: 'whiteAlpha.100', transform: 'translateX(2px)' }}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
     >
       <Icon as={FiShield} color="purple.300" boxSize={5} />
       <VStack align="start" spacing={1} flex={1}>
@@ -119,7 +119,7 @@ export function UserRolesCard({ userHatIds = [], roles = [], permissionsMatrix, 
             <Text color="gray.400" textAlign="center">
               You haven't claimed any roles yet
             </Text>
-            <Link href={`/org-structure?userDAO=${userDAO}`} passHref>
+            <Link href={`/team?org=${userDAO}`} passHref>
               <Button
                 size="sm"
                 variant="outline"
@@ -144,7 +144,7 @@ export function UserRolesCard({ userHatIds = [], roles = [], permissionsMatrix, 
               </Text>
             )}
 
-            <Link href={`/org-structure?userDAO=${userDAO}`} passHref>
+            <Link href={`/team?org=${userDAO}`} passHref>
               <Button
                 size="sm"
                 variant="ghost"

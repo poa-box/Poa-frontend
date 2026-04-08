@@ -1,16 +1,15 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useCallback, useReducer, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { FETCH_VOTING_DATA_NEW } from '../util/queries';
-import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
+import { formatTokenAmount } from '../util/formatToken';
 
 const VotingContext = createContext();
 
 export const useVotingContext = () => useContext(VotingContext);
 
-function transformProposal(proposal, votingTypeId, type, quorum = 0) {
+function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quorum = 0) {
     const currentTime = Math.floor(Date.now() / 1000);
     const endTime = parseInt(proposal.endTimestamp) || 0;
     // A proposal is "ongoing" if it's still Active (needs voting or winner announcement)
@@ -26,6 +25,7 @@ function transformProposal(proposal, votingTypeId, type, quorum = 0) {
 
     // Aggregate votes per option - different logic for Hybrid vs DD
     const optionVotes = {};
+    const optionVotesRaw = {}; // BigInt string versions for Hybrid display formatting
     let totalVotes = 0;
 
     if (type === 'Hybrid') {
@@ -50,8 +50,9 @@ function transformProposal(proposal, votingTypeId, type, quorum = 0) {
             totalVotes += Number(votePower);
         });
 
-        // Convert BigInt to Number for display
+        // Store BigInt strings for formatting before losing precision
         Object.keys(optionVotes).forEach(k => {
+            optionVotesRaw[k] = optionVotes[k].toString();
             optionVotes[k] = Number(optionVotes[k]);
         });
     } else {
@@ -70,10 +71,14 @@ function transformProposal(proposal, votingTypeId, type, quorum = 0) {
     const totalOptionVotes = Object.values(optionVotes).reduce((sum, v) => sum + v, 0);
     for (let i = 0; i < (proposal.numOptions || 2); i++) {
         const votes = optionVotes[i] || 0;
+        const displayVotes = type === 'Hybrid'
+            ? formatTokenAmount(optionVotesRaw[i] || '0')
+            : String(votes);
         options.push({
             id: `${proposal.id}-option-${i}`,
             name: optionNames[i] || `Option ${i + 1}`,
             votes: votes,
+            displayVotes,
             percentage: totalOptionVotes > 0 ? (votes / totalOptionVotes) * 100 : 0,
             currentPercentage: totalOptionVotes > 0 ? Math.round((votes / totalOptionVotes) * 100) : 0,
         });
@@ -103,43 +108,60 @@ function transformProposal(proposal, votingTypeId, type, quorum = 0) {
         votes: proposal.votes || [],
         votingTypeId,
         type,
+        thresholdPct,
         quorum,
         isHatRestricted: proposal.isHatRestricted,
         restrictedHatIds: proposal.restrictedHatIds || [],
     };
 }
 
+const initialVotingState = {
+    hybridVotingOngoing: [],
+    hybridVotingCompleted: [],
+    democracyVotingOngoing: [],
+    democracyVotingCompleted: [],
+    ongoingPolls: [],
+    votingType: 'Hybrid',
+    votingClasses: [],
+};
+
+function votingReducer(state, action) {
+    switch (action.type) {
+        case 'SET_VOTING_DATA':
+            return { ...state, ...action.payload };
+        default:
+            return state;
+    }
+}
+
 export const VotingProvider = ({ children }) => {
-    const [hybridVotingOngoing, setHybridVotingOngoing] = useState([]);
-    const [hybridVotingCompleted, setHybridVotingCompleted] = useState([]);
-    const [democracyVotingOngoing, setDemocracyVotingOngoing] = useState([]);
-    const [democracyVotingCompleted, setDemocracyVotingCompleted] = useState([]);
-    const [ongoingPolls, setOngoingPolls] = useState([]);
-    const [votingType, setVotingType] = useState('Hybrid');
-    const [votingClasses, setVotingClasses] = useState([]);
+    const [state, dispatch] = useReducer(votingReducer, initialVotingState);
 
-    const { address } = useAccount();
-    const router = useRouter();
-    const { orgId } = usePOContext();
+    const { orgId, subgraphUrl } = usePOContext();
+    const apolloContext = React.useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
-    const { data, loading, error, refetch } = useQuery(FETCH_VOTING_DATA_NEW, {
+    const { data, loading, refetch } = useQuery(FETCH_VOTING_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-first',
-        notifyOnNetworkStatusChange: true,
+        context: apolloContext,
     });
 
-    // Memoize refetch handler for stable reference
+    // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
+
+    // Refetch immediately — executeWithNotification already waited for the
+    // subgraph to index the transaction block before emitting the event.
     const handleRefresh = useCallback(() => {
         if (orgId) {
-            console.log('VotingContext: Refreshing voting data');
-            refetch();
+            refetchRef.current();
         }
-    }, [orgId, refetch]);
+    }, [orgId]);
 
-    // Subscribe to refresh events from Web3Context
+    // Subscribe only to voting-specific events (not ALL, which fires on every event)
     useRefreshSubscription(
-        [RefreshEvent.ALL, RefreshEvent.PROPOSAL_CREATED, RefreshEvent.PROPOSAL_VOTED, RefreshEvent.PROPOSAL_COMPLETED],
+        [RefreshEvent.PROPOSAL_CREATED, RefreshEvent.PROPOSAL_VOTED, RefreshEvent.PROPOSAL_COMPLETED],
         handleRefresh,
         [handleRefresh]
     );
@@ -147,96 +169,89 @@ export const VotingProvider = ({ children }) => {
     useEffect(() => {
         if (data?.organization) {
             const org = data.organization;
+            let hybridProposals = [];
+            let ddProposals = [];
+            const update = {};
 
             if (org.hybridVoting) {
-                setVotingType('Hybrid');
+                update.votingType = 'Hybrid';
             } else if (org.directDemocracyVoting) {
-                setVotingType('Direct Democracy');
+                update.votingType = 'Direct Democracy';
             }
 
             // Process Hybrid Voting proposals and classes
             if (org.hybridVoting) {
+                const hybridThreshold = org.hybridVoting.thresholdPct || 0;
                 const hybridQuorum = org.hybridVoting.quorum || 0;
-                const hybridProposals = (org.hybridVoting.proposals || []).map(p =>
-                    transformProposal(p, org.hybridVoting.id, 'Hybrid', hybridQuorum)
+                hybridProposals = (org.hybridVoting.proposals || []).map(p =>
+                    transformProposal(p, org.hybridVoting.id, 'Hybrid', hybridThreshold, hybridQuorum)
                 );
-                setHybridVotingOngoing(hybridProposals.filter(p => p.isOngoing));
-                // Sort completed proposals by endTimestamp descending (most recently finished first)
+                update.hybridVotingOngoing = hybridProposals.filter(p => p.isOngoing);
                 const hybridCompleted = hybridProposals.filter(p => !p.isOngoing);
                 hybridCompleted.sort((a, b) => parseInt(b.endTimestamp) - parseInt(a.endTimestamp));
-                setHybridVotingCompleted(hybridCompleted);
+                update.hybridVotingCompleted = hybridCompleted;
 
                 // Process voting classes - convert to usable format
-                console.log('[VotingContext] Raw voting classes from subgraph:', org.hybridVoting.votingClasses);
-                const classes = (org.hybridVoting.votingClasses || []).map(c => ({
-                    classIndex: c.classIndex,
-                    strategy: c.strategy,
-                    slicePct: c.slicePct,
-                    quadratic: c.quadratic,
-                    minBalance: c.minBalance?.toString() || '0',
-                    asset: c.asset,
-                    hatIds: (c.hatIds || []).map(h => h.toString()),
-                }));
-                console.log('[VotingContext] Processed voting classes:', classes);
-                setVotingClasses(classes);
+                // Filter to latest version only (subgraph bug: old versions stay isActive)
+                const rawClasses = org.hybridVoting.votingClasses || [];
+                const maxVersion = rawClasses.reduce(
+                    (max, c) => Math.max(max, Number(c.version || 0)), 0
+                );
+                update.votingClasses = rawClasses
+                    .filter(c => Number(c.version || 0) === maxVersion)
+                    .map(c => ({
+                        classIndex: Number(c.classIndex),
+                        strategy: c.strategy,
+                        slicePct: Number(c.slicePct),
+                        quadratic: c.quadratic,
+                        minBalance: c.minBalance?.toString() || '0',
+                        asset: c.asset,
+                        hatIds: (c.hatIds || []).map(h => h.toString()),
+                    }))
+                    .sort((a, b) => a.classIndex - b.classIndex);
             } else {
-                setHybridVotingOngoing([]);
-                setHybridVotingCompleted([]);
-                setVotingClasses([]);
+                update.hybridVotingOngoing = [];
+                update.hybridVotingCompleted = [];
+                update.votingClasses = [];
             }
 
             // Process Direct Democracy Voting proposals
             if (org.directDemocracyVoting) {
-                const ddQuorum = org.directDemocracyVoting.quorumPercentage || 0;
-                const ddProposals = (org.directDemocracyVoting.ddvProposals || []).map(p =>
-                    transformProposal(p, org.directDemocracyVoting.id, 'Direct Democracy', ddQuorum)
+                const ddThreshold = org.directDemocracyVoting.thresholdPct || 0;
+                const ddQuorum = org.directDemocracyVoting.quorum || 0;
+                ddProposals = (org.directDemocracyVoting.ddvProposals || []).map(p =>
+                    transformProposal(p, org.directDemocracyVoting.id, 'Direct Democracy', ddThreshold, ddQuorum)
                 );
-                setDemocracyVotingOngoing(ddProposals.filter(p => p.isOngoing));
-                // Sort completed proposals by endTimestamp descending (most recently finished first)
+                update.democracyVotingOngoing = ddProposals.filter(p => p.isOngoing);
                 const ddCompleted = ddProposals.filter(p => !p.isOngoing);
                 ddCompleted.sort((a, b) => parseInt(b.endTimestamp) - parseInt(a.endTimestamp));
-                setDemocracyVotingCompleted(ddCompleted);
+                update.democracyVotingCompleted = ddCompleted;
             } else {
-                setDemocracyVotingOngoing([]);
-                setDemocracyVotingCompleted([]);
+                update.democracyVotingOngoing = [];
+                update.democracyVotingCompleted = [];
             }
 
-            // Combine all ongoing polls
-            const allOngoing = [
-                ...(org.hybridVoting?.proposals || []).map(p =>
-                    transformProposal(p, org.hybridVoting?.id, 'Hybrid', org.hybridVoting?.quorum || 0)
-                ).filter(p => p.isOngoing),
-                ...(org.directDemocracyVoting?.ddvProposals || []).map(p =>
-                    transformProposal(p, org.directDemocracyVoting?.id, 'Direct Democracy', org.directDemocracyVoting?.quorumPercentage || 0)
-                ).filter(p => p.isOngoing),
+            // Combine all ongoing polls from already-transformed proposals
+            update.ongoingPolls = [
+                ...hybridProposals.filter(p => p.isOngoing),
+                ...ddProposals.filter(p => p.isOngoing),
             ];
-            setOngoingPolls(allOngoing);
+
+            // Single dispatch — one re-render instead of 7
+            dispatch({ type: 'SET_VOTING_DATA', payload: update });
         }
     }, [data]);
 
     const contextValue = useMemo(() => ({
-        hybridVotingOngoing,
-        hybridVotingCompleted,
-        democracyVotingOngoing,
-        democracyVotingCompleted,
+        hybridVotingOngoing: state.hybridVotingOngoing,
+        hybridVotingCompleted: state.hybridVotingCompleted,
+        democracyVotingOngoing: state.democracyVotingOngoing,
+        democracyVotingCompleted: state.democracyVotingCompleted,
         loading,
-        error,
-        ongoingPolls,
-        votingType,
-        votingClasses,
-        refetch,
-    }), [
-        hybridVotingOngoing,
-        hybridVotingCompleted,
-        democracyVotingOngoing,
-        democracyVotingCompleted,
-        loading,
-        error,
-        ongoingPolls,
-        votingType,
-        votingClasses,
-        refetch,
-    ]);
+        ongoingPolls: state.ongoingPolls,
+        votingType: state.votingType,
+        votingClasses: state.votingClasses,
+    }), [state, loading]);
 
     return (
         <VotingContext.Provider value={contextValue}>

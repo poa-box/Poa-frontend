@@ -9,8 +9,7 @@ const glassLayerStyle = {
   width: "100%",
   zIndex: -1,
   borderRadius: "inherit",
-  backdropFilter: "blur(20px)",
-  backgroundColor: "rgba(0, 0, 0, .8)",
+  backgroundColor: "rgba(0, 0, 0, .85)",
   boxShadow: "inset 0 0 15px rgba(148, 115, 220, 0.15)",
   border: "1px solid rgba(148, 115, 220, 0.2)",
 };
@@ -45,7 +44,7 @@ const VotingPanel = ({
       position="relative"
       display="flex"
       zIndex={0}
-      transition="all 0.3s ease"
+      transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
       _hover={{ 
         transform: "translateY(-3px)",
         boxShadow: "xl"

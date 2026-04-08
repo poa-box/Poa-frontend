@@ -46,7 +46,7 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
     if (!amount || parseFloat(amount) <= 0) {
       toast({
         title: 'Invalid Amount',
-        description: 'Please enter a valid token amount greater than 0',
+        description: 'Please enter a valid share amount greater than 0',
         status: 'error',
         duration: 3000,
       });
@@ -56,7 +56,7 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
     if (!reason.trim()) {
       toast({
         title: 'Reason Required',
-        description: 'Please provide a reason for your token request',
+        description: 'Please provide a reason for your share request',
         status: 'error',
         duration: 3000,
       });
@@ -66,7 +66,7 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
     if (!participationTokenAddress) {
       toast({
         title: 'Error',
-        description: 'Participation token not found for this organization',
+        description: 'Shares not found for this organization',
         status: 'error',
         duration: 3000,
       });
@@ -89,8 +89,8 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
           { ipfsService: { addToIpfs } }
         ),
         {
-          pendingMessage: 'Submitting token request...',
-          successMessage: 'Token request submitted successfully!',
+          pendingMessage: 'Submitting share request...',
+          successMessage: 'Share request submitted successfully!',
           refreshEvent: RefreshEvent.TOKEN_REQUEST_CREATED,
           refreshData: { amount },
         }
@@ -101,10 +101,10 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
         onClose();
       }
     } catch (error) {
-      console.error('Error submitting token request:', error);
+      console.error('Error submitting share request:', error);
       toast({
         title: 'Error',
-        description: error.message || 'Failed to submit token request',
+        description: error.message || 'Failed to submit share request',
         status: 'error',
         duration: 5000,
       });
@@ -124,17 +124,17 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
     <Modal isOpen={isOpen} onClose={handleClose} size="md">
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Request Participation Tokens</ModalHeader>
+        <ModalHeader>Request Shares</ModalHeader>
         <ModalCloseButton isDisabled={loading} />
         <ModalBody>
           <VStack spacing={4} align="stretch">
             <Text fontSize="sm" color="gray.600">
-              Request tokens for contributions that aren&apos;t covered by tasks or education modules.
+              Request shares for contributions that aren&apos;t covered by tasks or education modules.
               Your request will be reviewed by an approver.
             </Text>
 
             <FormControl isRequired>
-              <FormLabel>Token Amount</FormLabel>
+              <FormLabel>Share Amount</FormLabel>
               <NumberInput
                 value={amount}
                 onChange={(value) => setAmount(value)}
@@ -148,14 +148,14 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
                 </NumberInputStepper>
               </NumberInput>
               <FormHelperText>
-                Number of participation tokens to request
+                Number of shares to request
               </FormHelperText>
             </FormControl>
 
             <FormControl isRequired>
               <FormLabel>Reason / Justification</FormLabel>
               <Textarea
-                placeholder="Describe your contribution and why you're requesting these tokens..."
+                placeholder="Describe your contribution and why you're requesting these shares..."
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={4}

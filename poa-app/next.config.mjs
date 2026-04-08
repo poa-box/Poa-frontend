@@ -11,13 +11,13 @@ const nextConfig = {
       {
         source: '/',
         has: [{ type: 'host', value: 'poa.on-fleek.app' }],
-        destination: 'https://poa.community',
+        destination: 'https://poa.box',
         permanent: true,
       },
       {
         source: '/:path*',
         has: [{ type: 'host', value: 'poa.on-fleek.app' }],
-        destination: 'https://poa.community/:path*',
+        destination: 'https://poa.box/:path*',
         permanent: true,
       },
     ];

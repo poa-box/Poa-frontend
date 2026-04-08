@@ -71,22 +71,6 @@ function transformRolesData(roles, roleHatIds, roleNamesFromIPFS = {}, users = [
   // Note: Roles are already filtered by isUserRole: true in the GraphQL query
   // No need for frontend filtering
 
-  // Debug: Log data to understand the structure
-  console.log('[OrgStructure] transformRolesData called with:', {
-    rolesCount: roles.length,
-    roleHatIds,
-    roleNamesFromIPFS,
-    usersCount: users?.length || 0,
-    // Log all roles with names to debug
-    rolesWithNames: roles.map(r => ({
-      hatId: r.hatId,
-      roleName: r.name,
-      roleCanVote: r.canVote,
-      isUserRole: r.isUserRole,
-      hatName: r.hat?.name,
-    }))
-  });
-
   return roles.map((role, index) => {
     const hatId = role.hatId;
     const hatIdNorm = normalizeHatId(hatId);
@@ -112,20 +96,6 @@ function transformRolesData(roles, roleHatIds, roleNamesFromIPFS = {}, users = [
 
     // Use the larger count (in case one source is incomplete)
     const memberCount = Math.max(activeRoleWearers.length, usersWithHat.length);
-
-    // Debug: Log member count calculation for first role
-    if (index === 0) {
-      console.log('[OrgStructure] Member count for first role:', {
-        hatId,
-        hatIdNorm,
-        roleWearersLength: roleWearers.length,
-        activeRoleWearersLength: activeRoleWearers.length,
-        usersWithHatLength: usersWithHat.length,
-        finalMemberCount: memberCount,
-        roleWearers: roleWearers.map(w => ({ wearer: w.wearer, isActive: w.isActive })),
-        usersWithHat: usersWithHat.map(u => ({ username: u.account?.username, currentHatIds: u.currentHatIds }))
-      });
-    }
 
     // Get hat details
     const hat = role.hat || {};
@@ -258,13 +228,6 @@ function groupMembersByRole(users, roles) {
     });
   });
 
-  console.log('[OrgStructure] groupMembersByRole result:', {
-    groupKeys: Object.keys(groups),
-    memberCounts: Object.fromEntries(
-      Object.entries(groups).map(([k, v]) => [k, v.length])
-    )
-  });
-
   return groups;
 }
 
@@ -273,7 +236,7 @@ function groupMembersByRole(users, roles) {
  * @returns {Object} Org structure data and utilities
  */
 export function useOrgStructure() {
-  const { orgId, roleHatIds, topHatId } = usePOContext();
+  const { orgId, roleHatIds, topHatId, subgraphUrl } = usePOContext();
   const { safeFetchFromIpfs, safeFetchImageFromIpfs } = useIPFScontext();
 
   // State for IPFS metadata
@@ -283,19 +246,21 @@ export function useOrgStructure() {
     template: '',
     logo: null,
   });
-  const [roleNames, setRoleNames] = useState({});
   const [metadataLoading, setMetadataLoading] = useState(true);
+
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
   // Fetch org structure data from subgraph
   const { data, loading: queryLoading, error } = useQuery(FETCH_ORG_STRUCTURE_DATA, {
     variables: { orgId },
     skip: !orgId,
-    fetchPolicy: 'cache-and-network',
+    fetchPolicy: 'cache-first',
+    context: apolloContext,
   });
 
   const org = data?.organization;
 
-  // Fetch IPFS metadata when org data is available
+  // Load org metadata from subgraph (preferred) or IPFS (fallback)
   useEffect(() => {
     async function fetchMetadata() {
       if (!org?.metadataHash) {
@@ -306,16 +271,19 @@ export function useOrgStructure() {
       setMetadataLoading(true);
 
       try {
-        // First check if metadata is already in subgraph (indexed from IPFS)
+        let logoCid = null;
+
         if (org.metadata) {
+          // Subgraph already indexed the metadata — use it directly
           setOrgMetadata({
             description: org.metadata.description || '',
             links: org.metadata.links || [],
             template: org.metadata.template || '',
-            logo: null, // Will fetch separately
+            logo: null,
           });
+          logoCid = org.metadata.logo || null;
         } else {
-          // Fallback: fetch from IPFS directly
+          // Fallback: fetch from IPFS directly (subgraph hasn't indexed yet)
           const metadata = await safeFetchFromIpfs(org.metadataHash);
           if (metadata) {
             setOrgMetadata({
@@ -324,44 +292,31 @@ export function useOrgStructure() {
               template: metadata.template || '',
               logo: null,
             });
-
-            // Extract role names if present
-            if (metadata.roles && Array.isArray(metadata.roles)) {
-              const names = {};
-              metadata.roles.forEach((role, index) => {
-                if (role.name && roleHatIds?.[index]) {
-                  names[roleHatIds[index]] = role.name;
-                }
-              });
-              setRoleNames(names);
-            }
+            logoCid = metadata.logo || null;
           }
         }
 
-        // Fetch logo image
-        if (org.metadataHash) {
-          const logoMetadata = await safeFetchFromIpfs(org.metadataHash);
-          if (logoMetadata?.logo) {
-            const logoUrl = await safeFetchImageFromIpfs(logoMetadata.logo);
-            if (logoUrl) {
-              setOrgMetadata(prev => ({ ...prev, logo: logoUrl }));
-            }
+        // Fetch logo image from IPFS gateway using the CID
+        if (logoCid) {
+          const logoUrl = await safeFetchImageFromIpfs(logoCid);
+          if (logoUrl) {
+            setOrgMetadata(prev => ({ ...prev, logo: logoUrl }));
           }
         }
       } catch (err) {
-        console.error('Failed to fetch org metadata from IPFS:', err);
+        console.error('Failed to fetch org metadata:', err);
       } finally {
         setMetadataLoading(false);
       }
     }
 
     fetchMetadata();
-  }, [org?.metadataHash, org?.metadata, safeFetchFromIpfs, safeFetchImageFromIpfs, roleHatIds]);
+  }, [org?.metadataHash, org?.metadata, safeFetchFromIpfs, safeFetchImageFromIpfs]);
 
   // Transform roles data
   const roles = useMemo(() => {
-    return transformRolesData(org?.roles, roleHatIds, roleNames, org?.users);
-  }, [org?.roles, roleHatIds, roleNames, org?.users]);
+    return transformRolesData(org?.roles, roleHatIds, {}, org?.users);
+  }, [org?.roles, roleHatIds, org?.users]);
 
   // Build permissions matrix
   const permissionsMatrix = useMemo(() => {
@@ -383,11 +338,11 @@ export function useOrgStructure() {
     return {
       hybridVoting: org?.hybridVoting ? {
         id: org.hybridVoting.id,
-        quorum: org.hybridVoting.quorum,
+        quorum: org.hybridVoting.thresholdPct,
       } : null,
       directDemocracyVoting: org?.directDemocracyVoting ? {
         id: org.directDemocracyVoting.id,
-        quorumPercentage: org.directDemocracyVoting.quorumPercentage,
+        quorumPercentage: org.directDemocracyVoting.thresholdPct,
       } : null,
     };
   }, [org?.hybridVoting, org?.directDemocracyVoting]);

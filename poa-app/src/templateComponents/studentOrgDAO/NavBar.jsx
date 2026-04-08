@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
-import { Box, Flex, HStack, Image, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, useBreakpointValue } from "@chakra-ui/react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, Tooltip } from "@chakra-ui/react";
+import NextImage from "next/image";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
 import { FaHome } from 'react-icons/fa';
 import NextLink from "next/link";
@@ -8,39 +9,35 @@ import LoginButton from "@/components/LoginButton";
 import { useAuth } from "@/context/AuthContext";
 import { usePOContext } from "@/context/POContext";
 import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
-import PasskeyAccountInfo from "@/components/passkey/PasskeyAccountInfo";
-import PasskeyLoginButton from "@/components/passkey/PasskeyLoginButton";
-import GasSponsorshipBadge from "@/components/passkey/GasSponsorshipBadge";
-
-const Navbar = () => {
+import { orgUrl } from "@/util/orgUrl";
+const Navbar = React.memo(() => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const org = router.query.org || router.query.userDAO || '';
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const isMobile = useBreakpointValue({ base: true, md: false });
-  const { isPasskeyUser, accountAddress, hasStoredPasskey } = useAuth();
+  const { isPasskeyUser, accountAddress, isAuthenticated } = useAuth();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
-  const { educationHubEnabled, orgId } = usePOContext();
+  const { educationHubEnabled, hideTreasury, orgId } = usePOContext();
 
   // Check if user is an org admin (for showing Settings link)
   // Use AuthContext's unified address so passkey users get admin check too
   const { isAdmin } = useIsOrgAdmin(orgId, accountAddress);
 
   // Navigation items - conditionally include Learn & Earn based on educationHubEnabled
-  const navItems = [
-    { name: 'Dashboard', path: `/dashboard/?userDAO=${userDAO}` },
-    { name: 'Tasks', path: `/tasks/?userDAO=${userDAO}` },
-    { name: 'Voting', path: `/voting/?userDAO=${userDAO}` },
-    { name: 'Treasury', path: `/treasury/?userDAO=${userDAO}` },
-    ...(educationHubEnabled ? [{ name: 'Learn & Earn', path: `/edu-Hub/?userDAO=${userDAO}` }] : []),
-    ...(isAdmin ? [{ name: 'Settings', path: `/settings/?userDAO=${userDAO}` }] : []),
-  ];
+  const navItems = useMemo(() => [
+    { name: 'Dashboard', path: orgUrl(org, 'dashboard') },
+    { name: 'Tasks', path: orgUrl(org, 'tasks') },
+    { name: 'Voting', path: orgUrl(org, 'voting') },
+    ...(!hideTreasury ? [{ name: 'Treasury', path: orgUrl(org, 'treasury') }] : []),
+    ...(educationHubEnabled ? [{ name: 'Learn & Earn', path: orgUrl(org, 'learn') }] : []),
+    ...(isAdmin ? [{ name: 'Settings', path: orgUrl(org, 'settings') }] : []),
+  ], [org, hideTreasury, educationHubEnabled, isAdmin]);
 
   // Function to check active route
-  const isActive = (path) => {
+  const isActive = useCallback((path) => {
     const basePath = '/' + (router.pathname.split('/')[1] || '');
     return basePath === '/' + (path.split('/')[1] || '');
-  };
+  }, [router.pathname]);
 
   return (
     <Box 
@@ -53,7 +50,6 @@ const Navbar = () => {
       zIndex={100}
       width="100%"
       boxShadow={{ base: "0px 1px 5px rgba(0,0,0,0.3)", md: "none" }}
-      backdropFilter={{ base: "blur(10px)", md: "none" }}
       borderBottom={{ base: "1px solid rgba(255,255,255,0.1)", md: "none" }}
     >
       <Flex
@@ -62,17 +58,18 @@ const Navbar = () => {
         maxW="100%"
         justifyContent="space-between"
       >
-        {/* Left side - Logo (desktop) or Home icon (mobile) */}
-        <Box h="100%" w={{ base: "40%", md: "12%" }} mr={{ base: "2", md: "4" }}>
-          <Link as={NextLink} href={`/home/?userDAO=${userDAO}`} passHref>
-            {/* Desktop Logo */}
-            <Image
-              src="/images/high_res_poa.png"
-              alt="PoA Logo"
-              height="111%"
-              width="auto"
-              objectFit="contain"
-              display={{ base: 'none', md: 'block' }}
+        {/* Left side - Home icon */}
+        <Flex h="100%" w={{ base: "40%", md: "auto" }} mr={{ base: "2", md: "4" }} align="center">
+          <Link as={NextLink} href={orgUrl(org, 'home')} passHref>
+            {/* Desktop Home Icon */}
+            <IconButton
+              icon={<FaHome size="34px" />}
+              aria-label="Home"
+              variant="ghost"
+              color="white"
+              display={{ base: 'none', md: 'flex' }}
+              _hover={{ bg: "whiteAlpha.200" }}
+              size="lg"
             />
             {/* Mobile Home Icon */}
             <IconButton
@@ -87,7 +84,7 @@ const Navbar = () => {
               mt={1}
             />
           </Link>
-        </Box>
+        </Flex>
         
         {/* Center Logo for Mobile only */}
         <Flex 
@@ -104,7 +101,7 @@ const Navbar = () => {
           width="40%"
         >
           <Link 
-            href="https://poa.community" 
+            href="https://poa.box" 
             isExternal 
             display="flex"
             justifyContent="center"
@@ -112,12 +109,13 @@ const Navbar = () => {
             h="100%"
             w="100%"
           >
-            <Image
-              src="/images/high_res_poa.png"
+            <NextImage
+              src="/images/poa_og.webp"
               alt="PoA Logo"
-              maxH="87%"
-              width="auto"
-              objectFit="contain"
+              width={40}
+              height={40}
+              priority
+              style={{ objectFit: 'contain', maxHeight: '87%', width: 'auto' }}
             />
           </Link>
         </Flex>
@@ -131,12 +129,12 @@ const Navbar = () => {
           alignItems="center"
           display={{ base: 'none', md: 'flex' }}
         >
-          <Link as={NextLink} href={`/dashboard/?userDAO=${userDAO}`} color="white" fontWeight="extrabold" fontSize="xl" mx={"2%"}>
+          <Link as={NextLink} href={orgUrl(org, 'dashboard')} color="white" fontWeight="extrabold" fontSize="xl" mx={"2%"}>
             Dashboard
           </Link>
           <Link
             as={NextLink}
-            href={`/tasks/?userDAO=${userDAO}`}
+            href={orgUrl(org, 'tasks')}
             color="white"
             fontWeight="extrabold"
             fontSize="xl"
@@ -146,7 +144,7 @@ const Navbar = () => {
           </Link>
           <Link
             as={NextLink}
-            href={`/voting/?userDAO=${userDAO}`}
+            href={orgUrl(org, 'voting')}
             color="white"
             fontWeight="extrabold"
             fontSize="xl"
@@ -154,20 +152,22 @@ const Navbar = () => {
           >
             Voting
           </Link>
-          <Link
-            as={NextLink}
-            href={`/treasury/?userDAO=${userDAO}`}
-            color="white"
-            fontWeight="extrabold"
-            fontSize="xl"
-            mx={"2%"}
-          >
-            Treasury
-          </Link>
+          {!hideTreasury && (
+            <Link
+              as={NextLink}
+              href={orgUrl(org, 'treasury')}
+              color="white"
+              fontWeight="extrabold"
+              fontSize="xl"
+              mx={"2%"}
+            >
+              Treasury
+            </Link>
+          )}
           {educationHubEnabled && (
             <Link
               as={NextLink}
-              href={`/edu-Hub/?userDAO=${userDAO}`}
+              href={orgUrl(org, 'learn')}
               color="white"
               fontWeight="extrabold"
               fontSize="xl"
@@ -177,32 +177,38 @@ const Navbar = () => {
             </Link>
           )}
           {isAdmin && (
-            <Link
-              as={NextLink}
-              href={`/settings/?userDAO=${userDAO}`}
-              color="white"
-              fontWeight="extrabold"
-              fontSize="xl"
-              mx={"2%"}
-            >
-              <Flex align="center" gap={1}>
-                <SettingsIcon boxSize={4} />
-                Settings
-              </Flex>
-            </Link>
+            <Tooltip label="Settings — Edit org appearance, description, links, etc." placement="bottom" hasArrow>
+              <IconButton
+                as={NextLink}
+                href={orgUrl(org, 'settings')}
+                icon={<SettingsIcon boxSize={5} />}
+                aria-label="Settings"
+                variant="ghost"
+                color="white"
+                _hover={{ bg: "whiteAlpha.200" }}
+                size="md"
+                mx={"2%"}
+              />
+            </Tooltip>
           )}
-          {mounted && isPasskeyUser ? (
-            <HStack spacing={2}>
-              <GasSponsorshipBadge />
-              <PasskeyAccountInfo />
-            </HStack>
-          ) : mounted && hasStoredPasskey ? (
-            <HStack spacing={2}>
-              <PasskeyLoginButton variant="compact" size="sm" />
-              <LoginButton />
-            </HStack>
-          ) : (
+          {mounted && (isPasskeyUser || isAuthenticated) ? (
             <LoginButton />
+          ) : (
+            <Button
+              as={NextLink}
+              href={orgUrl(org, 'join')}
+              bgGradient="linear(to-r, green.400, teal.400)"
+              color="white"
+              borderRadius="full"
+              size="md"
+              px={6}
+              fontWeight="600"
+              fontSize="md"
+              _hover={{ bgGradient: 'linear(to-r, green.500, teal.500)', transform: 'translateY(-1px)', boxShadow: 'lg' }}
+              _active={{ bgGradient: 'linear(to-r, green.600, teal.600)', transform: 'translateY(0)' }}
+            >
+              Join or Sign In
+            </Button>
           )}
         </Flex>
 
@@ -228,19 +234,19 @@ const Navbar = () => {
 
       {/* Mobile Navigation Drawer */}
       <Drawer isOpen={isOpen} placement="right" onClose={onClose} size="xs">
-        <DrawerOverlay backdropFilter="blur(10px)" bg="rgba(0,0,0,0.7)" />
-        <DrawerContent bg="rgba(20, 20, 25, 0.95)" backdropFilter="blur(10px)">
+        <DrawerOverlay bg="rgba(0,0,0,0.7)" />
+        <DrawerContent bg="rgba(20, 20, 25, 0.95)">
           <DrawerCloseButton color="white" />
           <DrawerHeader borderBottomWidth="1px" borderColor="rgba(255, 255, 255, 0.1)" color="white">
             <Flex align="center">
-              <Image
-                src="/images/high_res_poa.png"
+              <NextImage
+                src="/images/poa_og.webp"
                 alt="PoA Logo"
-                height="30px"
-                width="auto"
-                mr={2.5}
+                width={30}
+                height={30}
+                style={{ objectFit: 'contain', marginRight: '10px' }}
               />
-              {userDAO}
+              {org}
             </Flex>
           </DrawerHeader>
           <DrawerBody p={0}>
@@ -252,7 +258,7 @@ const Navbar = () => {
                     align="center"
                     bg={isActive(item.path) ? "rgba(101, 184, 145, 0.1)" : "transparent"}
                     borderLeft={isActive(item.path) ? "4px solid #65B891" : "4px solid transparent"}
-                    transition="all 0.2s ease"
+                    transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                     _hover={{ bg: "whiteAlpha.100" }}
                     onClick={onClose}
                   >
@@ -265,18 +271,28 @@ const Navbar = () => {
             </VStack>
             
             <Box p={6} mt={4}>
-              {mounted && isPasskeyUser ? (
+              {mounted && (isPasskeyUser || isAuthenticated) ? (
                 <VStack spacing={3}>
-                  <GasSponsorshipBadge />
-                  <PasskeyAccountInfo />
-                </VStack>
-              ) : mounted && hasStoredPasskey ? (
-                <VStack spacing={3}>
-                  <PasskeyLoginButton width="100%" />
                   <LoginButton />
                 </VStack>
               ) : (
-                <LoginButton />
+                <VStack spacing={4}>
+                  <Button
+                    as={NextLink}
+                    href={orgUrl(org, 'join')}
+                    onClick={onClose}
+                    w="100%"
+                    bgGradient="linear(to-r, green.400, teal.400)"
+                    color="white"
+                    borderRadius="full"
+                    size="lg"
+                    fontWeight="600"
+                    _hover={{ bgGradient: 'linear(to-r, green.500, teal.500)' }}
+                    _active={{ bgGradient: 'linear(to-r, green.600, teal.600)' }}
+                  >
+                    Join or Sign In
+                  </Button>
+                </VStack>
               )}
               <Text fontSize="xs" color="whiteAlpha.600" mt={6} textAlign="center">
                 Powered by PoA • {new Date().getFullYear()}
@@ -285,8 +301,11 @@ const Navbar = () => {
           </DrawerBody>
         </DrawerContent>
       </Drawer>
+
     </Box>
   );
-};
+});
+
+Navbar.displayName = 'Navbar';
 
 export default Navbar;

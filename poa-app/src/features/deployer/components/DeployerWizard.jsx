@@ -24,16 +24,19 @@ import {
 } from '@chakra-ui/react';
 import { PiCheck, PiWarningCircle } from 'react-icons/pi';
 import { useQuery } from '@apollo/client';
+import { getClient } from '@/util/apolloClient';
 import { useDeployer, STEPS, STEP_NAMES } from '../context/DeployerContext';
 import { mapStateToDeploymentParams, createDeploymentConfig } from '../utils/deploymentMapper';
 import { getRichTemplateById } from '../templates';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../../../util/queries';
+import { DEFAULT_DEPLOY_CHAIN_ID, getSubgraphUrl } from '../../../config/networks';
 
 // New step components
 import TemplateStep from '../steps/TemplateStep';
 import IdentityStep from '../steps/IdentityStep';
 import TeamStep from '../steps/TeamStep';
 import GovernanceStep from '../steps/GovernanceStep';
+import SettingsStep from '../steps/SettingsStep';
 
 // Review step (used by all modes)
 import ReviewStep from '../steps/ReviewStep';
@@ -49,12 +52,12 @@ const pulseAnimation = keyframes`
 
 // Minimal Progress Indicator Component
 function StepProgressIndicator({ steps, currentStep, onStepClick, selectors }) {
-  const activeBg = useColorModeValue('coral.500', 'coral.400');
+  const activeBg = useColorModeValue('amethyst.500', 'amethyst.400');
   const completedValidBg = useColorModeValue('green.500', 'green.400');
   const completedInvalidBg = useColorModeValue('orange.500', 'orange.400');
   const inactiveBg = useColorModeValue('warmGray.200', 'warmGray.600');
   const lineColor = useColorModeValue('warmGray.200', 'warmGray.600');
-  const activeLineColor = useColorModeValue('coral.300', 'coral.600');
+  const activeLineColor = useColorModeValue('amethyst.300', 'amethyst.600');
   const labelColor = useColorModeValue('warmGray.600', 'warmGray.400');
   const activeLabelColor = useColorModeValue('warmGray.900', 'white');
 
@@ -137,9 +140,9 @@ function StepProgressIndicator({ steps, currentStep, onStepClick, selectors }) {
                 display="flex"
                 alignItems="center"
                 justifyContent="center"
-                transition="all 0.2s ease"
+                transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                 animation={isActive ? `${pulseAnimation} 2s ease-in-out infinite` : undefined}
-                boxShadow={isActive ? '0 0 0 3px rgba(240, 101, 67, 0.15)' : undefined}
+                boxShadow={isActive ? '0 0 0 3px rgba(144, 85, 232, 0.15)' : undefined}
                 cursor={isClickable ? 'pointer' : 'default'}
                 onClick={handleClick}
                 _hover={isClickable ? {
@@ -170,7 +173,7 @@ function StepProgressIndicator({ steps, currentStep, onStepClick, selectors }) {
                 fontWeight={isActive ? '600' : '500'}
                 color={isActive ? activeLabelColor : labelColor}
                 textAlign="center"
-                transition="all 0.2s ease"
+                transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
                 cursor={isClickable ? 'pointer' : 'default'}
                 onClick={handleClick}
                 _hover={isClickable ? { color: activeLabelColor } : undefined}
@@ -213,6 +216,12 @@ const STEP_CONFIG = [
     component: GovernanceStep,
   },
   {
+    key: STEPS.SETTINGS,
+    title: 'Settings',
+    description: 'Configure',
+    component: SettingsStep,
+  },
+  {
     key: STEPS.LAUNCH,
     title: 'Launch',
     description: 'Deploy',
@@ -240,9 +249,14 @@ export function DeployerWizard({
   const headingColor = useColorModeValue('warmGray.900', 'white');
   const subtitleColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
-  // Fetch infrastructure addresses from subgraph
+  // Fetch infrastructure addresses from the selected deploy chain's subgraph.
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache.
+  const deployChainId = state.selectedChainId || DEFAULT_DEPLOY_CHAIN_ID;
+  const deploySubgraphUrl = getSubgraphUrl(deployChainId);
+  const deployClient = useMemo(() => getClient(deploySubgraphUrl), [deploySubgraphUrl]);
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    fetchPolicy: 'network-only',
+    client: deployClient,
+    skip: !deploySubgraphUrl,
   });
 
   // Extract infrastructure addresses from subgraph data
@@ -417,12 +431,12 @@ export function DeployerWizard({
           {/* Minimal Step Progress Indicator */}
           <Box
             bg={cardBg}
-            backdropFilter="blur(12px)"
             borderRadius="xl"
             p={{ base: 3, md: 4 }}
             border="1px solid"
-            borderColor="rgba(255, 255, 255, 0.18)"
-            boxShadow="0 4px 30px rgba(0, 0, 0, 0.05)"
+            borderColor="warmGray.100"
+            boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+            backdropFilter="blur(16px)"
           >
             <StepProgressIndicator
               steps={STEP_CONFIG}
@@ -435,12 +449,12 @@ export function DeployerWizard({
           {/* Current Step Content */}
           <Box
             bg={cardBg}
-            backdropFilter="blur(12px)"
             borderRadius="2xl"
             p={{ base: 6, md: 8 }}
             border="1px solid"
-            borderColor="rgba(255, 255, 255, 0.18)"
-            boxShadow="0 4px 30px rgba(0, 0, 0, 0.05)"
+            borderColor="warmGray.100"
+            boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+            backdropFilter="blur(16px)"
             minH="400px"
           >
             {state.currentStep === STEPS.LAUNCH || state.currentStep === STEPS.REVIEW ? (
@@ -454,29 +468,7 @@ export function DeployerWizard({
             ) : (
               <CurrentStepComponent />
             )}
-          </Box>
-
-          {/* Debug info (dev only) - hidden by default, toggle with keyboard */}
-          {process.env.NODE_ENV === 'development' && (
-            <Box
-              bg="warmGray.100"
-              p={4}
-              borderRadius="lg"
-              fontSize="xs"
-              fontFamily="mono"
-              opacity={0.7}
-            >
-              <Text fontWeight="bold" mb={2} color="warmGray.700">
-                Debug: Current State
-              </Text>
-              <Text color="warmGray.600">Step: {STEP_CONFIG[state.currentStep]?.title || 'Unknown'}</Text>
-              <Text color="warmGray.600">Mode: {state.ui.mode}</Text>
-              <Text color="warmGray.600">Template: {state.ui.selectedTemplate || 'None'}</Text>
-              <Text color="warmGray.600">Roles: {state.roles.length}</Text>
-              <Text color="warmGray.600">Voting Classes: {state.voting.classes.length}</Text>
-            </Box>
-          )}
-        </VStack>
+          </Box>        </VStack>
       </Container>
     </Box>
   );

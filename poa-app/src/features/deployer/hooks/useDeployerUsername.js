@@ -7,8 +7,8 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAccount } from 'wagmi';
-import apolloClient from '@/util/apolloClient';
-import { FETCH_USERNAME_NEW, GET_ACCOUNT_BY_USERNAME } from '@/util/queries';
+import { useAuth } from '@/context/AuthContext';
+import { isUsernameTakenGlobally, findUsernameAcrossChains } from '@/util/crossChainUsername';
 
 // Username validation regex (alphanumeric + underscore, 3-32 chars)
 const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
@@ -47,7 +47,11 @@ function validateUsernameFormat(username) {
  * @returns {Object} Username state and utilities
  */
 export function useDeployerUsername() {
-  const { address } = useAccount();
+  const { address: wagmiAddress } = useAccount();
+  const { accountAddress } = useAuth();
+
+  // Use unified address (works for both passkey and wallet users)
+  const address = accountAddress || wagmiAddress;
 
   // State for existing username check
   const [existingUsername, setExistingUsername] = useState(null);
@@ -67,7 +71,7 @@ export function useDeployerUsername() {
     return validateUsernameFormat(inputUsername);
   }, [existingUsername, inputUsername]);
 
-  // Check if connected address already has a username
+  // Check if connected address already has a username on ANY chain
   useEffect(() => {
     async function checkExistingUsername() {
       if (!address) {
@@ -80,13 +84,7 @@ export function useDeployerUsername() {
       setExistingError(null);
 
       try {
-        const { data } = await apolloClient.query({
-          query: FETCH_USERNAME_NEW,
-          variables: { id: address.toLowerCase() },
-          fetchPolicy: 'network-only',
-        });
-
-        const username = data?.account?.username;
+        const { username } = await findUsernameAcrossChains(address);
         if (username && username.trim().length > 0) {
           setExistingUsername(username);
         } else {
@@ -118,27 +116,16 @@ export function useDeployerUsername() {
       return;
     }
 
-    // Debounce the availability check
+    // Debounce the availability check (queries ALL chains in parallel)
     const timeoutId = setTimeout(async () => {
       setIsCheckingAvailability(true);
       setAvailabilityError(null);
 
       try {
-        const { data } = await apolloClient.query({
-          query: GET_ACCOUNT_BY_USERNAME,
-          variables: { username: trimmedUsername },
-          fetchPolicy: 'network-only',
-        });
-
-        const existingAccount = data?.accounts?.[0];
-        if (existingAccount) {
-          // Check if it's the same address (shouldn't happen but handle it)
-          if (existingAccount.user?.toLowerCase() === address?.toLowerCase()) {
-            // This is the user's own username
-            setAvailabilityError(null);
-          } else {
-            setAvailabilityError('This username is already taken');
-          }
+        const { taken, chains } = await isUsernameTakenGlobally(trimmedUsername, address);
+        if (taken) {
+          const chainList = chains.join(', ');
+          setAvailabilityError(`This username is already taken on ${chainList}`);
         } else {
           setAvailabilityError(null);
         }
@@ -194,22 +181,20 @@ export function useDeployerUsername() {
   const retry = useCallback(() => {
     setExistingError(null);
     setAvailabilityError(null);
-    // Re-trigger the check
+    // Re-trigger the cross-chain check
     if (address) {
       setIsLoadingExisting(true);
-      apolloClient.query({
-        query: FETCH_USERNAME_NEW,
-        variables: { id: address.toLowerCase() },
-        fetchPolicy: 'network-only',
-      }).then(({ data }) => {
-        const username = data?.account?.username;
-        setExistingUsername(username && username.trim().length > 0 ? username : null);
-      }).catch((error) => {
-        console.error('Error retrying username check:', error);
-        setExistingError('Unable to check username. Please try again.');
-      }).finally(() => {
-        setIsLoadingExisting(false);
-      });
+      findUsernameAcrossChains(address)
+        .then(({ username }) => {
+          setExistingUsername(username && username.trim().length > 0 ? username : null);
+        })
+        .catch((error) => {
+          console.error('Error retrying username check:', error);
+          setExistingError('Unable to check username. Please try again.');
+        })
+        .finally(() => {
+          setIsLoadingExisting(false);
+        });
     }
   }, [address]);
 

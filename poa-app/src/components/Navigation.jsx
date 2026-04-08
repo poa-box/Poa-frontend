@@ -24,7 +24,6 @@ const Navigation = () => {
       wrap="wrap"
       padding="1rem"
       bg="rgba(0, 0, 0, 0.03)"
-      backdropFilter="blur(6px)"
       position="fixed"
       top={0}
       w="100%"
@@ -34,7 +33,7 @@ const Navigation = () => {
       {/* Logo or Brand Name */}
       <Box>
         <Link href="/" passHref>
-          <Image src="/images/poa_logo.png" alt="Logo" width={50} height={50} />
+          <Image src="/images/poa_logo.webp" alt="Logo" width={50} height={50} />
         </Link>
       </Box>
 
@@ -70,7 +69,7 @@ const Navigation = () => {
               Docs
             </Button>
           </Link>
-          <Link href="/browser" passHref>
+          <Link href="/explore" passHref>
             <Button variant="outline" p={4} colorScheme="black">
               Browser
             </Button>

@@ -27,9 +27,9 @@ import {
   useToast,
   Tooltip,
   Icon,
-  Spinner,
   useBreakpointValue,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { InfoIcon, CloseIcon, AddIcon } from '@chakra-ui/icons';
 import { PiImage, PiLink, PiUploadSimple, PiGear } from 'react-icons/pi';
 import { useDropzone } from 'react-dropzone';
@@ -41,30 +41,32 @@ import { useIPFScontext } from '@/context/ipfsContext';
 /**
  * Preview Badge - Shows logo, name, and description as user types
  */
-function PreviewBadge({ name, logoURL, description }) {
-  const placeholderBg = useColorModeValue('coral.50', 'warmGray.700');
-  const placeholderColor = useColorModeValue('coral.300', 'warmGray.500');
+function PreviewBadge({ name, logoURL, logoPreviewUrl, description }) {
+  const placeholderBg = useColorModeValue('amethyst.50', 'warmGray.700');
+  const placeholderColor = useColorModeValue('amethyst.300', 'warmGray.500');
   const descriptionColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   const hasContent = name || logoURL || description;
+  const logoSrc = logoPreviewUrl || (logoURL ? `https://ipfs.io/ipfs/${logoURL}` : null);
 
   return (
     <Box
       position="sticky"
       top="100px"
-      bg="white"
+      bg={useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(51, 48, 44, 0.8)')}
       borderRadius="2xl"
       p={6}
       border="1px solid"
-      borderColor="warmGray.100"
+      borderColor={useColorModeValue('warmGray.100', 'warmGray.700')}
       boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+      backdropFilter="blur(16px)"
       textAlign="center"
     >
       {/* Header label */}
       <Text
         fontSize="xs"
         fontWeight="600"
-        color="coral.500"
+        color="amethyst.500"
         textTransform="uppercase"
         letterSpacing="wide"
         mb={4}
@@ -85,11 +87,11 @@ function PreviewBadge({ name, logoURL, description }) {
         alignItems="center"
         justifyContent="center"
         border="2px dashed"
-        borderColor={logoURL ? 'transparent' : 'coral.200'}
+        borderColor={logoURL ? 'transparent' : 'amethyst.200'}
       >
-        {logoURL ? (
+        {logoSrc ? (
           <Image
-            src={`https://ipfs.io/ipfs/${logoURL}`}
+            src={logoSrc}
             alt="Logo"
             objectFit="cover"
             w="100%"
@@ -135,16 +137,19 @@ function PreviewBadge({ name, logoURL, description }) {
 /**
  * Inline Logo Upload with drag-drop
  */
-function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
+function InlineLogoUpload({ logoURL, logoPreviewUrl, onUpload, onRemove }) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState(null);
   const { addToIpfs } = useIPFScontext();
   const toast = useToast();
 
   const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
-  const hoverBorderColor = useColorModeValue('coral.300', 'coral.500');
+  const hoverBorderColor = useColorModeValue('amethyst.300', 'amethyst.500');
   const bgColor = useColorModeValue('warmGray.50', 'warmGray.800');
-  const hoverBgColor = useColorModeValue('coral.50', 'rgba(240, 101, 67, 0.1)');
+  const hoverBgColor = useColorModeValue('amethyst.50', 'rgba(144, 85, 232, 0.1)');
+
+  // Prefer local blob URL for instant preview, fall back to IPFS gateway
+  const displaySrc = logoPreviewUrl || (logoURL ? `https://ipfs.io/ipfs/${logoURL}` : null);
 
   const onDrop = useCallback(async (acceptedFiles) => {
     const file = acceptedFiles[0];
@@ -153,10 +158,13 @@ function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
     setIsUploading(true);
     setError(null);
 
+    // Create a local blob URL for instant preview
+    const previewUrl = URL.createObjectURL(file);
+
     try {
       const addedData = await addToIpfs(file);
       const ipfsUrl = addedData.path;
-      onUpload(ipfsUrl);
+      onUpload({ url: ipfsUrl, previewUrl });
       toast({
         title: 'Logo uploaded!',
         status: 'success',
@@ -164,6 +172,8 @@ function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
         isClosable: true,
       });
     } catch (err) {
+      // Clean up the blob URL on failure
+      URL.revokeObjectURL(previewUrl);
       console.error('Error uploading logo:', err);
       setError('Upload failed. Please try again.');
       toast({
@@ -194,10 +204,10 @@ function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
           borderRadius="lg"
           overflow="hidden"
           border="2px solid"
-          borderColor="coral.200"
+          borderColor="amethyst.200"
         >
           <Image
-            src={`https://ipfs.io/ipfs/${logoURL}`}
+            src={displaySrc}
             alt="Logo"
             objectFit="cover"
             w="100%"
@@ -245,13 +255,13 @@ function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
       {...getRootProps()}
       borderWidth="2px"
       borderStyle="dashed"
-      borderColor={isDragActive ? 'coral.400' : borderColor}
+      borderColor={isDragActive ? 'amethyst.400' : borderColor}
       borderRadius="xl"
       p={6}
       textAlign="center"
       cursor="pointer"
       bg={isDragActive ? hoverBgColor : bgColor}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       _hover={{
         borderColor: hoverBorderColor,
         bg: hoverBgColor,
@@ -260,7 +270,7 @@ function InlineLogoUpload({ logoURL, onUpload, onRemove }) {
       <input {...getInputProps()} />
       {isUploading ? (
         <VStack spacing={2}>
-          <Spinner size="md" color="coral.500" />
+          <PulseLoader size="md" color="amethyst.500" />
           <Text fontSize="sm" color="warmGray.600">Uploading...</Text>
         </VStack>
       ) : (
@@ -316,7 +326,8 @@ function LinkTagBuilder({ links, onAdd, onRemove }) {
           {links.map((link, i) => (
             <Badge
               key={i}
-              colorScheme="coral"
+              bg="amethyst.50"
+              color="amethyst.700"
               borderRadius="full"
               px={3}
               py={1.5}
@@ -334,8 +345,8 @@ function LinkTagBuilder({ links, onAdd, onRemove }) {
                 minW="auto"
                 h="auto"
                 p={0}
-                color="coral.700"
-                _hover={{ color: 'coral.900' }}
+                color="amethyst.700"
+                _hover={{ color: 'amethyst.900' }}
                 onClick={() => onRemove(i)}
                 aria-label="Remove link"
               />
@@ -385,9 +396,10 @@ function LinkTagBuilder({ links, onAdd, onRemove }) {
               </Button>
               <Button
                 size="xs"
-                bg="coral.500"
+                bg="warmGray.900"
                 color="white"
-                _hover={{ bg: 'coral.600' }}
+                borderRadius="full"
+                _hover={{ bg: 'warmGray.800' }}
                 onClick={handleAdd}
                 isDisabled={!newLinkName.trim() || !newLinkUrl.trim()}
               >
@@ -403,7 +415,7 @@ function LinkTagBuilder({ links, onAdd, onRemove }) {
           size="sm"
           borderColor="warmGray.300"
           color="warmGray.600"
-          _hover={{ borderColor: 'coral.300', color: 'coral.600' }}
+          _hover={{ borderColor: 'amethyst.300', color: 'amethyst.600' }}
           onClick={() => setIsAdding(true)}
           w="fit-content"
         >
@@ -432,7 +444,7 @@ export function IdentityStep() {
   const isAdvancedMode = state.ui.mode === UI_MODES.ADVANCED;
 
   // Colors
-  const cardBg = useColorModeValue('white', 'gray.800');
+  const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(51, 48, 44, 0.8)');
   const optionalCardBg = useColorModeValue('rgba(255, 255, 255, 0.6)', 'rgba(51, 48, 44, 0.6)');
   const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
   const helperColor = useColorModeValue('warmGray.500', 'warmGray.400');
@@ -451,8 +463,8 @@ export function IdentityStep() {
     }
   };
 
-  const handleLogoUpload = (logoURL) => {
-    actions.setLogoURL(logoURL);
+  const handleLogoUpload = (logoData) => {
+    actions.setLogoURL(logoData);
   };
 
   const handleLogoRemove = () => {
@@ -479,6 +491,7 @@ export function IdentityStep() {
         url: link.url,
       })),
       template: state.ui.selectedTemplate || 'default',
+      logo: organization.logoURL || null,
     };
 
     try {
@@ -552,9 +565,10 @@ export function IdentityStep() {
               bg={cardBg}
               p={{ base: 5, md: 6 }}
               borderRadius="2xl"
-              borderLeft="4px solid"
-              borderLeftColor="coral.400"
-              boxShadow="0 2px 12px rgba(0, 0, 0, 0.04)"
+              border="1px solid"
+              borderColor={borderColor}
+              boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+              backdropFilter="blur(16px)"
             >
               <VStack spacing={5} align="stretch">
                 {/* Name */}
@@ -571,7 +585,7 @@ export function IdentityStep() {
                     bg="white"
                     borderColor="warmGray.200"
                     _hover={{ borderColor: 'warmGray.300' }}
-                    _focus={{ borderColor: 'coral.400', boxShadow: '0 0 0 2px rgba(240, 101, 67, 0.15)' }}
+                    _focus={{ borderColor: 'amethyst.400', boxShadow: '0 0 0 2px rgba(144, 85, 232, 0.15)' }}
                   />
                 </FormControl>
 
@@ -590,7 +604,7 @@ export function IdentityStep() {
                     bg="white"
                     borderColor="warmGray.200"
                     _hover={{ borderColor: 'warmGray.300' }}
-                    _focus={{ borderColor: 'coral.400', boxShadow: '0 0 0 2px rgba(240, 101, 67, 0.15)' }}
+                    _focus={{ borderColor: 'amethyst.400', boxShadow: '0 0 0 2px rgba(144, 85, 232, 0.15)' }}
                   />
                   <HStack justify="flex-end" mt={1}>
                     <Text
@@ -619,6 +633,7 @@ export function IdentityStep() {
                   </HStack>
                   <InlineLogoUpload
                     logoURL={organization.logoURL}
+                    logoPreviewUrl={organization.logoPreviewUrl}
                     onUpload={handleLogoUpload}
                     onRemove={handleLogoRemove}
                   />
@@ -629,11 +644,11 @@ export function IdentityStep() {
             {/* Extra Details Card */}
             <Box
               bg={optionalCardBg}
-              backdropFilter="blur(8px)"
               p={{ base: 4, md: 5 }}
               borderRadius="xl"
               border="1px solid"
               borderColor={borderColor}
+              backdropFilter="blur(16px)"
             >
               <Text fontSize="xs" fontWeight="600" color="warmGray.400" textTransform="uppercase" letterSpacing="wide" mb={4}>
                 Extra Details
@@ -661,7 +676,6 @@ export function IdentityStep() {
             {isAdvancedMode && (
               <Box
                 bg={optionalCardBg}
-                backdropFilter="blur(8px)"
                 p={{ base: 4, md: 5 }}
                 borderRadius="xl"
                 border="1px solid"
@@ -727,6 +741,7 @@ export function IdentityStep() {
             <PreviewBadge
               name={organization.name}
               logoURL={organization.logoURL}
+              logoPreviewUrl={organization.logoPreviewUrl}
               description={organization.description}
             />
           </GridItem>

@@ -30,6 +30,8 @@ jobs:
 
       - name: Build static site
         working-directory: ${{ env.WORKING_DIRECTORY }}
+        env:
+          NEXT_PUBLIC_PIMLICO_API_KEY: ${{ secrets.NEXT_PUBLIC_PIMLICO_API_KEY }}
         run: yarn build
 
       - name: Upload to Pinata
@@ -127,3 +129,4 @@ jobs:
           echo "**Preview URLs:**" >> $GITHUB_STEP_SUMMARY
           echo "- Gateway: https://${{ secrets.PINATA_GATEWAY }}/ipfs/${{ steps.pinata.outputs.ipfs_hash }}" >> $GITHUB_STEP_SUMMARY
           echo "- Production: https://poa.earth" >> $GITHUB_STEP_SUMMARY
+          echo "- Production: https://poa.box" >> $GITHUB_STEP_SUMMARY

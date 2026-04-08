@@ -92,7 +92,7 @@ function LeaderboardUserModal({ isOpen, onClose, user, rank, roleNames = {} }) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg" isCentered>
-      <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(8px)" />
+      <ModalOverlay bg="blackAlpha.700" />
       <ModalContent
         bg="transparent"
         borderRadius="2xl"
@@ -167,7 +167,7 @@ function LeaderboardUserModal({ isOpen, onClose, user, rank, roleNames = {} }) {
               <GridItem>
                 <StatBox
                   icon={PiCoinVerticalBold}
-                  label="Tokens"
+                  label="Shares"
                   value={user.token}
                   color="yellow.400"
                 />

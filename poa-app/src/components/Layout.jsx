@@ -16,13 +16,13 @@ const Layout = ({ children, isArchitectPage }) => {
           zIndex="banner"
           color={"black"}
         >
-          <Link href="/landing" passHref>
+          <Link href="/" passHref>
             <IconButton
               _hover={{transform:"scale(1.06)"}}
               icon={
                 <Image
                   mt="2"
-                  src="/images/poa_logo.png"
+                  src="/images/poa_logo.webp"
                   alt="Home"
                   width="auto"
                   height={["50px","60px"]}

@@ -50,7 +50,7 @@ function AssignToMeToggle({ isChecked, onChange, roleName }) {
       bg={isChecked ? 'green.50' : 'warmGray.50'}
       border="1px solid"
       borderColor={isChecked ? 'green.200' : 'warmGray.200'}
-      transition="all 0.2s"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
     >
       <HStack justify="space-between">
         <VStack align="start" spacing={0}>
@@ -154,18 +154,18 @@ function HierarchySelector({ role, roleIndex, roles, onChange }) {
         <Icon
           as={isTopLevel ? PiCrown : PiArrowBendUpLeft}
           boxSize={4}
-          color={isTopLevel ? 'coral.500' : 'warmGray.400'}
+          color={isTopLevel ? 'amethyst.500' : 'warmGray.400'}
         />
         <Select
           value={currentParent ?? ''}
           onChange={handleChange}
           size="sm"
           flex={1}
-          bg={isTopLevel ? 'coral.50' : 'warmGray.50'}
-          borderColor={isTopLevel ? 'coral.200' : 'warmGray.200'}
+          bg={isTopLevel ? 'amethyst.50' : 'warmGray.50'}
+          borderColor={isTopLevel ? 'amethyst.200' : 'warmGray.200'}
           _focus={{
-            borderColor: 'coral.400',
-            boxShadow: '0 0 0 1px var(--chakra-colors-coral-400)',
+            borderColor: 'amethyst.400',
+            boxShadow: '0 0 0 1px var(--chakra-colors-amethyst-400)',
           }}
         >
           <option value="">No one — top of the structure</option>
@@ -177,7 +177,7 @@ function HierarchySelector({ role, roleIndex, roles, onChange }) {
         </Select>
       </HStack>
       {isTopLevel && (
-        <Text fontSize="xs" color="coral.600" mt={1.5} ml={6}>
+        <Text fontSize="xs" color="amethyst.600" mt={1.5} ml={6}>
           Root of the org structure — can create and configure roles below
         </Text>
       )}
@@ -204,11 +204,11 @@ function JoinMethodSelector({ value, onChange, roles, role, roleIndex, onVouchin
       <ButtonGroup size="sm" isAttached variant="outline" w="100%">
         <Button
           flex={1}
-          bg={value === 'open' ? 'coral.500' : 'white'}
+          bg={value === 'open' ? 'warmGray.900' : 'white'}
           color={value === 'open' ? 'white' : 'warmGray.600'}
-          borderColor={value === 'open' ? 'coral.500' : 'warmGray.300'}
+          borderColor={value === 'open' ? 'warmGray.900' : 'warmGray.300'}
           _hover={{
-            bg: value === 'open' ? 'coral.600' : 'warmGray.50',
+            bg: value === 'open' ? 'warmGray.800' : 'warmGray.50',
           }}
           onClick={() => onChange('open')}
         >
@@ -216,11 +216,11 @@ function JoinMethodSelector({ value, onChange, roles, role, roleIndex, onVouchin
         </Button>
         <Button
           flex={1}
-          bg={value === 'vouching' ? 'coral.500' : 'white'}
+          bg={value === 'vouching' ? 'warmGray.900' : 'white'}
           color={value === 'vouching' ? 'white' : 'warmGray.600'}
-          borderColor={value === 'vouching' ? 'coral.500' : 'warmGray.300'}
+          borderColor={value === 'vouching' ? 'warmGray.900' : 'warmGray.300'}
           _hover={{
-            bg: value === 'vouching' ? 'coral.600' : 'warmGray.50',
+            bg: value === 'vouching' ? 'warmGray.800' : 'warmGray.50',
           }}
           onClick={() => onChange('vouching')}
         >
@@ -284,7 +284,7 @@ function PowerBadges({ roleIndex, permissions, onToggle }) {
       label: 'Member',
       icon: PiUsers,
       color: 'blue',
-      desc: 'Can join easily, earn and hold tokens, access learning materials, and vote in polls',
+      desc: 'Can join easily, earn and hold shares, access learning materials, and vote in polls',
     },
     {
       key: 'creator',
@@ -391,15 +391,16 @@ export function RoleCardSimple({
 
   return (
     <Box
-      bg="white"
+      bg="rgba(255, 255, 255, 0.8)"
       p={{ base: 5, md: 6 }}
       borderRadius="2xl"
-      borderLeft="4px solid"
-      borderLeftColor={isTopLevel ? 'coral.400' : 'warmGray.200'}
-      boxShadow="0 2px 12px rgba(0, 0, 0, 0.04)"
-      transition="all 0.2s"
+      border="1px solid"
+      borderColor="warmGray.200"
+      boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+      backdropFilter="blur(16px)"
+      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       _hover={{
-        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.08)',
       }}
     >
       <VStack spacing={5} align="stretch">
@@ -409,7 +410,7 @@ export function RoleCardSimple({
             <Icon
               as={isTopLevel ? PiCrown : PiUser}
               boxSize={5}
-              color={isTopLevel ? 'coral.500' : 'warmGray.400'}
+              color={isTopLevel ? 'amethyst.500' : 'warmGray.400'}
             />
             <Input
               value={role.name}
@@ -452,8 +453,8 @@ export function RoleCardSimple({
               border="1px solid"
               borderColor="warmGray.200"
               _focus={{
-                borderColor: 'coral.400',
-                boxShadow: '0 0 0 1px var(--chakra-colors-coral-400)',
+                borderColor: 'amethyst.400',
+                boxShadow: '0 0 0 1px var(--chakra-colors-amethyst-400)',
               }}
               _placeholder={{ color: 'warmGray.400' }}
             />

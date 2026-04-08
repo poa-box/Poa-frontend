@@ -3,6 +3,7 @@
  * Query paymaster org configuration from the subgraph.
  */
 
+import { useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { usePOContext } from '../context/POContext';
 import { FETCH_PAYMASTER_ORG_CONFIG } from '../util/passkeyQueries';
@@ -13,24 +14,26 @@ import { FETCH_PAYMASTER_ORG_CONFIG } from '../util/passkeyQueries';
  * @returns {Object} Paymaster info
  */
 export function usePaymasterInfo() {
-  const { orgId } = usePOContext();
+  const { orgId, subgraphUrl } = usePOContext();
+
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
   const { data, loading, error } = useQuery(FETCH_PAYMASTER_ORG_CONFIG, {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
+    context: apolloContext,
   });
 
   const config = data?.paymasterOrgConfigs?.[0] || null;
 
   return {
-    isRegistered: config?.isRegistered || false,
+    isRegistered: Boolean(config),
     isPaused: config?.isPaused || false,
-    deposit: config?.deposit || '0',
-    totalGasSpent: config?.totalGasSpent || '0',
-    transactionCount: config?.transactionCount || 0,
+    deposit: config?.depositBalance || '0',
+    totalGasSpent: config?.totalSpent || '0',
     loading,
     error,
-    hasPaymaster: Boolean(config?.isRegistered && !config?.isPaused),
+    hasPaymaster: Boolean(config && !config.isPaused),
   };
 }

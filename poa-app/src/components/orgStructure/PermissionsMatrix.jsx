@@ -37,7 +37,6 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(20px)',
   backgroundColor: 'rgba(0, 0, 0, 0.8)',
   boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
   border: '1px solid rgba(148, 115, 220, 0.2)',
@@ -64,7 +63,7 @@ const PERMISSION_ICONS = {
  */
 const SHORT_LABELS = {
   QuickJoin_Member: 'Join',
-  ParticipationToken_Member: 'Token',
+  ParticipationToken_Member: 'Shares',
   ParticipationToken_Approver: 'Approve',
   EducationHub_Creator: 'Edu Create',
   EducationHub_Member: 'Edu Access',
@@ -80,8 +79,8 @@ const SHORT_LABELS = {
  */
 const FULL_DESCRIPTIONS = {
   QuickJoin_Member: 'Can quick join the organization',
-  ParticipationToken_Member: 'Can hold participation tokens',
-  ParticipationToken_Approver: 'Can approve token requests',
+  ParticipationToken_Member: 'Can earn and hold shares',
+  ParticipationToken_Approver: 'Can approve share requests',
   EducationHub_Creator: 'Can create education modules',
   EducationHub_Member: 'Can access education content',
   HybridVoting_Creator: 'Can create hybrid voting proposals',

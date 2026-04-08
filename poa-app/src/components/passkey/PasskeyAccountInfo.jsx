@@ -1,21 +1,18 @@
 /**
  * PasskeyAccountInfo
  * Header display for passkey-authenticated users.
- * Shows truncated account address with fingerprint icon and disconnect option.
+ * Shows fingerprint icon with disconnect dropdown.
  */
 
 import {
-  Button,
+  IconButton,
   Menu,
   MenuButton,
   MenuList,
   MenuItem,
-  HStack,
-  Text,
   Icon,
 } from '@chakra-ui/react';
 import { FaFingerprint, FaSignOutAlt } from 'react-icons/fa';
-import { ChevronDownIcon } from '@chakra-ui/icons';
 import { useAuth } from '../../context/AuthContext';
 
 export default function PasskeyAccountInfo() {
@@ -23,34 +20,26 @@ export default function PasskeyAccountInfo() {
 
   if (!isPasskeyUser || !accountAddress) return null;
 
-  const truncated = `${accountAddress.substring(0, 6)}...${accountAddress.substring(accountAddress.length - 4)}`;
-
   return (
     <Menu>
       <MenuButton
-        as={Button}
+        as={IconButton}
+        icon={<Icon as={FaFingerprint} color="amethyst.500" boxSize={5} />}
         size="sm"
         variant="outline"
         borderRadius="full"
         borderColor="amethyst.300"
         bg="rgba(255, 255, 255, 0.8)"
-        backdropFilter="blur(8px)"
         _hover={{ bg: 'rgba(255, 255, 255, 0.95)', borderColor: 'amethyst.400' }}
         _active={{ bg: 'white' }}
-        rightIcon={<ChevronDownIcon />}
-      >
-        <HStack spacing={2}>
-          <Icon as={FaFingerprint} color="amethyst.500" boxSize={4} />
-          <Text fontSize="sm" fontFamily="mono" fontWeight="500">
-            {truncated}
-          </Text>
-        </HStack>
-      </MenuButton>
+        aria-label="Passkey account menu"
+      />
       <MenuList
         borderRadius="xl"
         boxShadow="lg"
         minW="180px"
         p={1}
+        bg="white"
       >
         <MenuItem
           onClick={disconnectPasskey}
@@ -59,6 +48,7 @@ export default function PasskeyAccountInfo() {
           _hover={{ bg: 'red.50' }}
           fontSize="sm"
           fontWeight="500"
+          color="gray.700"
         >
           Disconnect Passkey
         </MenuItem>

@@ -1,8 +1,10 @@
 /**
  * Account Page
  * Displays user's global account information and organization memberships.
+ * Supports both wallet (EOA) and passkey authentication.
  */
 
+import SEOHead from "@/components/common/SEOHead";
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -25,34 +27,85 @@ import {
   SkeletonText,
   Icon,
   Tooltip,
+  useDisclosure,
 } from '@chakra-ui/react';
 import { SettingsIcon, CopyIcon, CheckIcon, ExternalLinkIcon } from '@chakra-ui/icons';
 import { useRouter } from 'next/router';
 import { useAccount } from 'wagmi';
-import { useQuery } from '@apollo/client';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useAuth } from '@/context/AuthContext';
 import { useGlobalAccount } from '@/hooks/useGlobalAccount';
-import { FETCH_USER_ORGANIZATIONS } from '@/util/queries';
+import { getAllSubgraphUrls } from '@/config/networks';
 import { formatTokenAmount } from '@/util/formatToken';
 import GlobalAccountSettingsModal from '@/components/account/GlobalAccountSettingsModal';
+import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
+import SignInModal from '@/components/passkey/SignInModal';
 import Link from 'next/link';
 
 const AccountPage = () => {
   const router = useRouter();
   const toast = useToast();
-  const { address, isConnected } = useAccount();
+  const { isConnected } = useAccount();
+  const { isAuthenticated, isPasskeyUser, accountAddress } = useAuth();
   const { globalUsername, hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
+  const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
 
   const [isSSR, setIsSSR] = useState(true);
   const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
+  const [organizations, setOrganizations] = useState([]);
+  const [orgsLoading, setOrgsLoading] = useState(true);
 
-  // Query user's organizations
-  const { data: orgsData, loading: orgsLoading } = useQuery(FETCH_USER_ORGANIZATIONS, {
-    variables: { userAddress: address?.toLowerCase() },
-    skip: !address || !hasAccount,
-    fetchPolicy: 'cache-and-network',
-  });
+  // Fetch user's organizations across all chains via parallel fetch
+  useEffect(() => {
+    if (!accountAddress || !hasAccount) {
+      setOrgsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setOrgsLoading(true);
+
+    async function fetchOrgs() {
+      const sources = getAllSubgraphUrls();
+      const query = `
+        query FetchUserOrgs($userAddress: Bytes!) {
+          users(where: { address: $userAddress, membershipStatus: Active }) {
+            id
+            membershipStatus
+            participationTokenBalance
+            totalTasksCompleted
+            totalVotes
+            organization {
+              id
+              name
+              metadataHash
+              participationToken { symbol }
+            }
+          }
+        }
+      `;
+      const results = await Promise.all(sources.map(async (source) => {
+        try {
+          const res = await fetch(source.url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, variables: { userAddress: accountAddress.toLowerCase() } }),
+          });
+          const json = await res.json();
+          return json?.data?.users || [];
+        } catch {
+          return [];
+        }
+      }));
+      if (!cancelled) {
+        setOrganizations(results.flat());
+        setOrgsLoading(false);
+      }
+    }
+
+    fetchOrgs();
+    return () => { cancelled = true; };
+  }, [accountAddress, hasAccount]);
 
   // Colors
   const bgGradient = useColorModeValue(
@@ -66,7 +119,6 @@ const AccountPage = () => {
 
   // Glass effect style
   const glassStyle = {
-    backdropFilter: 'blur(20px)',
     backgroundColor: cardBg,
   };
 
@@ -77,8 +129,8 @@ const AccountPage = () => {
 
   // Copy address to clipboard
   const handleCopyAddress = () => {
-    if (address) {
-      navigator.clipboard.writeText(address);
+    if (accountAddress) {
+      navigator.clipboard.writeText(accountAddress);
       setCopiedAddress(true);
       toast({
         title: 'Address copied!',
@@ -96,22 +148,30 @@ const AccountPage = () => {
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  // Redirect if not connected or no account
+  // Redirect if authenticated but no account registered
   useEffect(() => {
-    if (!isSSR && !isAccountLoading && isConnected && !hasAccount) {
-      // User connected but no account - redirect to homepage to sign up
+    if (!isSSR && !isAccountLoading && isAuthenticated && !hasAccount) {
       router.push('/');
     }
-  }, [isSSR, isAccountLoading, isConnected, hasAccount, router]);
+  }, [isSSR, isAccountLoading, isAuthenticated, hasAccount, router]);
+
+  const seoHead = (
+    <SEOHead
+      title="Account Settings"
+      description="Manage your Poa account settings and profile."
+      path="/account"
+      noIndex
+    />
+  );
 
   if (isSSR) {
-    return null;
+    return seoHead;
   }
 
-  // Not connected state
-  if (!isConnected) {
+  // Not authenticated state
+  if (!isAuthenticated) {
     return (
-      <Box
+      <>{seoHead}<Box
         minH="100vh"
         bgGradient={bgGradient}
         display="flex"
@@ -129,36 +189,53 @@ const AccountPage = () => {
           <CardBody p={8}>
             <VStack spacing={6} align="center">
               <Heading size="lg" color={textColor}>
-                Connect Your Wallet
+                Sign In
               </Heading>
               <Text color={subtextColor} textAlign="center">
-                Connect your wallet to view your account and organizations.
+                Sign in to view your account and organizations.
               </Text>
-              <ConnectButton />
+              <Button
+                onClick={onSignInOpen}
+                bg="amethyst.500"
+                color="white"
+                borderRadius="xl"
+                size="lg"
+                fontWeight="600"
+                _hover={{ bg: 'amethyst.600', transform: 'translateY(-1px)', boxShadow: 'md' }}
+                _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
+              >
+                Sign In
+              </Button>
             </VStack>
           </CardBody>
         </Card>
-      </Box>
+
+        <SignInModal
+          isOpen={isSignInOpen}
+          onClose={onSignInClose}
+          onSuccess={() => {}}
+        />
+      </Box></>
     );
   }
 
   // Loading state
   if (isAccountLoading) {
     return (
-      <Box minH="100vh" bgGradient={bgGradient} p={4}>
+      <>{seoHead}<Box minH="100vh" bgGradient={bgGradient} p={4}>
         <Container maxW="container.lg" pt={8}>
           <VStack spacing={6}>
             <Skeleton height="200px" width="100%" borderRadius="2xl" />
             <Skeleton height="300px" width="100%" borderRadius="2xl" />
           </VStack>
         </Container>
-      </Box>
+      </Box></>
     );
   }
 
-  const organizations = orgsData?.users || [];
-
   return (
+    <>
+      {seoHead}
     <Box minH="100vh" bgGradient={bgGradient} pb={8}>
       <Container maxW="container.lg" pt={8}>
         {/* Header with back button */}
@@ -171,7 +248,11 @@ const AccountPage = () => {
           >
             Back to Home
           </Button>
-          <ConnectButton showBalance={false} chainStatus="icon" />
+          {isPasskeyUser ? (
+            <PasskeyAccountInfo />
+          ) : (
+            <ConnectButton showBalance={false} chainStatus="icon" />
+          )}
         </HStack>
 
         <VStack spacing={6} align="stretch">
@@ -203,11 +284,11 @@ const AccountPage = () => {
                 <HStack justify="space-between" flexWrap="wrap" gap={4}>
                   <VStack align="start" spacing={1}>
                     <Text color={subtextColor} fontSize="sm">
-                      Wallet Address
+                      {isPasskeyUser ? 'Account Address' : 'Wallet Address'}
                     </Text>
                     <HStack>
                       <Text color={textColor} fontFamily="mono" fontSize="md">
-                        {formatAddress(address)}
+                        {formatAddress(accountAddress)}
                       </Text>
                       <Tooltip label={copiedAddress ? 'Copied!' : 'Copy address'}>
                         <IconButton
@@ -255,7 +336,7 @@ const AccountPage = () => {
                     </Text>
                     <Button
                       colorScheme="purple"
-                      onClick={() => router.push('/browser')}
+                      onClick={() => router.push('/explore')}
                       rightIcon={<ExternalLinkIcon />}
                     >
                       Browse Organizations
@@ -268,12 +349,12 @@ const AccountPage = () => {
                   >
                     {organizations.map((userOrg) => (
                       <GridItem key={userOrg.id}>
-                        <Link href={`/home?userDAO=${userOrg.organization?.name}`} passHref>
+                        <Link href={`/home?org=${userOrg.organization?.name}`} passHref>
                           <Card
                             variant="outline"
                             borderRadius="xl"
                             cursor="pointer"
-                            transition="all 0.2s"
+                            transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
                             _hover={{
                               transform: 'translateY(-2px)',
                               boxShadow: 'lg',
@@ -300,11 +381,11 @@ const AccountPage = () => {
                                 <Grid templateColumns="repeat(2, 1fr)" gap={2}>
                                   <VStack align="start" spacing={0}>
                                     <Text color={subtextColor} fontSize="xs">
-                                      Tokens Earned
+                                      Shares Earned
                                     </Text>
                                     <Text color={textColor} fontWeight="medium">
                                       {formatTokenAmount(userOrg.participationTokenBalance)}{' '}
-                                      {userOrg.organization?.participationToken?.symbol || 'PT'}
+                                      {userOrg.organization?.participationToken?.symbol || 'shares'}
                                     </Text>
                                   </VStack>
 
@@ -346,6 +427,7 @@ const AccountPage = () => {
         onClose={() => setSettingsModalOpen(false)}
       />
     </Box>
+    </>
   );
 };
 

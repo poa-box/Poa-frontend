@@ -36,10 +36,10 @@ import {
   ModalCloseButton,
   useDisclosure,
 } from '@chakra-ui/react';
-import { ChevronUpIcon } from '@chakra-ui/icons';
 import {
   PiCheck,
   PiArrowRight,
+  PiArrowLeft,
   PiUsersThree,
   PiCoins,
   PiEye,
@@ -74,12 +74,14 @@ import {
   getRichTemplateById as getTemplateById,
 } from '../templates';
 import { DiscoveryQuestions, GrowthPathVisualizer } from '../components/governance';
+import { RecommendationView } from '../components/governance/RecommendationView';
 
 // View states for the template step
 const VIEWS = {
   GALLERY: 'gallery',
   PHILOSOPHY: 'philosophy',
   DISCOVERY: 'discovery',
+  RECOMMENDATION: 'recommendation',
   PREVIEW: 'preview',
 };
 
@@ -118,12 +120,12 @@ const ICON_MAP = {
  */
 function ExpandableFeatureCard({ benefit, isExpanded, onToggle, votingData }) {
   const [isHovered, setIsHovered] = useState(false);
-  const cardBg = useColorModeValue('white', 'gray.800');
-  const titleColor = useColorModeValue('gray.800', 'white');
-  const subtitleColor = useColorModeValue('gray.500', 'gray.400');
-  const contentColor = useColorModeValue('gray.700', 'gray.200');
-  const iconColor = useColorModeValue('coral.500', 'coral.400');
-  const hintColor = useColorModeValue('coral.500', 'coral.400');
+  const cardBg = useColorModeValue('white', 'warmGray.800');
+  const titleColor = useColorModeValue('warmGray.800', 'white');
+  const subtitleColor = useColorModeValue('warmGray.500', 'warmGray.400');
+  const contentColor = useColorModeValue('warmGray.700', 'warmGray.200');
+  const iconColor = useColorModeValue('amethyst.500', 'amethyst.400');
+  const hintColor = useColorModeValue('amethyst.500', 'amethyst.400');
 
   const IconComponent = ICON_MAP[benefit.iconName] || PiCheck;
   const isVotingCard = benefit.title === 'Decide Together';
@@ -136,7 +138,7 @@ function ExpandableFeatureCard({ benefit, isExpanded, onToggle, votingData }) {
         p={8}
         borderRadius="xl"
         boxShadow="lg"
-        transition="all 0.3s ease"
+        transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
         gridColumn="1 / -1"
       >
         <Flex justify="space-between" align="flex-start" mb={5}>
@@ -158,7 +160,7 @@ function ExpandableFeatureCard({ benefit, isExpanded, onToggle, votingData }) {
             size="md"
             onClick={onToggle}
             color={subtitleColor}
-            _hover={{ color: titleColor, bg: 'gray.100' }}
+            _hover={{ color: titleColor, bg: 'warmGray.100' }}
             p={2}
           >
             <Icon as={PiX} boxSize={6} />
@@ -193,10 +195,12 @@ function ExpandableFeatureCard({ benefit, isExpanded, onToggle, votingData }) {
       onClick={onToggle}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      transition="all 0.3s ease"
+      border="1px solid"
+      borderColor={isHovered ? 'amethyst.200' : 'warmGray.100'}
+      transition="transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease"
       _hover={{
-        transform: 'scale(1.02)',
-        boxShadow: 'md',
+        transform: 'translateY(-2px)',
+        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)',
       }}
       textAlign="center"
       position="relative"
@@ -288,26 +292,20 @@ function FeatureCardsGrid({ benefits, votingData }) {
  * Social proof banner showing real-world credibility
  */
 function SocialProof({ text }) {
-  const bg = useColorModeValue('gray.50', 'gray.800');
-  const textColor = useColorModeValue('gray.600', 'gray.400');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
+  const textColor = useColorModeValue('warmGray.400', 'warmGray.500');
 
   if (!text) return null;
 
   return (
-    <Box
-      bg={bg}
-      py={3}
-      px={4}
-      borderRadius="md"
-      borderWidth="1px"
-      borderColor={borderColor}
+    <Text
+      fontSize="sm"
+      color={textColor}
+      fontStyle="italic"
       textAlign="center"
+      letterSpacing="0.01em"
     >
-      <Text fontSize="sm" color={textColor} fontStyle="italic">
-        {text}
-      </Text>
-    </Box>
+      {text}
+    </Text>
   );
 }
 
@@ -316,8 +314,8 @@ function SocialProof({ text }) {
  */
 function VotingBalanceBar({ democracy, participation }) {
   const democracyBg = useColorModeValue('blue.400', 'blue.500');
-  const participationBg = useColorModeValue('orange.400', 'orange.500');
-  const labelColor = useColorModeValue('gray.600', 'gray.400');
+  const participationBg = useColorModeValue('amethyst.400', 'amethyst.500');
+  const labelColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   return (
     <Box my={4}>
@@ -326,7 +324,7 @@ function VotingBalanceBar({ democracy, participation }) {
         borderRadius="full"
         overflow="hidden"
         display="flex"
-        bg={useColorModeValue('gray.100', 'gray.700')}
+        bg={useColorModeValue('warmGray.100', 'warmGray.700')}
       >
         <Flex
           w={`${democracy}%`}
@@ -352,13 +350,18 @@ function VotingBalanceBar({ democracy, participation }) {
       <HStack justify="space-between" mt={2} px={1}>
         <HStack spacing={2}>
           <Box w="8px" h="8px" borderRadius="full" bg={democracyBg} />
-          <Text fontSize="xs" color={labelColor}>Equal voice</Text>
+          <Text fontSize="xs" color={labelColor}>Direct democracy</Text>
         </HStack>
         <HStack spacing={2}>
           <Box w="8px" h="8px" borderRadius="full" bg={participationBg} />
-          <Text fontSize="xs" color={labelColor}>Earned influence</Text>
+          <Text fontSize="xs" color={labelColor}>Contribution</Text>
         </HStack>
       </HStack>
+      <Text fontSize="xs" color={labelColor} mt={3} lineHeight="tall">
+        {democracy}% of voting power is shared equally: every member gets an equal say.
+        The remaining {participation}% is earned through contribution, so active participants
+        carry more influence.
+      </Text>
     </Box>
   );
 }
@@ -368,12 +371,12 @@ function VotingBalanceBar({ democracy, participation }) {
  */
 function TemplateCard({ template, isSelected, onSelect }) {
   const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
-  const selectedBorderColor = useColorModeValue('coral.500', 'coral.400');
-  const hoverBorderColor = useColorModeValue('coral.300', 'coral.500');
-  const cardBg = useColorModeValue('rgba(255, 255, 255, 0.7)', 'rgba(51, 48, 44, 0.7)');
-  const selectedBg = useColorModeValue('coral.50', 'rgba(240, 101, 67, 0.1)');
+  const selectedBorderColor = useColorModeValue('amethyst.500', 'amethyst.400');
+  const hoverBorderColor = useColorModeValue('amethyst.300', 'amethyst.500');
+  const cardBg = useColorModeValue('white', 'rgba(51, 48, 44, 0.7)');
+  const selectedBg = useColorModeValue('amethyst.50', 'rgba(144, 85, 232, 0.08)');
   const helperColor = useColorModeValue('warmGray.500', 'warmGray.400');
-  const iconBg = useColorModeValue('warmGray.100', 'warmGray.700');
+  const iconBg = useColorModeValue('warmGray.50', 'warmGray.700');
 
   const icon = template.icon || '📋';
 
@@ -384,13 +387,12 @@ function TemplateCard({ template, isSelected, onSelect }) {
       borderWidth="2px"
       borderColor={isSelected ? selectedBorderColor : borderColor}
       bg={isSelected ? selectedBg : cardBg}
-      backdropFilter="blur(8px)"
       _hover={{
         borderColor: isSelected ? selectedBorderColor : hoverBorderColor,
         transform: 'translateY(-2px)',
-        boxShadow: '0 8px 30px rgba(0, 0, 0, 0.08)',
+        boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)',
       }}
-      transition="all 0.2s ease"
+      transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
       h="100%"
       position="relative"
       overflow="hidden"
@@ -403,7 +405,7 @@ function TemplateCard({ template, isSelected, onSelect }) {
           left="0"
           right="0"
           h="3px"
-          bg="coral.500"
+          bgGradient="linear(90deg, #9055E8, #E85D85)"
         />
       )}
 
@@ -424,7 +426,7 @@ function TemplateCard({ template, isSelected, onSelect }) {
 
           {/* Title & Tagline - Centered */}
           <Box textAlign="center">
-            <Heading size="sm" mb={2} color={isSelected ? 'coral.700' : 'warmGray.800'}>
+            <Heading size="sm" mb={2} color={isSelected ? 'amethyst.700' : 'warmGray.800'}>
               {template.name}
             </Heading>
             <Text fontSize="sm" color={helperColor} lineHeight="tall">
@@ -438,7 +440,7 @@ function TemplateCard({ template, isSelected, onSelect }) {
               position="absolute"
               top={3}
               right={3}
-              bg="coral.500"
+              bgGradient="linear(135deg, #9055E8, #E85D85)"
               borderRadius="full"
               w="24px"
               h="24px"
@@ -463,20 +465,18 @@ function TemplateDetailPanel({ template, onContinue, onBack, onOpenGrowthPath })
   const [showGrowthPath, setShowGrowthPath] = useState(false);
   const [showPhilosophy, setShowPhilosophy] = useState(false);
 
-  const headingColor = useColorModeValue('gray.800', 'white');
-  const subheadingColor = useColorModeValue('gray.600', 'gray.400');
-  const taglineBg = useColorModeValue('gray.50', 'gray.800');
-  const taglineBorder = useColorModeValue('gray.200', 'gray.600');
-  const linkColor = useColorModeValue('gray.500', 'gray.400');
-  const linkHoverColor = useColorModeValue('coral.500', 'coral.400');
-  const detailsBg = useColorModeValue('gray.50', 'gray.800');
-  const quoteBg = useColorModeValue('blue.50', 'blue.900');
+  const headingColor = useColorModeValue('warmGray.900', 'white');
+  const subheadingColor = useColorModeValue('warmGray.600', 'warmGray.400');
+  const linkColor = useColorModeValue('warmGray.500', 'warmGray.400');
+  const linkHoverColor = useColorModeValue('amethyst.500', 'amethyst.400');
+  const detailsBg = useColorModeValue('warmGray.50', 'warmGray.800');
+  const quoteBg = useColorModeValue('amethyst.50', 'amethyst.900');
 
   if (!template) {
     return (
       <VStack spacing={4}>
         <Text color={subheadingColor}>No template selected.</Text>
-        <Button bg="coral.500" color="white" _hover={{ bg: 'coral.600' }} onClick={onBack}>
+        <Button bg="warmGray.900" color="white" borderRadius="full" _hover={{ bg: 'warmGray.800' }} onClick={onBack}>
           Back to Templates
         </Button>
       </VStack>
@@ -491,75 +491,72 @@ function TemplateDetailPanel({ template, onContinue, onBack, onOpenGrowthPath })
   const votingData = template.defaults?.voting;
 
   return (
-    <VStack spacing={8} align="stretch" maxW="900px" mx="auto">
+    <VStack spacing={10} align="stretch" maxW="900px" mx="auto">
       {/* Back Button */}
       <Button
         variant="ghost"
-        leftIcon={<ChevronUpIcon />}
+        leftIcon={<Icon as={PiArrowLeft} />}
         onClick={onBack}
         alignSelf="flex-start"
         size="sm"
         color={subheadingColor}
+        _hover={{ color: headingColor }}
       >
         Back to Templates
       </Button>
 
       {/* Template Header */}
-      <VStack spacing={2} textAlign="center">
-        <Heading size="xl" color={headingColor}>
+      <VStack spacing={3} textAlign="center">
+        <Heading size="2xl" color={headingColor} letterSpacing="-0.02em">
           {template.name}
         </Heading>
-        <Text color={subheadingColor} fontSize="md">
+        <Text color={subheadingColor} fontSize="lg" fontWeight="500">
           {template.tagline}
         </Text>
       </VStack>
 
       {/* Hero Tagline */}
       {heroTagline.length > 0 && (
-        <Box
-          bg={taglineBg}
-          py={8}
-          px={6}
-          borderRadius="xl"
-          boxShadow="sm"
-          textAlign="center"
-        >
-          <VStack spacing={1}>
-            {heroTagline.map((line, i) => (
-              <Text
-                key={i}
-                fontSize="2xl"
-                fontWeight="500"
-                color={headingColor}
-                lineHeight="tall"
-              >
-                {line}
-              </Text>
-            ))}
-          </VStack>
-        </Box>
+        <VStack spacing={1} textAlign="center" py={4}>
+          {heroTagline.map((line, i) => (
+            <Text
+              key={i}
+              fontSize={["xl", "2xl", "3xl"]}
+              fontWeight="600"
+              lineHeight="tall"
+              letterSpacing="-0.01em"
+              bgGradient="linear(135deg, #7C3AED, #A855F7, #EC4899)"
+              bgClip="text"
+            >
+              {line}
+            </Text>
+          ))}
+        </VStack>
       )}
+
+      {/* Social Proof - subtle context below tagline */}
+      <SocialProof text={socialProof} />
 
       {/* Feature Cards - Expandable */}
       <FeatureCardsGrid benefits={benefits} votingData={votingData} />
 
-      {/* Social Proof */}
-      <SocialProof text={socialProof} />
-
       {/* Primary CTA */}
-      <Box textAlign="center" pt={2}>
+      <Box textAlign="center" pt={4}>
         <Button
-          bg="coral.500"
+          bg="warmGray.900"
           color="white"
-          _hover={{ bg: 'coral.600', transform: 'translateY(-1px)' }}
+          borderRadius="full"
+          _hover={{ bg: 'warmGray.800', transform: 'translateY(-1px)' }}
+          _active={{ bg: 'warmGray.700' }}
           size="lg"
           rightIcon={<Icon as={PiArrowRight} />}
           onClick={onContinue}
           px={8}
           py={6}
           fontSize="md"
+          fontWeight="600"
           boxShadow="md"
-          transition="all 0.3s ease"
+          transition="transform 0.2s ease, background 0.2s ease"
         >
           Customize This Model
         </Button>
@@ -614,7 +611,7 @@ function TemplateDetailPanel({ template, onContinue, onBack, onOpenGrowthPath })
               </Text>
             )}
             {keyPrinciple && (
-              <Box bg={quoteBg} p={4} borderRadius="md" borderLeftWidth="3px" borderLeftColor="blue.500">
+              <Box bg={quoteBg} p={4} borderRadius="md" borderLeftWidth="3px" borderLeftColor="amethyst.500">
                 <Text fontWeight="medium" fontSize="sm" mb={1}>Key Insight</Text>
                 <Text fontStyle="italic" fontSize="sm">{keyPrinciple}</Text>
               </Box>
@@ -684,8 +681,8 @@ export function TemplateStep() {
     [selectedTemplateId]
   );
 
-  const headingColor = useColorModeValue('gray.800', 'white');
-  const subheadingColor = useColorModeValue('gray.600', 'gray.400');
+  const headingColor = useColorModeValue('warmGray.900', 'white');
+  const subheadingColor = useColorModeValue('warmGray.600', 'warmGray.400');
 
   // Handle template selection - auto-navigate to detail view
   const handleSelectTemplate = (templateId) => {
@@ -704,13 +701,37 @@ export function TemplateStep() {
     }
   };
 
-  // Handle discovery completion
-  const handleDiscoveryComplete = () => {
+  // Handle skip discovery
+  const handleSkipDiscovery = () => {
     handleFinishTemplateStep();
   };
 
-  // Handle skip discovery
-  const handleSkipDiscovery = () => {
+  // Handle "See Recommendation" from discovery
+  const handleSeeRecommendation = () => {
+    const matchedVar = state.templateJourney.matchedVariation;
+    if (matchedVar && selectedTemplate?.variations?.[matchedVar]) {
+      setCurrentView(VIEWS.RECOMMENDATION);
+    } else {
+      // No variation matched — skip recommendation, go straight to next step
+      handleFinishTemplateStep();
+    }
+  };
+
+  // Handle confirm variation from recommendation view
+  const handleConfirmVariation = () => {
+    const variation = selectedTemplate?.variations?.[state.templateJourney.matchedVariation];
+    if (variation) {
+      actions.applyVariation(variation, selectedTemplate);
+    }
+    handleFinishTemplateStep();
+  };
+
+  // Handle customize from recommendation view (apply defaults then let user edit)
+  const handleCustomizeVariation = () => {
+    const variation = selectedTemplate?.variations?.[state.templateJourney.matchedVariation];
+    if (variation) {
+      actions.applyVariation(variation, selectedTemplate);
+    }
     handleFinishTemplateStep();
   };
 
@@ -756,7 +777,7 @@ export function TemplateStep() {
           <VStack spacing={6} align="stretch">
             <Button
               variant="ghost"
-              leftIcon={<ChevronUpIcon />}
+              leftIcon={<Icon as={PiArrowLeft} />}
               onClick={() => setCurrentView(VIEWS.PHILOSOPHY)}
               alignSelf="flex-start"
             >
@@ -773,8 +794,8 @@ export function TemplateStep() {
 
             <DiscoveryQuestions
               template={selectedTemplate}
-              onComplete={handleDiscoveryComplete}
               onSkip={handleSkipDiscovery}
+              onSeeRecommendation={handleSeeRecommendation}
             />
 
             {/* Growth Path Preview Link */}
@@ -782,7 +803,8 @@ export function TemplateStep() {
               <Box textAlign="center" pt={4}>
                 <Button
                   variant="link"
-                  colorScheme="blue"
+                  color="amethyst.500"
+                  _hover={{ color: 'amethyst.600' }}
                   onClick={openGrowthPath}
                 >
                   See how governance evolves over time
@@ -790,6 +812,18 @@ export function TemplateStep() {
               </Box>
             )}
           </VStack>
+        );
+
+      case VIEWS.RECOMMENDATION:
+        return (
+          <RecommendationView
+            template={selectedTemplate}
+            variation={selectedTemplate?.variations?.[state.templateJourney.matchedVariation]}
+            variationKey={state.templateJourney.matchedVariation}
+            onConfirm={handleConfirmVariation}
+            onCustomize={handleCustomizeVariation}
+            onBack={() => setCurrentView(VIEWS.DISCOVERY)}
+          />
         );
 
       case VIEWS.GALLERY:

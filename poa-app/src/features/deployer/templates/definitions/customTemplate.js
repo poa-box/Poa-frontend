@@ -62,7 +62,7 @@ export const customTemplate = {
       },
       {
         name: 'Track What Matters',
-        description: 'Participation tokens can track whatever contributions you value. Define what "engagement" means for your context.',
+        description: 'Shares can track whatever contributions you value. Define what "engagement" means for your context.',
         icon: '📊',
       },
       {
@@ -380,13 +380,13 @@ There's no "right" answer—only what fits your organization's values and goals.
         whenToUse: 'Start at 50/50 if unsure. Adjust based on your values and observed behavior.',
       },
       'participation-tokens': {
-        title: 'Custom Participation Tracking',
+        title: 'Custom Engagement Tracking',
         short: 'Define what "engagement" means for your organization',
-        detailed: `Participation tokens track engagement—but you decide what counts.
+        detailed: `Shares track engagement—but you decide what counts.
 For some orgs, it's completing tasks. For others, it's voting or meeting
-attendance. For DAOs, it might be on-chain activity. Define clearly what earns
-tokens in your context, and communicate it to members.`,
-        whenToUse: 'Be explicit about what earns tokens. Ambiguity creates frustration and gaming.',
+attendance. For decentralized organizations, it might be on-chain activity. Define clearly what earns
+shares in your context, and communicate it to members.`,
+        whenToUse: 'Be explicit about what earns shares. Ambiguity creates frustration and gaming.',
       },
       'governance-design': {
         title: 'Governance Design',

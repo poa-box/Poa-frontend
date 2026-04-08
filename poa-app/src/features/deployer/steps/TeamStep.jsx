@@ -190,8 +190,8 @@ export function TeamStep() {
               >
                 <HStack spacing={3} flexWrap="wrap">
                   <Badge
-                    bg="coral.50"
-                    color="coral.600"
+                    bg="amethyst.50"
+                    color="amethyst.600"
                     px={3}
                     py={1}
                     borderRadius="full"
@@ -212,8 +212,8 @@ export function TeamStep() {
                     </Badge>
                   )}
                   <Badge
-                    bg="purple.50"
-                    color="purple.600"
+                    bg="amethyst.50"
+                    color="amethyst.600"
                     px={3}
                     py={1}
                     borderRadius="full"

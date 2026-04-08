@@ -9,10 +9,13 @@ import {
   Button,
   Text,
   Portal,
-  Link as ChakraLink,
 } from "@chakra-ui/react";
 import { useChainModal } from "@rainbow-me/rainbowkit";
-import Link from "next/link";
+import { NETWORKS, DEFAULT_NETWORK } from "../config/networks";
+
+const defaultNetworkConfig = NETWORKS[DEFAULT_NETWORK];
+const defaultNetworkName = defaultNetworkConfig.name;
+const isDefaultTestnet = defaultNetworkConfig.isTestnet;
 
 const NetworkSwitchModal = ({ isOpen, onClose }) => {
   const { openChainModal } = useChainModal();
@@ -29,12 +32,14 @@ const NetworkSwitchModal = ({ isOpen, onClose }) => {
         <ModalContent zIndex="1500">
           <ModalHeader>Wrong Network</ModalHeader>
           <ModalBody >
-            <Text fontSize={"lg"} mb="4">Please switch to the Hoodi testnet to continue and then try again.</Text>
-            <Text>If you need testnet ETH, get it from a Hoodi faucet.</Text>
+            <Text fontSize={"lg"} mb="4">Please switch to {defaultNetworkName} to continue and then try again.</Text>
+            {isDefaultTestnet && (
+              <Text>If you need testnet ETH, get it from a {defaultNetworkName} faucet.</Text>
+            )}
           </ModalBody>
           <ModalFooter>
             <Button colorScheme="blue" onClick={handleNetworkSwitch}>
-              Switch to Hoodi
+              Switch to {defaultNetworkName}
             </Button>
           </ModalFooter>
         </ModalContent>

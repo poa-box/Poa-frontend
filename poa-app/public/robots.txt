@@ -1,0 +1,31 @@
+User-agent: *
+Allow: /
+Allow: /about/
+Allow: /docs/
+Allow: /blog/
+Allow: /explore/
+Allow: /protocol/
+Allow: /create/
+
+Disallow: /account/
+Disallow: /dashboard/
+Disallow: /home/
+Disallow: /tasks/
+Disallow: /treasury/
+Disallow: /voting/
+Disallow: /voting-history/
+Disallow: /votes/
+Disallow: /settings/
+Disallow: /leaderboard/
+Disallow: /org-structure/
+Disallow: /team/
+Disallow: /profileHub/
+Disallow: /profile/
+Disallow: /user/
+Disallow: /join/
+Disallow: /executive/
+Disallow: /edu-Hub/
+Disallow: /learn/
+Disallow: /browser/
+
+Sitemap: https://poa.box/sitemap.xml

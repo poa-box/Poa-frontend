@@ -39,7 +39,7 @@ const TrashBin = ({onDeleteProject}) => {
       borderWidth="1px"
       borderStyle="dashed"
       borderColor={isActive ? "red.400" : canDrop ? "red.300" : "transparent"}
-      transition="all 0.2s ease"
+      transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
       _hover={{ bg: 'rgba(229, 62, 62, 0.15)' }}
     >
       <Flex align="center" justify="center">

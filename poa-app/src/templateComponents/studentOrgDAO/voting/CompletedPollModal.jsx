@@ -28,22 +28,23 @@ const glassLayerStyle = {
   width: "100%",
   zIndex: -1,
   borderRadius: "inherit",
-  backdropFilter: "blur(9px)",
-  backgroundColor: "rgba(33, 33, 33, 0.97)",
+  backgroundColor: "rgba(33, 33, 33, 0.98)",
   boxShadow: "inset 0 0 15px rgba(148, 115, 220, 0.15)",
   border: "1px solid rgba(148, 115, 220, 0.2)",
 };
 
 const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, skipRedirect = false }) => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
   const [processedOptions, setProcessedOptions] = useState([]);
-  const { getRoleNamesString, allRoles } = useRoleNames();
+  const { getRoleNamesString, votingEligibleRoles } = useRoleNames();
 
   // Get role names for restricted voting
   const restrictedRolesText = selectedPoll?.isHatRestricted && selectedPoll?.restrictedHatIds?.length > 0
     ? getRoleNamesString(selectedPoll.restrictedHatIds)
-    : allRoles?.[0]?.name || "All Members";
+    : votingEligibleRoles?.length > 0
+      ? votingEligibleRoles.map(r => r.name).join(", ")
+      : "All Members";
 
   // Determine if this proposal had executable actions
   const hasExecutableActions = selectedPoll?.executionBatchId || selectedPoll?.executedCallsCount > 0;
@@ -53,7 +54,7 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
   const handleModalClose = () => {
     onClose();
     if (!skipRedirect) {
-      router.push(`/voting/?userDAO=${userDAO}`);
+      router.push(`/voting/?org=${userDAO}`);
     }
   };
 
@@ -134,7 +135,7 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
 
   return (
     <Modal onOpen={onOpen} isOpen={isOpen} onClose={handleModalClose} size="lg">
-      <ModalOverlay backdropFilter="blur(10px)" />
+      <ModalOverlay />
       <ModalContent
         alignItems="center"
         justifyContent="center"
@@ -195,11 +196,26 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
                 </Text>
               </HStack>
 
-              {/* Quorum info */}
-              {selectedPoll?.quorum > 0 && (
+              {/* Threshold and quorum info */}
+              {selectedPoll?.thresholdPct > 0 && (
                 <Text fontSize="xs" color="gray.400">
-                  {selectedPoll.quorum}% participation needed
+                  {selectedPoll.thresholdPct}% support to pass
                 </Text>
+              )}
+              {(selectedPoll?.quorum > 0 || selectedPoll?.thresholdPct > 0) && (
+                <Tooltip
+                  label="Minimum percentage of eligible voters that must participate for the vote to be valid"
+                  placement="top"
+                  hasArrow
+                  bg="gray.700"
+                >
+                  <HStack spacing={1} cursor="help">
+                    <Text fontSize="xs" color="gray.400">
+                      {selectedPoll.quorum || selectedPoll.thresholdPct}% quorum
+                    </Text>
+                    <InfoOutlineIcon boxSize={3} color="gray.500" />
+                  </HStack>
+                </Tooltip>
               )}
 
               {/* Execution Status */}
@@ -260,7 +276,7 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
                       {option.isWinner && " (Winner)"}
                     </Text>
                     <Text>
-                      {option.processedVotes} vote{option.processedVotes !== 1 ? 's' : ''} ({option.percentage.toFixed(1)}%)
+                      {option.displayVotes ?? option.processedVotes} vote{option.processedVotes !== 1 ? 's' : ''} ({option.percentage.toFixed(1)}%)
                     </Text>
                   </HStack>
                   <Progress 

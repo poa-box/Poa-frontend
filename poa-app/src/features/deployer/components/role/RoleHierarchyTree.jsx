@@ -23,9 +23,9 @@ import { flattenHierarchy, validateHierarchy } from '../../utils/hierarchyUtils'
 
 // Tree node component
 function TreeNode({ roleIndex, role, depth, isLast, parentLines = [] }) {
-  const bgColor = useColorModeValue('white', 'gray.700');
-  const borderColor = useColorModeValue('gray.200', 'gray.600');
-  const lineColor = useColorModeValue('gray.300', 'gray.500');
+  const bgColor = useColorModeValue('white', 'warmGray.700');
+  const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
+  const lineColor = useColorModeValue('warmGray.300', 'warmGray.500');
 
   const isTopLevel = depth === 0;
 
@@ -76,7 +76,7 @@ function TreeNode({ roleIndex, role, depth, isLast, parentLines = [] }) {
         borderColor={borderColor}
         borderRadius="md"
         _hover={{ borderColor: 'blue.300', boxShadow: 'sm' }}
-        transition="all 0.2s"
+        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
       >
         <HStack justify="space-between">
           <HStack spacing={2}>
@@ -99,7 +99,7 @@ function TreeNode({ roleIndex, role, depth, isLast, parentLines = [] }) {
               </Badge>
             )}
           </HStack>
-          <Text fontSize="xs" color="gray.500">
+          <Text fontSize="xs" color="warmGray.500">
             #{roleIndex}
           </Text>
         </HStack>
@@ -127,10 +127,10 @@ export function RoleHierarchyTree({ onSelectRole }) {
           textAlign="center"
           borderWidth="2px"
           borderStyle="dashed"
-          borderColor="gray.200"
+          borderColor="warmGray.200"
           borderRadius="lg"
         >
-          <Text color="gray.500">
+          <Text color="warmGray.500">
             No roles to display. Add roles to see the hierarchy.
           </Text>
         </Box>
@@ -239,22 +239,22 @@ export function RoleHierarchyTree({ onSelectRole }) {
 
       {/* Legend */}
       {roles.length > 0 && (
-        <Box mt={4} pt={4} borderTopWidth="1px" borderColor="gray.200">
-          <Text fontSize="xs" color="gray.500" fontWeight="medium" mb={2}>
+        <Box mt={4} pt={4} borderTopWidth="1px" borderColor="warmGray.200">
+          <Text fontSize="xs" color="warmGray.500" fontWeight="medium" mb={2}>
             Legend
           </Text>
           <HStack spacing={4} flexWrap="wrap">
             <HStack spacing={1}>
               <Badge colorScheme="purple" fontSize="xs">Top Level</Badge>
-              <Text fontSize="xs" color="gray.500">Root admin role</Text>
+              <Text fontSize="xs" color="warmGray.500">Root admin role</Text>
             </HStack>
             <HStack spacing={1}>
               <Badge colorScheme="green" fontSize="xs">Votes</Badge>
-              <Text fontSize="xs" color="gray.500">Can vote in governance</Text>
+              <Text fontSize="xs" color="warmGray.500">Can vote in governance</Text>
             </HStack>
             <HStack spacing={1}>
               <Badge colorScheme="orange" fontSize="xs">Vouching</Badge>
-              <Text fontSize="xs" color="gray.500">Requires vouches to join</Text>
+              <Text fontSize="xs" color="warmGray.500">Requires vouches to join</Text>
             </HStack>
           </HStack>
         </Box>

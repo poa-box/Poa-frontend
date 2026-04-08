@@ -39,7 +39,7 @@ const DraggableProject = ({ project, isSelected, onSelectProject, onDeleteProjec
           : 'whiteAlpha.100',
         borderColor: isSelected ? "blue.400" : "whiteAlpha.300"
       }}
-      transition="all 0.2s ease"
+      transition="transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease"
       style={{ opacity }}
       cursor="pointer"
       position="relative"

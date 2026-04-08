@@ -31,7 +31,6 @@ const glassLayerStyle = {
   width: '100%',
   zIndex: -1,
   borderRadius: 'inherit',
-  backdropFilter: 'blur(20px)',
   backgroundColor: 'rgba(0, 0, 0, .85)',
 };
 
@@ -103,7 +102,7 @@ const ExecutiveMenuModal = ({ isOpen, onClose, hasApproverRole = false }) => {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="lg" isCentered>
-      <ModalOverlay bg="blackAlpha.700" backdropFilter="blur(8px)" />
+      <ModalOverlay bg="blackAlpha.700" />
       <ModalContent
         bg="transparent"
         boxShadow="2xl"
@@ -138,11 +137,11 @@ const ExecutiveMenuModal = ({ isOpen, onClose, hasApproverRole = false }) => {
 
             <Divider borderColor="whiteAlpha.200" />
 
-            {/* Token Request Approvals - only show if user has approver role */}
+            {/* Share Request Approvals - only show if user has approver role */}
             {hasApproverRole && (
               <MenuSection
                 icon={FiCheck}
-                title="Token Request Approvals"
+                title="Share Request Approvals"
                 defaultOpen={true}
               >
                 <Box mt={2}>

@@ -42,7 +42,7 @@ export function getPhilosophyInfo(sliderValue) {
         shortDescription: 'Active contributors have more say',
         description: 'Members who contribute more have more say. Ideal for recognizing active participation and rewarding engagement.',
         icon: '⚡',
-        color: 'coral',
+        color: 'amethyst',
       };
     case 'hybrid':
       return {
@@ -99,6 +99,8 @@ export function sliderToVotingConfig(sliderValue) {
       mode: 'DIRECT',
       hybridQuorum: 60,
       ddQuorum: 60,
+      hybridVoterQuorum: 0,
+      ddVoterQuorum: 0,
       quadraticEnabled: false,
       democracyWeight: 100,
       participationWeight: 0,
@@ -122,6 +124,8 @@ export function sliderToVotingConfig(sliderValue) {
       mode: 'HYBRID',
       hybridQuorum: 30,
       ddQuorum: 30,
+      hybridVoterQuorum: 0,
+      ddVoterQuorum: 0,
       quadraticEnabled: false,
       democracyWeight: 0,
       participationWeight: 100,
@@ -147,6 +151,8 @@ export function sliderToVotingConfig(sliderValue) {
     mode: 'HYBRID',
     hybridQuorum: quorum,
     ddQuorum: quorum,
+    hybridVoterQuorum: 0,
+    ddVoterQuorum: 0,
     quadraticEnabled: false,
     democracyWeight,
     participationWeight,

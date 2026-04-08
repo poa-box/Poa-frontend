@@ -5,10 +5,7 @@
  * have been migrated to the new service layer in /services/web3/
  * Use the useWeb3 hook from /hooks for those operations.
  */
-import React, { createContext, useState, useEffect, useContext } from 'react';
-import { useAccount } from "wagmi";
-import { useEthersProvider, useEthersSigner } from '@/components/ProviderConverter';
-import { useAuth } from './AuthContext';
+import React, { createContext, useState, useContext, useMemo, useCallback } from 'react';
 
 const Web3Context = createContext();
 
@@ -18,44 +15,18 @@ export const useWeb3Context = () => {
 
 export const Web3Provider = ({ children }) => {
     const [isNetworkModalOpen, setNetworkModalOpen] = useState(false);
-    const [account, setAccount] = useState("0x00");
 
-    const { address, chainId } = useAccount();
-    const provider = useEthersProvider();
-    const signer = useEthersSigner();
-    const { accountAddress } = useAuth();
-
-    // Use AuthContext's unified address (supports both EOA and passkey)
-    useEffect(() => {
-        setAccount(accountAddress || address);
-    }, [accountAddress, address]);
-
-    const checkNetwork = () => {
-        if (chainId !== 560048) {
-            setNetworkModalOpen(true);
-            return false;
-        }
-        return true;
-    };
-
-    const closeNetworkModal = () => {
+    const closeNetworkModal = useCallback(() => {
         setNetworkModalOpen(false);
-    };
+    }, []);
+
+    const contextValue = useMemo(() => ({
+        isNetworkModalOpen,
+        closeNetworkModal,
+    }), [isNetworkModalOpen, closeNetworkModal]);
 
     return (
-        <Web3Context.Provider value={{
-            // Wallet state (also available via wagmi hooks directly)
-            address,
-            chainId,
-            signer,
-            provider,
-            account,
-            setAccount,
-            // Network modal state
-            isNetworkModalOpen,
-            closeNetworkModal,
-            checkNetwork,
-        }}>
+        <Web3Context.Provider value={contextValue}>
             {children}
         </Web3Context.Provider>
     );

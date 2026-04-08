@@ -95,7 +95,12 @@ export async function main(
     username,
     wallet,
     customRoles = null,
-    infrastructureAddresses = {}
+    infrastructureAddresses = {},
+    regSignatureData = null,
+    overrideDeployerAddress = null,
+    paymasterConfig = null,
+    paymasterFundingWei = null,
+    metadataAdminRoleIndex = null
   ) {
     // Validate infrastructure addresses - these must be fetched from subgraph
     const orgDeployerAddress = infrastructureAddresses.orgDeployerAddress;
@@ -115,15 +120,19 @@ export async function main(
       throw new Error("Wallet/signer is required. Please connect your wallet first.");
     }
 
-    // Get deployer address - ethers signers may need getAddress()
+    // Get deployer address - use override (e.g., passkey account) or derive from wallet
     let deployerAddress;
-    try {
-      deployerAddress = wallet.address || (await wallet.getAddress());
-      if (!deployerAddress) {
-        throw new Error("Could not get wallet address");
+    if (overrideDeployerAddress) {
+      deployerAddress = overrideDeployerAddress;
+    } else {
+      try {
+        deployerAddress = wallet.address || (await wallet.getAddress());
+        if (!deployerAddress) {
+          throw new Error("Could not get wallet address");
+        }
+      } catch (err) {
+        throw new Error(`Failed to get deployer address from wallet: ${err.message}`);
       }
-    } catch (err) {
-      throw new Error(`Failed to get deployer address from wallet: ${err.message}`);
     }
 
     console.log("Deployer address:", deployerAddress);
@@ -179,15 +188,23 @@ export async function main(
       registryAddr: registryAddress,
       deployerAddress: deployerAddress,
       deployerUsername: username || "",
+      // EIP-712 registration signature fields
+      regDeadline: regSignatureData?.regDeadline ?? 0,
+      regNonce: regSignatureData?.regNonce ?? 0,
+      regSignature: regSignatureData?.regSignature ?? '0x',
       autoUpgrade: true,
-      hybridQuorumPct: quorumPercentagePV || 50,
-      ddQuorumPct: quorumPercentageDD || 50,
+      hybridThresholdPct: quorumPercentagePV || 50,
+      ddThresholdPct: quorumPercentageDD || 50,
       hybridClasses: hybridClasses,
       ddInitialTargets: [],
       roles: roles,
       roleAssignments: roleAssignments,
+      // Metadata admin: type(uint256).max = skip (topHat fallback in contract)
+      metadataAdminRoleIndex: metadataAdminRoleIndex !== null && metadataAdminRoleIndex !== undefined
+        ? ethers.BigNumber.from(metadataAdminRoleIndex)
+        : ethers.constants.MaxUint256,
       // Passkey support (boolean - matches deployed contract v1.0.1)
-      passkeyEnabled: false,
+      passkeyEnabled: true,
       // Education hub configuration
       educationHubConfig: {
         enabled: educationHubEnabled || false,
@@ -196,6 +213,18 @@ export async function main(
       bootstrap: {
         projects: [],
         tasks: [],
+      },
+      // Paymaster configuration (all-zeros = skip)
+      paymasterConfig: paymasterConfig || {
+        operatorRoleIndex: ethers.constants.MaxUint256,
+        autoWhitelistContracts: false,
+        maxFeePerGas: 0,
+        maxPriorityFeePerGas: 0,
+        maxCallGas: 0,
+        maxVerificationGas: 0,
+        maxPreVerificationGas: 0,
+        defaultBudgetCapPerEpoch: 0,
+        defaultBudgetEpochLen: 0,
       },
     };
 
@@ -236,11 +265,18 @@ export async function main(
         console.error("Failed to get hats address:", hatsErr.message);
       }
 
+      // Compute ETH funding value for paymaster
+      const fundingValue = paymasterFundingWei || ethers.BigNumber.from(0);
+      if (fundingValue.gt(0)) {
+        console.log("Paymaster funding:", ethers.utils.formatEther(fundingValue), "ETH");
+      }
+
       // First, try a static call to get the revert reason if it would fail
       console.log("Testing deployment with staticCall...");
       try {
         await orgDeployer.callStatic.deployFullOrg(deploymentParams, {
           gasLimit: 25000000,
+          value: fundingValue,
         });
         console.log("staticCall succeeded - proceeding with actual transaction");
       } catch (staticError) {
@@ -276,7 +312,7 @@ export async function main(
       console.log("Estimating gas...");
       let estimatedGas;
       try {
-        estimatedGas = await orgDeployer.estimateGas.deployFullOrg(deploymentParams);
+        estimatedGas = await orgDeployer.estimateGas.deployFullOrg(deploymentParams, { value: fundingValue });
         console.log("Estimated gas:", estimatedGas.toString());
       } catch (estimateError) {
         console.error("Gas estimation failed:", estimateError);
@@ -293,6 +329,7 @@ export async function main(
       try {
         tx = await orgDeployer.deployFullOrg(deploymentParams, {
           gasLimit: gasLimitWithBuffer,
+          value: fundingValue,
         });
       } catch (txError) {
         console.error("Transaction send failed:", txError);
@@ -459,4 +496,99 @@ function buildRoleAssignments(memberTypes, executiveRoles) {
     ddVotingRolesBitmap: allRolesBitmap, // All roles can vote in DD
     ddCreatorRolesBitmap: allRolesBitmap, // All roles can create DD polls
   };
+}
+
+/**
+ * Build the encoded calldata for deployFullOrg without requiring a signer.
+ * Used by passkey accounts that deploy via ERC-4337 UserOperations.
+ *
+ * @returns {{ calldata: string, orgDeployerAddress: string, orgId: string }}
+ */
+export function buildDeployCalldata({
+  memberTypeNames,
+  executivePermissionNames,
+  POname,
+  quadraticVotingEnabled,
+  democracyVoteWeight,
+  participationVoteWeight,
+  hybridVotingEnabled,
+  participationVotingEnabled,
+  electionEnabled,
+  educationHubEnabled,
+  infoIPFSHash,
+  quorumPercentageDD,
+  quorumPercentagePV,
+  username,
+  deployerAddress,
+  customRoles = null,
+  infrastructureAddresses = {},
+  regSignatureData = null,
+  paymasterConfig = null,
+  metadataAdminRoleIndex = null,
+}) {
+  const orgDeployerAddress = infrastructureAddresses.orgDeployerAddress;
+  const registryAddress = infrastructureAddresses.registryAddress;
+
+  if (!orgDeployerAddress) {
+    throw new Error("OrgDeployer address not found. Please ensure the subgraph is synced.");
+  }
+  if (!registryAddress) {
+    throw new Error("Registry address not found. Please ensure the subgraph is synced.");
+  }
+
+  const orgId = ethers.utils.keccak256(
+    ethers.utils.toUtf8Bytes(POname.toLowerCase().replace(/\s+/g, '-'))
+  );
+
+  const hybridClasses = buildHybridClasses(
+    hybridVotingEnabled,
+    quadraticVotingEnabled,
+    democracyVoteWeight,
+    participationVoteWeight
+  );
+
+  const roles = customRoles || buildRoles(memberTypeNames, executivePermissionNames);
+  const roleAssignments = buildRoleAssignments(memberTypeNames, executivePermissionNames);
+  const metadataHash = cidToBytes32(infoIPFSHash);
+
+  const deploymentParams = {
+    orgId,
+    orgName: POname,
+    metadataHash,
+    registryAddr: registryAddress,
+    deployerAddress,
+    deployerUsername: username || "",
+    regDeadline: regSignatureData?.regDeadline ?? 0,
+    regNonce: regSignatureData?.regNonce ?? 0,
+    regSignature: regSignatureData?.regSignature ?? '0x',
+    autoUpgrade: true,
+    hybridThresholdPct: quorumPercentagePV || 50,
+    ddThresholdPct: quorumPercentageDD || 50,
+    hybridClasses,
+    ddInitialTargets: [],
+    roles,
+    roleAssignments,
+    metadataAdminRoleIndex: metadataAdminRoleIndex !== null && metadataAdminRoleIndex !== undefined
+      ? ethers.BigNumber.from(metadataAdminRoleIndex)
+      : ethers.constants.MaxUint256,
+    passkeyEnabled: true,
+    educationHubConfig: { enabled: educationHubEnabled || false },
+    bootstrap: { projects: [], tasks: [] },
+    paymasterConfig: paymasterConfig || {
+      operatorRoleIndex: ethers.constants.MaxUint256,
+      autoWhitelistContracts: false,
+      maxFeePerGas: 0,
+      maxPriorityFeePerGas: 0,
+      maxCallGas: 0,
+      maxVerificationGas: 0,
+      maxPreVerificationGas: 0,
+      defaultBudgetCapPerEpoch: 0,
+      defaultBudgetEpochLen: 0,
+    },
+  };
+
+  const iface = new ethers.utils.Interface(OrgDeployer);
+  const calldata = iface.encodeFunctionData('deployFullOrg', [deploymentParams]);
+
+  return { calldata, orgDeployerAddress, orgId };
 }

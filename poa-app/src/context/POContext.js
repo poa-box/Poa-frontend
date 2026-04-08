@@ -1,13 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { useQuery, useLazyQuery } from '@apollo/client';
-import { GET_ORG_BY_NAME, FETCH_ORG_FULL_DATA } from '../util/queries';
+import React, { createContext, useContext, useReducer, useEffect, useMemo, useCallback, useState } from 'react';
+import { useQuery } from '@apollo/client';
+import { FETCH_ORG_FULL_DATA } from '../util/queries';
 import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
-import { useAuth } from './AuthContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
 import { useIPFScontext } from './ipfsContext';
+import { getSubgraphUrl, getAllSubgraphUrls } from '../config/networks';
 
 const POContext = createContext();
 
@@ -19,13 +18,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 // Transform users array to leaderboard format
 function transformLeaderboardData(users, roleHatIds) {
     if (!users || !Array.isArray(users)) {
-        console.log('transformLeaderboardData: No users or not an array', users);
         return [];
-    }
-    console.log('transformLeaderboardData: Processing', users.length, 'users');
-    // Debug: Log first user's participationTokenBalance
-    if (users.length > 0) {
-        console.log('transformLeaderboardData: First user raw balance:', users[0].participationTokenBalance, 'type:', typeof users[0].participationTokenBalance);
     }
     return users.map(user => {
         const rawBalance = user.participationTokenBalance;
@@ -52,6 +45,30 @@ function transformEducationModules(modules) {
     return modules.map(module => {
         // Convert bytes32 contentHash to CID format for IPFS gateway URLs
         const ipfsCid = module.contentHash ? bytes32ToIpfsCid(module.contentHash) : null;
+
+        // Use subgraph-indexed metadata when available
+        const meta = module.metadata;
+        let description = 'Module content loading from IPFS...';
+        let link = '';
+        let question = '';
+        let answers = [];
+        let ipfsFetched = false;
+
+        if (meta) {
+            description = meta.description || 'No description available';
+            link = meta.link || '';
+            question = (meta.quiz && meta.quiz.length > 0) ? meta.quiz[0] : '';
+            if (meta.answersJson) {
+                try {
+                    const parsed = JSON.parse(meta.answersJson);
+                    answers = (parsed[0] || []).map((ans, i) => ({ index: i, answer: ans }));
+                } catch (e) {
+                    // Fall back to empty answers if JSON parsing fails
+                }
+            }
+            ipfsFetched = true;
+        }
+
         return {
             id: module.id,
             moduleId: module.moduleId,
@@ -61,113 +78,169 @@ function transformEducationModules(modules) {
             contentHashBytes32: module.contentHash,
             payout: formatTokenAmount(module.payout || '0'),
             status: module.status,
-            // Content from IPFS needs to be fetched separately
             isIndexing: !module.contentHash,
-            description: 'Module content loading from IPFS...',
-            link: '',
-            question: '',
-            answers: [],
+            description,
+            link,
+            question,
+            answers,
             completions: module.completions || [],
             // For backward compatibility
             completetions: module.completions || [],
+            _ipfsFetched: ipfsFetched,
         };
     });
 }
 
-export const POProvider = ({ children }) => {
-    const { address } = useAccount();
-    const { accountAddress: authAddress } = useAuth();
-    const router = useRouter();
-    const poName = router.query.userDAO || '';
-    const { safeFetchFromIpfs } = useIPFScontext();
-
-    // Organization data state
-    const [orgId, setOrgId] = useState(null);
-    const [poDescription, setPODescription] = useState('No description provided or IPFS content still being indexed');
-    const [poLinks, setPOLinks] = useState({});
-    const [logoHash, setLogoHash] = useState('');
-    const [logoUrl, setLogoUrl] = useState('');
-    const [metadataAdminHatId, setMetadataAdminHatId] = useState(null);
-    const [poMembers, setPoMembers] = useState(0);
-    const [activeTaskAmount, setActiveTaskAmount] = useState(0);
-    const [completedTaskAmount, setCompletedTaskAmount] = useState(0);
-    const [ptTokenBalance, setPtTokenBalance] = useState(0);
+const initialState = {
+    // Organization info
+    orgId: null,
+    orgChainId: null,
+    poDescription: 'No description provided or IPFS content still being indexed',
+    poLinks: [],
+    logoHash: '',
+    logoUrl: '',
+    backgroundColor: null,
+    metadataAdminHatId: null,
+    poMembers: 0,
+    activeTaskAmount: 0,
+    completedTaskAmount: 0,
+    ptTokenBalance: 0,
 
     // Contract addresses
-    const [quickJoinContractAddress, setQuickJoinContractAddress] = useState('');
-    const [treasuryContractAddress, setTreasuryContractAddress] = useState('');
-    const [taskManagerContractAddress, setTaskManagerContractAddress] = useState('');
-    const [hybridVotingContractAddress, setHybridVotingContractAddress] = useState('');
-    const [participationVotingContractAddress, setParticipationVotingContractAddress] = useState('');
-    const [directDemocracyVotingContractAddress, setDirectDemocracyVotingContractAddress] = useState('');
-    const [ddTokenContractAddress, setDDTokenContractAddress] = useState('');
-    const [nftMembershipContractAddress, setNFTMembershipContractAddress] = useState('');
-    const [votingContractAddress, setVotingContractAddress] = useState('');
-    const [educationHubAddress, setEducationHubAddress] = useState('');
-    const [executorContractAddress, setExecutorContractAddress] = useState('');
-    const [participationTokenAddress, setParticipationTokenAddress] = useState('');
+    quickJoinContractAddress: '',
+    treasuryContractAddress: '',
+    taskManagerContractAddress: '',
+    hybridVotingContractAddress: '',
+    participationVotingContractAddress: '',
+    directDemocracyVotingContractAddress: '',
+    ddTokenContractAddress: '',
+    nftMembershipContractAddress: '',
+    votingContractAddress: '',
+    educationHubAddress: '',
+    executorContractAddress: '',
+    eligibilityModuleAddress: '',
+    participationTokenAddress: '',
 
     // Derived data
-    const [leaderboardData, setLeaderboardData] = useState([]);
+    leaderboardData: [],
+    poContextLoading: true,
+    rules: null,
+    educationModules: [],
+    roleHatIds: [],
+    topHatId: null,
+    creatorHatIds: [],
+    educationHubEnabled: false,
+    hideTreasury: false,
+    roleNames: {},
+    roleCanVoteMap: {},
+};
+
+function poReducer(state, action) {
+    switch (action.type) {
+        case 'SET_ORG_DATA':
+            return { ...state, ...action.payload };
+        case 'SET_LOGO_URL':
+            return { ...state, logoUrl: action.payload };
+        case 'SET_LOADING':
+            return { ...state, poContextLoading: action.payload };
+        default:
+            return state;
+    }
+}
+
+export const POProvider = ({ children }) => {
+    const router = useRouter();
+    const poName = router.query.org || router.query.userDAO || '';
+    const { safeFetchFromIpfs } = useIPFScontext();
+
+    const [state, dispatch] = useReducer(poReducer, initialState);
 
     // Filtered leaderboard for display (only users with registered usernames)
     const leaderboardDisplayData = useMemo(() => {
-        return leaderboardData.filter(user => user.hasUsername);
-    }, [leaderboardData]);
+        return state.leaderboardData.filter(user => user.hasUsername);
+    }, [state.leaderboardData]);
 
-    const [poContextLoading, setPoContextLoading] = useState(true);
-    const [rules, setRules] = useState(null);
-    const [educationModules, setEducationModules] = useState([]);
-    const [roleHatIds, setRoleHatIds] = useState([]);
-    const [topHatId, setTopHatId] = useState(null);
-    const [creatorHatIds, setCreatorHatIds] = useState([]);
-    const [educationHubEnabled, setEducationHubEnabled] = useState(false);
-    const [roleNames, setRoleNames] = useState({});
-
-    const [account, setAccount] = useState('0x00');
-
-    // Use AuthContext's unified address (supports both EOA and passkey)
-    const effectiveAddress = authAddress || address;
+    // Step 1: Look up org by name across all chains via parallel fetch
+    const [orgLookupLoading, setOrgLookupLoading] = useState(!!poName);
+    const [orgLookupError, setOrgLookupError] = useState(null);
 
     useEffect(() => {
-        if (effectiveAddress) {
-            setAccount(effectiveAddress);
+        if (!poName) {
+            setOrgLookupLoading(false);
+            return;
         }
-    }, [effectiveAddress]);
+        let cancelled = false;
+        setOrgLookupLoading(true);
+        setOrgLookupError(null);
 
-    // Step 1: Look up org by name to get bytes ID
-    const { data: orgLookupData, loading: orgLookupLoading, error: orgLookupError } = useQuery(GET_ORG_BY_NAME, {
-        variables: { name: poName },
-        skip: !poName,
-        fetchPolicy: 'cache-first',
-        onCompleted: (data) => {
-            if (data?.organizations?.[0]) {
-                console.log('Found org ID:', data.organizations[0].id);
-                setOrgId(data.organizations[0].id);
+        async function findOrg() {
+            const sources = getAllSubgraphUrls();
+            try {
+                const results = await Promise.all(sources.map(async (source) => {
+                    try {
+                        const res = await fetch(source.url, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                query: 'query FindOrg($name: String!) { organizations(where: { name: $name }, first: 1) { id name } }',
+                                variables: { name: poName },
+                            }),
+                        });
+                        const json = await res.json();
+                        const org = json?.data?.organizations?.[0];
+                        return org ? { ...org, chainId: source.chainId } : null;
+                    } catch (err) {
+                        console.warn(`[POContext] Failed to query ${source.name}:`, err.message);
+                        return null;
+                    }
+                }));
+                if (cancelled) return;
+                const found = results.find(Boolean);
+                if (found) {
+                    dispatch({
+                        type: 'SET_ORG_DATA',
+                        payload: { orgId: found.id, orgChainId: found.chainId },
+                    });
+                } else {
+                    console.warn(`[POContext] Organization "${poName}" not found on any chain`);
+                    dispatch({ type: 'SET_LOADING', payload: false });
+                }
+            } catch (err) {
+                if (!cancelled) {
+                    console.error('[POContext] Org lookup failed:', err);
+                    setOrgLookupError(err);
+                }
+            } finally {
+                if (!cancelled) setOrgLookupLoading(false);
             }
-        },
-    });
-
-    // Step 2: Fetch full org data using bytes ID
-    const { data: orgData, loading: orgDataLoading, error: orgDataError, refetch: refetchOrgData } = useQuery(FETCH_ORG_FULL_DATA, {
-        variables: { orgId: orgId },
-        skip: !orgId,
-        fetchPolicy: 'cache-and-network',
-        onCompleted: () => {
-            console.log('Org data query completed successfully');
-        },
-    });
-
-    // Handle refresh events from Web3 transactions
-    const handleRefresh = useCallback(() => {
-        console.log('[POContext] Refresh triggered, refetching org data...');
-        if (orgId && refetchOrgData) {
-            // Small delay to allow subgraph to index the new data
-            setTimeout(() => {
-                refetchOrgData();
-            }, 2000);
         }
-    }, [orgId, refetchOrgData]);
+
+        findOrg();
+        return () => { cancelled = true; };
+    }, [poName]);
+
+    // Step 2: Fetch full org data using bytes ID, routed to the correct chain's subgraph
+    const subgraphUrl = getSubgraphUrl(state.orgChainId);
+    const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
+    const { data: orgData, loading: orgDataLoading, error: orgDataError, refetch: refetchOrgData } = useQuery(FETCH_ORG_FULL_DATA, {
+        variables: { orgId: state.orgId },
+        skip: !state.orgId,
+        fetchPolicy: 'cache-first',
+        context: apolloContext,
+    });
+
+    // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
+    const refetchRef = React.useRef(refetchOrgData);
+    refetchRef.current = refetchOrgData;
+
+    // Refetch immediately — executeWithNotification already waited for the
+    // subgraph to index the transaction block before emitting the event.
+    const handleRefresh = useCallback(() => {
+        if (state.orgId) {
+            refetchRef.current();
+        }
+    }, [state.orgId]);
 
     // Subscribe to relevant events
     useRefreshSubscription(
@@ -182,244 +255,250 @@ export const POProvider = ({ children }) => {
         [handleRefresh]
     );
 
-    // Process org data when available
+    // Process org data when available — single atomic dispatch
     useEffect(() => {
         if (orgData?.organization) {
             const org = orgData.organization;
 
-            // Basic org info
-            setLogoHash(org.metadataHash || '');
-            setPoMembers(org.users?.length || 0);
-            setPtTokenBalance(formatTokenAmount(org.participationToken?.totalSupply || '0'));
-            setTopHatId(org.topHatId);
-            setRoleHatIds(org.roleHatIds || []);
-
-            // Read metadataAdminHatId from subgraph
-            const adminHat = org.metadataAdminHatId;
-            setMetadataAdminHatId(adminHat && adminHat !== '0' ? adminHat : null);
-            setCreatorHatIds(org.taskManager?.creatorHatIds || []);
-
-            // Build role names map from roles data
+            // Build role names map and canVote map from roles data
+            const roleNamesMap = {};
+            const roleCanVoteMap = {};
             if (org.roles && Array.isArray(org.roles)) {
-                const names = {};
                 org.roles.forEach((role, index) => {
                     const hatId = role.hatId;
-                    // Priority: role.name (from RolesCreated event) > role.hat.name (from IPFS) > fallback
                     const name = role.name || role.hat?.name || `Role ${index + 1}`;
-                    names[hatId] = name;
-                    // Also store with normalized string key for comparison
-                    names[String(hatId)] = name;
+                    roleNamesMap[hatId] = name;
+                    roleNamesMap[String(hatId)] = name;
+                    roleCanVoteMap[hatId] = role.canVote !== false;
+                    roleCanVoteMap[String(hatId)] = role.canVote !== false;
                 });
-                setRoleNames(names);
             }
-
-            // Contract addresses
-            setQuickJoinContractAddress(org.quickJoin?.id || '');
-            setTaskManagerContractAddress(org.taskManager?.id || '');
-            setHybridVotingContractAddress(org.hybridVoting?.id || '');
-            setDirectDemocracyVotingContractAddress(org.directDemocracyVoting?.id || '');
-            const eduHubId = org.educationHub?.id || '';
-            setEducationHubAddress(eduHubId);
-            // Education hub is enabled if address exists and is not zero address
-            setEducationHubEnabled(eduHubId && eduHubId !== ZERO_ADDRESS);
-            setExecutorContractAddress(org.executorContract?.id || '');
-            setParticipationTokenAddress(org.participationToken?.id || '');
-
-            // For backward compatibility, map hybrid voting to participation voting
-            setParticipationVotingContractAddress(org.hybridVoting?.id || '');
-            setVotingContractAddress(org.hybridVoting?.id || '');
-
-            // Deprecated in POP - set to empty
-            setTreasuryContractAddress(org.executorContract?.id || ''); // Executor replaces Treasury
-            setDDTokenContractAddress(''); // No separate DD token in POP
-            setNFTMembershipContractAddress(''); // Replaced by Hats Protocol
 
             // Calculate task counts from taskManager projects
             let activeTasks = 0;
             let completedTasks = 0;
-
             if (org.taskManager?.projects) {
                 org.taskManager.projects.forEach(project => {
                     project.tasks?.forEach(task => {
                         if (task.status === 'Completed') {
                             completedTasks++;
                         } else if (task.status !== 'Cancelled') {
-                            // Open, Assigned, Submitted are all "active"
                             activeTasks++;
                         }
                     });
                 });
             }
 
-            setActiveTaskAmount(activeTasks);
-            setCompletedTaskAmount(completedTasks);
-
             // Process education modules
             const modules = org.educationHub?.modules || [];
-            setEducationModules(transformEducationModules(modules));
 
-            // Transform leaderboard data
-            setLeaderboardData(transformLeaderboardData(org.users, org.roleHatIds));
+            // Build metadata fields
+            const eduHubId = org.educationHub?.id || '';
+            const adminHat = org.metadataAdminHatId;
 
-            // Rules configuration (for backward compatibility)
-            setRules({
-                HybridVoting: org.hybridVoting ? {
-                    id: org.hybridVoting.id,
-                    quorum: org.hybridVoting.quorum,
-                } : null,
-                DirectDemocracyVoting: org.directDemocracyVoting ? {
-                    id: org.directDemocracyVoting.id,
-                    quorum: org.directDemocracyVoting.quorumPercentage,
-                } : null,
-                ParticipationVoting: org.hybridVoting ? {
-                    id: org.hybridVoting.id,
-                    quorum: org.hybridVoting.quorum,
-                } : null,
-                NFTMembership: null, // Deprecated
-                Treasury: org.executorContract ? {
-                    id: org.executorContract.id,
-                } : null,
-            });
-
-            // Use metadata from subgraph (indexed from IPFS)
+            let poDescription = 'No description provided or IPFS content still being indexed';
+            let poLinks = [];
             if (org.metadata) {
-                setPODescription(org.metadata.description || 'No description provided');
-                // Transform links array to object format for compatibility
+                poDescription = org.metadata.description || 'No description provided';
                 if (org.metadata.links && org.metadata.links.length > 0) {
-                    const linksObj = {};
-                    org.metadata.links.forEach(link => {
-                        linksObj[link.name] = link.url;
-                    });
-                    setPOLinks(linksObj);
+                    poLinks = org.metadata.links.map(link => ({
+                        name: link.name,
+                        url: link.url,
+                    }));
                 }
             } else if (org.metadataHash) {
-                // Metadata not yet indexed, show loading state
-                setPODescription('Organization description loading from IPFS...');
+                poDescription = 'Organization description loading from IPFS...';
             }
 
-            setPoContextLoading(false);
+            // Single atomic dispatch replaces 25+ individual setState calls
+            dispatch({
+                type: 'SET_ORG_DATA',
+                payload: {
+                    logoHash: org.metadataHash || '',
+                    logoUrl: org.metadata?.logo || '',
+                    backgroundColor: org.metadata?.backgroundColor || null,
+                    hideTreasury: org.metadata?.hideTreasury === true,
+                    poMembers: org.users?.length || 0,
+                    ptTokenBalance: formatTokenAmount(org.participationToken?.totalSupply || '0'),
+                    topHatId: org.topHatId,
+                    roleHatIds: org.roleHatIds || [],
+                    metadataAdminHatId: adminHat && adminHat !== '0' ? adminHat : null,
+                    creatorHatIds: org.taskManager?.creatorHatIds || [],
+                    roleNames: roleNamesMap,
+                    roleCanVoteMap: roleCanVoteMap,
+                    quickJoinContractAddress: org.quickJoin?.id || '',
+                    taskManagerContractAddress: org.taskManager?.id || '',
+                    hybridVotingContractAddress: org.hybridVoting?.id || '',
+                    directDemocracyVotingContractAddress: org.directDemocracyVoting?.id || '',
+                    educationHubAddress: eduHubId,
+                    educationHubEnabled: !!(eduHubId && eduHubId !== ZERO_ADDRESS),
+                    executorContractAddress: org.executorContract?.id || '',
+                    eligibilityModuleAddress: org.eligibilityModule?.id || '',
+                    participationTokenAddress: org.participationToken?.id || '',
+                    participationVotingContractAddress: org.hybridVoting?.id || '',
+                    votingContractAddress: org.hybridVoting?.id || '',
+                    treasuryContractAddress: org.executorContract?.id || '',
+                    ddTokenContractAddress: '',
+                    nftMembershipContractAddress: '',
+                    activeTaskAmount: activeTasks,
+                    completedTaskAmount: completedTasks,
+                    educationModules: transformEducationModules(modules),
+                    leaderboardData: transformLeaderboardData(org.users, org.roleHatIds),
+                    rules: {
+                        HybridVoting: org.hybridVoting ? {
+                            id: org.hybridVoting.id,
+                            quorum: org.hybridVoting.thresholdPct,
+                        } : null,
+                        DirectDemocracyVoting: org.directDemocracyVoting ? {
+                            id: org.directDemocracyVoting.id,
+                            quorum: org.directDemocracyVoting.thresholdPct,
+                        } : null,
+                        ParticipationVoting: org.hybridVoting ? {
+                            id: org.hybridVoting.id,
+                            quorum: org.hybridVoting.thresholdPct,
+                        } : null,
+                        NFTMembership: null,
+                        Treasury: org.executorContract ? {
+                            id: org.executorContract.id,
+                        } : null,
+                    },
+                    poDescription,
+                    poLinks,
+                    poContextLoading: false,
+                },
+            });
         }
     }, [orgData]);
 
-    // Fetch logo CID from IPFS metadata JSON
-    // The subgraph OrgMetadata entity doesn't index the 'logo' field,
-    // so we extract it from IPFS directly.
+    // Fetch logo and hideTreasury from IPFS metadata — only as fallback
+    // when the subgraph hasn't indexed org metadata yet.
     useEffect(() => {
-        async function fetchLogoFromMetadata() {
+        async function fetchMetadataFromIpfs() {
             const org = orgData?.organization;
             if (!org?.metadataHash) {
-                setLogoUrl('');
+                return;
+            }
+            // Skip IPFS fetch if subgraph already has metadata indexed
+            if (org.metadata) {
                 return;
             }
             try {
                 const metadata = await safeFetchFromIpfs(org.metadataHash);
-                if (metadata?.logo) {
-                    setLogoUrl(metadata.logo);
-                } else {
-                    setLogoUrl('');
-                }
+                dispatch({ type: 'SET_LOGO_URL', payload: metadata?.logo || '' });
+                dispatch({ type: 'SET_ORG_DATA', payload: {
+                    hideTreasury: metadata?.hideTreasury === true,
+                    backgroundColor: metadata?.backgroundColor || null,
+                } });
             } catch (e) {
-                console.warn('[POContext] Failed to fetch logo from IPFS metadata:', e);
-                setLogoUrl('');
+                console.warn('[POContext] Failed to fetch metadata from IPFS:', e);
             }
         }
-        fetchLogoFromMetadata();
+        fetchMetadataFromIpfs();
     }, [orgData, safeFetchFromIpfs]);
+
+    // Fetch IPFS content for education modules (description, quiz, answers, link)
+    // The subgraph only stores title + contentHash; the rest lives in IPFS.
+    useEffect(() => {
+        async function fetchModuleContent() {
+            const modules = state.educationModules;
+            if (!modules || modules.length === 0) return;
+
+            const modulesNeedingFetch = modules.filter(m => m.ipfsHash && !m._ipfsFetched);
+            if (modulesNeedingFetch.length === 0) return;
+
+            const updated = await Promise.all(
+                modules.map(async (module) => {
+                    if (!module.ipfsHash || module._ipfsFetched) return module;
+                    try {
+                        const content = await safeFetchFromIpfs(module.ipfsHash);
+                        if (!content) return { ...module, _ipfsFetched: true };
+                        return {
+                            ...module,
+                            description: content.description || module.description,
+                            link: content.link || '',
+                            question: content.quiz?.[0] || '',
+                            answers: (content.answers?.[0] || []).map((ans, i) => ({
+                                index: i,
+                                answer: ans,
+                            })),
+                            _ipfsFetched: true,
+                        };
+                    } catch (e) {
+                        console.warn('[POContext] Failed to fetch education module IPFS content:', e);
+                        return { ...module, _ipfsFetched: true };
+                    }
+                })
+            );
+
+            dispatch({
+                type: 'SET_ORG_DATA',
+                payload: { educationModules: updated },
+            });
+        }
+        fetchModuleContent();
+    }, [state.educationModules, safeFetchFromIpfs]);
 
     // Combined loading and error states
     const loading = orgLookupLoading || orgDataLoading;
-    const error = orgLookupError || orgDataError;
+    const rawError = orgLookupError || orgDataError;
+    // Stabilize error: only change when the message string changes, not the object reference
+    const errorMessage = rawError?.message || null;
 
-    // Handle case where org not found
-    useEffect(() => {
-        if (orgLookupData && !orgLookupData.organizations?.[0] && !orgLookupLoading) {
-            console.warn(`Organization "${poName}" not found in subgraph`);
-            setPoContextLoading(false);
-        }
-    }, [orgLookupData, orgLookupLoading, poName]);
+    // Note: "org not found" is handled inline in the parallel fetch above
 
     const contextValue = useMemo(() => ({
         // Organization info
-        orgId,
-        poDescription,
-        poLinks,
-        logoHash,
-        logoUrl,
-        metadataAdminHatId,
-        poMembers,
-        activeTaskAmount,
-        completedTaskAmount,
-        ptTokenBalance,
+        orgId: state.orgId,
+        orgChainId: state.orgChainId,
+        subgraphUrl,
+        poDescription: state.poDescription,
+        poLinks: state.poLinks,
+        logoHash: state.logoHash,
+        logoUrl: state.logoUrl,
+        backgroundColor: state.backgroundColor,
+        metadataAdminHatId: state.metadataAdminHatId,
+        poMembers: state.poMembers,
+        activeTaskAmount: state.activeTaskAmount,
+        completedTaskAmount: state.completedTaskAmount,
+        ptTokenBalance: state.ptTokenBalance,
 
         // Contract addresses
-        quickJoinContractAddress,
-        treasuryContractAddress,
-        taskManagerContractAddress,
-        hybridVotingContractAddress,
-        participationVotingContractAddress,
-        directDemocracyVotingContractAddress,
-        ddTokenContractAddress,
-        nftMembershipContractAddress,
-        votingContractAddress,
-        educationHubAddress,
-        executorContractAddress,
-        participationTokenAddress,
+        quickJoinContractAddress: state.quickJoinContractAddress,
+        treasuryContractAddress: state.treasuryContractAddress,
+        taskManagerContractAddress: state.taskManagerContractAddress,
+        hybridVotingContractAddress: state.hybridVotingContractAddress,
+        participationVotingContractAddress: state.participationVotingContractAddress,
+        directDemocracyVotingContractAddress: state.directDemocracyVotingContractAddress,
+        ddTokenContractAddress: state.ddTokenContractAddress,
+        nftMembershipContractAddress: state.nftMembershipContractAddress,
+        votingContractAddress: state.votingContractAddress,
+        educationHubAddress: state.educationHubAddress,
+        executorContractAddress: state.executorContractAddress,
+        eligibilityModuleAddress: state.eligibilityModuleAddress,
+        participationTokenAddress: state.participationTokenAddress,
 
         // Derived data
         loading,
-        error,
-        leaderboardData,
+        error: errorMessage ? { message: errorMessage } : null,
+        leaderboardData: state.leaderboardData,
         leaderboardDisplayData,
-        poContextLoading,
-        rules,
-        educationModules,
+        poContextLoading: state.poContextLoading,
+        rules: state.rules,
+        educationModules: state.educationModules,
 
-        // New POP-specific data
-        roleHatIds,
-        topHatId,
-        creatorHatIds,
-        educationHubEnabled,
-        roleNames,
-    }), [
-        orgId,
-        poDescription,
-        poLinks,
-        logoHash,
-        logoUrl,
-        metadataAdminHatId,
-        poMembers,
-        activeTaskAmount,
-        completedTaskAmount,
-        ptTokenBalance,
-        quickJoinContractAddress,
-        treasuryContractAddress,
-        taskManagerContractAddress,
-        hybridVotingContractAddress,
-        participationVotingContractAddress,
-        directDemocracyVotingContractAddress,
-        ddTokenContractAddress,
-        nftMembershipContractAddress,
-        votingContractAddress,
-        educationHubAddress,
-        executorContractAddress,
-        participationTokenAddress,
-        loading,
-        error,
-        leaderboardData,
-        leaderboardDisplayData,
-        poContextLoading,
-        rules,
-        educationModules,
-        roleHatIds,
-        topHatId,
-        creatorHatIds,
-        educationHubEnabled,
-        roleNames,
-    ]);
+        // POP-specific data
+        roleHatIds: state.roleHatIds,
+        topHatId: state.topHatId,
+        creatorHatIds: state.creatorHatIds,
+        educationHubEnabled: state.educationHubEnabled,
+        hideTreasury: state.hideTreasury,
+        roleNames: state.roleNames,
+        roleCanVoteMap: state.roleCanVoteMap,
+    }), [state, loading, errorMessage, leaderboardDisplayData, subgraphUrl]);
 
     return (
         <POContext.Provider value={contextValue}>
-            {error && <div>Error: {error.message}</div>}
+            {errorMessage && <div>Error: {errorMessage}</div>}
             {children}
         </POContext.Provider>
     );

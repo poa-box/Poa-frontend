@@ -9,8 +9,8 @@ const deploymentSteps = [
     message: "Deploying Direct Democracy Token contract...",
   },
   { label: "DD Token", message: "Direct Democracy Token contract deployed!" },
-  { label: "PT Token", message: "Deploying Participation Token contract..." },
-  { label: "PT Token", message: "Participation Token contract deployed!" },
+  { label: "Shares", message: "Deploying Shares contract..." },
+  { label: "Shares", message: "Shares contract deployed!" },
   { label: "Treasury", message: "Deploying Treasury contract..." },
   { label: "Treasury", message: "Treasury contract deployed!" },
   {
@@ -37,11 +37,11 @@ const deploymentSteps = [
   { label: "Registry", message: "Registry contract deployed!" },
   {
     label: "Setting Task Manager",
-    message: "Setting Task Manager in PT Token contract...",
+    message: "Configuring Task Manager in Shares contract...",
   },
   {
     label: "Setting Task Manager",
-    message: "Task Manager set in PT Token contract!",
+    message: "Task Manager configured in Shares contract!",
   },
   {
     label: "Setting Voting Contract",

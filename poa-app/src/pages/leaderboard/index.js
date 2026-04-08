@@ -1,3 +1,4 @@
+import SEOHead from "@/components/common/SEOHead";
 import React, { useEffect, useState } from 'react';
 import {
   Box,
@@ -9,6 +10,7 @@ import {
 import { useRouter } from 'next/router';
 
 import { usePOContext } from '@/context/POContext';
+import { useOrgTheme } from '@/hooks';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
 import LeaderboardCard from '@/components/leaderboard/LeaderboardCard';
@@ -17,9 +19,10 @@ import TopThreePodium from '@/components/leaderboard/TopThreePodium';
 
 const Leaderboard = () => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
 
   const { leaderboardDisplayData, roleNames } = usePOContext();
+  const { pageBackground } = useOrgTheme();
   const [data, setData] = useState([]);
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRank, setSelectedRank] = useState(null);
@@ -49,12 +52,19 @@ const Leaderboard = () => {
 
   return (
     <>
+      <SEOHead
+        title="Leaderboard"
+        description="Organization contribution leaderboard."
+        path="/leaderboard"
+        noIndex
+      />
       <Navbar />
       <Box
         position="relative"
         w="100%"
         minH="100vh"
         p={{ base: 4, md: 6 }}
+        background={pageBackground()}
       >
         <VStack spacing={6} align="center">
           <Box

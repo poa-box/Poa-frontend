@@ -18,7 +18,7 @@ const Selection = forwardRef(({ options, onOptionSelected }, ref) => {
               boxShadow="md"
               _hover={{ bg: "teal.600", boxShadow: "lg" }}
               _active={{ bg: "teal.700", boxShadow: "inner" }}
-              transition="all 0.2s"
+              transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
             >
               {option.label}
             </Button>

@@ -59,10 +59,6 @@ export class TokenRequestService {
     const ipfsResult = await ipfsService.addToIpfs(JSON.stringify(ipfsData));
     ipfsHash = ipfsResult.path;
 
-    console.log('=== requestTokens DEBUG ===');
-    console.log('IPFS data:', ipfsData);
-    console.log('IPFS hash:', ipfsHash);
-
     const contract = this.factory.createWritable(contractAddress, ParticipationTokenABI);
 
     // Convert amount to wei (18 decimals for participation token)
@@ -74,12 +70,6 @@ export class TokenRequestService {
     if (amountWei.gt(MAX_UINT96)) {
       throw new Error('Amount exceeds maximum allowed (uint96 overflow)');
     }
-
-    console.log('Contract address:', contractAddress);
-    console.log('Amount (human readable):', amount);
-    console.log('Amount (wei):', amountWei.toString());
-    console.log('IPFS hash string:', ipfsHash);
-    console.log('=== END requestTokens DEBUG ===');
 
     return this.txManager.execute(
       contract,
@@ -106,11 +96,6 @@ export class TokenRequestService {
     const contract = this.factory.createWritable(contractAddress, ParticipationTokenABI);
     const id = ethers.BigNumber.from(requestId);
 
-    console.log('=== approveRequest DEBUG ===');
-    console.log('Contract address:', contractAddress);
-    console.log('Request ID:', id.toString());
-    console.log('=== END approveRequest DEBUG ===');
-
     return this.txManager.execute(
       contract,
       'approveRequest',
@@ -136,11 +121,6 @@ export class TokenRequestService {
 
     const contract = this.factory.createWritable(contractAddress, ParticipationTokenABI);
     const id = ethers.BigNumber.from(requestId);
-
-    console.log('=== cancelRequest DEBUG ===');
-    console.log('Contract address:', contractAddress);
-    console.log('Request ID:', id.toString());
-    console.log('=== END cancelRequest DEBUG ===');
 
     return this.txManager.execute(
       contract,

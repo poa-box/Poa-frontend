@@ -3,16 +3,16 @@
  * Main voting page component for proposal management and voting
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   Container,
   Center,
-  Spinner,
   TabPanel,
 } from "@chakra-ui/react";
+import PulseLoader from "@/components/shared/PulseLoader";
 import { usePOContext } from "@/context/POContext";
 import { useVotingContext } from "@/context/VotingContext";
-import { useWeb3 } from "@/hooks";
+import { useWeb3, useOrgTheme } from "@/hooks";
 import { VotingType } from "@/services/web3/domain/VotingService";
 
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
@@ -35,14 +35,18 @@ const VotingPage = () => {
 
   // Web3 services hook
   const { voting, executeWithNotification, isReady } = useWeb3();
+  const { pageBackground } = useOrgTheme();
 
   const {
     directDemocracyVotingContractAddress,
     votingContractAddress,
     taskManagerContractAddress,
     executorContractAddress,
+    eligibilityModuleAddress,
+    participationTokenAddress,
     poContextLoading,
     roleNames,
+    leaderboardData,
   } = usePOContext();
 
   const {
@@ -51,6 +55,7 @@ const VotingPage = () => {
     democracyVotingOngoing,
     democracyVotingCompleted,
     votingType: PTVoteType,
+    votingClasses,
   } = useVotingContext();
 
   // Poll navigation and selection
@@ -116,12 +121,12 @@ const VotingPage = () => {
       hatIds: proposalData.hatIds || [],
     };
 
-    // Setter proposals use HybridVoting (main governance) which triggers Executor
+    // Setter and election proposals use HybridVoting (main governance) which triggers Executor
     // Executor has onlyExecutor permission on all contracts, so it can call any setter
-    const isSetterProposal = proposalData.type === 'setter';
+    const isExecutionProposal = proposalData.type === 'setter' || proposalData.type === 'election';
 
     const result = await executeWithNotification(
-      () => isSetterProposal
+      () => isExecutionProposal
         ? voting.createHybridProposal(votingContractAddress, proposalParams)
         : voting.createDDProposal(directDemocracyVotingContractAddress, proposalParams),
       {
@@ -144,9 +149,6 @@ const VotingPage = () => {
     handleProposalTypeChange,
     handleTransferAddressChange,
     handleTransferAmountChange,
-    handleElectionRoleChange,
-    addCandidate,
-    removeCandidate,
     handleRestrictedToggle,
     toggleRestrictedRole,
     handleSetterChange,
@@ -156,18 +158,18 @@ const VotingPage = () => {
   });
 
   // Contract addresses object for setter proposals
-  const contractAddresses = {
+  const contractAddresses = useMemo(() => ({
     votingContractAddress,
     directDemocracyVotingContractAddress,
     taskManagerContractAddress,
     executorContractAddress,
-  };
+    participationTokenAddress,
+  }), [votingContractAddress, directDemocracyVotingContractAddress, taskManagerContractAddress, executorContractAddress, participationTokenAddress]);
 
   // Wrapper for handleSubmit that passes eligibilityModule and contract addresses
   const handlePollCreated = useCallback(() => {
-    // Use executor as eligibility module for setter proposals (or pass actual eligibility module)
-    return handleSubmit(executorContractAddress, contractAddresses);
-  }, [handleSubmit, executorContractAddress, contractAddresses]);
+    return handleSubmit(eligibilityModuleAddress, contractAddresses);
+  }, [handleSubmit, eligibilityModuleAddress, contractAddresses]);
 
   // Handle tab changes with pagination reset
   const handleTabsChange = useCallback((index) => {
@@ -226,11 +228,11 @@ const VotingPage = () => {
     <>
       <Navbar />
       {poContextLoading ? (
-        <Center height="90vh">
-          <Spinner size="xl" />
+        <Center height="90vh" background={pageBackground()}>
+          <PulseLoader size="xl" />
         </Center>
       ) : (
-        <Container maxW="container.2xl" py={{ base: 20, md: 4 }} px={{ base: "1%", md: "3%" }}>
+        <Container maxW="container.2xl" py={{ base: 20, md: 4 }} px={{ base: "1%", md: "3%" }} minH="100vh" background={pageBackground()}>
           <VotingEducationHeader selectedTab={selectedTab} PTVoteType={PTVoteType} />
 
           <VotingTabs
@@ -279,15 +281,14 @@ const VotingPage = () => {
             handleProposalTypeChange={handleProposalTypeChange}
             handleTransferAddressChange={handleTransferAddressChange}
             handleTransferAmountChange={handleTransferAmountChange}
-            handleElectionRoleChange={handleElectionRoleChange}
-            addCandidate={addCandidate}
-            removeCandidate={removeCandidate}
             handleRestrictedToggle={handleRestrictedToggle}
             toggleRestrictedRole={toggleRestrictedRole}
             handleSetterChange={handleSetterChange}
             handlePollCreated={handlePollCreated}
             loadingSubmit={loadingSubmit}
             roleNames={roleNames}
+            votingClasses={votingClasses}
+            leaderboardData={leaderboardData}
           />
 
           <PollModal

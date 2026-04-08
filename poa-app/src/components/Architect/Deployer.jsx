@@ -8,9 +8,9 @@ import {
   ModalFooter,
   ModalBody,
   Button,
-  Spinner,
   useToast,
 } from "@chakra-ui/react";
+import PulseLoader from "@/components/shared/PulseLoader";
 
 
 function Deployer({ isOpen, onClose, deploymentDetails }) {
@@ -36,7 +36,7 @@ function Deployer({ isOpen, onClose, deploymentDetails }) {
           {isDeployed ? (
             <p>Deployment successful! You can now access your organization.</p>
           ) : (
-            <Spinner size="xl" />
+            <PulseLoader size="xl" />
           )}
         </ModalBody>
         <ModalFooter>

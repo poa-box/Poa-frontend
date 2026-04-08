@@ -1,15 +1,90 @@
 /**
  * passkeySign.js
- * Sign ERC-4337 UserOp hashes using WebAuthn (passkey).
- * Returns the signature in the format expected by PasskeyAccount.validateUserOp().
+ * Sign ERC-4337 UserOp hashes and registration challenges using WebAuthn (passkey).
  */
 
 import { startAuthentication, base64URLStringToBuffer, bufferToBase64URLString } from '@simplewebauthn/browser';
-import { encodeAbiParameters, parseAbiParameters, pad, toBytes, toHex } from 'viem';
+import { encodeAbiParameters, parseAbiParameters, keccak256, pad, toBytes, toHex } from 'viem';
 import { computeCredentialId } from './passkeyUtils';
+import { getWebAuthnRpId } from '../../../config/passkey';
 
 // P-256 curve order
 const P256_N = BigInt('0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551');
+
+// EIP-712 constants matching UniversalAccountRegistry.sol
+const DOMAIN_TYPEHASH = keccak256(
+  toBytes('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
+);
+const NAME_HASH = keccak256(toBytes('UniversalAccountRegistry'));
+const VERSION_HASH = keccak256(toBytes('1'));
+const REGISTER_PASSKEY_TYPEHASH = keccak256(
+  toBytes('RegisterPasskeyAccount(address user,string username,uint256 nonce,uint256 deadline)')
+);
+
+/**
+ * Perform a WebAuthn assertion (biometric prompt) and parse the response.
+ *
+ * @param {string} challengeHash - bytes32 hex string to sign
+ * @param {string} rawCredentialIdBase64 - base64url credential ID for allowCredentials
+ * @returns {Object} { authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s, rawId }
+ */
+async function getWebAuthnAssertion(challengeHash, rawCredentialIdBase64) {
+  const hashBytes = toBytes(challengeHash);
+  const challenge = bufferToBase64URLString(hashBytes);
+
+  const primaryRpId = getWebAuthnRpId();
+
+  const opts = (rpId) => ({
+    optionsJSON: {
+      challenge,
+      rpId,
+      allowCredentials: [{
+        id: rawCredentialIdBase64,
+        type: 'public-key',
+        transports: ['internal'],
+      }],
+      userVerification: 'required',
+      timeout: 120000,
+    },
+  });
+
+  let assertion;
+  try {
+    assertion = await startAuthentication(opts(primaryRpId));
+  } catch (err) {
+    // Legacy passkeys were created with the full hostname (e.g. "www.poa.box")
+    // as RP ID. When allowCredentials lists a credential whose RP ID doesn't
+    // match, the browser filters it out and rejects without a biometric prompt,
+    // so this retry is transparent to the user.
+    const fallbackRpId = window.location.hostname;
+    if (fallbackRpId === primaryRpId) throw err;
+    assertion = await startAuthentication(opts(fallbackRpId));
+  }
+
+  const authenticatorDataBuffer = base64URLStringToBuffer(assertion.response.authenticatorData);
+  const authenticatorData = new Uint8Array(authenticatorDataBuffer);
+
+  const clientDataJSONBuffer = base64URLStringToBuffer(assertion.response.clientDataJSON);
+  const clientDataJSON = new Uint8Array(clientDataJSONBuffer);
+
+  const signatureBuffer = base64URLStringToBuffer(assertion.response.signature);
+  const signatureBytes = new Uint8Array(signatureBuffer);
+  const { r, s } = parseDERSignature(signatureBytes);
+
+  const clientDataString = new TextDecoder().decode(clientDataJSON);
+  const challengeIndex = findFieldIndex(clientDataString, 'challenge');
+  const typeIndex = findFieldIndex(clientDataString, 'type');
+
+  return {
+    authenticatorData,
+    clientDataJSON,
+    challengeIndex,
+    typeIndex,
+    r,
+    s,
+    rawId: assertion.rawId,
+  };
+}
 
 /**
  * Sign a UserOp hash with a passkey credential.
@@ -26,65 +101,84 @@ const P256_N = BigInt('0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC
  * The contract slices signature[32:] and abi.decode's that as WebAuthnAuth.
  */
 export async function signUserOpWithPasskey(userOpHash, rawCredentialIdBase64) {
-  // The challenge for WebAuthn is the UserOp hash encoded as base64url
-  const hashBytes = toBytes(userOpHash);
-  const challenge = bufferToBase64URLString(hashBytes);
+  const auth = await getWebAuthnAssertion(userOpHash, rawCredentialIdBase64);
 
-  // Request WebAuthn assertion (biometric prompt)
-  const assertion = await startAuthentication({
-    optionsJSON: {
-      challenge,
-      rpId: window.location.hostname,
-      allowCredentials: [{
-        id: rawCredentialIdBase64,
-        type: 'public-key',
-        transports: ['internal'],
-      }],
-      userVerification: 'required',
-      timeout: 120000,
-    },
-  });
+  const credentialIdBytes32 = computeCredentialId(auth.rawId);
 
-  // Extract response fields
-  const authenticatorDataBuffer = base64URLStringToBuffer(assertion.response.authenticatorData);
-  const authenticatorData = new Uint8Array(authenticatorDataBuffer);
-
-  const clientDataJSONBuffer = base64URLStringToBuffer(assertion.response.clientDataJSON);
-  const clientDataJSON = new Uint8Array(clientDataJSONBuffer);
-
-  // Parse DER-encoded ECDSA signature into (r, s)
-  const signatureBuffer = base64URLStringToBuffer(assertion.response.signature);
-  const signatureBytes = new Uint8Array(signatureBuffer);
-  const { r, s } = parseDERSignature(signatureBytes);
-
-  // Find challengeIndex and typeIndex in clientDataJSON
-  // clientDataJSON is JSON like: {"type":"webauthn.get","challenge":"<base64url>","origin":"..."}
-  const clientDataString = new TextDecoder().decode(clientDataJSON);
-  const challengeIndex = findFieldIndex(clientDataString, 'challenge');
-  const typeIndex = findFieldIndex(clientDataString, 'type');
-
-  // Compute credentialId bytes32 from the raw credential ID
-  const credentialIdBytes32 = computeCredentialId(assertion.rawId);
-
-  // Encode signature as: credentialId(32 bytes raw) || abi.encode(WebAuthnAuth)
-  // The contract does: bytes32 cid = bytes32(sig[0:32]); auth = abi.decode(sig[32:], (WebAuthnAuth))
-  // So we must encode WebAuthnAuth separately and prepend the raw credentialId.
   const authEncoded = encodeAbiParameters(
     parseAbiParameters('(bytes, bytes, uint256, uint256, bytes32, bytes32)'),
     [[
-      toHex(authenticatorData),
-      toHex(clientDataJSON),
-      BigInt(challengeIndex),
-      BigInt(typeIndex),
-      pad(toHex(r), { size: 32 }),
-      pad(toHex(s), { size: 32 }),
+      toHex(auth.authenticatorData),
+      toHex(auth.clientDataJSON),
+      BigInt(auth.challengeIndex),
+      BigInt(auth.typeIndex),
+      pad(toHex(auth.r), { size: 32 }),
+      pad(toHex(auth.s), { size: 32 }),
     ]]
   );
 
-  // Concatenate: raw credentialId bytes32 + abi.encode(WebAuthnAuth)
-  const encodedSignature = credentialIdBytes32 + authEncoded.slice(2);
+  return credentialIdBytes32 + authEncoded.slice(2);
+}
 
-  return encodedSignature;
+/**
+ * Compute the EIP-712 registration challenge hash that must be signed
+ * to authorize username registration via registerAndQuickJoinWithPasskey.
+ *
+ * Matches UniversalAccountRegistry.registerAccountByPasskeySig() challenge computation.
+ *
+ * @param {Object} params
+ * @param {string} params.accountAddress - Counterfactual smart account address
+ * @param {string} params.username - Username to register
+ * @param {bigint} params.nonce - Account's nonce on the registry
+ * @param {bigint} params.deadline - Expiration timestamp
+ * @param {number} params.chainId - Chain ID
+ * @param {string} params.registryAddress - UniversalAccountRegistry address
+ * @returns {string} bytes32 hex challenge hash
+ */
+export function computeRegistrationChallenge({ accountAddress, username, nonce, deadline, chainId, registryAddress }) {
+  // Domain separator: keccak256(abi.encode(DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, chainId, verifyingContract))
+  const domainSeparator = keccak256(
+    encodeAbiParameters(
+      parseAbiParameters('bytes32, bytes32, bytes32, uint256, address'),
+      [DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, BigInt(chainId), registryAddress]
+    )
+  );
+
+  // Struct hash: keccak256(abi.encode(TYPEHASH, user, keccak256(username), nonce, deadline))
+  const structHash = keccak256(
+    encodeAbiParameters(
+      parseAbiParameters('bytes32, address, bytes32, uint256, uint256'),
+      [REGISTER_PASSKEY_TYPEHASH, accountAddress, keccak256(toBytes(username)), nonce, deadline]
+    )
+  );
+
+  // EIP-712 digest: keccak256("\x19\x01" || domainSeparator || structHash)
+  return keccak256(
+    `0x1901${domainSeparator.slice(2)}${structHash.slice(2)}`
+  );
+}
+
+/**
+ * Sign a registration challenge with a passkey.
+ * Returns the raw WebAuthnAuth fields for use as the `auth` parameter
+ * in registerAndQuickJoinWithPasskey().
+ *
+ * @param {string} challengeHash - bytes32 hex (from computeRegistrationChallenge)
+ * @param {string} rawCredentialIdBase64 - base64url credential ID
+ * @returns {Object} Auth fields for ABI encoding: { authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s }
+ *   All values are hex strings / BigInts ready for encodeFunctionData.
+ */
+export async function signRegistrationChallenge(challengeHash, rawCredentialIdBase64) {
+  const auth = await getWebAuthnAssertion(challengeHash, rawCredentialIdBase64);
+
+  return {
+    authenticatorData: toHex(auth.authenticatorData),
+    clientDataJSON: toHex(auth.clientDataJSON),
+    challengeIndex: BigInt(auth.challengeIndex),
+    typeIndex: BigInt(auth.typeIndex),
+    r: pad(toHex(auth.r), { size: 32 }),
+    s: pad(toHex(auth.s), { size: 32 }),
+  };
 }
 
 /**
@@ -147,4 +241,3 @@ function findFieldIndex(jsonString, fieldName) {
   // Return index of first char of the value (right after the opening quote of the value)
   return idx + searchStr.length;
 }
-

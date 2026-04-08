@@ -1,9 +1,5 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useProjectContext } from './ProjectContext';
-import { useRouter } from 'next/router';
-
-
-
 
 const DataBaseContext = createContext();
 
@@ -12,17 +8,11 @@ export const useDataBaseContext = () => {
 };
 
 export const DataBaseProvider = ({ children }) => {
-    // usestate for projects initalized with mock data with 3 projects and each has an id 
-
-    const router = useRouter();
-    const { userDAO } = router.query;
-
     const {projectsData}= useProjectContext();
 
 
     useEffect(()=>{
         if (typeof projectsData === 'object' && projectsData !== null && Object.keys(projectsData).length !== 0) {
-            console.log("projectsData", projectsData);
             setProjects(projectsData);
 
             // Only set selectedProject if:
@@ -47,49 +37,52 @@ export const DataBaseProvider = ({ children }) => {
     // Projects are populated from ProjectContext via useEffect
     const [projects, setProjects] = useState([]);
 
-
-    function setSelectedProjectId(projectId){
-
-      const project = projects.find(project => project.id === projectId);
-      setSelectedProject(project);
-    }
+    // Ref-stabilize projects so setSelectedProjectId doesn't re-create on every data update
+    const projectsRef = useRef(projects);
+    projectsRef.current = projects;
 
     const [selectedProject,setSelectedProject] = useState('')
 
+    const setSelectedProjectId = useCallback((projectId) => {
+      const project = projectsRef.current.find(project => project.id === projectId);
+      setSelectedProject(project);
+    }, []);
+
     // Placeholder function - username lookup should use subgraph data
-    const getUsernameByAddress = async (address) => {
-      // In POP, usernames are stored in the subgraph via UniversalAccountRegistry
-      // For now, return a truncated address as fallback
+    const getUsernameByAddress = useCallback(async (address) => {
       if (!address) return 'Unknown';
       return `${address.substring(0, 6)}...${address.substring(38)}`;
-    };
+    }, []);
 
-    // Handle column updates from TaskBoard
-    const handleUpdateColumns = (newColumns) => {
-      if (selectedProject) {
-        const updatedProject = { ...selectedProject, columns: newColumns };
-        setSelectedProject(updatedProject);
+    // Handle column updates from TaskBoard.
+    // Accepts an optional projectId to guard against stale updates when the user
+    // switches projects while a transaction is still in-flight.
+    const handleUpdateColumns = useCallback((newColumns, projectId) => {
+      setSelectedProject(prev => {
+        if (!prev) return prev;
+        if (projectId && prev.id !== projectId) return prev;
+        return { ...prev, columns: newColumns };
+      });
 
-        // Update in projects array too
+      if (projectId) {
         setProjects(prev => prev.map(p =>
-          p.id === selectedProject.id ? updatedProject : p
+          p.id === projectId ? { ...p, columns: newColumns } : p
         ));
       }
-    };
+    }, []);
+
+    const contextValue = useMemo(() => ({
+      projects,
+      setSelectedProjectId,
+      selectedProject,
+      setSelectedProject,
+      handleUpdateColumns,
+      getUsernameByAddress,
+    }), [projects, setSelectedProjectId, selectedProject, handleUpdateColumns, getUsernameByAddress]);
 
     return (
-        <DataBaseContext.Provider
-        value={{
-          projects,
-          setSelectedProjectId,
-          selectedProject,
-          setSelectedProject,
-          handleUpdateColumns,
-          getUsernameByAddress,
-        }}
-        >
-        {children}
+        <DataBaseContext.Provider value={contextValue}>
+          {children}
         </DataBaseContext.Provider>
-
       );
     };

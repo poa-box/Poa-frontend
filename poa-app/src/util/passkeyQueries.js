@@ -10,7 +10,7 @@ import { gql } from '@apollo/client';
  */
 export const FETCH_PASSKEY_FACTORY_ADDRESS = gql`
   query FetchPasskeyFactoryAddress {
-    passKeyAccountFactories(first: 1) {
+    passkeyAccountFactories(first: 1) {
       id
       accountBeacon
     }
@@ -38,25 +38,6 @@ export const FETCH_PASSKEY_ACCOUNT = gql`
 `;
 
 /**
- * Fetch org-level passkey configuration (whether passkey onboarding is enabled).
- */
-export const FETCH_PASSKEY_ORG_CONFIG = gql`
-  query FetchPasskeyOrgConfig($orgId: Bytes!) {
-    passkeyOrgConfigs(where: { organization: $orgId }) {
-      id
-      factory {
-        id
-      }
-      organization {
-        id
-        name
-      }
-      enabled
-    }
-  }
-`;
-
-/**
  * Fetch the PaymasterHub solidarity fund status.
  * Used on the homepage to determine if solidarity-funded account creation is available.
  */
@@ -71,17 +52,57 @@ export const FETCH_SOLIDARITY_FUND_STATUS = gql`
 
 /**
  * Fetch paymaster configuration for an organization.
+ * Entity existence = org is registered. isPaused controls whether sponsorship is active.
  */
 export const FETCH_PAYMASTER_ORG_CONFIG = gql`
   query FetchPaymasterOrgConfig($orgId: Bytes!) {
     paymasterOrgConfigs(where: { orgId: $orgId }) {
       id
       orgId
-      isRegistered
       isPaused
-      deposit
-      totalGasSpent
-      transactionCount
+      depositBalance
+      totalSpent
+      totalSolidarityReceived
+    }
+  }
+`;
+
+/**
+ * Fetch gas pool data for an organization's paymaster.
+ * Includes balance, stats, deposit history, and usage history.
+ */
+export const FETCH_GAS_POOL_DATA = gql`
+  query FetchGasPoolData($orgId: Bytes!) {
+    paymasterOrgConfigs(where: { orgId: $orgId }) {
+      id
+      orgId
+      isPaused
+      depositBalance
+      totalDeposited
+      totalSpent
+      totalSolidarityReceived
+      stats {
+        totalUserOps
+        totalGasSponsored
+        totalDeposited
+        totalSolidarityFeesCollected
+        lastOperationAt
+      }
+      depositEvents(first: 50, orderBy: eventAt, orderDirection: desc) {
+        id
+        eventType
+        from
+        amount
+        eventAt
+        transactionHash
+      }
+      usageEvents(first: 50, orderBy: eventAt, orderDirection: desc) {
+        id
+        delta
+        subjectKey
+        eventAt
+        transactionHash
+      }
     }
   }
 `;

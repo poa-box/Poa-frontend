@@ -4,15 +4,15 @@ export const organizations = [
     role: "member",
     status: "Verified",
     dateJoined: "1/1/2024",
-    logoUrl: "/images/poa_logo.png",
-    href: "/profileHub",
+    logoUrl: "/images/poa_logo.webp",
+    href: "/profile",
   },
   {
     title: "Organization B",
     role: "member",
     status: "Pending",
     dateJoined: "3/12/2024",
-    logoUrl: "/images/poa_logo.png",
+    logoUrl: "/images/poa_logo.webp",
     href: "#",
   },
   {
@@ -20,7 +20,7 @@ export const organizations = [
     role: "owner",
     status: "Verified",
     dateJoined: "7/8/2023",
-    logoUrl: "/images/poa_logo.png",
+    logoUrl: "/images/poa_logo.webp",
     href: "#",
   },
 ];

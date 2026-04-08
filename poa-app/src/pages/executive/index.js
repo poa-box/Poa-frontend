@@ -1,5 +1,6 @@
 // pages/executive.js
 
+import SEOHead from "@/components/common/SEOHead";
 import React, { useState, useEffect } from 'react';
 import {
   Box,
@@ -9,9 +10,9 @@ import {
   Button,
   Heading,
   useToast,
-  Spinner,
   Flex,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { usePOContext } from '@/context/POContext';
 
 const ExecutivePage = () => {
@@ -106,26 +107,39 @@ const ExecutivePage = () => {
     }
   };
 
+  const seoHead = (
+    <SEOHead
+      title="Executive Dashboard"
+      description="Executive organization overview."
+      path="/executive"
+      noIndex
+    />
+  );
+
   if (loading || poContextLoading) {
     return (
-      <Box textAlign="center" mt={20}>
-        <Spinner size="xl" />
-      </Box>
+      <>
+        {seoHead}
+        <Box textAlign="center" mt={20}>
+          <PulseLoader size="xl" />
+        </Box>
+      </>
     );
   }
 
   if (error) {
-    return <Text>Error loading data: {error.message}</Text>;
+    return <>{seoHead}<Text>Error loading data: {error.message}</Text></>;
   }
 
   return (
+    <>
+      {seoHead}
     <VStack spacing={8} align="stretch" maxW="1000px" mx="auto" mt={8}>
       {/* Header Box */}
       <Box
-        bg="rgba(0, 0, 0, 0.6)"
+        bg="rgba(0, 0, 0, 0.75)"
         borderRadius="md"
         p={8}
-        backdropFilter="blur(10px)"
       >
         <Heading as="h2" size="xl" color="white" textAlign="center">
           Executive Dashboard
@@ -134,16 +148,15 @@ const ExecutivePage = () => {
 
       {/* List of Executives Box */}
       <Box
-        bg="rgba(0, 0, 0, 0.6)"
+        bg="rgba(0, 0, 0, 0.75)"
         borderRadius="md"
         p={8}
-        backdropFilter="blur(10px)"
       >
         <Heading as="h3" size="lg" mb={4} color="white">
           List of Executives
         </Heading>
         {loadingExecs ? (
-          <Spinner />
+          <PulseLoader />
         ) : executives.length > 0 ? (
           executives.map((exec) => (
             <Box
@@ -165,10 +178,9 @@ const ExecutivePage = () => {
 
       {/* Executive Control Menu Box */}
       <Box
-        bg="rgba(0, 0, 0, 0.6)"
+        bg="rgba(0, 0, 0, 0.75)"
         borderRadius="md"
         p={8}
-        backdropFilter="blur(10px)"
       >
         <Heading as="h3" size="lg" mb={4} color="white">
           Executive Control Menu
@@ -192,6 +204,7 @@ const ExecutivePage = () => {
         </VStack>
       </Box>
     </VStack>
+    </>
   );
 };
 

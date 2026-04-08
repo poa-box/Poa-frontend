@@ -185,7 +185,7 @@ export function RoleForm({
                 colorScheme="green"
               />
               <Tooltip label="Members with this role can participate in governance votes">
-                <Icon as={InfoIcon} ml={2} color="gray.400" />
+                <Icon as={InfoIcon} ml={2} color="warmGray.400" />
               </Tooltip>
             </FormControl>
           </VStack>
@@ -235,7 +235,7 @@ export function RoleForm({
           </HStack>
 
           <Collapse in={vouchingDisclosure.isOpen}>
-            <VStack spacing={4} align="stretch" pl={4} borderLeft="2px solid" borderColor="gray.200">
+            <VStack spacing={4} align="stretch" pl={4} borderLeft="2px solid" borderColor="warmGray.200">
               <FormControl display="flex" alignItems="center">
                 <FormLabel mb={0}>Enable Vouching</FormLabel>
                 <Switch
@@ -292,7 +292,7 @@ export function RoleForm({
                       onChange={(e) => updateField('vouching.combineWithHierarchy', e.target.checked)}
                     />
                     <Tooltip label="If enabled, parent admins can also vouch">
-                      <Icon as={InfoIcon} ml={2} color="gray.400" />
+                      <Icon as={InfoIcon} ml={2} color="warmGray.400" />
                     </Tooltip>
                   </FormControl>
                 </>
@@ -311,9 +311,9 @@ export function RoleForm({
           </HStack>
 
           <Collapse in={advancedDisclosure.isOpen}>
-            <VStack spacing={4} align="stretch" pl={4} borderLeft="2px solid" borderColor="gray.200">
+            <VStack spacing={4} align="stretch" pl={4} borderLeft="2px solid" borderColor="warmGray.200">
               {/* Defaults */}
-              <Heading size="xs" color="gray.600">Member Defaults</Heading>
+              <Heading size="xs" color="warmGray.600">Member Defaults</Heading>
 
               <HStack spacing={8}>
                 <FormControl display="flex" alignItems="center">
@@ -336,7 +336,7 @@ export function RoleForm({
               </HStack>
 
               {/* Hat Config */}
-              <Heading size="xs" color="gray.600" mt={2}>Hat Configuration</Heading>
+              <Heading size="xs" color="warmGray.600" mt={2}>Hat Configuration</Heading>
 
               <FormControl isInvalid={!!errors['hatConfig.maxSupply']}>
                 <FormLabel fontSize="sm">Max Supply</FormLabel>
@@ -367,12 +367,12 @@ export function RoleForm({
                   size="sm"
                 />
                 <Tooltip label="If enabled, role settings can be modified after creation">
-                  <Icon as={InfoIcon} ml={2} color="gray.400" />
+                  <Icon as={InfoIcon} ml={2} color="warmGray.400" />
                 </Tooltip>
               </FormControl>
 
               {/* Distribution */}
-              <Heading size="xs" color="gray.600" mt={2}>Initial Distribution</Heading>
+              <Heading size="xs" color="warmGray.600" mt={2}>Initial Distribution</Heading>
 
               <HStack spacing={8}>
                 <FormControl display="flex" alignItems="center">
@@ -384,7 +384,7 @@ export function RoleForm({
                     colorScheme="green"
                   />
                   <Tooltip label="You will receive this role when the org is deployed">
-                    <Icon as={InfoIcon} ml={2} color="gray.400" boxSize={3} />
+                    <Icon as={InfoIcon} ml={2} color="warmGray.400" boxSize={3} />
                   </Tooltip>
                 </FormControl>
 
@@ -395,7 +395,7 @@ export function RoleForm({
                 <FormLabel fontSize="sm">
                   Additional Members
                   <Tooltip label="Enter usernames of people who should receive this role when the org is deployed. Usernames must be registered in the system.">
-                    <Icon as={InfoIcon} ml={2} color="gray.400" boxSize={3} />
+                    <Icon as={InfoIcon} ml={2} color="warmGray.400" boxSize={3} />
                   </Tooltip>
                 </FormLabel>
                 <VStack align="stretch" spacing={2}>

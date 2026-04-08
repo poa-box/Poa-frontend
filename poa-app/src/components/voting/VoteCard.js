@@ -9,8 +9,7 @@ const glassLayerStyle = {
   width: "100%",
   zIndex: -1,
   borderRadius: "inherit",
-  backdropFilter: "blur(20px)",
-  backgroundColor: "rgba(0, 0, 0, .8)",
+  backgroundColor: "rgba(0, 0, 0, .85)",
   boxShadow: "inset 0 0 15px rgba(148, 115, 220, 0.15)",
   border: "1px solid rgba(148, 115, 220, 0.2)",
 };
@@ -27,7 +26,6 @@ const VoteCard = ({
   const needsWinnerAnnouncement = proposal.isExpired || showDetermineWinner;
   // Use responsive sizing based on breakpoints
   const titleFontSize = useBreakpointValue({ base: "sm", sm: "md" });
-  const cardHeight = useBreakpointValue({ base: "180px", sm: "200px" });
   const cardPadding = useBreakpointValue({ base: 3, sm: 4 });
 
   // Truncate description to first 100 characters
@@ -52,8 +50,8 @@ const VoteCard = ({
       color="rgba(333, 333, 333, 1)"
       p={cardPadding}
       zIndex={1}
-      h={cardHeight}
-      transition="all 0.3s ease"
+      minH="180px"
+      transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
       cursor="pointer"
       _hover={{
         transform: "translateY(-5px) scale(1.02)",
@@ -79,10 +77,10 @@ const VoteCard = ({
         bottom={0}
         borderRadius="inherit"
         zIndex={-1}
-        transition="all 0.3s ease"
+        transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
       />
 
-      <VStack spacing={1} align="stretch" w="100%" h="100%" justify="space-between">
+      <VStack spacing={2} align="stretch" w="100%" justify="space-between">
         {/* Title */}
         <Box>
           <Text
@@ -113,7 +111,7 @@ const VoteCard = ({
         )}
 
         {/* Time or Announce Winner button */}
-        <Flex justify="center" align="center" py={2}>
+        <Flex justify="center" align="center" py={1}>
           {needsWinnerAnnouncement ? (
             <Button
               colorScheme="purple"
