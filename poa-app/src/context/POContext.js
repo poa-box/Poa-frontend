@@ -385,7 +385,10 @@ export const POProvider = ({ children }) => {
             try {
                 const metadata = await safeFetchFromIpfs(org.metadataHash);
                 dispatch({ type: 'SET_LOGO_URL', payload: metadata?.logo || '' });
-                dispatch({ type: 'SET_ORG_DATA', payload: { hideTreasury: metadata?.hideTreasury === true } });
+                dispatch({ type: 'SET_ORG_DATA', payload: {
+                    hideTreasury: metadata?.hideTreasury === true,
+                    backgroundColor: metadata?.backgroundColor || null,
+                } });
             } catch (e) {
                 console.warn('[POContext] Failed to fetch metadata from IPFS:', e);
             }

@@ -506,7 +506,9 @@ export default function OrgMetadataEditor({
 
           {/* Background Color */}
           <FormControl>
-            <FormLabel color="gray.300">Background Color</FormLabel>
+            <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={2}>
+              Background Color
+            </FormLabel>
             <HStack spacing={3}>
               <Input
                 type="color"
@@ -516,14 +518,14 @@ export default function OrgMetadataEditor({
                 h="40px"
                 p={1}
                 cursor="pointer"
-                borderColor="gray.600"
+                borderColor="warmGray.200"
               />
               <Input
                 value={bgColor}
                 onChange={(e) => setBgColor(e.target.value)}
                 placeholder="#1a1a2e or linear-gradient(...)"
-                bg="whiteAlpha.100"
-                borderColor="gray.600"
+                bg="white"
+                borderColor="warmGray.200"
                 flex={1}
               />
               {bgColor && (
@@ -537,7 +539,7 @@ export default function OrgMetadataEditor({
                 />
               )}
             </HStack>
-            <FormHelperText color="gray.500">
+            <FormHelperText color="warmGray.400" fontSize="xs">
               CSS color (hex, rgba) or gradient. Leave empty for default.
             </FormHelperText>
             {bgColor && (
@@ -547,7 +549,7 @@ export default function OrgMetadataEditor({
                 borderRadius="md"
                 background={bgColor}
                 border="1px solid"
-                borderColor="gray.600"
+                borderColor="warmGray.200"
               />
             )}
           </FormControl>
