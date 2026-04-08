@@ -155,6 +155,7 @@ const PublicProfilePage = () => {
                     <Avatar
                       size="2xl"
                       name={displayName}
+                      src={meta?.avatar ? `https://ipfs.io/ipfs/${meta.avatar}` : undefined}
                       bg="purple.500"
                     />
 

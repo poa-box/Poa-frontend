@@ -130,6 +130,7 @@ function LeaderboardUserModal({ isOpen, onClose, user, rank, roleNames = {} }) {
             <Avatar
               size="xl"
               name={user.name}
+              src={user.avatarCid ? `https://ipfs.io/ipfs/${user.avatarCid}` : undefined}
               bg="purple.500"
               border={`3px solid ${medalColor || 'purple.400'}`}
             />

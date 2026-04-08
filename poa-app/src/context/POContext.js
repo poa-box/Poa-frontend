@@ -28,6 +28,7 @@ function transformLeaderboardData(users, roleHatIds) {
             address: user.address,
             name: user.account?.username || user.address?.slice(0, 8) + '...',
             hasUsername: !!user.account?.username,
+            avatarCid: user.account?.metadata?.avatar || null,
             token: formattedBalance,
             // Derive role from hat IDs - first hat is typically the primary role
             hatIds: user.currentHatIds || [],
@@ -159,6 +160,17 @@ export const POProvider = ({ children }) => {
     // Filtered leaderboard for display (only users with registered usernames)
     const leaderboardDisplayData = useMemo(() => {
         return state.leaderboardData.filter(user => user.hasUsername);
+    }, [state.leaderboardData]);
+
+    // Username → avatar IPFS URL map for components to look up profile pictures
+    const avatarMap = useMemo(() => {
+        const map = {};
+        for (const user of state.leaderboardData) {
+            if (user.name && user.avatarCid) {
+                map[user.name] = `https://ipfs.io/ipfs/${user.avatarCid}`;
+            }
+        }
+        return map;
     }, [state.leaderboardData]);
 
     // Step 1: Look up org by name across all chains via parallel fetch
@@ -505,6 +517,7 @@ export const POProvider = ({ children }) => {
         error: errorMessage ? { message: errorMessage } : null,
         leaderboardData: state.leaderboardData,
         leaderboardDisplayData,
+        avatarMap,
         poContextLoading: state.poContextLoading,
         rules: state.rules,
         educationModules: state.educationModules,
@@ -517,7 +530,7 @@ export const POProvider = ({ children }) => {
         hideTreasury: state.hideTreasury,
         roleNames: state.roleNames,
         roleCanVoteMap: state.roleCanVoteMap,
-    }), [state, loading, errorMessage, leaderboardDisplayData, subgraphUrl]);
+    }), [state, loading, errorMessage, leaderboardDisplayData, avatarMap, subgraphUrl]);
 
     return (
         <POContext.Provider value={contextValue}>

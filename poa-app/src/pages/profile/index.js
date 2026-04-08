@@ -16,6 +16,7 @@ import { FiClock, FiInbox, FiBarChart2 } from 'react-icons/fi';
 import AccountSettingsModal from '@/components/userPage/AccountSettingsModal';
 import { useVotingContext } from '@/context/VotingContext';
 import { useUserContext } from '@/context/UserContext';
+import { usePOContext } from '@/context/POContext';
 import { useProjectContext } from '@/context/ProjectContext';
 import Link2 from 'next/link';
 import { useRouter } from 'next/router';
@@ -189,6 +190,8 @@ const UserprofileHub = () => {
   const { ongoingPolls } = useVotingContext();
   const { recommendedTasks } = useProjectContext();
   const { claimedTasks, userProposals, graphUsername, userDataLoading, error, userData, hasExecRole, hasMemberRole, hasApproverRole } = useUserContext();
+  const poContext = usePOContext();
+  const avatarMap = poContext?.avatarMap || {};
 
   // Fetch org structure for roles and claim page
   const { roles, eligibilityModuleAddress, orgName, orgMetadata, permissionsMatrix, loading: orgLoading } = useOrgStructure();
@@ -326,6 +329,7 @@ const UserprofileHub = () => {
             <ProfileHeader
               username={userInfo.username}
               address={userInfo.accountAddress}
+              avatarUrl={avatarMap[userInfo.username]}
               userRoles={userRoles}
               isExec={hasExecRole}
               onSettingsClick={() => setSettingsModalOpen(true)}

@@ -1,6 +1,6 @@
 /**
  * ProfileEditor
- * Edit form for user profile metadata (bio, GitHub, website).
+ * Edit form for user profile metadata (bio, avatar, GitHub, website).
  * Handles IPFS upload + on-chain setProfileMetadata for both EOA and passkey users.
  */
 
@@ -17,10 +17,12 @@ import {
   Alert,
   AlertIcon,
   Spinner,
+  Divider,
   useToast,
 } from '@chakra-ui/react';
 import { useProfileUpdate } from '@/hooks/useProfileUpdate';
 import { useRefreshEmit } from '@/context/RefreshContext';
+import AvatarUpload from '@/components/account/AvatarUpload';
 
 const STEP_LABELS = {
   idle: '',
@@ -42,6 +44,8 @@ const ProfileEditor = ({ currentMetadata, onSuccess }) => {
   const [github, setGithub] = useState('');
   const [twitter, setTwitter] = useState('');
   const [website, setWebsite] = useState('');
+  const [avatarCid, setAvatarCid] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState(null);
 
   // Initialize form with current metadata
   useEffect(() => {
@@ -50,6 +54,8 @@ const ProfileEditor = ({ currentMetadata, onSuccess }) => {
       setGithub(currentMetadata.github || '');
       setTwitter(currentMetadata.twitter || '');
       setWebsite(currentMetadata.website || '');
+      setAvatarCid(currentMetadata.avatar || '');
+      setAvatarPreview(null);
     }
   }, [currentMetadata]);
 
@@ -57,6 +63,7 @@ const ProfileEditor = ({ currentMetadata, onSuccess }) => {
     try {
       const profileData = {};
       if (bio.trim()) profileData.bio = bio.trim();
+      if (avatarCid) profileData.avatar = avatarCid;
       if (github.trim()) profileData.github = github.trim();
       if (twitter.trim()) profileData.twitter = twitter.trim();
       if (website.trim()) profileData.website = website.trim();
@@ -88,6 +95,7 @@ const ProfileEditor = ({ currentMetadata, onSuccess }) => {
 
   const hasChanges = (
     (bio.trim() || '') !== (currentMetadata?.bio || '') ||
+    (avatarCid || '') !== (currentMetadata?.avatar || '') ||
     (github.trim() || '') !== (currentMetadata?.github || '') ||
     (twitter.trim() || '') !== (currentMetadata?.twitter || '') ||
     (website.trim() || '') !== (currentMetadata?.website || '')
@@ -95,6 +103,18 @@ const ProfileEditor = ({ currentMetadata, onSuccess }) => {
 
   return (
     <VStack spacing={4} align="stretch">
+      <VStack spacing={2}>
+        <AvatarUpload
+          avatarCid={avatarCid}
+          localPreview={avatarPreview}
+          onUpload={(cid, preview) => { setAvatarCid(cid); setAvatarPreview(preview); }}
+          onRemove={() => { setAvatarCid(''); setAvatarPreview(null); }}
+          isDisabled={isUpdating}
+        />
+      </VStack>
+
+      <Divider borderColor="whiteAlpha.200" />
+
       <FormControl>
         <FormLabel fontSize="sm" color="gray.400">Bio</FormLabel>
         <Textarea
