@@ -17,6 +17,7 @@ import {
   Box,
   Badge,
   Spacer,
+  Image,
   useToast,
 } from '@chakra-ui/react';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
@@ -148,11 +149,25 @@ const TaskApplicationModal = ({ isOpen, onClose, onApply, task }) => {
                   <Text fontSize="xs" color="green.300" fontWeight="bold">
                     {task.Payout} shares
                   </Text>
-                  {checkHasBounty(task.bountyToken, task.bountyPayout) && (
-                    <Text fontSize="xs" color="green.400" fontWeight="bold">
-                      + {task.bountyPayout} {getTokenByAddress(task.bountyToken).symbol}
-                    </Text>
-                  )}
+                  {checkHasBounty(task.bountyToken, task.bountyPayout) && (() => {
+                    const tokenInfo = getTokenByAddress(task.bountyToken);
+                    return (
+                      <HStack spacing={1}>
+                        {tokenInfo.logo && (
+                          <Image
+                            src={tokenInfo.logo}
+                            alt={tokenInfo.symbol}
+                            boxSize="14px"
+                            borderRadius="full"
+                            fallback={<></>}
+                          />
+                        )}
+                        <Text fontSize="xs" color="green.400" fontWeight="bold">
+                          + {task.bountyPayout} {tokenInfo.symbol}
+                        </Text>
+                      </HStack>
+                    );
+                  })()}
                 </HStack>
               </Box>
             )}
