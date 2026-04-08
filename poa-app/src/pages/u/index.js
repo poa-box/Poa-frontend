@@ -122,7 +122,7 @@ const PublicProfilePage = () => {
       <Box minH="100vh" bgGradient={bgGradient}>
         <Navbar />
 
-        <Container maxW="container.lg" pt={8} pb={8}>
+        <Container maxW="container.lg" pt={["24", "28", "32"]} pb={8}>
           {loading ? (
             <VStack spacing={6}>
               <Skeleton height="250px" width="100%" borderRadius="2xl" />
