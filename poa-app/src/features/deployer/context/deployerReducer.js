@@ -92,11 +92,11 @@ export const PERMISSION_DESCRIPTIONS = {
   },
   tokenMemberRoles: {
     label: 'Token Member',
-    description: 'Roles that can hold and receive participation tokens',
+    description: 'Roles that can earn and hold shares',
   },
   tokenApproverRoles: {
     label: 'Token Approver',
-    description: 'Roles that can approve token transfer requests',
+    description: 'Roles that can approve share requests',
   },
   taskCreatorRoles: {
     label: 'Task Creator',

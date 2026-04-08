@@ -42,21 +42,21 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
   const { subgraphUrl } = usePOContext();
   const normalizedUserAddress = normalizeAddress(userAddress);
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Fetch vouches from subgraph
   const { data, loading, error, refetch } = useQuery(FETCH_VOUCHES_FOR_ORG, {
     variables: { eligibilityModuleId: eligibilityModuleAddress },
     skip: !eligibilityModuleAddress,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
-  // Subscribe to refresh events for real-time updates
+  // Refetch immediately — executeWithNotification already waited for the
+  // subgraph to index the transaction block before emitting these events.
   useRefreshSubscription(
     ['role:vouched', 'role:vouch-revoked', 'role:claimed'],
-    useCallback(() => {
-      // Delay refetch to allow subgraph to index
-      setTimeout(() => refetch(), 1500);
-    }, [refetch])
+    useCallback(() => refetch(), [refetch])
   );
 
   // Create a map of quorums by hatId for quick lookup
@@ -259,15 +259,6 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
     const normalizedUserHatIds = userHatIds.map(id => normalizeHatId(id));
 
     const canVouch = normalizedUserHatIds.includes(normalizedMembershipHatId);
-
-    // Debug logging
-    console.log('[canUserVouchForRole] Check:', {
-      membershipHatId,
-      normalizedMembershipHatId,
-      userHatIds,
-      normalizedUserHatIds,
-      canVouch,
-    });
 
     return canVouch;
   }, []);

@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkRehype from "remark-rehype";
-import { Box, Text, Heading, Link, ListItem, OrderedList, UnorderedList, Code, Divider, Spinner, VStack } from "@chakra-ui/react";
+import { Box, Text, Heading, Link, ListItem, OrderedList, UnorderedList, Code, Divider, VStack } from "@chakra-ui/react";
+import PulseLoader from "@/components/shared/PulseLoader";
 
 // Utility to help with debugging
 const debugLog = (message, condition = true) => {
@@ -337,7 +338,7 @@ const SpeechBubble = ({ speaker, children, containerRef, isTyping, isLastMessage
       <Box p="0">
         {isTyping ? (
           <VStack align="center" spacing={2} py={2}>
-            <Spinner size="sm" />
+            <PulseLoader size="sm" />
             <Text fontSize="sm">Consulting Poa...</Text>
           </VStack>
         ) : isUser ? (

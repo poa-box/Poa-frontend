@@ -34,12 +34,12 @@ import {
   Card,
   CardBody,
   useToast,
-  Spinner,
   IconButton,
   Alert,
   AlertIcon,
   useDisclosure,
 } from "@chakra-ui/react";
+import PulseLoader from "@/components/shared/PulseLoader";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAccount } from 'wagmi';
@@ -94,7 +94,9 @@ const User = () => {
     if (!addr) return;
     findUsernameAcrossChains(addr).then(({ username }) => {
       if (username) setCrossChainUsername(username);
-    }).catch(() => {});
+    }).catch((err) => {
+      console.warn('[UserPage] Cross-chain username lookup failed:', err);
+    });
   }, [accountAddress, address]);
 
   const [newUsername, setNewUsername] = useState("");
@@ -650,6 +652,31 @@ const User = () => {
                         ))}
                       </VStack>
 
+                      {!isAuthenticated && (
+                        <>
+                          <Divider borderColor="whiteAlpha.200" />
+                          <VStack spacing={2}>
+                            <Text color={subtextColor} fontSize="sm" textAlign="center">
+                              Already have an account?
+                            </Text>
+                            <Button
+                              onClick={onSignInOpen}
+                              width="100%"
+                              size="lg"
+                              height={buttonHeight}
+                              fontSize={{ base: "md", md: "lg" }}
+                              colorScheme="teal"
+                              variant="outline"
+                              leftIcon={<FaFingerprint />}
+                              _hover={{ transform: "translateY(-2px)", boxShadow: "lg", bg: "whiteAlpha.100" }}
+                              transition="all 0.2s"
+                            >
+                              Sign In
+                            </Button>
+                          </VStack>
+                        </>
+                      )}
+
                     </VStack>
                   )}
                 </CardBody>
@@ -756,7 +783,7 @@ const User = () => {
                       {/* Onboarding step progress (when completing) */}
                       {vouchFirstHook.phase === VouchFirstPhase.COMPLETING && vouchFirstHook.stepMessage && (
                         <HStack justify="center" spacing={2}>
-                          <Spinner size="sm" color="teal.400" />
+                          <PulseLoader size="sm" color="teal.400" />
                           <Text fontSize="sm" color={textColor}>{vouchFirstHook.stepMessage}</Text>
                         </HStack>
                       )}
@@ -826,7 +853,7 @@ const User = () => {
                   ) : isAuthenticated ? (
                     orgStructureLoading ? (
                       <VStack spacing={6} align="center" py={12}>
-                        <Spinner size="lg" color="teal.400" />
+                        <PulseLoader size="lg" color="teal.400" />
                         <Text color={subtextColor} fontSize="sm">
                           Loading organization details...
                         </Text>
@@ -1310,7 +1337,7 @@ const User = () => {
                   /* ── Branch 5: Not authenticated + vouch-gated → credential creation + vouch link ── */
                   ) : !isAuthenticated && orgStructureLoading ? (
                     <VStack spacing={6} align="center" py={12}>
-                      <Spinner size="lg" color="teal.400" />
+                      <PulseLoader size="lg" color="teal.400" />
                       <Text color={subtextColor} fontSize="sm">
                         Loading organization details...
                       </Text>

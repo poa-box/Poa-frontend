@@ -11,7 +11,6 @@ import {
   Link,
   Image,
   Button,
-  Spinner,
   Center,
   useBreakpointValue,
   useClipboard,
@@ -26,6 +25,7 @@ import {
   Tooltip,
 } from '@chakra-ui/react';
 import PostDeployLoadingScreen from '@/components/shared/PostDeployLoadingScreen';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useVotingContext } from '@/context/VotingContext';
 import { usePOContext } from '@/context/POContext';
 import { useProjectContext } from '@/context/ProjectContext';
@@ -125,7 +125,7 @@ const PerpetualOrgDashboard = () => {
           <PostDeployLoadingScreen orgName={userDAO} />
         ) : (
           <Center height="100vh">
-            <Spinner size="xl" />
+            <PulseLoader size="xl" />
           </Center>
         )
       ) : (

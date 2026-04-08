@@ -62,6 +62,47 @@ export const FETCH_PAYMASTER_ORG_CONFIG = gql`
       isPaused
       depositBalance
       totalSpent
+      totalSolidarityReceived
+    }
+  }
+`;
+
+/**
+ * Fetch gas pool data for an organization's paymaster.
+ * Includes balance, stats, deposit history, and usage history.
+ */
+export const FETCH_GAS_POOL_DATA = gql`
+  query FetchGasPoolData($orgId: Bytes!) {
+    paymasterOrgConfigs(where: { orgId: $orgId }) {
+      id
+      orgId
+      isPaused
+      depositBalance
+      totalDeposited
+      totalSpent
+      totalSolidarityReceived
+      stats {
+        totalUserOps
+        totalGasSponsored
+        totalDeposited
+        totalSolidarityFeesCollected
+        lastOperationAt
+      }
+      depositEvents(first: 50, orderBy: eventAt, orderDirection: desc) {
+        id
+        eventType
+        from
+        amount
+        eventAt
+        transactionHash
+      }
+      usageEvents(first: 50, orderBy: eventAt, orderDirection: desc) {
+        id
+        delta
+        subjectKey
+        eventAt
+        transactionHash
+      }
     }
   }
 `;

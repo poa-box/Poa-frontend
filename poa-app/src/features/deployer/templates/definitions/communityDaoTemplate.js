@@ -62,7 +62,7 @@ export const communityDaoTemplate = {
       },
       {
         name: 'Track Engagement',
-        description: 'Participation tokens recognize those who show up consistently. Attending meetings, voting, volunteering—it all counts and it all matters.',
+        description: 'Shares recognize those who show up consistently. Attending meetings, voting, volunteering—it all counts and it all matters.',
         icon: '⭐',
       },
       {
@@ -88,7 +88,7 @@ while still rewarding those who consistently show up.
 
 **Hybrid voting with a 50/50 split** captures this balance perfectly: half your
 voting power comes from membership (democracy), half from engagement (participation
-tokens). Everyone matters, but those who consistently show up have earned more
+shares). Everyone matters, but those who consistently show up have earned more
 influence. It's the digital town hall that actually works.`,
 
     keyPrinciple: `Balance voice with presence. Everyone deserves the right to
@@ -103,7 +103,7 @@ and Bankless prove that decentralized communities can coordinate at scale.`,
 
     whatHybridVotingMeans: `With a 50/50 hybrid in your community organization:
 - 50% of voting power comes from membership (one person, one vote)
-- 50% comes from participation tokens (earned through engagement)
+- 50% comes from shares (earned through engagement)
 
 **Example:** Voting on a community grant program in a 100-member organization:
 - Every member has at least 0.5% voting power just from membership
@@ -430,16 +430,16 @@ the community. May need governance reform to give votes actual power.`,
         title: 'Balanced Community Voting',
         short: 'Equal membership rights plus earned influence from engagement',
         detailed: `The 50/50 hybrid means half your voting power comes from just
-being a community member (everyone equal), and half from your participation
-tokens (earned through engagement). This balances the democratic ideal that
+being a community member (everyone equal), and half from your
+shares (earned through engagement). This balances the democratic ideal that
 everyone matters with the practical reality that engaged members understand
 issues more deeply.`,
         whenToUse: 'Start at 50/50. Shift toward democracy for high-engagement communities, toward participation for low-engagement.',
       },
       'participation-tokens': {
         title: 'Engagement Recognition',
-        short: 'Tokens that track your community engagement',
-        detailed: `Participation tokens recognize consistent community engagement:
+        short: 'Shares that track your community engagement',
+        detailed: `Shares recognize consistent community engagement:
 voting, attending meetings, volunteering, contributing to initiatives. They're
 not currency—they're a record of who shows up. Members who engage more have
 earned more influence in community decisions.`,

@@ -1,9 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { FETCH_PROJECTS_DATA_NEW } from '../util/queries';
-import { useRouter } from 'next/router';
-import { useAuth } from './AuthContext';
 import { usePOContext } from './POContext';
+import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { getTokenByAddress } from '../util/tokens';
 
@@ -21,60 +20,55 @@ const STATUS_TO_COLUMN = {
 
 export const ProjectProvider = ({ children }) => {
     const [projectsData, setProjectsData] = useState([]);
-    const [taskCount, setTaskCount] = useState(0);
-    const [recommendedTasks, setRecommendedTasks] = useState([]);
-    const { accountAddress: address } = useAuth();
+    const [nextTaskId, setNextTaskId] = useState(0);
     const { orgId, subgraphUrl } = usePOContext();
 
-    const router = useRouter();
+    const apolloContext = React.useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
     // pollInterval keeps task data fresh. cache-and-network shows cached data instantly.
     // 40s balances liveness against The Graph Studio rate limits.
-    const { data, loading, error } = useQuery(FETCH_PROJECTS_DATA_NEW, {
+    const { data, refetch } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-and-network',
         pollInterval: 40000,
-        context: { subgraphUrl },
+        context: apolloContext,
     });
+
+    // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
+
+    // Refetch immediately — executeWithNotification already waited for the
+    // subgraph to index the transaction block before emitting the event.
+    const handleRefresh = useCallback(() => {
+        if (orgId) {
+            refetchRef.current();
+        }
+    }, [orgId]);
+
+    useRefreshSubscription(
+        [
+            RefreshEvent.PROJECT_CREATED,
+            RefreshEvent.PROJECT_DELETED,
+            RefreshEvent.TASK_CREATED,
+            RefreshEvent.TASK_CLAIMED,
+            RefreshEvent.TASK_SUBMITTED,
+            RefreshEvent.TASK_COMPLETED,
+            RefreshEvent.TASK_UPDATED,
+            RefreshEvent.TASK_CANCELLED,
+            RefreshEvent.TASK_REJECTED,
+            RefreshEvent.TASK_ASSIGNED,
+            RefreshEvent.TASK_APPLICATION_SUBMITTED,
+            RefreshEvent.TASK_APPLICATION_APPROVED,
+        ],
+        handleRefresh,
+        [handleRefresh]
+    );
 
     useEffect(() => {
         if (data?.organization?.taskManager) {
             const projects = data.organization.taskManager.projects || [];
-
-            let totalTasks = 0;
-            projects.forEach(project => {
-                project.tasks?.forEach(task => {
-                    if (task.status !== 'Cancelled') totalTasks++;
-                });
-            });
-            setTaskCount(totalTasks);
-
-            // Get recommended tasks (open tasks, randomly sorted)
-            const openTasks = projects
-                .flatMap(project =>
-                    (project.tasks || [])
-                        .filter(task => task.status === 'Open')
-                        .map(task => {
-                            const taskPayout = formatTokenAmount(task.payout || '0');
-                            return {
-                                ...task,
-                                title: task.title || 'Indexing...',
-                                name: task.title || 'Indexing...', // Alias for TaskManager components
-                                description: '', // In IPFS
-                                difficulty: 'medium', // Default
-                                estHours: 1, // Default
-                                payout: taskPayout,
-                                Payout: taskPayout,
-                                kubixPayout: taskPayout,
-                                projectId: project.id,
-                                projectTitle: project.title,
-                                isIndexing: !task.title,
-                            };
-                        })
-                )
-;
-            setRecommendedTasks(openTasks);
 
             // Transform projects for kanban board
             const transformedProjects = projects.map(project => {
@@ -87,6 +81,7 @@ export const ProjectProvider = ({ children }) => {
                     // Use indexed metadata from subgraph as primary source
                     description: project.metadata?.description || '',
                     cap: project.cap,
+                    bountyCaps: project.bountyCaps || [],
                     rolePermissions: project.rolePermissions || [],
                     columns: [
                         { id: 'open', title: 'Open', tasks: [] },
@@ -121,7 +116,8 @@ export const ProjectProvider = ({ children }) => {
                         Payout: taskPayout, // Alias with capital P for TaskCard
                         kubixPayout: taskPayout, // Alias for TaskColumn
                         bountyToken: task.bountyToken,
-                        bountyPayout: formatTokenAmount(task.bountyPayout || '0', bountyTokenInfo.decimals, bountyTokenInfo.decimals <= 6 ? 2 : 0),
+                        bountyPayoutRaw: task.bountyPayout || '0',
+                        bountyPayout: formatTokenAmount(task.bountyPayout || '0', bountyTokenInfo.decimals, bountyTokenInfo.decimals <= 6 ? 2 : 2),
                         projectId: project.id,
                         status: task.status,
                         claimerUsername: task.assigneeUsername || '',
@@ -160,17 +156,48 @@ export const ProjectProvider = ({ children }) => {
                 return transformedProject;
             });
 
+            // Compute nextTaskId from raw data (includes cancelled tasks) so optimistic
+            // IDs never collide with cancelled task IDs that are filtered from projectsData.
+            let maxTaskId = -1;
+            projects.forEach(project => {
+                (project.tasks || []).forEach(task => {
+                    const numId = parseInt(task.taskId, 10);
+                    if (!isNaN(numId) && numId > maxTaskId) maxTaskId = numId;
+                });
+            });
+            setNextTaskId(maxTaskId + 1);
+
             setProjectsData(transformedProjects);
         }
     }, [data]);
+
+    // Derive taskCount from projectsData (correctly excludes cancelled tasks)
+    const taskCount = useMemo(() => {
+        let totalTasks = 0;
+        projectsData.forEach(project => {
+            project.columns?.forEach(col => {
+                totalTasks += col.tasks?.length || 0;
+            });
+        });
+        return totalTasks;
+    }, [projectsData]);
+
+    // Derive recommended (open) tasks from projectsData
+    const recommendedTasks = useMemo(() => {
+        return projectsData.flatMap(project =>
+            (project.columns?.find(c => c.id === 'open')?.tasks || []).map(task => ({
+                ...task,
+                projectTitle: project.title,
+            }))
+        );
+    }, [projectsData]);
 
     const contextValue = useMemo(() => ({
         projectsData,
         taskCount,
         recommendedTasks,
-        loading,
-        error,
-    }), [projectsData, taskCount, recommendedTasks, loading, error]);
+        nextTaskId,
+    }), [projectsData, taskCount, recommendedTasks, nextTaskId]);
 
     return (
         <ProjectContext.Provider value={contextValue}>

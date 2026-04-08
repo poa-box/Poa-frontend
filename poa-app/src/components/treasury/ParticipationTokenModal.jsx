@@ -18,9 +18,9 @@ import {
   Th,
   Td,
   Badge,
-  Spinner,
   Center,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
 import {
   AreaChart,
@@ -114,11 +114,13 @@ const CustomTooltip = ({ active, payload, label }) => {
 const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks = [], tokenAddress }) => {
   const { leaderboardData, subgraphUrl } = usePOContext();
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Fetch token requests
   const { data: requestsData, loading: requestsLoading } = useQuery(FETCH_ALL_TOKEN_REQUESTS, {
     variables: { tokenAddress: tokenAddress?.toLowerCase() },
     skip: !tokenAddress || !isOpen,
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
   // Get approved token requests
@@ -147,7 +149,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
       type: 'request',
       amount: r.amount,
       timestamp: parseInt(r.approvedAt),
-      title: 'Token Request',
+      title: 'Share Request',
       recipient: r.requester
         ? `${r.requester.slice(0, 6)}...${r.requester.slice(-4)}`
         : 'Unknown',
@@ -322,14 +324,14 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
         <Box style={glassLayerStyle} />
 
         <ModalHeader color="white" fontSize="xl" fontWeight="bold" pb={2}>
-          Participation Token Stats
+          Share Activity
         </ModalHeader>
         <ModalCloseButton color="white" />
 
         <ModalBody pb={6}>
           {requestsLoading ? (
             <Center py={8}>
-              <Spinner size="lg" color="purple.400" />
+              <PulseLoader size="lg" color="purple.400" />
             </Center>
           ) : (
             <VStack spacing={6} align="stretch">
@@ -338,7 +340,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                 <StatCard
                   label="Total Supply"
                   value={formatTokenAmount(stats.supply.toString(), 18, 0)}
-                  subtext="tokens minted"
+                  subtext="shares minted"
                 />
                 <StatCard
                   label="Holders"
@@ -539,7 +541,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                 <Box textAlign="center" py={6}>
                   <Text color="gray.400">No mint events yet</Text>
                   <Text fontSize="sm" color="gray.500">
-                    Tokens are minted from completed tasks and approved requests
+                    Shares are minted from completed tasks and approved requests
                   </Text>
                 </Box>
               )}

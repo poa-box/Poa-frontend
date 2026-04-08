@@ -9,12 +9,12 @@ import {
   VStack,
   Heading,
   Text,
-  Spinner,
   Center,
   Button,
   Alert,
   AlertIcon,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { FiArrowLeft } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
@@ -121,7 +121,7 @@ const OrgStructurePage = () => {
         <Navbar />
         <Center minH="60vh">
           <VStack spacing={4}>
-            <Spinner size="xl" color="purple.400" thickness="4px" />
+            <PulseLoader size="xl" color="purple.400" />
             <Text color="gray.400">Loading organization structure...</Text>
           </VStack>
         </Center>

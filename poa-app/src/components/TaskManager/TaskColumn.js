@@ -176,9 +176,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
     accept: 'task',
     canDrop: () => true, // Always allow dropping
     drop: async(item) => {
-      console.log(`Attempting to drop in ${title} column:`, item);
-
-      if (!hasMemberRoleRef.current && title != 'Completed') {
+      if (!hasMemberRoleRef.current && title !== 'Completed') {
         toast({
           title: 'Membership Required',
           description: 'You must be a member to move tasks. Go to user page to join.',
@@ -202,10 +200,20 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
       }
       // Note: Token minting is now handled automatically by the contract on task completion
 
-      if (item.columnId === 'completed') {
+      // Only allow valid forward transitions:
+      // open → inProgress (claim), inProgress → inReview (submit), inReview → completed (complete)
+      const validTransitions = {
+        'open': 'inProgress',
+        'inProgress': 'inReview',
+        'inReview': 'completed',
+      };
+
+      if (validTransitions[item.columnId] !== columnId) {
         toast({
           title: 'Action Not Allowed',
-          description: 'You cannot move tasks from the Completed column.',
+          description: item.columnId === 'completed'
+            ? 'You cannot move tasks from the Completed column.'
+            : 'Tasks can only move forward: Open → In Progress → In Review → Completed.',
           status: 'info',
           duration: 3000,
           isClosable: true,
@@ -220,8 +228,6 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
         const claimedByValue = title === 'In Progress' ? account : item.claimedBy;
         const claimerUserValue = title === 'In Progress' ? graphUsername : item.claimerUsername;
         
-        console.log("Using username:", claimerUserValue);
-        
         const draggedTask = {
           ...item,
           id: item.id,
@@ -233,8 +239,6 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
           claimerUsername: claimerUserValue,
         };
         
-        console.log(`Moving task from ${item.columnId} to ${columnId}, index: ${newIndex}`);
-
         // Use the task's actual projectId (from subgraph), not constructed from projectName
         const safeProjectId = item.projectId ? encodeURIComponent(decodeURIComponent(item.projectId)) : '';
 

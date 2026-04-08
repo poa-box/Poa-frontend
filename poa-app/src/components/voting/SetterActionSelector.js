@@ -38,6 +38,7 @@ import {
   getTemplatesByCategory,
   getTemplateById,
 } from '@/config/setterDefinitions';
+import { inputStyles } from '@/components/shared/glassStyles';
 
 const categoryIcons = {
   voting: FiCheckSquare,
@@ -45,14 +46,6 @@ const categoryIcons = {
   emergency: FiAlertTriangle,
   tasks: FiClipboard,
   tokenSettings: FiTag,
-};
-
-const inputStyles = {
-  bg: 'whiteAlpha.100',
-  border: '1px solid rgba(148, 115, 220, 0.3)',
-  color: 'white',
-  _hover: { borderColor: 'purple.400' },
-  _focus: { borderColor: 'purple.500', boxShadow: '0 0 0 1px rgba(148, 115, 220, 0.6)' },
 };
 
 /**

@@ -6,6 +6,7 @@
 
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
+import { getClient } from '@/util/apolloClient';
 import { useAuth } from '../context/AuthContext';
 import { usePOContext } from '../context/POContext';
 import { DEFAULT_CHAIN_ID } from '../config/networks';
@@ -43,14 +44,14 @@ export function usePasskeyOnboarding() {
     return { publicClient: clients.publicClient, bundlerClient: clients.bundlerClient, chainId: orgChainId };
   }, [isCrossChain, orgChainId, homePublicClient, homeBundlerClient]);
 
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache.
+  const orgClient = useMemo(() => getClient(subgraphUrl), [subgraphUrl]);
+
   // Fetch infrastructure addresses — routed to org's chain subgraph.
   // Skip until subgraphUrl is resolved by POContext to avoid querying the default
   // (Arbitrum) subgraph and getting wrong-chain addresses.
-  // MUST use no-cache: Apollo caches by query+variables (not endpoint), so queries
-  // against different subgraphs can return poisoned cache results.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    context: { subgraphUrl },
-    fetchPolicy: 'no-cache',
+    client: orgClient,
     skip: !subgraphUrl,
   });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
@@ -58,8 +59,7 @@ export function usePasskeyOnboarding() {
 
   // Fetch factory address from org chain's subgraph
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
-    context: { subgraphUrl },
-    fetchPolicy: 'no-cache',
+    client: orgClient,
     skip: !subgraphUrl,
   });
   const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;

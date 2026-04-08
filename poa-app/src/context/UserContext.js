@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@apollo/client';
-import { useAccount } from 'wagmi';
 import { useAuth } from './AuthContext';
 import { FETCH_USER_DATA_NEW, FETCH_TOKEN_APPROVER_HATS } from '../util/queries';
 import { useRouter } from 'next/router';
@@ -14,7 +13,6 @@ const UserContext = createContext();
 export const useUserContext = () => useContext(UserContext);
 
 export const UserProvider = ({ children }) => {
-    const { address } = useAccount();
     const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
     const { userDAO } = router.query;
@@ -22,13 +20,12 @@ export const UserProvider = ({ children }) => {
 
     const [userData, setUserData] = useState({});
     const [graphUsername, setGraphUsername] = useState('');
-    const [hasExecRole, setHasExecRole] = useState(false);
-    const [hasMemberRole, setHasMemberRole] = useState(false);
-    const [hasApproverRole, setHasApproverRole] = useState(false);
     const [claimedTasks, setClaimedTasks] = useState([]);
     const [userProposals, setUserProposals] = useState([]);
     const [completedModules, setCompletedModules] = useState([]);
     const [userDataLoading, setUserDataLoading] = useState(true);
+    // Optimistic overrides — set by optimisticJoin, cleared when subgraph catches up
+    const [optimisticRoles, setOptimisticRoles] = useState(null);
 
     // Optimistic lock: prevents stale subgraph data from overwriting optimistic join state.
     // Mirrors the pattern in TaskBoardContext.js.
@@ -38,7 +35,7 @@ export const UserProvider = ({ children }) => {
     const [account, setAccount] = useState(null);
 
     // Use AuthContext's unified address (supports both EOA and passkey)
-    const effectiveAddress = authAddress || address;
+    const effectiveAddress = authAddress;
 
     useEffect(() => {
         if (effectiveAddress) {
@@ -48,6 +45,7 @@ export const UserProvider = ({ children }) => {
 
     // Construct the org-specific user ID
     const orgUserID = orgId && account ? `${orgId}-${account}` : null;
+    const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
     const { data, error, loading, refetch } = useQuery(FETCH_USER_DATA_NEW, {
         variables: {
@@ -56,43 +54,63 @@ export const UserProvider = ({ children }) => {
         },
         skip: !orgUserID || !account,
         fetchPolicy: 'cache-first',
-        context: { subgraphUrl },
+        context: apolloContext,
     });
+
+    // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
+    const refetchRef = useRef(refetch);
+    refetchRef.current = refetch;
 
     // Query approver hats for the participation token
     const { data: approverHatsData } = useQuery(FETCH_TOKEN_APPROVER_HATS, {
         variables: { tokenAddress: participationTokenAddress },
         skip: !participationTokenAddress,
         fetchPolicy: 'cache-first',
-        context: { subgraphUrl },
+        context: apolloContext,
     });
+
+    // Derive role booleans from query data (replaces separate useState + useEffect pattern).
+    // optimisticRoles overrides allow immediate UI feedback after join before subgraph indexes.
+    const hasMemberRole = useMemo(() => {
+        if (optimisticRoles?.hasMemberRole) return true;
+        const user = data?.user;
+        return !!(user && user.membershipStatus === 'Active');
+    }, [data, optimisticRoles]);
+
+    const hasExecRole = useMemo(() => {
+        if (optimisticRoles?.hasExecRole) return true;
+        const userHatIds = data?.user?.currentHatIds || [];
+        const execHatId = roleHatIds?.[1];
+        return !!(execHatId && userHatIds.includes(execHatId));
+    }, [data, roleHatIds, optimisticRoles]);
+
+    const hasApproverRole = useMemo(() => {
+        const userHatIds = data?.user?.currentHatIds || [];
+        const approverHatIds = (approverHatsData?.hatPermissions || []).map(p => p.hatId);
+        return approverHatIds.some(hatId => userHatIds.includes(hatId));
+    }, [data, approverHatsData]);
 
     // Subscribe to role:claimed event to refetch user data
     const { subscribe } = useRefresh();
 
     const refetchUserData = useCallback(() => {
         if (orgUserID && account) {
-            refetch();
+            refetchRef.current();
         }
-    }, [refetch, orgUserID, account]);
+    }, [orgUserID, account]);
 
+    // Refetch immediately — executeWithNotification already waited for the
+    // subgraph to index the transaction block before emitting these events.
     useEffect(() => {
         const unsubscribe = subscribe('role:claimed', () => {
-            // Wait for subgraph to index on mainnet, then refetch user data
-            setTimeout(() => {
-                refetchUserData();
-            }, 5000);
+            refetchUserData();
         });
         return unsubscribe;
     }, [subscribe, refetchUserData]);
 
-    // Subscribe to username_changed event to refetch user data
     useEffect(() => {
         const unsubscribe = subscribe('user:username_changed', () => {
-            // Wait for subgraph to index on mainnet, then refetch user data
-            setTimeout(() => {
-                refetchUserData();
-            }, 5000);
+            refetchUserData();
         });
         return unsubscribe;
     }, [subscribe, refetchUserData]);
@@ -110,33 +128,21 @@ export const UserProvider = ({ children }) => {
                         return;
                     }
                 }
-                // Server caught up or grace period expired — clear lock
+                // Server caught up or grace period expired — clear lock and optimistic overrides
                 optimisticLockRef.current = null;
+                setOptimisticRoles(null);
             }
 
             const { user, account: accountData } = data;
 
             setGraphUsername(accountData?.username || '');
-            // Check both that user exists AND has Active membership status
-            const isActiveMember = user && user.membershipStatus === 'Active';
-            setHasMemberRole(isActiveMember);
 
             if (user) {
-                // Executive check: second role hat is typically executive
-                const userHatIds = user.currentHatIds || [];
-                const execHatId = roleHatIds?.[1];
-                setHasExecRole(execHatId && userHatIds.includes(execHatId));
-
-                // Approver check: user wears any hat with Approver permission on ParticipationToken
-                const approverHatIds = (approverHatsData?.hatPermissions || []).map(p => p.hatId);
-                const isApprover = approverHatIds.some(hatId => userHatIds.includes(hatId));
-                setHasApproverRole(isApprover);
-
                 setUserData({
                     id: user.id,
                     address: user.address,
                     participationTokenBalance: formatTokenAmount(user.participationTokenBalance || '0'),
-                    hatIds: userHatIds,
+                    hatIds: user.currentHatIds || [],
                     tasksCompleted: user.totalTasksCompleted || 0,
                     totalVotes: user.totalVotes || 0,
                     firstSeenAt: user.firstSeenAt || null,
@@ -180,8 +186,6 @@ export const UserProvider = ({ children }) => {
                     return parseInt(a.endTimestamp) - parseInt(b.endTimestamp);
                 }));
             } else {
-                setHasExecRole(false);
-                setHasApproverRole(false);
                 setUserData({});
                 setClaimedTasks([]);
                 setCompletedModules([]);
@@ -190,7 +194,7 @@ export const UserProvider = ({ children }) => {
 
             setUserDataLoading(false);
         }
-    }, [data, roleHatIds, approverHatsData]);
+    }, [data]);
 
     // Cross-chain username fallback: if this chain's subgraph has no username
     // for the user, check all chains. The user may have registered on a different chain.
@@ -201,7 +205,9 @@ export const UserProvider = ({ children }) => {
             if (!cancelled && username) {
                 setGraphUsername(username);
             }
-        }).catch(() => {});
+        }).catch((err) => {
+            console.warn('[UserContext] Cross-chain username lookup failed:', err);
+        });
         return () => { cancelled = true; };
     }, [graphUsername, account, data]);
 
@@ -236,20 +242,19 @@ export const UserProvider = ({ children }) => {
         const lowerAddr = userAddr?.toLowerCase();
         optimisticLockRef.current = Date.now();
         if (username) setGraphUsername(username);
-        setHasMemberRole(true);
-        // Optimistically set exec role if the claimed hat matches the exec hat (index 1).
-        // Normalize both via BigInt for safe comparison between hex (frontend) and
-        // decimal (subgraph) string representations.
+        // Set optimistic role overrides so useMemo derivations return true immediately
+        const roles = { hasMemberRole: true };
         const execHat = roleHatIds?.[1];
         if (execHat && hatIds?.length > 0) {
             try {
                 const execNorm = BigInt(execHat).toString();
                 const hasExec = hatIds.some(h => BigInt(h).toString() === execNorm);
-                if (hasExec) setHasExecRole(true);
+                if (hasExec) roles.hasExecRole = true;
             } catch {
                 // If BigInt conversion fails, skip — subgraph will correct it on refetch
             }
         }
+        setOptimisticRoles(roles);
         setUserData(prev => ({
             ...prev,
             id: orgId ? `${orgId}-${lowerAddr}` : prev.id,
@@ -262,9 +267,15 @@ export const UserProvider = ({ children }) => {
         }));
         setUserDataLoading(false);
 
-        // Schedule a subgraph refetch to replace optimistic data with real data
+        // Schedule a subgraph refetch to replace optimistic data with real data.
+        // This is called before the transaction completes (optimistic), so we use
+        // a fixed delay. The actual transaction's refresh event (via executeWithNotification)
+        // will also trigger a refetch with proper _meta waiting.
         setTimeout(() => refetchUserData(), 8000);
     }, [orgId, roleHatIds, refetchUserData]);
+
+    // Stabilize error: only change when the message string changes, not the object reference
+    const errorMessage = error?.message || null;
 
     const contextValue = useMemo(() => ({
         userDataLoading,
@@ -277,7 +288,7 @@ export const UserProvider = ({ children }) => {
         hasApproverRole,
         claimedTasks,
         completedModules,
-        error,
+        error: errorMessage ? { message: errorMessage } : null,
         refetchUserData,
         optimisticJoin,
     }), [
@@ -291,7 +302,7 @@ export const UserProvider = ({ children }) => {
         hasApproverRole,
         claimedTasks,
         completedModules,
-        error,
+        errorMessage,
         refetchUserData,
         optimisticJoin,
     ]);

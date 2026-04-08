@@ -6,6 +6,7 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useDataBaseContext } from './dataBaseContext';
+import { useProjectContext } from './ProjectContext';
 import { usePOContext } from './POContext';
 import { useIPFScontext } from './ipfsContext';
 import { useRefreshEmit, RefreshEvent } from './RefreshContext';
@@ -19,6 +20,58 @@ export const useTaskBoard = () => {
   return useContext(TaskBoardContext);
 };
 
+/**
+ * Merge server columns with optimistic columns, preserving task metadata
+ * that the subgraph may not have re-indexed yet after a status change.
+ *
+ * When a task is claimed/submitted/completed, The Graph updates the entity
+ * but may temporarily return null metadata while re-resolving the IPFS link.
+ * This manifests as description='', difficulty='medium', estHours=1 (the
+ * defaults in ProjectContext). We detect this pattern and keep the richer
+ * optimistic data for those fields until the server catches up.
+ */
+function mergeColumnsPreservingMetadata(serverColumns, optimisticColumns) {
+  // Build a lookup of task data from the optimistic (current) state
+  const optimisticTaskMap = new Map();
+  for (const col of optimisticColumns) {
+    for (const task of col.tasks) {
+      optimisticTaskMap.set(task.id, task);
+    }
+  }
+
+  return serverColumns.map(col => ({
+    ...col,
+    tasks: col.tasks.map(task => {
+      const optimistic = optimisticTaskMap.get(task.id);
+      if (!optimistic) return task;
+
+      // Server has all-default metadata but optimistic has real data →
+      // the subgraph hasn't re-indexed the IPFS metadata yet.
+      const serverHasDefaults =
+        task.description === '' &&
+        task.difficulty === 'medium' &&
+        task.estHours === 1;
+      const optimisticHasReal =
+        optimistic.description !== '' ||
+        optimistic.difficulty !== 'medium' ||
+        optimistic.estHours !== 1;
+
+      if (serverHasDefaults && optimisticHasReal) {
+        return {
+          ...task,
+          description: optimistic.description,
+          difficulty: optimistic.difficulty,
+          estHours: optimistic.estHours,
+          name: optimistic.name || task.name,
+          title: optimistic.title || task.title,
+        };
+      }
+
+      return task;
+    }),
+  }));
+}
+
 export const TaskBoardProvider = ({
   children,
   initialColumns,
@@ -26,46 +79,75 @@ export const TaskBoardProvider = ({
 }) => {
   const [taskColumns, setTaskColumns] = useState(initialColumns);
   const { selectedProject } = useDataBaseContext();
+  const { nextTaskId } = useProjectContext();
   const { taskManagerContractAddress } = usePOContext();
   const { addToIpfs } = useIPFScontext();
   const { emit } = useRefreshEmit();
   const { addNotification, updateNotification } = useNotification();
 
-  // Get services from the new hook
-  const { task: taskService, isReady } = useWeb3Services({
-    ipfsService: { addToIpfs },
-  });
+  // Get services from the new hook — do NOT pass { ipfsService: { addToIpfs } } here,
+  // useWeb3Services already gets it from useIPFScontext(). Passing an inline object
+  // creates a new reference every render, causing all services to be recreated.
+  const { task: taskService, isReady } = useWeb3Services();
+
+  // Ref to access current taskColumns inside callbacks without adding taskColumns
+  // to their dependency arrays (which would recreate every callback on each column change).
+  const taskColumnsRef = useRef(taskColumns);
+  taskColumnsRef.current = taskColumns;
 
   // Optimistic lock: prevents poll-interval from overwriting local optimistic state.
   // After an optimistic update, server data is suppressed until it catches up or
   // the grace period expires (safety valve).
   const optimisticLockRef = useRef(null);
   const OPTIMISTIC_GRACE_PERIOD = 65000; // 65s — covers 2+ poll-interval cycles (30s each)
+  const lockClearTimerRef = useRef(null);
+  const latestInitialColumnsRef = useRef(initialColumns);
+
+  // Keep ref in sync so scheduleLockClear can apply the latest server data
+  latestInitialColumnsRef.current = initialColumns;
+
+  // Clear optimistic lock after a delay, giving the subgraph refetch time to arrive.
+  // Timestamp-guarded: if a newer operation sets a fresh lock, this timer won't clobber it.
+  const scheduleLockClear = useCallback(() => {
+    if (lockClearTimerRef.current) {
+      clearTimeout(lockClearTimerRef.current);
+    }
+    const lockTimestamp = optimisticLockRef.current;
+    lockClearTimerRef.current = setTimeout(() => {
+      if (optimisticLockRef.current === lockTimestamp) {
+        optimisticLockRef.current = null;
+        // Apply the latest server data, but merge with optimistic state to
+        // preserve task metadata that the subgraph may not have re-indexed yet.
+        setTaskColumns(prev =>
+          mergeColumnsPreservingMetadata(latestInitialColumnsRef.current, prev)
+        );
+      }
+      lockClearTimerRef.current = null;
+    }, 11000);
+  }, []);
+
+  // Clean up timer on unmount
+  useEffect(() => {
+    return () => {
+      if (lockClearTimerRef.current) {
+        clearTimeout(lockClearTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (optimisticLockRef.current) {
       const elapsed = Date.now() - optimisticLockRef.current;
       if (elapsed < OPTIMISTIC_GRACE_PERIOD) {
-        // Compare task-to-column mappings to detect if server has caught up
-        const serverMap = {};
-        initialColumns.forEach(col => col.tasks.forEach(t => { serverMap[t.id] = col.id; }));
-        const localMap = {};
-        taskColumns.forEach(col => col.tasks.forEach(t => { localMap[t.id] = col.id; }));
-
-        // Tasks added locally but not yet on server
-        const hasLocalOnly = Object.keys(localMap).some(id => !serverMap[id]);
-        // Tasks deleted locally but still on server
-        const hasServerOnly = Object.keys(serverMap).some(id => !localMap[id]);
-        // Tasks moved between columns
-        const hasColumnMismatch = Object.entries(localMap).some(([id, colId]) => {
-          return serverMap[id] && serverMap[id] !== colId;
-        });
-        const isStale = hasLocalOnly || hasServerOnly || hasColumnMismatch;
-
-        if (isStale) return; // Server hasn't caught up — keep optimistic state
+        // Lock is active — keep optimistic state, ignore server data.
+        // scheduleLockClear will apply latest server data when the lock expires.
+        return;
       }
-      // Grace period expired or server caught up — clear lock and accept server data
+      // Grace period expired — merge to preserve any metadata the subgraph
+      // still hasn't re-indexed (same protection as scheduleLockClear).
       optimisticLockRef.current = null;
+      setTaskColumns(prev => mergeColumnsPreservingMetadata(initialColumns, prev));
+      return;
     }
     setTaskColumns(initialColumns);
   }, [initialColumns]);
@@ -102,28 +184,18 @@ export const TaskBoardProvider = ({
       return;
     }
 
+    // Validate transition: only allow forward moves
+    const validDest = { open: 'inProgress', inProgress: 'inReview', inReview: 'completed' };
+    if (validDest[sourceColumnId] !== destColumnId) {
+      addNotification('Invalid task transition.', 'error');
+      return;
+    }
+
     // Save previous state to revert in case of error
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
-
-    // Optimistically update the UI
-    const newTaskColumns = [...taskColumns];
-    const sourceColumn = newTaskColumns.find(
-      (column) => column.id === sourceColumnId
-    );
-    const destColumn = newTaskColumns.find((column) => column.id === destColumnId);
-
-    // Remove the task from the source column
-    if (sourceColumn) {
-      const sourceTaskIndex = sourceColumn.tasks.findIndex(
-        (task) => task.id === draggedTask.id
-      );
-      if (sourceTaskIndex > -1) {
-        sourceColumn.tasks.splice(sourceTaskIndex, 1);
-      }
-    }
 
     // Prepare the updated task
     const updatedTask = {
@@ -138,12 +210,19 @@ export const TaskBoardProvider = ({
           : draggedTask.claimedBy,
     };
 
-    // Add the task to the destination column
-    if (destColumn) {
-      destColumn.tasks.splice(newIndex, 0, updatedTask);
-    }
+    // Optimistically update the UI — immutable update (no mutation of existing state)
+    const newTaskColumns = taskColumnsRef.current.map(col => {
+      if (col.id === sourceColumnId) {
+        return { ...col, tasks: col.tasks.filter(t => t.id !== draggedTask.id) };
+      }
+      if (col.id === destColumnId) {
+        const tasks = [...col.tasks];
+        tasks.splice(newIndex, 0, updatedTask);
+        return { ...col, tasks };
+      }
+      return col;
+    });
 
-    // Update the state optimistically
     setTaskColumns(newTaskColumns);
 
     let notifId = null;
@@ -196,10 +275,18 @@ export const TaskBoardProvider = ({
         }
       }
 
-      // Call the onUpdateColumns prop when the columns are updated
-      if (onUpdateColumns) {
-        onUpdateColumns(newTaskColumns);
+      // Use functional updater to get the latest state (consistent with addTask).
+      // This avoids stale closure over newTaskColumns from before the await.
+      let confirmedColumns;
+      setTaskColumns(prev => {
+        confirmedColumns = prev;
+        return prev;
+      });
+
+      if (onUpdateColumns && confirmedColumns) {
+        onUpdateColumns(confirmedColumns, selectedProject?.id);
       }
+      scheduleLockClear();
     } catch (error) {
       // Revert the UI changes if there is an error
       console.error('Error moving task:', error);
@@ -212,7 +299,6 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
     }
   }, [
-    taskColumns,
     taskService,
     taskManagerContractAddress,
     isReady,
@@ -221,6 +307,7 @@ export const TaskBoardProvider = ({
     emit,
     createTaskMetadata,
     onUpdateColumns,
+    scheduleLockClear,
   ]);
 
   /**
@@ -235,24 +322,26 @@ export const TaskBoardProvider = ({
     const kubixPayout = calculatePayout(task.difficulty, task.estHours);
 
     // Save previous state
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically update the UI
-    const newTaskColumns = [...taskColumns];
-    const destColumn = newTaskColumns.find((column) => column.id === destColumnId);
-
+    const predictedId = `${taskManagerContractAddress}-${nextTaskId}`.toLowerCase();
     const newTask = {
       ...task,
+      id: task.id || predictedId,
+      taskId: String(nextTaskId),
       projectId: selectedProject.id,
       kubixPayout: kubixPayout,
+      isIndexing: true,
     };
 
-    if (destColumn) {
-      destColumn.tasks.push(newTask);
-    }
+    // Optimistically update the UI — immutable
+    const newTaskColumns = taskColumnsRef.current.map(col => {
+      if (col.id !== destColumnId) return col;
+      return { ...col, tasks: [...col.tasks, newTask] };
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -287,11 +376,24 @@ export const TaskBoardProvider = ({
 
       if (result.success) {
         updateNotification(notifId, task.assignTo ? 'Task created and assigned!' : 'Task created successfully!', 'success');
+
+        // Task is now on-chain — mark it as no longer indexing so action buttons enable.
+        // Use functional updater to avoid stale closure over taskColumns.
+        let confirmedColumns;
+        setTaskColumns(prev => {
+          confirmedColumns = prev.map(col => ({
+            ...col,
+            tasks: col.tasks.map(t => t.id === newTask.id ? { ...t, isIndexing: false } : t),
+          }));
+          return confirmedColumns;
+        });
+
         emit(RefreshEvent.TASK_CREATED, { task: newTask });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns);
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
+        scheduleLockClear();
       } else {
         throw new Error(result.error?.userMessage || 'Failed to create task');
       }
@@ -302,15 +404,16 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
     }
   }, [
-    taskColumns,
     taskService,
     taskManagerContractAddress,
     selectedProject,
+    nextTaskId,
     isReady,
     addNotification,
     updateNotification,
     emit,
     onUpdateColumns,
+    scheduleLockClear,
   ]);
 
   /**
@@ -323,14 +426,10 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
-
-    // Optimistically update the UI
-    const newTaskColumns = [...taskColumns];
-    const destColumn = newTaskColumns.find((column) => column.id === destColumnId);
 
     const payout = calculatePayout(updatedTask.difficulty, updatedTask.estHours);
 
@@ -339,9 +438,14 @@ export const TaskBoardProvider = ({
       Payout: payout,
     };
 
-    if (destColumn && destColumn.tasks[destTaskIndex]) {
-      destColumn.tasks.splice(destTaskIndex, 1, newTask);
-    }
+    // Optimistically update the UI — immutable
+    const newTaskColumns = taskColumnsRef.current.map(col => {
+      if (col.id !== destColumnId) return col;
+      return {
+        ...col,
+        tasks: col.tasks.map((t, i) => i === destTaskIndex ? newTask : t),
+      };
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -363,9 +467,12 @@ export const TaskBoardProvider = ({
         updateNotification(notifId, 'Task updated successfully!', 'success');
         emit(RefreshEvent.TASK_UPDATED, { taskId: updatedTask.id });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns);
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
+        scheduleLockClear();
       } else {
         throw new Error(result.error?.userMessage || 'Failed to update task');
       }
@@ -376,7 +483,6 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
     }
   }, [
-    taskColumns,
     taskService,
     taskManagerContractAddress,
     isReady,
@@ -384,6 +490,7 @@ export const TaskBoardProvider = ({
     updateNotification,
     emit,
     onUpdateColumns,
+    scheduleLockClear,
   ]);
 
   /**
@@ -396,20 +503,16 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically update the UI
-    const newTaskColumns = [...taskColumns];
-    const column = newTaskColumns.find((col) => col.id === columnId);
-    if (column) {
-      const taskIndex = column.tasks.findIndex((task) => task.id === taskId);
-      if (taskIndex > -1) {
-        column.tasks.splice(taskIndex, 1);
-      }
-    }
+    // Optimistically update the UI — immutable
+    const newTaskColumns = taskColumnsRef.current.map(col => {
+      if (col.id !== columnId) return col;
+      return { ...col, tasks: col.tasks.filter(t => t.id !== taskId) };
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -422,9 +525,12 @@ export const TaskBoardProvider = ({
         updateNotification(notifId, 'Task deleted successfully!', 'success');
         emit(RefreshEvent.TASK_CANCELLED, { taskId });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns);
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
+        scheduleLockClear();
       } else {
         throw new Error(result.error?.userMessage || 'Failed to delete task');
       }
@@ -435,7 +541,6 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
     }
   }, [
-    taskColumns,
     taskService,
     taskManagerContractAddress,
     isReady,
@@ -443,15 +548,40 @@ export const TaskBoardProvider = ({
     updateNotification,
     emit,
     onUpdateColumns,
+    scheduleLockClear,
   ]);
 
   /**
    * Apply for a task that requires application
    */
-  const applyForTask = useCallback(async (taskId, applicationData) => {
+  const applyForTask = useCallback(async (taskId, applicationData, applicantAddress) => {
     if (!isReady || !taskService) {
       addNotification('Web3 not ready. Please connect your wallet.', 'error');
       return { success: false };
+    }
+
+    // Save previous state for rollback
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
+
+    // Optimistically add applicant to the task so UI reflects immediately
+    let newTaskColumns;
+    if (applicantAddress) {
+      newTaskColumns = taskColumnsRef.current.map(col => ({
+        ...col,
+        tasks: col.tasks.map(t =>
+          t.id === taskId
+            ? {
+                ...t,
+                applicants: [
+                  ...(t.applicants || []),
+                  { address: applicantAddress, username: '', appliedAt: Math.floor(Date.now() / 1000), approved: false },
+                ],
+              }
+            : t
+        ),
+      }));
+      optimisticLockRef.current = Date.now();
+      setTaskColumns(newTaskColumns);
     }
 
     const notifId = addNotification('Submitting application...', 'loading');
@@ -466,6 +596,10 @@ export const TaskBoardProvider = ({
       if (result.success) {
         updateNotification(notifId, 'Application submitted successfully!', 'success');
         emit(RefreshEvent.TASK_APPLICATION_SUBMITTED, { taskId });
+        if (applicantAddress) {
+          if (onUpdateColumns) onUpdateColumns(newTaskColumns, selectedProject?.id);
+          scheduleLockClear();
+        }
         return { success: true };
       } else {
         throw new Error(result.error?.userMessage || 'Failed to submit application');
@@ -473,9 +607,13 @@ export const TaskBoardProvider = ({
     } catch (error) {
       console.error('Error applying for task:', error);
       updateNotification(notifId, error.message || 'Error submitting application', 'error');
+      if (applicantAddress) {
+        optimisticLockRef.current = null;
+        setTaskColumns(previousTaskColumns);
+      }
       return { success: false, error };
     }
-  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit]);
+  }, [taskService, taskManagerContractAddress, selectedProject, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
 
   /**
    * Approve an application for a task
@@ -487,28 +625,31 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state for rollback
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically move task from open to inProgress
-    const newTaskColumns = [...taskColumns];
-    const openColumn = newTaskColumns.find(col => col.id === 'open');
-    const inProgressColumn = newTaskColumns.find(col => col.id === 'inProgress');
-
-    if (openColumn && inProgressColumn) {
-      const taskIndex = openColumn.tasks.findIndex(t => t.id === taskId);
-      if (taskIndex > -1) {
-        const [task] = openColumn.tasks.splice(taskIndex, 1);
-        inProgressColumn.tasks.push({
-          ...task,
-          claimedBy: applicantAddress,
-          claimerUsername: applicantUsername || '',
-          status: 'Assigned',
-        });
+    // Optimistically move task from open to inProgress — immutable
+    let movedTask = null;
+    const newTaskColumns = taskColumnsRef.current.map(col => {
+      if (col.id === 'open') {
+        const task = col.tasks.find(t => t.id === taskId);
+        if (task) {
+          movedTask = {
+            ...task,
+            claimedBy: applicantAddress,
+            claimerUsername: applicantUsername || '',
+            status: 'Assigned',
+          };
+        }
+        return { ...col, tasks: col.tasks.filter(t => t.id !== taskId) };
       }
-    }
+      if (col.id === 'inProgress' && movedTask) {
+        return { ...col, tasks: [...col.tasks, movedTask] };
+      }
+      return col;
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -525,9 +666,12 @@ export const TaskBoardProvider = ({
         updateNotification(notifId, 'Application approved successfully!', 'success');
         emit(RefreshEvent.TASK_APPLICATION_APPROVED, { taskId, applicantAddress });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns);
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
+        scheduleLockClear();
 
         return { success: true };
       } else {
@@ -541,16 +685,45 @@ export const TaskBoardProvider = ({
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskColumns, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns]);
+  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
 
   /**
    * Assign a task to a specific user
    */
-  const assignTask = useCallback(async (taskId, assigneeAddress) => {
+  const assignTask = useCallback(async (taskId, assigneeAddress, assigneeUsername) => {
     if (!isReady || !taskService) {
       addNotification('Web3 not ready. Please connect your wallet.', 'error');
       return { success: false };
     }
+
+    // Save previous state for rollback
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
+
+    // Lock to prevent poll-interval from overwriting this optimistic update
+    optimisticLockRef.current = Date.now();
+
+    // Optimistically move task from open to inProgress — immutable
+    let movedTask = null;
+    const newTaskColumns = taskColumnsRef.current.map(col => {
+      if (col.id === 'open') {
+        const task = col.tasks.find(t => t.id === taskId);
+        if (task) {
+          movedTask = {
+            ...task,
+            claimedBy: assigneeAddress,
+            claimerUsername: assigneeUsername || '',
+            status: 'Assigned',
+          };
+        }
+        return { ...col, tasks: col.tasks.filter(t => t.id !== taskId) };
+      }
+      if (col.id === 'inProgress' && movedTask) {
+        return { ...col, tasks: [...col.tasks, movedTask] };
+      }
+      return col;
+    });
+
+    setTaskColumns(newTaskColumns);
 
     const notifId = addNotification('Assigning task...', 'loading');
 
@@ -564,6 +737,14 @@ export const TaskBoardProvider = ({
       if (result.success) {
         updateNotification(notifId, 'Task assigned successfully!', 'success');
         emit(RefreshEvent.TASK_ASSIGNED, { taskId, assigneeAddress });
+
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
+        }
+        scheduleLockClear();
+
         return { success: true };
       } else {
         throw new Error(result.error?.userMessage || 'Failed to assign task');
@@ -571,9 +752,11 @@ export const TaskBoardProvider = ({
     } catch (error) {
       console.error('Error assigning task:', error);
       updateNotification(notifId, error.message || 'Error assigning task', 'error');
+      optimisticLockRef.current = null;
+      setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit]);
+  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
 
   /**
    * Reject a submitted task, moving it back to inProgress
@@ -590,26 +773,21 @@ export const TaskBoardProvider = ({
     }
 
     // Save previous state for rollback
-    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumns));
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically move task from inReview to inProgress
-    const newTaskColumns = [...taskColumns];
-    const sourceColumn = newTaskColumns.find(col => col.id === 'inReview');
-    const destColumn = newTaskColumns.find(col => col.id === 'inProgress');
-
-    if (sourceColumn) {
-      const taskIndex = sourceColumn.tasks.findIndex(t => t.id === task.id);
-      if (taskIndex > -1) {
-        sourceColumn.tasks.splice(taskIndex, 1);
+    // Optimistically move task from inReview to inProgress — immutable
+    const newTaskColumns = taskColumnsRef.current.map(col => {
+      if (col.id === 'inReview') {
+        return { ...col, tasks: col.tasks.filter(t => t.id !== task.id) };
       }
-    }
-
-    if (destColumn) {
-      destColumn.tasks.push({ ...task });
-    }
+      if (col.id === 'inProgress') {
+        return { ...col, tasks: [...col.tasks, { ...task }] };
+      }
+      return col;
+    });
 
     setTaskColumns(newTaskColumns);
 
@@ -630,9 +808,12 @@ export const TaskBoardProvider = ({
         updateNotification(notifId, 'Task rejected successfully!', 'success');
         emit(RefreshEvent.TASK_REJECTED, { taskId: task.id });
 
-        if (onUpdateColumns) {
-          onUpdateColumns(newTaskColumns);
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
+        scheduleLockClear();
 
         return { success: true };
       } else {
@@ -646,7 +827,6 @@ export const TaskBoardProvider = ({
       return { success: false, error };
     }
   }, [
-    taskColumns,
     taskService,
     taskManagerContractAddress,
     isReady,
@@ -655,6 +835,7 @@ export const TaskBoardProvider = ({
     emit,
     addToIpfs,
     onUpdateColumns,
+    scheduleLockClear,
   ]);
 
   const value = useMemo(() => ({
@@ -662,13 +843,12 @@ export const TaskBoardProvider = ({
     moveTask,
     addTask,
     editTask,
-    setTaskColumns,
     deleteTask,
     applyForTask,
     approveApplication,
     assignTask,
     rejectTask,
-  }), [taskColumns, moveTask, addTask, editTask, setTaskColumns, deleteTask, applyForTask, approveApplication, assignTask, rejectTask]);
+  }), [taskColumns, moveTask, addTask, editTask, deleteTask, applyForTask, approveApplication, assignTask, rejectTask]);
 
   return (
     <TaskBoardContext.Provider value={value}>

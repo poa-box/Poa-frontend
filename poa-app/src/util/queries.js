@@ -146,6 +146,8 @@ export const FETCH_ORG_FULL_DATA = gql`
         id
         description
         template
+        logo
+        hideTreasury
         links {
           name
           url
@@ -179,7 +181,7 @@ export const FETCH_ORG_FULL_DATA = gql`
         creatorHatIds
         projects(where: { deleted: false }, first: 100) {
           id
-          tasks(first: 200) {
+          tasks(first: 1000) {
             id
             status
           }
@@ -192,6 +194,12 @@ export const FETCH_ORG_FULL_DATA = gql`
           moduleId
           title
           contentHash
+          metadata {
+            description
+            link
+            quiz
+            answersJson
+          }
           payout
           status
           completions {
@@ -200,6 +208,9 @@ export const FETCH_ORG_FULL_DATA = gql`
         }
       }
       executorContract {
+        id
+      }
+      eligibilityModule {
         id
       }
       users(orderBy: participationTokenBalance, orderDirection: desc, first: 100) {
@@ -242,6 +253,7 @@ export const FETCH_VOTING_DATA_NEW = gql`
         votingClasses(where: { isActive: true }, orderBy: classIndex, orderDirection: asc) {
           id
           classIndex
+          version
           strategy
           slicePct
           quadratic
@@ -329,6 +341,10 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
             description
           }
           cap
+          bountyCaps {
+            token
+            cap
+          }
           createdAt
           rolePermissions {
             hatId
@@ -337,7 +353,7 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
             canReview
             canAssign
           }
-          tasks(first: 100) {
+          tasks(first: 1000, orderBy: taskId, orderDirection: desc) {
             id
             taskId
             title
@@ -378,6 +394,10 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
               applicant
               applicantUsername
               applicationHash
+              metadata {
+                notes
+                experience
+              }
               approved
               approver
               approverUsername
@@ -450,6 +470,12 @@ export const FETCH_EDUCATION_DATA = gql`
           moduleId
           title
           contentHash
+          metadata {
+            description
+            link
+            quiz
+            answersJson
+          }
           payout
           status
           createdAt
@@ -475,6 +501,8 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
         id
         description
         template
+        logo
+        hideTreasury
         links {
           name
           url
@@ -725,6 +753,10 @@ export const FETCH_PENDING_TOKEN_REQUESTS = gql`
       requester
       amount
       ipfsHash
+      metadata {
+        reason
+        submittedAt
+      }
       status
       createdAt
       createdAtBlock
@@ -746,6 +778,10 @@ export const FETCH_USER_TOKEN_REQUESTS = gql`
       requestId
       amount
       ipfsHash
+      metadata {
+        reason
+        submittedAt
+      }
       status
       createdAt
       approvedAt
@@ -770,6 +806,10 @@ export const FETCH_ALL_TOKEN_REQUESTS = gql`
       requester
       amount
       ipfsHash
+      metadata {
+        reason
+        submittedAt
+      }
       status
       createdAt
       approvedAt
@@ -857,6 +897,26 @@ export const FETCH_VOUCHES_FOR_ORG = gql`
       vouchCount
       isActive
       createdAt
+    }
+  }
+`;
+
+// ============================================
+// Distribution claim — find executed proposals with merkle tree CIDs
+// ============================================
+
+export const FETCH_DISTRIBUTION_PROPOSALS = gql`
+  query FetchDistributionProposals($hybridVotingId: String!) {
+    proposals(
+      where: { hybridVoting: $hybridVotingId, wasExecuted: true }
+      orderBy: executedAt
+      orderDirection: desc
+      first: 50
+    ) {
+      id
+      metadata {
+        description
+      }
     }
   }
 `;

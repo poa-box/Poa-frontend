@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   VStack,
@@ -6,7 +6,6 @@ import {
   Text,
   Button,
   Badge,
-  Spinner,
   Table,
   Thead,
   Tbody,
@@ -18,6 +17,7 @@ import {
   AlertIcon,
   Tooltip,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
 import { useAccount } from 'wagmi';
 import { FETCH_USER_TOKEN_REQUESTS } from '@/util/queries';
@@ -48,6 +48,8 @@ const UserRequestHistory = () => {
 
   const [cancellingId, setCancellingId] = useState(null);
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Query user's requests
   const { data, loading, error, refetch } = useQuery(FETCH_USER_TOKEN_REQUESTS, {
     variables: {
@@ -56,21 +58,18 @@ const UserRequestHistory = () => {
     },
     skip: !participationTokenAddress || !address,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
-  // Subscribe to refresh events
-  const handleRefresh = () => {
-    setTimeout(() => refetch(), 2000);
-  };
-
+  // Refetch immediately — executeWithNotification already waited for the
+  // subgraph to index the transaction block before emitting these events.
   useRefreshSubscription(
     [
       RefreshEvent.TOKEN_REQUEST_CREATED,
       RefreshEvent.TOKEN_REQUEST_APPROVED,
       RefreshEvent.TOKEN_REQUEST_CANCELLED,
     ],
-    handleRefresh,
+    () => refetch(),
     [refetch]
   );
 
@@ -84,8 +83,8 @@ const UserRequestHistory = () => {
       const result = await executeWithNotification(
         () => tokenRequest.cancelRequest(participationTokenAddress, requestId),
         {
-          pendingMessage: 'Cancelling token request...',
-          successMessage: 'Token request cancelled',
+          pendingMessage: 'Cancelling share request...',
+          successMessage: 'Share request cancelled',
           errorMessage: 'Failed to cancel request',
           refreshEvent: RefreshEvent.TOKEN_REQUEST_CANCELLED,
           refreshData: { requestId },
@@ -121,7 +120,7 @@ const UserRequestHistory = () => {
   if (loading && !data) {
     return (
       <Box p={4} textAlign="center">
-        <Spinner size="md" />
+        <PulseLoader size="md" />
         <Text mt={2} color="gray.500">Loading your requests...</Text>
       </Box>
     );
@@ -139,7 +138,7 @@ const UserRequestHistory = () => {
   if (userRequests.length === 0) {
     return (
       <Box p={4} textAlign="center" color="gray.500">
-        <Text>You haven&apos;t made any token requests yet</Text>
+        <Text>You haven&apos;t made any share requests yet</Text>
       </Box>
     );
   }

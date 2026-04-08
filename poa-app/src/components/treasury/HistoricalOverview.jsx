@@ -2,17 +2,13 @@ import React, { useMemo } from 'react';
 import {
   Box,
   VStack,
+  HStack,
   Text,
-  Tabs,
-  TabList,
-  TabPanels,
-  Tab,
-  TabPanel,
-  useBreakpointValue,
+  SimpleGrid,
+  Progress,
+  Badge,
 } from '@chakra-ui/react';
 import {
-  AreaChart,
-  Area,
   BarChart,
   Bar,
   XAxis,
@@ -20,98 +16,140 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
+  Legend,
 } from 'recharts';
 import { formatTokenAmount } from '@/util/formatToken';
 import { getTokenByAddress } from '@/util/tokens';
 
-const glassTabStyle = {
-  bg: 'rgba(148, 115, 220, 0.1)',
-  borderRadius: 'lg',
-  _selected: {
-    bg: 'rgba(148, 115, 220, 0.3)',
-    color: 'white',
-  },
+const COLORS = {
+  inflow: '#2ECC71',
+  outflow: '#9B59B6',
+  claimed: '#3498DB',
 };
 
-const CustomTooltip = ({ active, payload, label }) => {
-  if (!active || !payload || !payload.length) return null;
+// ─── Summary Cards ───
 
+const SummaryCard = ({ label, value, subtext, color = 'white' }) => (
+  <Box bg="rgba(0,0,0,0.3)" borderRadius="lg" p={3}>
+    <Text fontSize="xs" color="gray.500" mb={1}>{label}</Text>
+    <Text fontSize="lg" fontWeight="bold" color={color}>{value}</Text>
+    {subtext && <Text fontSize="xs" color="gray.500" mt={1}>{subtext}</Text>}
+  </Box>
+);
+
+// ─── Custom Tooltip ───
+
+const ChartTooltip = ({ active, payload, label }) => {
+  if (!active || !payload?.length) return null;
   return (
-    <Box
-      bg="rgba(33, 33, 33, 0.95)"
-      border="1px solid rgba(148, 115, 220, 0.5)"
-      borderRadius="lg"
-      p={3}
-    >
-      <Text fontWeight="bold" color="white" mb={1}>{label}</Text>
-      {payload.map((entry, index) => (
-        <Text key={index} color={entry.color} fontSize="sm">
-          {entry.name}: {entry.value.toLocaleString()}
-        </Text>
+    <Box bg="rgba(20,20,30,0.95)" border="1px solid rgba(148,115,220,0.5)" borderRadius="lg" p={3} maxW="200px">
+      <Text fontWeight="bold" color="white" fontSize="sm" mb={1}>{label}</Text>
+      {payload.map((entry, i) => (
+        <HStack key={i} justify="space-between" spacing={3}>
+          <HStack spacing={1}>
+            <Box w="8px" h="8px" borderRadius="sm" bg={entry.color} />
+            <Text fontSize="xs" color="gray.300">{entry.name}</Text>
+          </HStack>
+          <Text fontSize="xs" color="white" fontWeight="medium">
+            {typeof entry.value === 'number' ? entry.value.toFixed(4) : entry.value}
+          </Text>
+        </HStack>
       ))}
     </Box>
   );
 };
 
+// ─── Main Component ───
+
 const HistoricalOverview = ({ distributions = [], payments = [] }) => {
-  const isMobile = useBreakpointValue({ base: true, md: false });
+  // ─── Aggregate stats ───
+  const stats = useMemo(() => {
+    let totalReceived = 0;
+    let totalDistributed = 0;
+    let totalClaimed = 0;
+    let tokenSymbol = '';
 
-  // Process data for charts
-  const monthlyData = useMemo(() => {
-    const months = {};
+    payments.forEach(p => {
+      const token = getTokenByAddress(p.token);
+      if (!tokenSymbol && token.symbol !== 'ERC20') tokenSymbol = token.symbol;
+      totalReceived += parseFloat(formatTokenAmount(p.amount, token.decimals, 6));
+    });
 
-    // Process payments (inflows)
+    distributions.forEach(d => {
+      const token = getTokenByAddress(d.payoutToken);
+      if (!tokenSymbol && token.symbol !== 'ERC20') tokenSymbol = token.symbol;
+      totalDistributed += parseFloat(formatTokenAmount(d.totalAmount, token.decimals, 6));
+      totalClaimed += parseFloat(formatTokenAmount(d.totalClaimed || '0', token.decimals, 6));
+    });
+
+    return {
+      totalReceived: totalReceived.toFixed(4),
+      totalDistributed: totalDistributed.toFixed(4),
+      totalClaimed: totalClaimed.toFixed(4),
+      claimRate: totalDistributed > 0 ? ((totalClaimed / totalDistributed) * 100).toFixed(0) : '0',
+      tokenSymbol: tokenSymbol || 'tokens',
+      distributionCount: distributions.length,
+      paymentCount: payments.length,
+    };
+  }, [distributions, payments]);
+
+  // ─── Timeline data (daily events) ───
+  const timelineData = useMemo(() => {
+    const days = {};
+
     payments.forEach(p => {
       const date = new Date(parseInt(p.receivedAt) * 1000);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const key = date.toISOString().split('T')[0];
       const token = getTokenByAddress(p.token);
-      const amount = parseFloat(formatTokenAmount(p.amount, token.decimals, 2));
+      const amount = parseFloat(formatTokenAmount(p.amount, token.decimals, 6));
 
-      if (!months[monthKey]) {
-        months[monthKey] = { month: monthKey, inflow: 0, outflow: 0 };
-      }
-      months[monthKey].inflow += amount;
+      if (!days[key]) days[key] = { date: key, received: 0, distributed: 0 };
+      days[key].received += amount;
     });
 
-    // Process distributions (outflows)
     distributions.forEach(d => {
-      const timestamp = d.finalizedAt || d.createdAt;
+      const timestamp = d.createdAt;
       const date = new Date(parseInt(timestamp) * 1000);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const key = date.toISOString().split('T')[0];
       const token = getTokenByAddress(d.payoutToken);
-      const amount = parseFloat(formatTokenAmount(d.totalClaimed, token.decimals, 2));
+      const amount = parseFloat(formatTokenAmount(d.totalClaimed || '0', token.decimals, 6));
 
-      if (!months[monthKey]) {
-        months[monthKey] = { month: monthKey, inflow: 0, outflow: 0 };
-      }
-      months[monthKey].outflow += amount;
+      if (!days[key]) days[key] = { date: key, received: 0, distributed: 0 };
+      days[key].distributed += amount;
     });
 
-    // Sort by month and format labels
-    return Object.values(months)
-      .sort((a, b) => a.month.localeCompare(b.month))
-      .slice(-12) // Last 12 months
-      .map(item => ({
-        ...item,
-        monthLabel: new Date(item.month + '-01').toLocaleDateString('en-US', {
-          month: 'short',
-          year: '2-digit',
-        }),
+    return Object.values(days)
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map(d => ({
+        ...d,
+        label: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        received: parseFloat(d.received.toFixed(4)),
+        distributed: parseFloat(d.distributed.toFixed(4)),
       }));
   }, [distributions, payments]);
 
-  // Distribution amounts by period
-  const distributionData = useMemo(() => {
+  // ─── Per-distribution breakdown ───
+  const distBreakdown = useMemo(() => {
     return distributions
-      .filter(d => d.status === 'Finalized')
-      .slice(0, 10)
-      .reverse()
+      .filter(d => d.totalAmount && d.totalAmount !== '0')
       .map(d => {
         const token = getTokenByAddress(d.payoutToken);
+        const total = parseFloat(formatTokenAmount(d.totalAmount, token.decimals, 6));
+        const claimed = parseFloat(formatTokenAmount(d.totalClaimed || '0', token.decimals, 6));
+        const pct = total > 0 ? (claimed / total) * 100 : 0;
+
         return {
-          id: `#${d.distributionId}`,
-          amount: parseFloat(formatTokenAmount(d.totalClaimed, token.decimals, 2)),
-          claims: d.claims?.length || 0,
+          id: d.distributionId,
+          token: token.symbol,
+          total,
+          claimed,
+          unclaimed: total - claimed,
+          pct,
+          claimCount: d.claims?.length || 0,
+          status: d.status,
+          date: new Date(parseInt(d.createdAt) * 1000).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric',
+          }),
         };
       });
   }, [distributions]);
@@ -119,99 +157,124 @@ const HistoricalOverview = ({ distributions = [], payments = [] }) => {
   if (distributions.length === 0 && payments.length === 0) {
     return (
       <VStack py={8}>
-        <Text color="gray.400">No historical data available yet</Text>
+        <Text color="gray.400">No financial activity yet</Text>
         <Text fontSize="sm" color="gray.500">
-          Charts will appear once there are distributions or payments
+          Activity will appear here after deposits or distributions
         </Text>
       </VStack>
     );
   }
 
   return (
-    <Tabs variant="soft-rounded" colorScheme="purple">
-      <TabList mb={4}>
-        <Tab sx={glassTabStyle} mr={2}>Money Flow</Tab>
-        <Tab sx={glassTabStyle}>Distributions</Tab>
-      </TabList>
+    <VStack spacing={5} align="stretch">
+      {/* ─── Summary Cards ─── */}
+      <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3}>
+        <SummaryCard
+          label="Total Received"
+          value={stats.totalReceived}
+          subtext={`${stats.paymentCount} deposit${stats.paymentCount !== 1 ? 's' : ''} · ${stats.tokenSymbol}`}
+          color={COLORS.inflow}
+        />
+        <SummaryCard
+          label="Total Distributed"
+          value={stats.totalDistributed}
+          subtext={`${stats.distributionCount} distribution${stats.distributionCount !== 1 ? 's' : ''} · ${stats.tokenSymbol}`}
+          color={COLORS.outflow}
+        />
+        <SummaryCard
+          label="Total Claimed"
+          value={stats.totalClaimed}
+          subtext={`${stats.claimRate}% claim rate · ${stats.tokenSymbol}`}
+          color={COLORS.claimed}
+        />
+        <SummaryCard
+          label="Net Balance"
+          value={(parseFloat(stats.totalReceived) - parseFloat(stats.totalClaimed)).toFixed(4)}
+          subtext={`Received minus claimed · ${stats.tokenSymbol}`}
+        />
+      </SimpleGrid>
 
-      <TabPanels>
-        {/* Money Flow Chart */}
-        <TabPanel p={0}>
-          {monthlyData.length > 0 ? (
-            <Box h={{ base: '200px', md: '300px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={monthlyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis
-                    dataKey="monthLabel"
-                    tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 12 }}
-                    axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-                  />
-                  <YAxis
-                    tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 12 }}
-                    axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Area
-                    type="monotone"
-                    dataKey="inflow"
-                    name="Received"
-                    stackId="1"
-                    stroke="#2ECC71"
-                    fill="rgba(46, 204, 113, 0.4)"
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="outflow"
-                    name="Distributed"
-                    stackId="2"
-                    stroke="#9B59B6"
-                    fill="rgba(155, 89, 182, 0.4)"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </Box>
-          ) : (
-            <VStack py={6}>
-              <Text color="gray.400">No flow data available</Text>
-            </VStack>
-          )}
-        </TabPanel>
+      {/* ─── Activity Chart ─── */}
+      {timelineData.length > 0 && (
+        <Box>
+          <Text fontSize="sm" fontWeight="medium" color="gray.400" mb={3}>
+            Treasury Activity
+          </Text>
+          <Box h={{ base: '180px', md: '220px' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={timelineData} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.06)" />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                />
+                <YAxis
+                  tick={{ fill: 'rgba(255,255,255,0.5)', fontSize: 11 }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={45}
+                />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend
+                  wrapperStyle={{ fontSize: '11px', color: 'rgba(255,255,255,0.6)' }}
+                  iconType="square"
+                  iconSize={8}
+                />
+                <Bar dataKey="received" name="Received" fill={COLORS.inflow} radius={[3, 3, 0, 0]} maxBarSize={40} />
+                <Bar dataKey="distributed" name="Distributed" fill={COLORS.outflow} radius={[3, 3, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Box>
+        </Box>
+      )}
 
-        {/* Distribution Bar Chart */}
-        <TabPanel p={0}>
-          {distributionData.length > 0 ? (
-            <Box h={{ base: '200px', md: '300px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={distributionData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis
-                    dataKey="id"
-                    tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 12 }}
-                    axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-                  />
-                  <YAxis
-                    tick={{ fill: 'rgba(255,255,255,0.6)', fontSize: 12 }}
-                    axisLine={{ stroke: 'rgba(255,255,255,0.2)' }}
-                  />
-                  <Tooltip content={<CustomTooltip />} />
-                  <Bar
-                    dataKey="amount"
-                    name="Amount"
-                    fill="rgba(148, 115, 220, 0.8)"
-                    radius={[4, 4, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </Box>
-          ) : (
-            <VStack py={6}>
-              <Text color="gray.400">No distribution data available</Text>
-            </VStack>
-          )}
-        </TabPanel>
-      </TabPanels>
-    </Tabs>
+      {/* ─── Distribution Breakdown ─── */}
+      {distBreakdown.length > 0 && (
+        <Box>
+          <Text fontSize="sm" fontWeight="medium" color="gray.400" mb={3}>
+            Distribution Breakdown
+          </Text>
+          <VStack spacing={3} align="stretch">
+            {distBreakdown.map(d => (
+              <Box key={d.id} bg="rgba(0,0,0,0.25)" borderRadius="lg" p={3}>
+                <HStack justify="space-between" mb={2}>
+                  <HStack spacing={2}>
+                    <Text fontSize="sm" fontWeight="bold">#{d.id}</Text>
+                    <Badge
+                      colorScheme={d.status === 'Active' ? 'green' : 'gray'}
+                      fontSize="2xs"
+                    >
+                      {d.status}
+                    </Badge>
+                    <Text fontSize="xs" color="gray.500">{d.date}</Text>
+                  </HStack>
+                  <Text fontSize="sm" color="gray.300">
+                    {d.claimed.toFixed(4)} / {d.total.toFixed(4)} {d.token}
+                  </Text>
+                </HStack>
+                <Progress
+                  value={d.pct}
+                  colorScheme="purple"
+                  borderRadius="full"
+                  size="sm"
+                  bg="rgba(255,255,255,0.08)"
+                />
+                <HStack justify="space-between" mt={1}>
+                  <Text fontSize="xs" color="gray.500">
+                    {d.claimCount} claimed · {d.pct.toFixed(0)}%
+                  </Text>
+                  <Text fontSize="xs" color={d.unclaimed > 0 ? 'orange.300' : 'green.300'}>
+                    {d.unclaimed > 0 ? `${d.unclaimed.toFixed(4)} unclaimed` : 'Fully claimed'}
+                  </Text>
+                </HStack>
+              </Box>
+            ))}
+          </VStack>
+        </Box>
+      )}
+    </VStack>
   );
 };
 

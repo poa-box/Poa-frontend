@@ -8,7 +8,6 @@ import {
   Progress,
   Button,
   useToast,
-  Tooltip,
 } from '@chakra-ui/react';
 import { useAuth } from '@/context/AuthContext';
 import { formatTokenAmount } from '@/util/formatToken';
@@ -19,6 +18,9 @@ const DistributionCard = ({
   paymentManagerAddress,
   refetch,
   onClaim,
+  claimData,       // { amount, proof } if user has a share, null if loading/not found
+  isLoadingClaim,  // true while fetching IPFS tree
+  claimNotFound,   // true if user has no share in this distribution
 }) => {
   const [isClaiming, setIsClaiming] = useState(false);
   const { accountAddress: address } = useAuth();
@@ -145,22 +147,36 @@ const DistributionCard = ({
           {distribution.claims?.length || 0} members claimed
         </Text>
 
+        {/* Show user's claimable amount */}
+        {!hasClaimed && claimData && (
+          <Box bg="rgba(148, 115, 220, 0.15)" borderRadius="md" px={3} py={2}>
+            <Text fontSize="sm" color="purple.200" fontWeight="medium">
+              Your share: {formatTokenAmount(claimData.amount, token.decimals, 4)} {token.symbol}
+            </Text>
+          </Box>
+        )}
+
+        {hasClaimed && userClaim?.amount && (
+          <Box bg="rgba(72, 187, 120, 0.15)" borderRadius="md" px={3} py={2}>
+            <Text fontSize="sm" color="green.200" fontWeight="medium">
+              Claimed: {formatTokenAmount(userClaim.amount, token.decimals, 4)} {token.symbol}
+            </Text>
+          </Box>
+        )}
+
         {distribution.status === 'Active' && (
-          <Tooltip
-            label={hasClaimed && userClaim?.amount ? `You claimed ${formatTokenAmount(userClaim.amount, token.decimals, 2)} ${token.symbol}` : 'Claim your share'}
-            placement="top"
+          <Button
+            colorScheme={hasClaimed ? 'green' : 'purple'}
+            variant={hasClaimed ? 'outline' : 'solid'}
+            size="sm"
+            w="100%"
+            onClick={handleClaim}
+            isLoading={isClaiming || isLoadingClaim}
+            loadingText={isLoadingClaim ? 'Loading claim data...' : 'Claiming...'}
+            isDisabled={hasClaimed || !address || !claimData || claimNotFound}
           >
-            <Button
-              colorScheme="purple"
-              size="sm"
-              w="100%"
-              onClick={handleClaim}
-              isLoading={isClaiming}
-              isDisabled={hasClaimed || !address}
-            >
-              {hasClaimed ? 'Already Claimed' : 'Claim Your Share'}
-            </Button>
-          </Tooltip>
+            {hasClaimed ? 'Already Claimed' : claimNotFound ? 'No Share Available' : claimData ? 'Claim Your Share' : 'Loading...'}
+          </Button>
         )}
       </VStack>
     </Box>

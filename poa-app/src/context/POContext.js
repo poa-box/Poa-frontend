@@ -2,8 +2,6 @@ import React, { createContext, useContext, useReducer, useEffect, useMemo, useCa
 import { useQuery } from '@apollo/client';
 import { FETCH_ORG_FULL_DATA } from '../util/queries';
 import { useRouter } from 'next/router';
-import { useAccount } from 'wagmi';
-import { useAuth } from './AuthContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
@@ -47,6 +45,30 @@ function transformEducationModules(modules) {
     return modules.map(module => {
         // Convert bytes32 contentHash to CID format for IPFS gateway URLs
         const ipfsCid = module.contentHash ? bytes32ToIpfsCid(module.contentHash) : null;
+
+        // Use subgraph-indexed metadata when available
+        const meta = module.metadata;
+        let description = 'Module content loading from IPFS...';
+        let link = '';
+        let question = '';
+        let answers = [];
+        let ipfsFetched = false;
+
+        if (meta) {
+            description = meta.description || 'No description available';
+            link = meta.link || '';
+            question = (meta.quiz && meta.quiz.length > 0) ? meta.quiz[0] : '';
+            if (meta.answersJson) {
+                try {
+                    const parsed = JSON.parse(meta.answersJson);
+                    answers = (parsed[0] || []).map((ans, i) => ({ index: i, answer: ans }));
+                } catch (e) {
+                    // Fall back to empty answers if JSON parsing fails
+                }
+            }
+            ipfsFetched = true;
+        }
+
         return {
             id: module.id,
             moduleId: module.moduleId,
@@ -56,15 +78,15 @@ function transformEducationModules(modules) {
             contentHashBytes32: module.contentHash,
             payout: formatTokenAmount(module.payout || '0'),
             status: module.status,
-            // Content from IPFS needs to be fetched separately
             isIndexing: !module.contentHash,
-            description: 'Module content loading from IPFS...',
-            link: '',
-            question: '',
-            answers: [],
+            description,
+            link,
+            question,
+            answers,
             completions: module.completions || [],
             // For backward compatibility
             completetions: module.completions || [],
+            _ipfsFetched: ipfsFetched,
         };
     });
 }
@@ -95,6 +117,7 @@ const initialState = {
     votingContractAddress: '',
     educationHubAddress: '',
     executorContractAddress: '',
+    eligibilityModuleAddress: '',
     participationTokenAddress: '',
 
     // Derived data
@@ -108,6 +131,7 @@ const initialState = {
     educationHubEnabled: false,
     hideTreasury: false,
     roleNames: {},
+    roleCanVoteMap: {},
 };
 
 function poReducer(state, action) {
@@ -124,8 +148,6 @@ function poReducer(state, action) {
 }
 
 export const POProvider = ({ children }) => {
-    const { address } = useAccount();
-    const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
     const poName = router.query.userDAO || '';
     const { safeFetchFromIpfs } = useIPFScontext();
@@ -211,23 +233,26 @@ export const POProvider = ({ children }) => {
 
     // Step 2: Fetch full org data using bytes ID, routed to the correct chain's subgraph
     const subgraphUrl = getSubgraphUrl(state.orgChainId);
+    const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
     const { data: orgData, loading: orgDataLoading, error: orgDataError, refetch: refetchOrgData } = useQuery(FETCH_ORG_FULL_DATA, {
         variables: { orgId: state.orgId },
         skip: !state.orgId,
         fetchPolicy: 'cache-first',
-        context: { subgraphUrl },
+        context: apolloContext,
     });
 
-    // Handle refresh events from Web3 transactions
+    // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
+    const refetchRef = React.useRef(refetchOrgData);
+    refetchRef.current = refetchOrgData;
+
+    // Refetch immediately — executeWithNotification already waited for the
+    // subgraph to index the transaction block before emitting the event.
     const handleRefresh = useCallback(() => {
-        if (state.orgId && refetchOrgData) {
-            // Delay to allow subgraph to index on mainnet (Arbitrum/Gnosis)
-            setTimeout(() => {
-                refetchOrgData();
-            }, 5000);
+        if (state.orgId) {
+            refetchRef.current();
         }
-    }, [state.orgId, refetchOrgData]);
+    }, [state.orgId]);
 
     // Subscribe to relevant events
     useRefreshSubscription(
@@ -247,14 +272,17 @@ export const POProvider = ({ children }) => {
         if (orgData?.organization) {
             const org = orgData.organization;
 
-            // Build role names map from roles data
+            // Build role names map and canVote map from roles data
             const roleNamesMap = {};
+            const roleCanVoteMap = {};
             if (org.roles && Array.isArray(org.roles)) {
                 org.roles.forEach((role, index) => {
                     const hatId = role.hatId;
                     const name = role.name || role.hat?.name || `Role ${index + 1}`;
                     roleNamesMap[hatId] = name;
                     roleNamesMap[String(hatId)] = name;
+                    roleCanVoteMap[hatId] = role.canVote !== false;
+                    roleCanVoteMap[String(hatId)] = role.canVote !== false;
                 });
             }
 
@@ -299,6 +327,8 @@ export const POProvider = ({ children }) => {
                 type: 'SET_ORG_DATA',
                 payload: {
                     logoHash: org.metadataHash || '',
+                    logoUrl: org.metadata?.logo || '',
+                    hideTreasury: org.metadata?.hideTreasury === true,
                     poMembers: org.users?.length || 0,
                     ptTokenBalance: formatTokenAmount(org.participationToken?.totalSupply || '0'),
                     topHatId: org.topHatId,
@@ -306,6 +336,7 @@ export const POProvider = ({ children }) => {
                     metadataAdminHatId: adminHat && adminHat !== '0' ? adminHat : null,
                     creatorHatIds: org.taskManager?.creatorHatIds || [],
                     roleNames: roleNamesMap,
+                    roleCanVoteMap: roleCanVoteMap,
                     quickJoinContractAddress: org.quickJoin?.id || '',
                     taskManagerContractAddress: org.taskManager?.id || '',
                     hybridVotingContractAddress: org.hybridVoting?.id || '',
@@ -313,6 +344,7 @@ export const POProvider = ({ children }) => {
                     educationHubAddress: eduHubId,
                     educationHubEnabled: !!(eduHubId && eduHubId !== ZERO_ADDRESS),
                     executorContractAddress: org.executorContract?.id || '',
+                    eligibilityModuleAddress: org.eligibilityModule?.id || '',
                     participationTokenAddress: org.participationToken?.id || '',
                     participationVotingContractAddress: org.hybridVoting?.id || '',
                     votingContractAddress: org.hybridVoting?.id || '',
@@ -356,14 +388,16 @@ export const POProvider = ({ children }) => {
         }
     }, [orgData, router]);
 
-    // Fetch logo and hideTreasury from IPFS metadata.
-    // The subgraph OrgMetadata entity indexes these after redeployment,
-    // but we keep the IPFS fallback for resilience and backward compatibility.
+    // Fetch logo and hideTreasury from IPFS metadata — only as fallback
+    // when the subgraph hasn't indexed org metadata yet.
     useEffect(() => {
         async function fetchMetadataFromIpfs() {
             const org = orgData?.organization;
             if (!org?.metadataHash) {
-                dispatch({ type: 'SET_LOGO_URL', payload: '' });
+                return;
+            }
+            // Skip IPFS fetch if subgraph already has metadata indexed
+            if (org.metadata) {
                 return;
             }
             try {
@@ -372,7 +406,6 @@ export const POProvider = ({ children }) => {
                 dispatch({ type: 'SET_ORG_DATA', payload: { hideTreasury: metadata?.hideTreasury === true } });
             } catch (e) {
                 console.warn('[POContext] Failed to fetch metadata from IPFS:', e);
-                dispatch({ type: 'SET_LOGO_URL', payload: '' });
             }
         }
         fetchMetadataFromIpfs();
@@ -422,7 +455,9 @@ export const POProvider = ({ children }) => {
 
     // Combined loading and error states
     const loading = orgLookupLoading || orgDataLoading;
-    const error = orgLookupError || orgDataError;
+    const rawError = orgLookupError || orgDataError;
+    // Stabilize error: only change when the message string changes, not the object reference
+    const errorMessage = rawError?.message || null;
 
     // Note: "org not found" is handled inline in the parallel fetch above
 
@@ -453,11 +488,12 @@ export const POProvider = ({ children }) => {
         votingContractAddress: state.votingContractAddress,
         educationHubAddress: state.educationHubAddress,
         executorContractAddress: state.executorContractAddress,
+        eligibilityModuleAddress: state.eligibilityModuleAddress,
         participationTokenAddress: state.participationTokenAddress,
 
         // Derived data
         loading,
-        error,
+        error: errorMessage ? { message: errorMessage } : null,
         leaderboardData: state.leaderboardData,
         leaderboardDisplayData,
         poContextLoading: state.poContextLoading,
@@ -471,11 +507,12 @@ export const POProvider = ({ children }) => {
         educationHubEnabled: state.educationHubEnabled,
         hideTreasury: state.hideTreasury,
         roleNames: state.roleNames,
-    }), [state, loading, error, leaderboardDisplayData, subgraphUrl]);
+        roleCanVoteMap: state.roleCanVoteMap,
+    }), [state, loading, errorMessage, leaderboardDisplayData, subgraphUrl]);
 
     return (
         <POContext.Provider value={contextValue}>
-            {error && <div>Error: {error.message}</div>}
+            {errorMessage && <div>Error: {errorMessage}</div>}
             {children}
         </POContext.Provider>
     );

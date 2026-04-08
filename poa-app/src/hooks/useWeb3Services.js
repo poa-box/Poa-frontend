@@ -4,14 +4,16 @@
  * Supports both EOA (RainbowKit/wagmi) and Passkey (ERC-4337) auth types.
  */
 
-import { useMemo, useCallback, useState, useEffect } from 'react';
+import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@apollo/client';
+import { getClient } from '@/util/apolloClient';
 import { encodeFunctionData } from 'viem';
 import { useEthersSigner, useEthersProvider } from '@/components/ProviderConverter';
 import { useAuth } from '../context/AuthContext';
 import { useNotification } from '../context/NotificationContext';
 import { useRefreshEmit } from '../context/RefreshContext';
 import { useIPFScontext } from '../context/ipfsContext';
+import { waitForSubgraphBlock } from '@/util/waitForSubgraph';
 import { usePOContext } from '../context/POContext';
 import { useUserContext } from '../context/UserContext';
 import { INFRASTRUCTURE_CONTRACTS, getInfrastructureAddress } from '../config/contracts';
@@ -34,6 +36,7 @@ import { TaskService, createTaskService } from '../services/web3/domain/TaskServ
 import { EducationService, createEducationService } from '../services/web3/domain/EducationService';
 import { EligibilityService, createEligibilityService } from '../services/web3/domain/EligibilityService';
 import { TokenRequestService, createTokenRequestService } from '../services/web3/domain/TokenRequestService';
+import { TreasuryService, createTreasuryService } from '../services/web3/domain/TreasuryService';
 
 /**
  * Hook to access all Web3 services
@@ -80,14 +83,18 @@ export function useWeb3Services(options = {}) {
   const userContext = useUserContext();
   const hatIds = userContext?.userData?.hatIds || null;
 
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache,
+  // so infrastructure addresses from one chain can't leak into another chain's queries.
+  const orgClient = useMemo(() => getClient(subgraphUrl), [subgraphUrl]);
+  // Context routing for org-scoped queries that use the default client (safe from
+  // cache poisoning because they have org-specific variables like orgId).
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Fetch infrastructure addresses from subgraph — routed to org's chain.
   // Skip until subgraphUrl is resolved by POContext to avoid querying the default
   // (Arbitrum) subgraph and getting wrong-chain addresses.
-  // MUST use no-cache: Apollo caches by query+variables (not endpoint), so queries
-  // against different subgraphs can return poisoned cache results.
   const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
-    context: { subgraphUrl },
-    fetchPolicy: 'no-cache',
+    client: orgClient,
     skip: !subgraphUrl,
   });
   const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
@@ -96,8 +103,7 @@ export function useWeb3Services(options = {}) {
   // For passkey cross-chain: fetch factory address from org chain to compute initCode
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
     skip: !isPasskeyUser || !isCrossChain || !subgraphUrl,
-    context: { subgraphUrl },
-    fetchPolicy: 'no-cache',
+    client: orgClient,
   });
   const orgFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
@@ -108,11 +114,15 @@ export function useWeb3Services(options = {}) {
   const [crossChainInitCode, setCrossChainInitCode] = useState('0x');
   // Track whether cross-chain initCode resolution has completed (so we can
   // block isReady until it finishes and prevent transactions from firing early).
-  const [crossChainInitCodeResolved, setCrossChainInitCodeResolved] = useState(false);
+  // Lazy-initialize: for non-passkey/non-cross-chain users, start resolved (true)
+  // to avoid a false→true transition that triggers an extra render in every instance.
+  const needsCrossChainInit = isPasskeyUser && isCrossChain;
+  const [crossChainInitCodeResolved, setCrossChainInitCodeResolved] = useState(() => !needsCrossChainInit);
 
   useEffect(() => {
     if (!isPasskeyUser || !isCrossChain) {
-      // Not cross-chain — no initCode needed, immediately resolved
+      // Not cross-chain — no initCode needed, immediately resolved.
+      // No-op setState when value already matches (React bails out).
       setCrossChainInitCode('0x');
       setCrossChainInitCodeResolved(true);
       return;
@@ -177,7 +187,7 @@ export function useWeb3Services(options = {}) {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
   const orgPaymaster = pmConfig?.paymasterOrgConfigs?.[0];
   // Entity existence = registered. Only pass paymaster address when not paused.
@@ -230,6 +240,7 @@ export function useWeb3Services(options = {}) {
         education: null,
         eligibility: null,
         tokenRequest: null,
+        treasury: null,
       };
     }
 
@@ -241,6 +252,7 @@ export function useWeb3Services(options = {}) {
       education: createEducationService(factory, txManager, ipfsService),
       eligibility: createEligibilityService(factory, txManager),
       tokenRequest: createTokenRequestService(factory, txManager, ipfsService),
+      treasury: createTreasuryService(factory, txManager),
     };
   }, [factory, txManager, ipfsService, registryAddress, effectiveChainId]);
 
@@ -256,7 +268,7 @@ export function useWeb3Services(options = {}) {
     ? Boolean(isAuthenticated && factory && txManager && crossChainInitCodeResolved)
     : Boolean(signer && factory && txManager);
 
-  return {
+  return useMemo(() => ({
     // Core
     factory,
     txManager,
@@ -271,16 +283,23 @@ export function useWeb3Services(options = {}) {
 
     // Constants
     VotingType,
-  };
+  }), [factory, txManager, services, getContractAddress, isReady, signer]);
 }
 
 /**
  * Hook for transaction execution with integrated notifications
- * Wraps service calls with loading states and automatic notifications
+ * Wraps service calls with loading states and automatic notifications.
+ *
+ * After a successful transaction, waits for the subgraph to index
+ * the new block before emitting the refresh event. This centralizes
+ * the _meta polling (max 2 queries) so subscribers can refetch immediately
+ * with fresh data.
  */
 export function useTransactionWithNotification() {
   const { addNotification, updateNotification } = useNotification();
   const { emit } = useRefreshEmit();
+  const poContext = usePOContext();
+  const subgraphUrl = poContext?.subgraphUrl;
 
   /**
    * Execute a transaction with notification handling
@@ -313,12 +332,18 @@ export function useTransactionWithNotification() {
         // Update pending notification to success
         updateNotification(pendingId, successMessage, 'success');
 
-        // Emit refresh event if specified
+        // Wait for subgraph to index the tx block, then emit refresh event.
+        // Fire-and-forget: don't block the caller (optimistic UI is already showing).
+        // Max 2 _meta queries (~5s initial + 2s backup), then emit regardless.
         if (refreshEvent) {
-          emit(refreshEvent, {
-            ...refreshData,
-            transactionHash: result.transactionHash,
-          });
+          const emitRefresh = async () => {
+            await waitForSubgraphBlock(subgraphUrl, result.blockNumber);
+            emit(refreshEvent, {
+              ...refreshData,
+              transactionHash: result.txHash,
+            });
+          };
+          emitRefresh();
         }
       } else {
         // Update to error
@@ -337,7 +362,7 @@ export function useTransactionWithNotification() {
         error,
       };
     }
-  }, [addNotification, updateNotification, emit]);
+  }, [addNotification, updateNotification, emit, subgraphUrl]);
 
   /**
    * Create a transaction handler for common operations
@@ -366,10 +391,10 @@ export function useTransactionWithNotification() {
     };
   }, [executeWithNotification]);
 
-  return {
+  return useMemo(() => ({
     executeWithNotification,
     createHandler,
-  };
+  }), [executeWithNotification, createHandler]);
 }
 
 /**
@@ -380,10 +405,10 @@ export function useWeb3(options = {}) {
   const services = useWeb3Services(options);
   const txNotification = useTransactionWithNotification();
 
-  return {
+  return useMemo(() => ({
     ...services,
     ...txNotification,
-  };
+  }), [services, txNotification]);
 }
 
 export default useWeb3Services;

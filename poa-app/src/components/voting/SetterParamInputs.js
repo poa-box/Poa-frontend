@@ -22,14 +22,7 @@ import {
   Badge,
 } from '@chakra-ui/react';
 import VotingClassWeightsInput from './VotingClassWeightsInput';
-
-const inputStyles = {
-  bg: 'whiteAlpha.100',
-  border: '1px solid rgba(148, 115, 220, 0.3)',
-  color: 'white',
-  _hover: { borderColor: 'purple.400' },
-  _focus: { borderColor: 'purple.500', boxShadow: '0 0 0 1px rgba(148, 115, 220, 0.6)' },
-};
+import { inputStyles } from '@/components/shared/glassStyles';
 
 /**
  * Render a single parameter input based on its type
@@ -231,9 +224,9 @@ const SetterParamInputs = ({
     return (
       <Box
         p={4}
-        bg="rgba(148, 115, 220, 0.1)"
+        bg="whiteAlpha.50"
         borderRadius="md"
-        border="1px solid rgba(148, 115, 220, 0.2)"
+        border="1px solid rgba(148, 115, 220, 0.3)"
       >
         <Text fontSize="sm" color="gray.400">
           This action requires no additional configuration.
@@ -250,7 +243,7 @@ const SetterParamInputs = ({
     <VStack spacing={4} align="stretch">
       {inputs.map((param) => (
         <FormControl key={param.name}>
-          <FormLabel color="white" fontWeight="medium" fontSize="sm">
+          <FormLabel color="gray.200" fontSize="sm">
             {param.label || param.name}
             {param.type === 'permissionMask' && (
               <Badge ml={2} colorScheme="purple" fontSize="xs">

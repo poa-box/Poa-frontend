@@ -37,12 +37,15 @@ import {
   Switch,
   Checkbox,
   useToast,
+  Image,
 } from '@chakra-ui/react';
 import { AddIcon, InfoIcon } from '@chakra-ui/icons';
 import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { getBountyTokenOptions } from '../../util/tokens';
 import { usePOContext } from '../../context/POContext';
+import { createChainClients } from '@/services/web3/utils/chainClients';
+import { formatTokenAmount } from '@/util/formatToken';
 
 /**
  * @param {Object} props
@@ -53,9 +56,13 @@ import { usePOContext } from '../../context/POContext';
  * @param {Object} props.roleNames - Map of hatId -> role name
  * @param {string[]} props.creatorHatIds - Hat IDs that can create projects
  */
+const BALANCE_ABI = [
+  { type: 'function', name: 'balanceOf', inputs: [{ name: 'account', type: 'address' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' },
+];
+
 const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [], defaultName = '', defaultDescription = '' }) => {
   const toast = useToast();
-  const { orgChainId } = usePOContext();
+  const { orgChainId, taskManagerContractAddress } = usePOContext();
   const [loading, setLoading] = useState(false);
 
   // Basic fields
@@ -81,6 +88,31 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
   // Bounty budgets: array of { token, cap, isUnlimited } objects
   const [bountyBudgets, setBountyBudgets] = useState([]);
   const availableTokens = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
+
+  // TaskManager token balances for bounty budget warnings
+  const [taskManagerBalances, setTaskManagerBalances] = useState({}); // { tokenAddress: balanceString }
+  useEffect(() => {
+    if (!taskManagerContractAddress || !orgChainId || bountyBudgets.length === 0) return;
+    let cancelled = false;
+    const fetchBalances = async () => {
+      const clients = createChainClients(orgChainId);
+      const client = clients?.publicClient;
+      if (!client) return;
+      const enabledTokens = bountyBudgets.map(b => b.token);
+      const results = {};
+      await Promise.all(enabledTokens.map(async (addr) => {
+        try {
+          const bal = await client.readContract({
+            address: addr, abi: BALANCE_ABI, functionName: 'balanceOf', args: [taskManagerContractAddress],
+          });
+          results[addr] = bal.toString();
+        } catch { results[addr] = '0'; }
+      }));
+      if (!cancelled) setTaskManagerBalances(results);
+    };
+    fetchBalances();
+    return () => { cancelled = true; };
+  }, [bountyBudgets.length, taskManagerContractAddress, orgChainId]);
 
   // Additional managers - stores { address, displayName } objects
   const [managers, setManagers] = useState([]);
@@ -349,8 +381,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
             <FormControl>
               <HStack justify="space-between">
                 <HStack spacing={1}>
-                  <FormLabel mb={0}>Token Budget Cap</FormLabel>
-                  <Tooltip label="Set a maximum amount of participation tokens this project can allocate to tasks. Leave unchecked for unlimited." placement="top">
+                  <FormLabel mb={0}>Share Budget Cap</FormLabel>
+                  <Tooltip label="Set a maximum amount of shares this project can allocate to tasks. Leave unchecked for unlimited." placement="top">
                     <InfoIcon color="gray.400" boxSize={3} />
                   </Tooltip>
                 </HStack>
@@ -365,7 +397,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
             {hasCap && (
               <Box w="100%" p={3} bg="gray.50" borderRadius="md">
                 <FormControl>
-                  <FormLabel fontSize="sm">Maximum Token Budget</FormLabel>
+                  <FormLabel fontSize="sm">Maximum Share Budget</FormLabel>
                   <NumberInput
                     value={cap}
                     onChange={(value) => setCap(value)}
@@ -378,7 +410,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                     </NumberInputStepper>
                   </NumberInput>
                   <Text fontSize="xs" color="gray.500" mt={1}>
-                    Total participation tokens that can be allocated to tasks in this project
+                    Total shares that can be allocated to tasks in this project
                   </Text>
                 </FormControl>
               </Box>
@@ -409,6 +441,9 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                         <Box key={token.address} p={3} bg="gray.50" borderRadius="md">
                           <HStack justify="space-between" mb={isEnabled ? 2 : 0}>
                             <HStack spacing={2}>
+                              {token.logo && (
+                                <Image src={token.logo} alt={token.symbol} boxSize="20px" borderRadius="full" fallback={<></>} />
+                              )}
                               <Text fontSize="sm" fontWeight="600">{token.symbol}</Text>
                               <Text fontSize="xs" color="gray.500">{token.name}</Text>
                             </HStack>
@@ -427,35 +462,61 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                           </HStack>
 
                           {isEnabled && (
-                            <HStack spacing={3}>
-                              <Checkbox
-                                size="sm"
-                                isChecked={budget.isUnlimited}
-                                onChange={(e) => {
-                                  setBountyBudgets(prev => prev.map(b =>
-                                    b.token === token.address ? { ...b, isUnlimited: e.target.checked } : b
-                                  ));
-                                }}
-                                colorScheme="teal"
-                              >
-                                <Text fontSize="xs">Unlimited</Text>
-                              </Checkbox>
-                              {!budget.isUnlimited && (
-                                <NumberInput
+                            <VStack spacing={2} align="stretch">
+                              <HStack spacing={3}>
+                                <Checkbox
                                   size="sm"
-                                  value={budget.cap}
-                                  onChange={(value) => {
+                                  isChecked={budget.isUnlimited}
+                                  onChange={(e) => {
                                     setBountyBudgets(prev => prev.map(b =>
-                                      b.token === token.address ? { ...b, cap: value } : b
+                                      b.token === token.address ? { ...b, isUnlimited: e.target.checked } : b
                                     ));
                                   }}
-                                  min={0}
-                                  flex={1}
+                                  colorScheme="teal"
                                 >
-                                  <NumberInputField placeholder={`Max ${token.symbol}`} />
-                                </NumberInput>
-                              )}
-                            </HStack>
+                                  <Text fontSize="xs">Unlimited</Text>
+                                </Checkbox>
+                                {!budget.isUnlimited && (
+                                  <NumberInput
+                                    size="sm"
+                                    value={budget.cap}
+                                    onChange={(value) => {
+                                      setBountyBudgets(prev => prev.map(b =>
+                                        b.token === token.address ? { ...b, cap: value } : b
+                                      ));
+                                    }}
+                                    min={0}
+                                    flex={1}
+                                  >
+                                    <NumberInputField placeholder={`Max ${token.symbol}`} />
+                                  </NumberInput>
+                                )}
+                              </HStack>
+                              {/* Show TaskManager balance and warn if insufficient */}
+                              {(() => {
+                                const tmBalance = taskManagerBalances[token.address] || '0';
+                                const formatted = formatTokenAmount(tmBalance, token.decimals, 4);
+                                let insufficient = false;
+                                if (!budget.isUnlimited && budget.cap && Number(budget.cap) > 0) {
+                                  try {
+                                    const capWei = ethers.utils.parseUnits(budget.cap.toString(), token.decimals);
+                                    insufficient = capWei.gt(ethers.BigNumber.from(tmBalance));
+                                  } catch { /* invalid input, skip warning */ }
+                                }
+                                return (
+                                  <>
+                                    <Text fontSize="xs" color="gray.500">
+                                      Available in bounty fund: {formatted} {token.symbol}
+                                    </Text>
+                                    {insufficient && (
+                                      <Text fontSize="xs" color="orange.400">
+                                        ⚠ Insufficient — deposit more {token.symbol} via Treasury → Fund Bounties
+                                      </Text>
+                                    )}
+                                  </>
+                                );
+                              })()}
+                            </VStack>
                           )}
                         </Box>
                       );

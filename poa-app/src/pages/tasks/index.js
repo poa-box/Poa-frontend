@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from 'react';
-import { Box, Spinner, Center } from '@chakra-ui/react';
+import { Box, Center } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import MainLayout from '../../components/TaskManager/MainLayout';
 import { useDataBaseContext } from '@/context/dataBaseContext';
 import { useRouter } from 'next/router';
@@ -29,7 +30,7 @@ const Tasks = () => {
       <Navbar />
       {poContextLoading ? (
         <Center height="90vh">
-          <Spinner size="xl" />
+          <PulseLoader size="xl" />
         </Center>
       ) : (
         <Box minH="90vh" position="relative" bg="blackAlpha.600" ref={containerRef}>

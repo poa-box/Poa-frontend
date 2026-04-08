@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon } from '@chakra-ui/react';
+import { Box, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon, Image } from '@chakra-ui/react';
 import { useDrag } from 'react-dnd';
 import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
@@ -7,7 +7,7 @@ import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
-  const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, rejectionCount, requiresApplication, applicants } = task;
+  const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
 
   const router = useRouter();
   const { userDAO } = router.query;
@@ -27,6 +27,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'task',
     item: { id, columnId, name, description, difficulty, estHours, claimedBy, claimerUsername, Payout, submission: task.submission, projectId },
+    canDrag: () => !task.isIndexing,
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
@@ -186,24 +187,35 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
           <Flex justify="space-between" align="center" mt={1}>
             <HStack spacing={1}>
               {Payout && (
-                <Tooltip label="Participation token reward" placement="top">
-                  <Flex align="center" bg="purple.50" px={2} py={0.5} borderRadius="full">
-                    <StarIcon boxSize={3} mr={1} color="purple.500" />
-                    <Text fontWeight="bold" color="purple.700" fontSize="xs">
-                      {Payout} PT
-                    </Text>
-                  </Flex>
-                </Tooltip>
+                <Flex align="center" bg="purple.50" px={2} py={0.5} borderRadius="full">
+                  <StarIcon boxSize={3} mr={1} color="purple.500" />
+                  <Text fontWeight="bold" color="purple.700" fontSize="xs">
+                    {Payout} shares
+                  </Text>
+                </Flex>
               )}
-              {checkHasBounty(bountyToken, bountyPayout) && (
-                <Tooltip label={`Token bounty: ${getTokenByAddress(bountyToken).name}`} placement="top">
-                  <Flex align="center" bg="green.50" px={2} py={0.5} borderRadius="full">
-                    <Text fontWeight="bold" color="green.700" fontSize="xs">
-                      +{bountyPayout} {getTokenByAddress(bountyToken).symbol}
-                    </Text>
-                  </Flex>
-                </Tooltip>
-              )}
+              {checkHasBounty(bountyToken, bountyPayoutRaw) && (() => {
+                const tokenInfo = getTokenByAddress(bountyToken);
+                return (
+                  <Tooltip label={`Token bounty: ${tokenInfo.name}`} placement="top">
+                    <Flex align="center" bg="green.50" px={2} py={0.5} borderRadius="full">
+                      {tokenInfo.logo && (
+                        <Image
+                          src={tokenInfo.logo}
+                          alt={tokenInfo.symbol}
+                          boxSize="14px"
+                          borderRadius="full"
+                          mr={1}
+                          fallback={<></>}
+                        />
+                      )}
+                      <Text fontWeight="bold" color="green.700" fontSize="xs">
+                        +{bountyPayout} {tokenInfo.symbol}
+                      </Text>
+                    </Flex>
+                  </Tooltip>
+                );
+              })()}
             </HStack>
 
             {claimerUsername && (

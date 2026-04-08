@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, Tooltip } from "@chakra-ui/react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button } from "@chakra-ui/react";
 import NextImage from "next/image";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
 import { FaHome } from 'react-icons/fa';
@@ -9,7 +9,7 @@ import LoginButton from "@/components/LoginButton";
 import { useAuth } from "@/context/AuthContext";
 import { usePOContext } from "@/context/POContext";
 import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
-const Navbar = () => {
+const Navbar = React.memo(() => {
   const router = useRouter();
   const { userDAO } = router.query;
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -23,20 +23,20 @@ const Navbar = () => {
   const { isAdmin } = useIsOrgAdmin(orgId, accountAddress);
 
   // Navigation items - conditionally include Learn & Earn based on educationHubEnabled
-  const navItems = [
+  const navItems = useMemo(() => [
     { name: 'Dashboard', path: `/dashboard/?userDAO=${userDAO}` },
     { name: 'Tasks', path: `/tasks/?userDAO=${userDAO}` },
     { name: 'Voting', path: `/voting/?userDAO=${userDAO}` },
     ...(!hideTreasury ? [{ name: 'Treasury', path: `/treasury/?userDAO=${userDAO}` }] : []),
     ...(educationHubEnabled ? [{ name: 'Learn & Earn', path: `/edu-Hub/?userDAO=${userDAO}` }] : []),
     ...(isAdmin ? [{ name: 'Settings', path: `/settings/?userDAO=${userDAO}` }] : []),
-  ];
+  ], [userDAO, hideTreasury, educationHubEnabled, isAdmin]);
 
   // Function to check active route
-  const isActive = (path) => {
+  const isActive = useCallback((path) => {
     const basePath = '/' + (router.pathname.split('/')[1] || '');
     return basePath === '/' + (path.split('/')[1] || '');
-  };
+  }, [router.pathname]);
 
   return (
     <Box 
@@ -304,6 +304,8 @@ const Navbar = () => {
 
     </Box>
   );
-};
+});
+
+Navbar.displayName = 'Navbar';
 
 export default Navbar;

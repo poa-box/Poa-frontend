@@ -5,6 +5,8 @@
 
 import { ethers } from 'ethers';
 import PaymentManagerABI from '../../../../abi/PaymentManager.json';
+import PaymasterHubABI from '../../../../abi/PaymasterHub.json';
+import ERC20ABI from '../../../../abi/ERC20.json';
 import { requireAddress, requirePositiveNumber } from '../utils/validation';
 
 /**
@@ -18,6 +20,114 @@ export class TreasuryService {
   constructor(contractFactory, transactionManager) {
     this.factory = contractFactory;
     this.txManager = transactionManager;
+  }
+
+  // ============================================
+  // Deposit Functions
+  // ============================================
+
+  /**
+   * Approve an ERC20 token for spending by the PaymentManager
+   * @param {string} tokenAddress - ERC20 token contract address
+   * @param {string} spenderAddress - Address to approve (PaymentManager)
+   * @param {string} amount - Amount to approve (in wei)
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async approveToken(tokenAddress, spenderAddress, amount, options = {}) {
+    requireAddress(tokenAddress, 'Token address');
+    requireAddress(spenderAddress, 'Spender address');
+    requirePositiveNumber(amount, 'Approval amount');
+
+    const contract = this.factory.createWritable(tokenAddress, ERC20ABI);
+    return this.txManager.execute(contract, 'approve', [spenderAddress, amount], options);
+  }
+
+  /**
+   * Deposit ERC20 tokens into the PaymentManager treasury
+   * @param {string} contractAddress - PaymentManager contract address
+   * @param {string} tokenAddress - ERC20 token to deposit
+   * @param {string} amount - Amount to deposit (in wei)
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async depositERC20(contractAddress, tokenAddress, amount, options = {}) {
+    requireAddress(contractAddress, 'PaymentManager contract address');
+    requireAddress(tokenAddress, 'Token address');
+    requirePositiveNumber(amount, 'Deposit amount');
+
+    const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
+    return this.txManager.execute(contract, 'payERC20', [tokenAddress, amount], options);
+  }
+
+  /**
+   * Transfer ERC20 tokens directly to a recipient (e.g., TaskManager for bounty funding).
+   * Uses plain ERC20.transfer — no approval needed since tokens come from caller's balance.
+   * @param {string} tokenAddress - ERC20 token contract address
+   * @param {string} recipientAddress - Destination address (e.g., TaskManager)
+   * @param {string} amount - Amount to transfer (in wei)
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async transferERC20(tokenAddress, recipientAddress, amount, options = {}) {
+    requireAddress(tokenAddress, 'Token address');
+    requireAddress(recipientAddress, 'Recipient address');
+    requirePositiveNumber(amount, 'Transfer amount');
+
+    const contract = this.factory.createWritable(tokenAddress, ERC20ABI);
+    return this.txManager.execute(contract, 'transfer', [recipientAddress, amount], options);
+  }
+
+  /**
+   * Get current ERC20 allowance
+   * @param {string} tokenAddress - ERC20 token contract address
+   * @param {string} ownerAddress - Token owner address
+   * @param {string} spenderAddress - Approved spender address
+   * @returns {Promise<string>} Current allowance in wei
+   */
+  async getAllowance(tokenAddress, ownerAddress, spenderAddress) {
+    requireAddress(tokenAddress, 'Token address');
+    requireAddress(ownerAddress, 'Owner address');
+    requireAddress(spenderAddress, 'Spender address');
+
+    const contract = this.factory.createReadOnly(tokenAddress, ERC20ABI);
+    const allowance = await contract.allowance(ownerAddress, spenderAddress);
+    return allowance.toString();
+  }
+
+  /**
+   * Get ERC20 token balance for an account
+   * @param {string} tokenAddress - ERC20 token contract address
+   * @param {string} accountAddress - Account to check balance of
+   * @returns {Promise<string>} Balance in wei
+   */
+  async getTokenBalance(tokenAddress, accountAddress) {
+    requireAddress(tokenAddress, 'Token address');
+    requireAddress(accountAddress, 'Account address');
+
+    const contract = this.factory.createReadOnly(tokenAddress, ERC20ABI);
+    const balance = await contract.balanceOf(accountAddress);
+    return balance.toString();
+  }
+
+  // ============================================
+  // Gas Pool Functions
+  // ============================================
+
+  /**
+   * Deposit native token (ETH/xDAI) to the org's gas pool via PaymasterHub.depositForOrg
+   * @param {string} paymasterHubAddress - PaymasterHub proxy address
+   * @param {string} orgId - Organization ID (bytes32)
+   * @param {string} amount - Amount to deposit (in wei)
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async depositToGasPool(paymasterHubAddress, orgId, amount, options = {}) {
+    requireAddress(paymasterHubAddress, 'PaymasterHub address');
+    requirePositiveNumber(amount, 'Deposit amount');
+
+    const contract = this.factory.createWritable(paymasterHubAddress, PaymasterHubABI);
+    return this.txManager.execute(contract, 'depositForOrg', [orgId], { ...options, value: amount });
   }
 
   // ============================================
@@ -40,14 +150,6 @@ export class TreasuryService {
     requirePositiveNumber(amount, 'Distribution amount');
 
     const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
-
-    console.log('=== createDistribution DEBUG ===');
-    console.log('PaymentManager address:', contractAddress);
-    console.log('Payout token:', payoutToken);
-    console.log('Amount:', amount);
-    console.log('Merkle root:', merkleRoot);
-    console.log('Checkpoint block:', checkpointBlock);
-    console.log('=== END createDistribution DEBUG ===');
 
     return this.txManager.execute(
       contract,
@@ -72,13 +174,6 @@ export class TreasuryService {
 
     const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
     const id = ethers.BigNumber.from(distributionId);
-
-    console.log('=== claimDistribution DEBUG ===');
-    console.log('PaymentManager address:', contractAddress);
-    console.log('Distribution ID:', id.toString());
-    console.log('Claim amount:', claimAmount);
-    console.log('Merkle proof length:', merkleProof.length);
-    console.log('=== END claimDistribution DEBUG ===');
 
     return this.txManager.execute(
       contract,
@@ -108,11 +203,6 @@ export class TreasuryService {
     const amounts = claims.map(c => c.amount);
     const proofs = claims.map(c => c.proof);
 
-    console.log('=== claimMultiple DEBUG ===');
-    console.log('PaymentManager address:', contractAddress);
-    console.log('Number of claims:', claims.length);
-    console.log('=== END claimMultiple DEBUG ===');
-
     return this.txManager.execute(
       contract,
       'claimMultiple',
@@ -133,11 +223,6 @@ export class TreasuryService {
 
     const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
     const id = ethers.BigNumber.from(distributionId);
-
-    console.log('=== finalizeDistribution DEBUG ===');
-    console.log('PaymentManager address:', contractAddress);
-    console.log('Distribution ID:', id.toString());
-    console.log('=== END finalizeDistribution DEBUG ===');
 
     return this.txManager.execute(
       contract,
@@ -176,7 +261,7 @@ export class TreasuryService {
 
     const contract = this.factory.createReadOnly(contractAddress, PaymentManagerABI);
     const id = ethers.BigNumber.from(distributionId);
-    const result = await contract.distributions(id);
+    const result = await contract.getDistribution(id);
 
     return {
       payoutToken: result.payoutToken,
@@ -201,7 +286,7 @@ export class TreasuryService {
 
     const contract = this.factory.createReadOnly(contractAddress, PaymentManagerABI);
     const id = ethers.BigNumber.from(distributionId);
-    const claimed = await contract.claimed(id, userAddress);
+    const claimed = await contract.hasClaimed(id, userAddress);
 
     return claimed;
   }

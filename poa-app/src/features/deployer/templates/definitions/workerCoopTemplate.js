@@ -35,7 +35,7 @@ export const workerCoopTemplate = {
       iconName: 'Coins',
       title: 'Share the Rewards',
       subtitle: 'Fair profit distribution',
-      expandedContent: `Participation tokens accumulate as members complete work and engage with governance. Use these to inform profit distribution—those who contribute more can earn more, while democratic voice stays protected.`,
+      expandedContent: `Shares accumulate as members complete work and engage with governance. Use these to inform profit distribution—those who contribute more can earn more, while democratic voice stays protected.`,
     },
     {
       iconName: 'UserPlus',
@@ -68,8 +68,8 @@ that can inform profit-sharing and participation-based voting power.`,
       },
       {
         name: 'Share Revenue Fairly',
-        description: `Participation tokens accumulate as members complete work and
-engage with governance. Use these tokens to inform profit distribution—those
+        description: `Shares accumulate as members complete work and
+engage with governance. Use these shares to inform profit distribution—those
 who contribute more can earn more, while democratic voice remains protected.`,
         icon: '💰',
       },
@@ -112,7 +112,7 @@ weight as your culture matures—it's much harder to add structure later.`,
 
     whatHybridVotingMeans: `When you vote with an 80/20 hybrid system:
 - 80% of your voting power comes from being a member (everyone equal)
-- 20% comes from your participation tokens (earned through work and engagement)
+- 20% comes from your shares (earned through work and engagement)
 
 **Example:** In a 10-person cooperative voting on a $50K equipment purchase:
 - With pure democracy, each person has 10% of voting power
@@ -458,21 +458,21 @@ someone who rarely engages.`,
         whenToUse: 'Use hybrid voting when you want to reward engagement while maintaining democratic foundations.',
       },
       'participation-tokens': {
-        title: 'Participation Tokens',
+        title: 'Shares',
         short: 'Digital record of your contributions and engagement',
-        detailed: `Participation tokens accumulate as you engage with your
+        detailed: `Shares accumulate as you engage with your
 cooperative:
 - Complete tasks and projects
 - Vote on proposals
 - Attend meetings (if tracked)
 - Take on responsibilities
 
-These tokens serve multiple purposes:
+These shares serve multiple purposes:
 - Inform the participation portion of hybrid voting
 - Provide transparent record for profit-sharing discussions
 - Recognize contributions publicly
 
-Tokens aren't about creating hierarchy—they're about making contributions
+Shares aren't about creating hierarchy—they're about making contributions
 visible and fairly recognizing those who do the work.`,
         whenToUse: 'Track participation when you want transparent contribution records and fair engagement incentives.',
       },

@@ -7,3 +7,5 @@ export { default as DistributionCard } from './DistributionCard';
 export { default as DistributionHistory } from './DistributionHistory';
 export { default as HistoricalOverview } from './HistoricalOverview';
 export { default as ParticipationTokenModal } from './ParticipationTokenModal';
+export { default as GasPoolSection } from './GasPoolSection';
+export { default as GasPoolDepositModal } from './GasPoolDepositModal';

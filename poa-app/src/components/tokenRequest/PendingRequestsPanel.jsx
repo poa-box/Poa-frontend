@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
   VStack,
@@ -6,7 +6,6 @@ import {
   Text,
   Button,
   Badge,
-  Spinner,
   Accordion,
   AccordionItem,
   AccordionButton,
@@ -17,6 +16,7 @@ import {
   Alert,
   AlertIcon,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
 import { FETCH_PENDING_TOKEN_REQUESTS } from '@/util/queries';
 import { useWeb3 } from '@/hooks/useWeb3Services';
@@ -36,47 +36,48 @@ const PendingRequestsPanel = () => {
   const [loadingRequestId, setLoadingRequestId] = useState(null);
   const [metadataCache, setMetadataCache] = useState({});
 
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+
   // Query pending requests
   const { data, loading, error, refetch } = useQuery(FETCH_PENDING_TOKEN_REQUESTS, {
     variables: { tokenAddress: participationTokenAddress },
     skip: !participationTokenAddress,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
 
-  // Subscribe to refresh events
-  const handleRefresh = () => {
-    setTimeout(() => refetch(), 2000);
-  };
-
+  // Refetch immediately — executeWithNotification already waited for the
+  // subgraph to index the transaction block before emitting these events.
   useRefreshSubscription(
     [
       RefreshEvent.TOKEN_REQUEST_CREATED,
       RefreshEvent.TOKEN_REQUEST_APPROVED,
       RefreshEvent.TOKEN_REQUEST_CANCELLED,
     ],
-    handleRefresh,
+    () => refetch(),
     [refetch]
   );
 
   const pendingRequests = data?.tokenRequests || [];
 
-  // Fetch IPFS metadata for requests
+  // Fetch IPFS metadata for requests — only as fallback when subgraph hasn't indexed
   useEffect(() => {
     const fetchMetadata = async () => {
       if (!fetchFromIpfs || !pendingRequests.length) return;
 
       for (const request of pendingRequests) {
-        if (request.ipfsHash && !metadataCache[request.ipfsHash]) {
-          try {
-            const metadata = await fetchFromIpfs(request.ipfsHash);
-            setMetadataCache(prev => ({
-              ...prev,
-              [request.ipfsHash]: metadata,
-            }));
-          } catch (err) {
-            console.error('Error fetching IPFS metadata:', err);
-          }
+        // Skip if subgraph already has metadata or if already cached
+        if (request.metadata || metadataCache[request.ipfsHash]) continue;
+        if (!request.ipfsHash) continue;
+
+        try {
+          const metadata = await fetchFromIpfs(request.ipfsHash);
+          setMetadataCache(prev => ({
+            ...prev,
+            [request.ipfsHash]: metadata,
+          }));
+        } catch (err) {
+          console.error('Error fetching IPFS metadata:', err);
         }
       }
     };
@@ -92,8 +93,8 @@ const PendingRequestsPanel = () => {
       const result = await executeWithNotification(
         () => tokenRequest.approveRequest(participationTokenAddress, requestId),
         {
-          pendingMessage: 'Approving token request...',
-          successMessage: 'Token request approved!',
+          pendingMessage: 'Approving share request...',
+          successMessage: 'Share request approved!',
           errorMessage: 'Failed to approve request',
           refreshEvent: RefreshEvent.TOKEN_REQUEST_APPROVED,
           refreshData: { requestId },
@@ -124,8 +125,8 @@ const PendingRequestsPanel = () => {
       const result = await executeWithNotification(
         () => tokenRequest.cancelRequest(participationTokenAddress, requestId),
         {
-          pendingMessage: 'Rejecting token request...',
-          successMessage: 'Token request rejected',
+          pendingMessage: 'Rejecting share request...',
+          successMessage: 'Share request rejected',
           errorMessage: 'Failed to reject request',
           refreshEvent: RefreshEvent.TOKEN_REQUEST_CANCELLED,
           refreshData: { requestId },
@@ -161,7 +162,7 @@ const PendingRequestsPanel = () => {
   if (loading && !data) {
     return (
       <Box p={4} textAlign="center">
-        <Spinner size="md" />
+        <PulseLoader size="md" />
         <Text mt={2} color="gray.500">Loading pending requests...</Text>
       </Box>
     );
@@ -179,7 +180,7 @@ const PendingRequestsPanel = () => {
   if (pendingRequests.length === 0) {
     return (
       <Box p={4} textAlign="center" color="gray.500">
-        <Text>No pending token requests to review</Text>
+        <Text>No pending share requests to review</Text>
       </Box>
     );
   }
@@ -195,7 +196,7 @@ const PendingRequestsPanel = () => {
 
       <Accordion allowMultiple>
         {pendingRequests.map((request) => {
-          const metadata = metadataCache[request.ipfsHash];
+          const metadata = request.metadata || metadataCache[request.ipfsHash];
           const isOwnRequest = address && request.requester?.toLowerCase() === address.toLowerCase();
           const isLoading = loadingRequestId === request.requestId;
 

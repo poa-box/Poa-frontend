@@ -1,27 +1,36 @@
-import React, { useMemo, useEffect } from 'react';
+import React, { useMemo, useEffect, useState, useCallback } from 'react';
 import {
   Box,
   VStack,
   Grid,
   GridItem,
   Text,
-  Spinner,
   Center,
   useBreakpointValue,
   useDisclosure,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useRouter } from 'next/router';
 import { useQuery } from '@apollo/client';
+import { getClient } from '@/util/apolloClient';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
+import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
-import { FETCH_TREASURY_DATA } from '@/util/queries';
+import { FETCH_TREASURY_DATA, FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
+import { FETCH_GAS_POOL_DATA } from '@/util/passkeyQueries';
+import { getBountyTokenOptions } from '@/util/tokens';
+import { createChainClients } from '@/services/web3/utils/chainClients';
 import TreasuryHeader from './TreasuryHeader';
 import TokenBalancesGrid from './TokenBalancesGrid';
 import CurrentDistributions from './CurrentDistributions';
 import DistributionHistory from './DistributionHistory';
 import HistoricalOverview from './HistoricalOverview';
 import ParticipationTokenModal from './ParticipationTokenModal';
+import DepositModal from './DepositModal';
+import CreateDistributionModal from './CreateDistributionModal';
+import GasPoolSection from './GasPoolSection';
+import GasPoolDepositModal from './GasPoolDepositModal';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -32,6 +41,16 @@ const glassLayerStyle = {
   backgroundColor: 'rgba(0, 0, 0, .79)',
 };
 
+const BALANCE_OF_ABI = [
+  {
+    type: 'function',
+    name: 'balanceOf',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+];
+
 const TreasuryPage = () => {
   const router = useRouter();
   const { userDAO } = router.query;
@@ -40,8 +59,11 @@ const TreasuryPage = () => {
     poContextLoading,
     poMembers,
     participationTokenAddress,
+    taskManagerContractAddress: taskManagerAddress,
+    hybridVotingContractAddress,
     subgraphUrl,
     hideTreasury,
+    orgChainId,
   } = usePOContext();
   const { hasExecRole } = useUserContext();
 
@@ -52,19 +74,43 @@ const TreasuryPage = () => {
     }
   }, [hideTreasury, poContextLoading, router, userDAO]);
 
-  // Modal state for PT stats
+  // Modal state
   const { isOpen: isPTModalOpen, onOpen: onPTModalOpen, onClose: onPTModalClose } = useDisclosure();
+  const { isOpen: isDepositOpen, onOpen: onDepositOpen, onClose: onDepositClose } = useDisclosure();
+  const { isOpen: isBountyDepositOpen, onOpen: onBountyDepositOpen, onClose: onBountyDepositClose } = useDisclosure();
+  const { isOpen: isCreateDistOpen, onOpen: onCreateDistOpen, onClose: onCreateDistClose } = useDisclosure();
+  const { isOpen: isGasPoolDepositOpen, onOpen: onGasPoolDepositOpen, onClose: onGasPoolDepositClose } = useDisclosure();
 
   // Responsive design
   const sectionHeadingSize = useBreakpointValue({ base: 'lg', md: 'xl' });
+
+  // Stable Apollo context reference — prevents queries from re-executing due to new object identity
+  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
   // Fetch treasury data from subgraph
   const { data: treasuryData, loading: treasuryLoading, refetch } = useQuery(FETCH_TREASURY_DATA, {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: { subgraphUrl },
+    context: apolloContext,
   });
+
+  // Fetch gas pool data
+  const { data: gasPoolData, loading: gasPoolLoading, refetch: refetchGasPool } = useQuery(FETCH_GAS_POOL_DATA, {
+    variables: { orgId },
+    skip: !orgId,
+    fetchPolicy: 'cache-first',
+    context: apolloContext,
+  });
+
+  // Fetch paymaster hub address from infrastructure.
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache.
+  const orgClient = useMemo(() => getClient(subgraphUrl), [subgraphUrl]);
+  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, {
+    client: orgClient,
+    skip: !subgraphUrl,
+  });
+  const paymasterHubAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
 
   const isLoading = poContextLoading || treasuryLoading;
 
@@ -89,13 +135,69 @@ const TreasuryPage = () => {
     return { activeDistributions: active, completedDistributions: completed, totalDistributed: total };
   }, [distributions]);
 
+  // ERC20 treasury balance fetching
+  const [erc20Balances, setErc20Balances] = useState([]);
+  const [balancesLoading, setBalancesLoading] = useState(false);
+
+  const fetchErc20Balances = useCallback(async () => {
+    if (!paymentManager?.id || !orgChainId) return;
+
+    const tokens = getBountyTokenOptions(orgChainId);
+    if (tokens.length === 0) return;
+
+    const clients = createChainClients(orgChainId);
+    const client = clients?.publicClient;
+    if (!client) return;
+
+    setBalancesLoading(true);
+    try {
+      const balances = await Promise.all(
+        tokens.map(async (token) => {
+          try {
+            const balance = await client.readContract({
+              address: token.address,
+              abi: BALANCE_OF_ABI,
+              functionName: 'balanceOf',
+              args: [paymentManager.id],
+            });
+            return { ...token, balance: balance.toString() };
+          } catch (e) {
+            console.warn(`Failed to fetch balance for ${token.symbol}:`, e.message);
+            return { ...token, balance: '0' };
+          }
+        })
+      );
+      setErc20Balances(balances);
+    } catch (e) {
+      console.error('Failed to fetch treasury balances:', e);
+    } finally {
+      setBalancesLoading(false);
+    }
+  }, [paymentManager?.id, orgChainId]);
+
+  // Fetch balances on initial load
+  useEffect(() => {
+    fetchErc20Balances();
+  }, [fetchErc20Balances]);
+
+  // Refetch immediately — executeWithNotification already waited for the
+  // subgraph to index the transaction block before emitting these events.
+  useRefreshSubscription(RefreshEvent.TREASURY_DEPOSITED, () => {
+    refetch();
+    fetchErc20Balances();
+  }, [fetchErc20Balances]);
+
+  useRefreshSubscription(RefreshEvent.GAS_POOL_DEPOSITED, () => {
+    refetchGasPool();
+  }, [refetchGasPool]);
+
   return (
     <>
       <Navbar />
       {isLoading ? (
         <Center height="100vh">
           <VStack spacing={4}>
-            <Spinner size="xl" color="purple.400" />
+            <PulseLoader size="xl" color="purple.400" />
             <Text color="gray.400">Loading treasury data...</Text>
           </VStack>
         </Center>
@@ -111,12 +213,14 @@ const TreasuryPage = () => {
                 'distributions'
                 'history'
                 'charts'
+                'gaspool'
               `,
               md: `
                 'header header'
                 'balances distributions'
                 'history history'
                 'charts charts'
+                'gaspool gaspool'
               `,
             }}
             templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }}
@@ -138,7 +242,9 @@ const TreasuryPage = () => {
                   totalDistributed={totalDistributed.toString()}
                   distributionCount={distributions.length}
                   isAdmin={hasExecRole}
-                  onCreateDistribution={() => {/* TODO: Open modal */}}
+                  onCreateDistribution={onCreateDistOpen}
+                  onDeposit={onDepositOpen}
+                  onFundBounties={taskManagerAddress ? onBountyDepositOpen : undefined}
                   refetch={refetch}
                 />
               </Box>
@@ -165,7 +271,8 @@ const TreasuryPage = () => {
                   <TokenBalancesGrid
                     totalSupply={totalSupply}
                     onPTClick={onPTModalOpen}
-                    isLoading={treasuryLoading}
+                    isLoading={treasuryLoading || balancesLoading}
+                    erc20Balances={erc20Balances}
                   />
                 </Box>
               </Box>
@@ -192,6 +299,8 @@ const TreasuryPage = () => {
                   <CurrentDistributions
                     distributions={activeDistributions}
                     paymentManagerAddress={paymentManager?.id}
+                    hybridVotingId={hybridVotingContractAddress}
+                    subgraphUrl={subgraphUrl}
                     refetch={refetch}
                   />
                 </Box>
@@ -216,7 +325,7 @@ const TreasuryPage = () => {
                 </VStack>
                 <Box p={{ base: 2, md: 4 }}>
                   <DistributionHistory
-                    distributions={completedDistributions}
+                    distributions={distributions}
                     payments={payments}
                   />
                 </Box>
@@ -247,6 +356,32 @@ const TreasuryPage = () => {
                 </Box>
               </Box>
             </GridItem>
+
+            {/* Gas Pool */}
+            <GridItem area="gaspool">
+              <Box
+                borderRadius="2xl"
+                bg="transparent"
+                boxShadow="lg"
+                position="relative"
+                zIndex={2}
+              >
+                <div style={glassLayerStyle} />
+                <VStack pb={1} align="flex-start" position="relative" borderTopRadius="2xl">
+                  <div style={glassLayerStyle} />
+                  <Text pl={{ base: 3, md: 6 }} fontWeight="bold" fontSize={sectionHeadingSize}>
+                    Gas Pool
+                  </Text>
+                </VStack>
+                <Box p={{ base: 2, md: 4 }}>
+                  <GasPoolSection
+                    gasPoolData={gasPoolData}
+                    isLoading={gasPoolLoading}
+                    onDeposit={onGasPoolDepositOpen}
+                  />
+                </Box>
+              </Box>
+            </GridItem>
           </Grid>
         </Box>
       )}
@@ -258,6 +393,43 @@ const TreasuryPage = () => {
         totalSupply={totalSupply}
         completedTasks={completedTasks}
         tokenAddress={participationTokenAddress}
+      />
+
+      {/* Deposit Modal (Treasury) */}
+      <DepositModal
+        isOpen={isDepositOpen}
+        onClose={onDepositClose}
+        paymentManagerAddress={paymentManager?.id}
+        orgChainId={orgChainId}
+      />
+
+      {/* Deposit Modal (Task Bounties) */}
+      {taskManagerAddress && (
+        <DepositModal
+          isOpen={isBountyDepositOpen}
+          onClose={onBountyDepositClose}
+          paymentManagerAddress={paymentManager?.id}
+          orgChainId={orgChainId}
+          targetAddress={taskManagerAddress}
+          targetLabel="Task Bounties"
+          useDirectTransfer
+        />
+      )}
+
+      {/* Create Distribution Proposal Modal */}
+      <CreateDistributionModal
+        isOpen={isCreateDistOpen}
+        onClose={onCreateDistClose}
+        paymentManagerAddress={paymentManager?.id}
+        orgChainId={orgChainId}
+        votingContractAddress={hybridVotingContractAddress}
+      />
+
+      {/* Gas Pool Deposit Modal */}
+      <GasPoolDepositModal
+        isOpen={isGasPoolDepositOpen}
+        onClose={onGasPoolDepositClose}
+        paymasterHubAddress={paymasterHubAddress}
       />
     </>
   );

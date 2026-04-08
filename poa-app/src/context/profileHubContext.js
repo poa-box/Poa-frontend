@@ -20,7 +20,7 @@ const ALL_ORGS_QUERY = `
       name
       metadataHash
       deployedAt
-      metadata { description }
+      metadata { description logo }
       participationToken { id totalSupply }
       quickJoin { id }
       hybridVoting { id }
@@ -88,6 +88,7 @@ export const ProfileHubProvider = ({ children }) => {
                 id: org.name || org.id,
                 orgId: org.id,
                 logoHash: org.metadataHash,
+                logoCid: org.metadata?.logo || null,
                 totalMembers: org.users?.length || 0,
                 aboutInfo: org.metadata || null,
                 deployedAt: org.deployedAt,

@@ -270,26 +270,17 @@ const MainLayout = () => {
      const safeProjectId = encodeURIComponent(decodeURIComponent(projectId));
 
     router.push(`/tasks?projectId=${safeProjectId}&userDAO=${router.query.userDAO}`);
-    console.log("selecting project",projectId);
     const selected = projects.find((project) => project.id === projectId);
     setSelectedProject(selected);
-    console.log('selected', selected);
   };
 
   // Create project using the new service
   const handleCreateProject = useCallback(async (projectData) => {
     if (!taskService) return;
 
-    console.log('=== handleCreateProject DEBUG ===');
-    console.log('Raw projectData:', projectData);
-    console.log('projectData type:', typeof projectData);
-
     // Handle both simple string (for backwards compat) and full object
     const isSimpleCreate = typeof projectData === 'string';
     const projectName = isSimpleCreate ? projectData : projectData.name;
-
-    console.log('isSimpleCreate:', isSimpleCreate);
-    console.log('projectName:', projectName);
 
     // Upload description to IPFS if provided
     let metadataHash = '';
@@ -297,7 +288,6 @@ const MainLayout = () => {
       try {
         const result = await addToIpfs(JSON.stringify({ description: projectData.description }));
         metadataHash = result.path;
-        console.log('IPFS metadataHash:', metadataHash);
       } catch (error) {
         console.warn('Failed to upload project metadata to IPFS:', error);
       }
@@ -334,10 +324,6 @@ const MainLayout = () => {
       bountyTokens: isSimpleCreate ? [] : (projectData.bountyTokens || []),
       bountyCaps: isSimpleCreate ? [] : (projectData.bountyCaps || []),
     };
-
-    console.log('Final createProjectData:', createProjectData);
-    console.log('taskManagerContractAddress:', taskManagerContractAddress);
-    console.log('=== END handleCreateProject DEBUG ===');
 
     await executeWithNotification(
       () => taskService.createProject(taskManagerContractAddress, createProjectData),
@@ -584,14 +570,14 @@ const MainLayout = () => {
           
           {selectedProject ? (
             <Box flex="1" width="100%" overflow={isMobile ? "visible" : "auto"}>
-              <TaskBoardProvider 
+              <TaskBoardProvider
                 key={selectedProject.id}
                 projectId={selectedProject.id}
                 initialColumns={selectedProject.columns}
+                onUpdateColumns={handleUpdateColumns}
                 account={account}
               >
-                <TaskBoard 
-                  columns={selectedProject.columns} 
+                <TaskBoard
                   projectName={selectedProject.name}
                   hideTitleBar={isMobile}
                   sidebarVisible={sidebarVisible}

@@ -25,8 +25,12 @@ const defaultProposal = {
   transferAddress: "",
   transferAmount: "",
   // Election fields
-  electionCandidates: [], // Array of { name, address }
-  electionRoleId: "",     // Hat ID for the role being elected
+  electionCandidates: [],           // Array of { name, address }
+  electionRoleId: "",               // Hat ID for the role being elected
+  electionCurrentHolders: [],       // Array of { name, address } - all holders of the elected hat
+  electionSelectedIncumbents: [],   // Array of { name, address } - holders whose hat is at stake
+  electionFallbackRoleId: "",       // Hat ID for fallback role given to losers (optional)
+  electionFallbackHolders: [],      // Addresses already holding fallback hat (pre-computed)
   // Voting restriction fields
   isRestricted: false,    // Whether to restrict who can vote
   restrictedHatIds: [],   // Hat IDs that can vote (if restricted)
@@ -59,7 +63,19 @@ export function useProposalForm({ onSubmit }) {
   }, []);
 
   const handleProposalTypeChange = useCallback((e) => {
-    setProposal(prev => ({ ...prev, type: e.target.value }));
+    const newType = e.target.value;
+    setProposal(prev => ({
+      ...prev,
+      type: newType,
+      ...(newType !== 'election' ? {
+        electionRoleId: '',
+        electionCandidates: [],
+        electionCurrentHolders: [],
+        electionSelectedIncumbents: [],
+        electionFallbackRoleId: '',
+        electionFallbackHolders: [],
+      } : {}),
+    }));
   }, []);
 
   const handleTransferAddressChange = useCallback((e) => {
@@ -400,26 +416,89 @@ export function useProposalForm({ onSubmit }) {
       optionNames = ["Yes", "No"];
     } else if (proposal.type === "election") {
       // Election proposal - each candidate is an option
-      // When they win, the execution batch mints the role to them
+      // When they win: revoke hat from current holders who lost, mint to winner
       numOptions = proposal.electionCandidates.length;
       optionNames = proposal.electionCandidates.map(c => c.name);
 
-      // Build execution batch for each candidate winning
-      // Uses mintHatToAddress(uint256 hatId, address wearer) on EligibilityModule
       const iface = new utils.Interface([
-        "function mintHatToAddress(uint256 hatId, address wearer)"
+        "function mintHatToAddress(uint256 hatId, address wearer)",
+        "function setWearerEligibility(address wearer, uint256 hatId, bool eligible, bool standing)"
       ]);
 
+      // Only revoke from the specific incumbents the user selected — not all holders
+      const selectedIncumbents = proposal.electionSelectedIncumbents || [];
+      // All holders is used to check if candidate already holds the hat
+      const allHolders = proposal.electionCurrentHolders || [];
+      // Fallback role: losers get downgraded to this hat instead of being fully removed
+      const fallbackRoleId = proposal.electionFallbackRoleId;
+      const fallbackHolders = proposal.electionFallbackHolders || [];
+
       batches = proposal.electionCandidates.map(candidate => {
-        const mintCall = {
-          target: eligibilityModuleAddress,
-          value: "0",
-          data: iface.encodeFunctionData("mintHatToAddress", [
-            proposal.electionRoleId,
-            candidate.address
-          ]),
-        };
-        return [mintCall];
+        const batch = [];
+
+        // Revoke hat from selected incumbents who are NOT this candidate
+        selectedIncumbents.forEach(incumbent => {
+          if (incumbent.address.toLowerCase() !== candidate.address.toLowerCase()) {
+            // Revoke the elected hat
+            batch.push({
+              target: eligibilityModuleAddress,
+              value: "0",
+              data: iface.encodeFunctionData("setWearerEligibility", [
+                incumbent.address,
+                proposal.electionRoleId,
+                false,
+                false,
+              ]),
+            });
+
+            // Grant fallback role to loser (if configured)
+            if (fallbackRoleId) {
+              // Set eligibility for fallback hat (idempotent, always safe)
+              batch.push({
+                target: eligibilityModuleAddress,
+                value: "0",
+                data: iface.encodeFunctionData("setWearerEligibility", [
+                  incumbent.address,
+                  fallbackRoleId,
+                  true,
+                  true,
+                ]),
+              });
+
+              // Only mint if loser doesn't already hold the fallback hat
+              const alreadyHoldsFallback = fallbackHolders.some(
+                addr => addr.toLowerCase() === incumbent.address.toLowerCase()
+              );
+              if (!alreadyHoldsFallback) {
+                batch.push({
+                  target: eligibilityModuleAddress,
+                  value: "0",
+                  data: iface.encodeFunctionData("mintHatToAddress", [
+                    fallbackRoleId,
+                    incumbent.address,
+                  ]),
+                });
+              }
+            }
+          }
+        });
+
+        // Mint hat to candidate if they don't already hold it
+        const candidateAlreadyHolds = allHolders.some(
+          h => h.address.toLowerCase() === candidate.address.toLowerCase()
+        );
+        if (!candidateAlreadyHolds) {
+          batch.push({
+            target: eligibilityModuleAddress,
+            value: "0",
+            data: iface.encodeFunctionData("mintHatToAddress", [
+              proposal.electionRoleId,
+              candidate.address,
+            ]),
+          });
+        }
+
+        return batch;
       });
     } else if (proposal.type === "setter") {
       // Setter proposal - call contract setter function(s)

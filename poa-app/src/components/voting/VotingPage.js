@@ -3,14 +3,14 @@
  * Main voting page component for proposal management and voting
  */
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import {
   Box,
   Container,
   Center,
-  Spinner,
   TabPanel,
 } from "@chakra-ui/react";
+import PulseLoader from "@/components/shared/PulseLoader";
 import { usePOContext } from "@/context/POContext";
 import { useVotingContext } from "@/context/VotingContext";
 import { useWeb3 } from "@/hooks";
@@ -58,9 +58,11 @@ const VotingPage = () => {
     votingContractAddress,
     taskManagerContractAddress,
     executorContractAddress,
+    eligibilityModuleAddress,
     participationTokenAddress,
     poContextLoading,
     roleNames,
+    leaderboardData,
   } = usePOContext();
 
   const {
@@ -135,12 +137,12 @@ const VotingPage = () => {
       hatIds: proposalData.hatIds || [],
     };
 
-    // Setter proposals use HybridVoting (main governance) which triggers Executor
+    // Setter and election proposals use HybridVoting (main governance) which triggers Executor
     // Executor has onlyExecutor permission on all contracts, so it can call any setter
-    const isSetterProposal = proposalData.type === 'setter';
+    const isExecutionProposal = proposalData.type === 'setter' || proposalData.type === 'election';
 
     const result = await executeWithNotification(
-      () => isSetterProposal
+      () => isExecutionProposal
         ? voting.createHybridProposal(votingContractAddress, proposalParams)
         : voting.createDDProposal(directDemocracyVotingContractAddress, proposalParams),
       {
@@ -163,9 +165,6 @@ const VotingPage = () => {
     handleProposalTypeChange,
     handleTransferAddressChange,
     handleTransferAmountChange,
-    handleElectionRoleChange,
-    addCandidate,
-    removeCandidate,
     handleRestrictedToggle,
     toggleRestrictedRole,
     handleSetterChange,
@@ -175,19 +174,18 @@ const VotingPage = () => {
   });
 
   // Contract addresses object for setter proposals
-  const contractAddresses = {
+  const contractAddresses = useMemo(() => ({
     votingContractAddress,
     directDemocracyVotingContractAddress,
     taskManagerContractAddress,
     executorContractAddress,
     participationTokenAddress,
-  };
+  }), [votingContractAddress, directDemocracyVotingContractAddress, taskManagerContractAddress, executorContractAddress, participationTokenAddress]);
 
   // Wrapper for handleSubmit that passes eligibilityModule and contract addresses
   const handlePollCreated = useCallback(() => {
-    // Use executor as eligibility module for setter proposals (or pass actual eligibility module)
-    return handleSubmit(executorContractAddress, contractAddresses);
-  }, [handleSubmit, executorContractAddress, contractAddresses]);
+    return handleSubmit(eligibilityModuleAddress, contractAddresses);
+  }, [handleSubmit, eligibilityModuleAddress, contractAddresses]);
 
   // Handle tab changes with pagination reset
   const handleTabsChange = useCallback((index) => {
@@ -247,7 +245,7 @@ const VotingPage = () => {
       <Navbar />
       {poContextLoading ? (
         <Center height="90vh">
-          <Spinner size="xl" />
+          <PulseLoader size="xl" />
         </Center>
       ) : (
         <Container maxW="container.2xl" py={{ base: 20, md: 4 }} px={{ base: "1%", md: "3%" }}>
@@ -298,9 +296,6 @@ const VotingPage = () => {
             handleProposalTypeChange={handleProposalTypeChange}
             handleTransferAddressChange={handleTransferAddressChange}
             handleTransferAmountChange={handleTransferAmountChange}
-            handleElectionRoleChange={handleElectionRoleChange}
-            addCandidate={addCandidate}
-            removeCandidate={removeCandidate}
             handleRestrictedToggle={handleRestrictedToggle}
             toggleRestrictedRole={toggleRestrictedRole}
             handleSetterChange={handleSetterChange}
@@ -308,6 +303,7 @@ const VotingPage = () => {
             loadingSubmit={loadingSubmit}
             roleNames={roleNames}
             votingClasses={votingClasses}
+            leaderboardData={leaderboardData}
           />
 
           <PollModal

@@ -65,6 +65,7 @@ const Footer = () => (
             { label: "Create Organization", href: "/create" },
             { label: "Browse Organizations", href: "/browser" },
             { label: "Documentation", href: "/docs" },
+            { label: "Protocol Dashboard", href: "/protocol" },
             { label: "About", href: "/about" },
           ]}
         />

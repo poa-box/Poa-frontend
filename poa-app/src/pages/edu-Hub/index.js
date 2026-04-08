@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
   Box,
-  Spinner,
   Center,
   Grid,
   GridItem,
@@ -29,6 +28,7 @@ import {
   Progress,
   Icon,
 } from '@chakra-ui/react';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { CheckIcon } from '@chakra-ui/icons';
 import { useAccount, useSwitchChain } from 'wagmi';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
@@ -156,7 +156,7 @@ const EducationHub = () => {
       <Navbar />
       {poContextLoading ? (
         <Center height="90vh">
-          <Spinner size="xl" />
+          <PulseLoader size="xl" />
         </Center>
       ) : (
         <Box position="relative" data-tour="education-hub-content">

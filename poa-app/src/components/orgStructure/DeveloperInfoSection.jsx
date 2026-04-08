@@ -50,7 +50,7 @@ const CONTRACT_LABELS = {
   taskManager: 'Task Manager',
   educationHub: 'Education Hub',
   quickJoin: 'Quick Join',
-  participationToken: 'Participation Token',
+  participationToken: 'Shares',
 };
 
 /**

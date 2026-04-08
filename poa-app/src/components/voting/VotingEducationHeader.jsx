@@ -148,8 +148,8 @@ const LearnMoreDropdown = ({ classWeights, classConfig }) => {
                     </Badge>
                   </HStack>
                   <Text fontSize="xs" color="gray.300">
-                    Your share of this portion is based on participation tokens,
-                    earned by completing tasks. More tokens = more influence.
+                    Your share of this portion is based on your shares,
+                    earned by completing tasks. More shares = more influence.
                     {isQuadratic && " Uses quadratic scaling so no single person can dominate."}
                   </Text>
                 </VStack>
@@ -169,7 +169,7 @@ const LearnMoreDropdown = ({ classWeights, classConfig }) => {
                   Example
                 </Text>
                 <Text fontSize="xs" color="gray.300">
-                  Say there are 6 members and 100 total tokens. You hold 10 tokens.
+                  Say there are 6 members and 100 total shares. You hold 10 shares.
                 </Text>
                 <VStack align="start" spacing={1} pl={2}>
                   <Text fontSize="xs" color="purple.200">
@@ -269,7 +269,7 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, isLoad
             label={
               <VStack spacing={1} align="start" p={1}>
                 <Text fontWeight="bold">Contribution</Text>
-                <Text fontSize="xs">Based on your participation tokens — {contributionWeight}% of the final decision.</Text>
+                <Text fontSize="xs">Based on your shares — {contributionWeight}% of the final decision.</Text>
               </VStack>
             }
             placement="top"
@@ -362,7 +362,7 @@ const VotingPowerStats = ({ classWeights, orgStats, poMembers }) => {
                       Membership ({democracyWeight}% weight): Your equal share among {poMembers} members
                     </Text>
                     <Text fontSize="xs" color="blue.200">
-                      Contribution ({contributionWeight}% weight): Your share based on participation tokens
+                      Contribution ({contributionWeight}% weight): Your share based on shares earned
                     </Text>
                   </VStack>
                   <Text fontSize="xs" color="gray.300" fontStyle="italic">
@@ -584,12 +584,12 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
             >
               <VStack spacing={2}>
                 <Text fontSize="sm" color="gray.300" textAlign="center">
-                  Binding governance weighted by your participation tokens.
+                  Binding governance weighted by your shares.
                   Complete tasks and contribute to earn more influence.
                 </Text>
                 {userData?.participationTokenBalance && (
                   <HStack spacing={2}>
-                    <Text fontSize="xs" color="gray.400">Your tokens:</Text>
+                    <Text fontSize="xs" color="gray.400">Your shares:</Text>
                     <Badge colorScheme="orange" variant="subtle">
                       {ptBalance}
                     </Badge>

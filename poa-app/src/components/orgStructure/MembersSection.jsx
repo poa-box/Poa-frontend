@@ -11,7 +11,6 @@ import {
   Badge,
   Icon,
   Collapse,
-  Spinner,
   Skeleton,
   Grid,
   GridItem,
@@ -26,6 +25,7 @@ import {
   FiCheckSquare,
   FiThumbsUp,
 } from 'react-icons/fi';
+import PulseLoader from "@/components/shared/PulseLoader";
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -225,7 +225,7 @@ function RoleAccordionItem({ role, members = [], defaultExpanded = false }) {
         <Box px={4} pb={4}>
           {isLoading ? (
             <HStack justify="center" py={4}>
-              <Spinner size="sm" color="purple.300" />
+              <PulseLoader size="sm" color="purple.300" />
               <Text color="gray.400" fontSize="sm">Loading members...</Text>
             </HStack>
           ) : members.length === 0 ? (

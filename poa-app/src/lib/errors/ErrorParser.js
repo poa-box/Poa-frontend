@@ -121,20 +121,25 @@ const REVERT_PATTERNS = {
   'Insufficient balance': 'Insufficient token balance for this operation.',
   'Transfer failed': 'Token transfer failed.',
 
+  // PaymentManager errors
+  'InsufficientFunds': 'The treasury has insufficient funds for this operation.',
+  'TransferFailed': 'Token transfer failed. Please check your token approval.',
+  'SafeERC20FailedOperation': 'Token transfer failed. The token contract rejected the operation.',
+
   // General errors
   'Paused': 'This contract is currently paused.',
   'Not owner': 'Only the owner can perform this action.',
 
   // ParticipationToken errors
-  'NotMember': 'You must be a member of this organization to request tokens. Please ensure you have been assigned a member role.',
-  'ZeroAmount': 'Token amount must be greater than zero.',
-  'NotApprover': 'You do not have permission to approve token requests.',
-  'AlreadyApproved': 'This token request has already been approved.',
-  'RequestUnknown': 'This token request does not exist.',
+  'NotMember': 'You must be a member of this organization to request shares. Please ensure you have been assigned a member role.',
+  'ZeroAmount': 'Share amount must be greater than zero.',
+  'NotApprover': 'You do not have permission to approve share requests.',
+  'AlreadyApproved': 'This share request has already been approved.',
+  'RequestUnknown': 'This share request does not exist.',
   'NotRequester': 'Only the original requester can cancel this request.',
   'AlreadySet': 'This value has already been configured.',
   'InvalidAddress': 'Invalid address provided.',
-  'TransfersDisabled': 'Token transfers are disabled for participation tokens.',
+  'TransfersDisabled': 'Transfers are disabled for shares.',
 };
 
 /**

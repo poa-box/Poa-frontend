@@ -19,7 +19,6 @@ import {
   IconButton,
   useToast,
   Icon,
-  Spinner,
   Card,
   CardBody,
   CardHeader,
@@ -32,7 +31,9 @@ import {
 import { CloseIcon, AddIcon } from '@chakra-ui/icons';
 import { PiImage } from 'react-icons/pi';
 import { useDropzone } from 'react-dropzone';
+import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
+import { getClient } from '@/util/apolloClient';
 
 import { useAccount, useSwitchChain } from 'wagmi';
 import { useIPFScontext } from '@/context/ipfsContext';
@@ -111,7 +112,7 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChan
     >
       <input {...getInputProps()} />
       {isUploading ? (
-        <Spinner size="lg" color="coral.500" />
+        <PulseLoader size="lg" color="coral.500" />
       ) : previewSrc ? (
         <VStack spacing={3}>
           <Image
@@ -242,13 +243,14 @@ export default function OrgMetadataEditor({
   const { chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();
 
-  // Fetch infrastructure addresses from the ORG'S chain subgraph (not default/home chain)
+  // Fetch infrastructure addresses from the ORG'S chain subgraph (not default/home chain).
+  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache.
   const orgSubgraphUrl = orgChainId ? getSubgraphUrl(orgChainId) : null;
+  const orgClient = useMemo(() => getClient(orgSubgraphUrl), [orgSubgraphUrl]);
   const { data: infraData, loading: infraLoading, error: infraError } = useQuery(
     FETCH_INFRASTRUCTURE_ADDRESSES,
     {
-      fetchPolicy: 'no-cache',
-      context: orgSubgraphUrl ? { subgraphUrl: orgSubgraphUrl } : undefined,
+      client: orgClient,
       skip: !orgSubgraphUrl,
     }
   );
@@ -392,7 +394,7 @@ export default function OrgMetadataEditor({
       <Card variant="elevated" borderRadius="2xl">
         <CardBody>
           <VStack spacing={4} py={8}>
-            <Spinner size="lg" color="coral.500" />
+            <PulseLoader size="lg" color="coral.500" />
             <Text color="warmGray.500">Loading infrastructure...</Text>
           </VStack>
         </CardBody>

@@ -97,11 +97,17 @@ export class TransactionManager {
       // State: Estimating gas
       this._notifyState(opts.onStateChange, TransactionState.ESTIMATING);
 
-      // Estimate gas
-      const gasEstimate = await this._estimateGas(contract, method, args);
+      // Estimate gas (pass value override for payable functions)
+      const valueOverride = opts.value ? { value: opts.value } : {};
+      const gasEstimate = await this._estimateGas(contract, method, args, valueOverride);
       const gasOptions = createGasOptions(gasEstimate, {
         isDelete: opts.isDelete,
       });
+
+      // Include value for payable function calls
+      if (opts.value) {
+        gasOptions.value = opts.value;
+      }
 
       // State: Awaiting signature
       this._notifyState(opts.onStateChange, TransactionState.AWAITING_SIGNATURE);
@@ -198,9 +204,9 @@ export class TransactionManager {
    * @param {Array} args - Method arguments
    * @returns {Promise<BigNumber>} Gas estimate
    */
-  async _estimateGas(contract, method, args) {
+  async _estimateGas(contract, method, args, overrides = {}) {
     try {
-      return await contract.estimateGas[method](...args);
+      return await contract.estimateGas[method](...args, overrides);
     } catch (error) {
       // Gas estimation failure usually means the transaction would revert
       // Re-throw with the original error for proper parsing

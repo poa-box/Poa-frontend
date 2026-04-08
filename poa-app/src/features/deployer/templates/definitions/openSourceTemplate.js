@@ -41,7 +41,7 @@ export const openSourceTemplate = {
       iconName: 'Certificate',
       title: 'Track Recognition',
       subtitle: 'Contribution history',
-      expandedContent: `Every PR, review, issue triage, and documentation update earns participation tokens. Your contributions are visible and recognized across the project.`,
+      expandedContent: `Every PR, review, issue triage, and documentation update earns shares. Your contributions are visible and recognized across the project.`,
     },
   ],
   socialProof: 'Linux, Apache, and Python prove open governance creates enduring software',
@@ -57,7 +57,7 @@ export const openSourceTemplate = {
       },
       {
         name: 'Track Contributions',
-        description: 'Every PR, review, issue triage, and documentation update earns participation tokens. Contributions are visible and recognized.',
+        description: 'Every PR, review, issue triage, and documentation update earns shares. Contributions are visible and recognized.',
         icon: '📊',
       },
       {
@@ -87,7 +87,7 @@ active contributors with keeping the door open for newcomers.
 
 **Hybrid voting** makes this concrete: the 30/70 split means 30% of voting power
 comes from simply being a contributor (democracy), while 70% comes from your
-participation tokens (meritocracy). Active maintainers guide the project, but
+shares (meritocracy). Active maintainers guide the project, but
 newcomers always have a voice and path to influence.`,
 
     keyPrinciple: `Meritocracy is earned through contribution, but the path to
@@ -102,11 +102,11 @@ contribution—never inherited or purchased.`,
 
     whatHybridVotingMeans: `When your project votes with a 30/70 hybrid system:
 - 30% of voting power comes from being a contributor (everyone equal)
-- 70% comes from participation tokens (earned through merged PRs, reviews, docs, etc.)
+- 70% comes from shares (earned through merged PRs, reviews, docs, etc.)
 
 **Example:** Voting on a breaking API change in a 20-contributor project:
-- A core maintainer with 500 participation tokens might have ~8% of total voting power
-- A new contributor with 10 tokens might have ~2%
+- A core maintainer with 500 shares might have ~8% of total voting power
+- A new contributor with 10 shares might have ~2%
 - But that new contributor's voice still matters, and their influence grows with every contribution`,
   },
 
@@ -413,10 +413,10 @@ influence. This rewards maintainers while keeping the door open for newcomers.`,
       },
       'participation-tokens': {
         title: 'Contribution Tracking',
-        short: 'Tokens that represent your contributions to the project',
-        detailed: `Participation tokens are earned through contributions: merged PRs,
+        short: 'Shares that represent your contributions to the project',
+        detailed: `Shares are earned through contributions: merged PRs,
 code reviews, documentation, issue triage, community support. They're not cryptocurrency
-or money—they're a transparent record of who's doing the work. More tokens = more
+or money—they're a transparent record of who's doing the work. More shares = more
 influence when the project votes on decisions.`,
         whenToUse: 'Define what counts as contribution for your project. Code-only? Or docs, community, design too?',
       },
