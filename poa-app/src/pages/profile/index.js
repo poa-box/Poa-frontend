@@ -12,7 +12,7 @@ import {
   Skeleton,
   Icon,
 } from '@chakra-ui/react';
-import { FiClock } from 'react-icons/fi';
+import { FiClock, FiInbox, FiBarChart2 } from 'react-icons/fi';
 import AccountSettingsModal from '@/components/userPage/AccountSettingsModal';
 import { useVotingContext } from '@/context/VotingContext';
 import { useUserContext } from '@/context/UserContext';
@@ -163,9 +163,15 @@ function RecommendedTasksCompact({ tasks, userDAO }) {
             </Link2>
           ))
         ) : (
-          <Text color="gray.400" fontSize="sm" textAlign="center" py={4}>
-            No tasks available
-          </Text>
+          <Center py={8} flexDirection="column">
+            <Icon as={FiInbox} boxSize={8} color="whiteAlpha.300" mb={3} />
+            <Text fontSize="sm" color="whiteAlpha.500" fontWeight="medium">
+              No recommended tasks yet
+            </Text>
+            <Text fontSize="xs" color="whiteAlpha.300" mt={1}>
+              Tasks will appear here as they become available
+            </Text>
+          </Center>
         )}
       </VStack>
     </Box>
@@ -483,9 +489,15 @@ const UserprofileHub = () => {
                     </Link2>
                   ))
                 ) : (
-                  <Text color="gray.400" fontSize="sm" textAlign="center" py={4}>
-                    No proposals available
-                  </Text>
+                  <Center py={8} flexDirection="column">
+                    <Icon as={FiBarChart2} boxSize={8} color="whiteAlpha.300" mb={3} />
+                    <Text fontSize="sm" color="whiteAlpha.500" fontWeight="medium">
+                      No active proposals
+                    </Text>
+                    <Text fontSize="xs" color="whiteAlpha.300" mt={1}>
+                      Proposals will appear here when voting is open
+                    </Text>
+                  </Center>
                 )}
               </VStack>
             </Box>
