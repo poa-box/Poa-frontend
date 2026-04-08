@@ -144,7 +144,9 @@ const VotingPage = () => {
     proposal,
     loadingSubmit,
     handleInputChange,
-    handleOptionsChange,
+    handleOptionChange,
+    addOption,
+    removeOption,
     handleProposalTypeChange,
     handleTransferAddressChange,
     handleTransferAmountChange,
@@ -276,7 +278,9 @@ const VotingPage = () => {
             onClose={handleCreatePollClick}
             proposal={proposal}
             handleInputChange={handleInputChange}
-            handleOptionsChange={handleOptionsChange}
+            handleOptionChange={handleOptionChange}
+            addOption={addOption}
+            removeOption={removeOption}
             handleProposalTypeChange={handleProposalTypeChange}
             handleTransferAddressChange={handleTransferAddressChange}
             handleTransferAmountChange={handleTransferAmountChange}
