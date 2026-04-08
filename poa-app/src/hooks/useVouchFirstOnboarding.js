@@ -301,8 +301,8 @@ export function useVouchFirstOnboarding({
 
 function buildVouchLink(orgName, accountAddress, hatId) {
   if (typeof window === 'undefined') return '';
-  const base = `${window.location.origin}/user`;
-  return `${base}?userDAO=${encodeURIComponent(orgName)}&vouch=${accountAddress}&hatId=${hatId}`;
+  const base = `${window.location.origin}/join`;
+  return `${base}?org=${encodeURIComponent(orgName)}&vouch=${accountAddress}&hatId=${hatId}`;
 }
 
 export default useVouchFirstOnboarding;

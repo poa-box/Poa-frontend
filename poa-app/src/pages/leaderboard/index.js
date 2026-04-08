@@ -17,7 +17,7 @@ import TopThreePodium from '@/components/leaderboard/TopThreePodium';
 
 const Leaderboard = () => {
   const router = useRouter();
-  const { userDAO } = router.query;
+  const userDAO = router.query.org || router.query.userDAO || '';
 
   const { leaderboardDisplayData, roleNames } = usePOContext();
   const [data, setData] = useState([]);
