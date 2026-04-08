@@ -46,7 +46,11 @@ export class EOA7702TransactionManager {
    * @param {number} params.chainId - Chain ID for UserOp hash computation
    * @param {string} params.eoaDelegationAddress - EOADelegation contract address
    */
-  constructor({ accountAddress, walletClient, publicClient, bundlerClient, paymasterAddress, orgId, hatIds, chainId, eoaDelegationAddress }) {
+  /**
+   * @param {Object} params.fallbackTxManager - Standard TransactionManager for direct tx fallback
+   * @param {Function} params.on7702Disabled - Called when 7702 fails permanently (wallet unsupported)
+   */
+  constructor({ accountAddress, walletClient, publicClient, bundlerClient, paymasterAddress, orgId, hatIds, chainId, eoaDelegationAddress, fallbackTxManager, on7702Disabled }) {
     this.accountAddress = accountAddress;
     this.walletClient = walletClient;
     this.publicClient = publicClient;
@@ -56,6 +60,8 @@ export class EOA7702TransactionManager {
     this.hatIds = hatIds;
     this.chainId = chainId;
     this.eoaDelegationAddress = eoaDelegationAddress;
+    this.fallbackTxManager = fallbackTxManager;
+    this.on7702Disabled = on7702Disabled;
     this._paymasterFellBack = false;
   }
 
@@ -126,6 +132,13 @@ export class EOA7702TransactionManager {
     } catch (error) {
       console.error('[7702] Transaction error:', error.message);
 
+      // If wallet doesn't support 7702, fall back to direct tx transparently
+      if (error.message === 'WALLET_7702_UNSUPPORTED' && this.fallbackTxManager) {
+        console.warn('[7702] Wallet does not support EIP-7702, falling back to direct transaction');
+        this.on7702Disabled?.();
+        return this.fallbackTxManager.execute(contract, method, args, options);
+      }
+
       const parsedError = this._parseAAError(error.message || 'Unknown error', error);
       this._notifyState(onStateChange, TransactionState.ERROR, { error: parsedError });
       return TransactionResult.failure(parsedError);
@@ -190,6 +203,11 @@ export class EOA7702TransactionManager {
       return TransactionResult.success(txReceipt);
 
     } catch (error) {
+      if (error.message === 'WALLET_7702_UNSUPPORTED' && this.fallbackTxManager) {
+        console.warn('[7702] Wallet does not support EIP-7702, falling back to direct batch');
+        this.on7702Disabled?.();
+        return this.fallbackTxManager.executeBatch(transactions, batchOptions);
+      }
       const parsedError = this._parseAAError(error.message || 'Unknown error', error);
       this._notifyState(onStateChange, TransactionState.ERROR, { error: parsedError });
       return TransactionResult.failure(parsedError);

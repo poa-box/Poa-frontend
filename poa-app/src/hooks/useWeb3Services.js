@@ -241,8 +241,11 @@ export function useWeb3Services(options = {}) {
       });
     }
 
-    // EOA with EIP-7702: gas-sponsored via PaymasterHub (same flow as passkey)
-    // Only activate when inside org context with active paymaster + hat budget
+    // EOA: always create the direct tx manager (needed as fallback)
+    if (!signer) return null;
+    const directTxManager = createTransactionManager(signer);
+
+    // EOA with EIP-7702: try gas-sponsored via PaymasterHub, fall back to direct tx
     if (eoa7702Capable && walletClient && paymasterAddress && orgId && hatIds?.length > 0
         && effectivePublicClient && effectiveBundlerClient) {
       return createEOA7702TransactionManager({
@@ -255,12 +258,16 @@ export function useWeb3Services(options = {}) {
         hatIds,
         chainId: effectiveChainId,
         eoaDelegationAddress: EOA_DELEGATION_ADDRESS,
+        fallbackTxManager: directTxManager,
+        on7702Disabled: () => {
+          // Disable 7702 for the rest of this session so subsequent calls go direct
+          eoa7702DisabledRef.current = true;
+          setEoa7702Capable(false);
+        },
       });
     }
 
-    // EOA fallback: standard direct transactions (no sponsorship)
-    if (!signer) return null;
-    return createTransactionManager(signer);
+    return directTxManager;
   }, [signer, isPasskeyUser, passkeyState, effectivePublicClient, effectiveBundlerClient, paymasterAddress, orgId, hatIds, effectiveChainId, crossChainInitCode, eoa7702Capable, walletClient]);
 
   // Create domain services
