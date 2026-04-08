@@ -27,6 +27,7 @@ import {
 } from 'react-icons/fi';
 import { PiCoinVerticalBold } from 'react-icons/pi';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
+import UsernameLink from '@/components/common/UsernameLink';
 
 const getMedalColor = (rank) => {
   switch (rank) {
@@ -134,9 +135,13 @@ function LeaderboardUserModal({ isOpen, onClose, user, rank, roleNames = {} }) {
             />
 
             {/* Username */}
-            <Text fontSize="2xl" fontWeight="bold" color="white">
-              {user.name}
-            </Text>
+            <UsernameLink
+              username={user.name}
+              hasUsername={user.hasUsername}
+              fontSize="2xl"
+              fontWeight="bold"
+              color="white"
+            />
 
             {/* Address with copy */}
             <Tooltip label={hasCopied ? 'Copied!' : 'Click to copy'} placement="top">

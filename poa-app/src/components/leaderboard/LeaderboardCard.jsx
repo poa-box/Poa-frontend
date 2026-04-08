@@ -12,6 +12,7 @@ import {
   FiThumbsUp,
 } from 'react-icons/fi';
 import { PiCoinVerticalBold } from 'react-icons/pi';
+import UsernameLink from '@/components/common/UsernameLink';
 
 const getMedalColor = (rank) => {
   switch (rank) {
@@ -96,15 +97,15 @@ function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
 
         {/* User info */}
         <VStack align="start" spacing={1} flex={1} minW={0}>
-          <Text
+          <UsernameLink
+            username={user.name}
+            hasUsername={user.hasUsername}
             fontWeight={isTopThree ? 'bold' : 'medium'}
             color="white"
             fontSize={isTopThree ? 'md' : 'sm'}
             isTruncated
             maxW="100%"
-          >
-            {user.name}
-          </Text>
+          />
 
           {/* Stats */}
           <HStack spacing={5}>
