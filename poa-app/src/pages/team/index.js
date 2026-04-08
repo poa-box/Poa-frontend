@@ -222,7 +222,7 @@ const OrgStructurePage = () => {
           </Box>
 
           {/* Role Hierarchy Section */}
-          <Box as="section">
+          <Box as="section" data-tour="org-roles">
             <Heading size="lg" color="white" mb={4}>
               Roles
             </Heading>

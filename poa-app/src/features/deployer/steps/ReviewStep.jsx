@@ -640,11 +640,36 @@ function DeploymentOverlay({ orgName, isVisible }) {
   );
 }
 
+// Rotating messages for the transition screen
+const TRANSITION_MESSAGES = [
+  "Indexing your organization on the blockchain...",
+  "Setting up your governance structure...",
+  "Preparing your task board...",
+  "Configuring your voting system...",
+  "Almost ready...",
+];
+
 /**
  * SuccessCelebration - Celebration overlay after successful deployment
+ * Supports 'success' and 'transitioning' states to bridge the gap during navigation
  */
-function SuccessCelebration({ orgName, onContinue, isVisible }) {
-  if (!isVisible) return null;
+function SuccessCelebration({ orgName, onContinue, isVisible, isTransitioning }) {
+  const [transitionMsgIndex, setTransitionMsgIndex] = useState(0);
+
+  useEffect(() => {
+    if (!isTransitioning) {
+      setTransitionMsgIndex(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      setTransitionMsgIndex((prev) =>
+        prev < TRANSITION_MESSAGES.length - 1 ? prev + 1 : prev
+      );
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [isTransitioning]);
+
+  if (!isVisible && !isTransitioning) return null;
 
   return (
     <Portal>
@@ -654,65 +679,124 @@ function SuccessCelebration({ orgName, onContinue, isVisible }) {
         left="0"
         right="0"
         bottom="0"
-        bg="rgba(255, 255, 255, 0.98)"
+        bg={isTransitioning ? "rgba(0, 0, 0, 0.85)" : "rgba(255, 255, 255, 0.98)"}
         zIndex={9999}
         display="flex"
         alignItems="center"
         justifyContent="center"
         animation={`${fadeIn} 0.3s ease`}
+        transition="background 0.5s ease"
       >
-        <VStack spacing={{ base: 6, md: 8 }} textAlign="center" px={4} maxW="500px">
-          {/* Success icon */}
-          <Box animation={`${scaleIn} 0.5s ease`}>
+        {isTransitioning ? (
+          /* Transition state — dark loading screen matching org pages */
+          <Box
+            bg="white"
+            borderRadius="2xl"
+            p={{ base: 6, md: 8 }}
+            maxW="480px"
+            w="90%"
+            mx={4}
+            textAlign="center"
+            animation={`${fadeIn} 0.4s ease`}
+            boxShadow="0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+          >
             <Box
-              w={{ base: "100px", md: "120px" }}
-              h={{ base: "100px", md: "120px" }}
+              w={{ base: "80px", md: "100px" }}
+              h={{ base: "80px", md: "100px" }}
+              mx="auto"
+              mb={5}
               borderRadius="full"
-              bg="green.100"
+              bg="amethyst.50"
               display="flex"
               alignItems="center"
               justifyContent="center"
+              animation={`${pulseGlow} 2s ease-in-out infinite`}
             >
-              <Icon as={PiCheckCircle} boxSize={{ base: 14, md: 16 }} color="green.500" />
+              <Icon as={PiSparkle} boxSize={{ base: 10, md: 12 }} color="amethyst.500" />
             </Box>
-          </Box>
 
-          <VStack spacing={3}>
-            <HStack spacing={2} flexWrap="wrap" justify="center">
-              <Icon as={PiSparkle} color="amethyst.500" boxSize={{ base: 5, md: 6 }} />
-              <Heading size={{ base: "lg", md: "xl" }} color="warmGray.800">
-                {orgName} is Live
-              </Heading>
-              <Icon as={PiSparkle} color="amethyst.500" boxSize={{ base: 5, md: 6 }} />
-            </HStack>
-            <Text color="warmGray.600" fontSize={{ base: "md", md: "lg" }} maxW="400px">
-              You've just created a piece of community-owned infrastructure
+            <Heading size={{ base: "md", md: "lg" }} mb={2} color="warmGray.800">
+              Preparing {orgName}...
+            </Heading>
+            <Text color="warmGray.600" mb={5} fontSize={{ base: "sm", md: "md" }}>
+              Your organization is live — we're just getting everything ready
             </Text>
+
+            <Box h="4px" bg="warmGray.100" borderRadius="full" overflow="hidden" mb={4}>
+              <Box
+                h="100%"
+                bg="amethyst.500"
+                borderRadius="full"
+                animation={`${subtlePulse} 1.5s ease-in-out infinite`}
+                w={`${Math.min(20 + (transitionMsgIndex * 20), 90)}%`}
+                transition="width 0.5s ease"
+              />
+            </Box>
+
+            <Text
+              fontSize="sm"
+              color="warmGray.500"
+              key={transitionMsgIndex}
+              animation={`${fadeIn} 0.3s ease`}
+            >
+              {TRANSITION_MESSAGES[transitionMsgIndex]}
+            </Text>
+          </Box>
+        ) : (
+          /* Success/celebration state */
+          <VStack spacing={{ base: 6, md: 8 }} textAlign="center" px={4} maxW="500px">
+            {/* Success icon */}
+            <Box animation={`${scaleIn} 0.5s ease`}>
+              <Box
+                w={{ base: "100px", md: "120px" }}
+                h={{ base: "100px", md: "120px" }}
+                borderRadius="full"
+                bg="green.100"
+                display="flex"
+                alignItems="center"
+                justifyContent="center"
+              >
+                <Icon as={PiCheckCircle} boxSize={{ base: 14, md: 16 }} color="green.500" />
+              </Box>
+            </Box>
+
+            <VStack spacing={3}>
+              <HStack spacing={2} flexWrap="wrap" justify="center">
+                <Icon as={PiSparkle} color="amethyst.500" boxSize={{ base: 5, md: 6 }} />
+                <Heading size={{ base: "lg", md: "xl" }} color="warmGray.800">
+                  {orgName} is Live
+                </Heading>
+                <Icon as={PiSparkle} color="amethyst.500" boxSize={{ base: 5, md: 6 }} />
+              </HStack>
+              <Text color="warmGray.600" fontSize={{ base: "md", md: "lg" }} maxW="400px">
+                You've just created a piece of community-owned infrastructure
+              </Text>
+            </VStack>
+
+            <Box
+              bg="warmGray.50"
+              borderRadius="lg"
+              p={4}
+              w="100%"
+            >
+              <Text fontSize="sm" color="warmGray.600">
+                Your organization joins a global network of cooperatives and community-owned
+                projects building more equitable, resilient alternatives.
+              </Text>
+            </Box>
+
+            <Button
+              size="lg"
+              bg="green.500"
+              color="white"
+              _hover={{ bg: 'green.600', transform: 'translateY(-2px)' }}
+              px={8}
+              onClick={onContinue}
+            >
+              Go to Your Organization
+            </Button>
           </VStack>
-
-          <Box
-            bg="warmGray.50"
-            borderRadius="lg"
-            p={4}
-            w="100%"
-          >
-            <Text fontSize="sm" color="warmGray.600">
-              Your organization joins a global network of cooperatives and community-owned
-              projects building more equitable, resilient alternatives.
-            </Text>
-          </Box>
-
-          <Button
-            size="lg"
-            bg="green.500"
-            color="white"
-            _hover={{ bg: 'green.600', transform: 'translateY(-2px)' }}
-            px={8}
-            onClick={onContinue}
-          >
-            Go to Your Organization
-          </Button>
-        </VStack>
+        )}
       </Box>
     </Portal>
   );
@@ -891,10 +975,11 @@ export function ReviewStep({
         isVisible={isDeploying || deploymentStatus === 'deploying'}
       />
 
-      {/* Success Celebration */}
+      {/* Success Celebration / Transition Overlay */}
       <SuccessCelebration
         orgName={state.organization.name || 'Your Organization'}
         isVisible={deploymentStatus === 'success'}
+        isTransitioning={deploymentStatus === 'transitioning'}
         onContinue={onDeploySuccess}
       />
 

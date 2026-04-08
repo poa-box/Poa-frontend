@@ -60,7 +60,7 @@ const BALANCE_ABI = [
   { type: 'function', name: 'balanceOf', inputs: [{ name: 'account', type: 'address' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' },
 ];
 
-const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [] }) => {
+const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [], defaultName = '', defaultDescription = '' }) => {
   const toast = useToast();
   const { orgChainId, taskManagerContractAddress } = usePOContext();
   const [loading, setLoading] = useState(false);
@@ -68,6 +68,18 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
   // Basic fields
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+
+  // Pre-fill defaults when modal opens with tour defaults
+  // The existing handleClose/resetForm clears fields on close, so
+  // name/description will be '' when the modal re-opens
+  useEffect(() => {
+    if (isOpen && defaultName) {
+      setName(defaultName);
+    }
+    if (isOpen && defaultDescription) {
+      setDescription(defaultDescription);
+    }
+  }, [isOpen, defaultName, defaultDescription]);
 
   // Token cap (0 = unlimited)
   const [hasCap, setHasCap] = useState(false);

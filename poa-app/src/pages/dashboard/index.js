@@ -25,6 +25,7 @@ import {
   Collapse,
   Tooltip,
 } from '@chakra-ui/react';
+import PostDeployLoadingScreen from '@/components/shared/PostDeployLoadingScreen';
 import PulseLoader from "@/components/shared/PulseLoader";
 import { useVotingContext } from '@/context/VotingContext';
 import { usePOContext } from '@/context/POContext';
@@ -34,7 +35,8 @@ import Link2 from 'next/link';
 import OngoingPolls from '@/components/userPage/OngoingPolls';
 import { useRouter } from 'next/router';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
-import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiCheck, FiExternalLink, FiInbox, FiBarChart2, FiBookOpen, FiArrowRight } from 'react-icons/fi';
+import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRight, FiUserPlus, FiCopy, FiCheck, FiExternalLink, FiInbox, FiBarChart2, FiBookOpen, FiArrowRight, FiMap } from 'react-icons/fi';
+import { useTour } from '@/features/tour';
 import { useIPFScontext } from "@/context/ipfsContext";
 import { useOrgStructure, useOrgTheme } from '@/hooks';
 import { VouchingSection } from '@/components/orgStructure/VouchingSection';
@@ -45,7 +47,7 @@ const PerpetualOrgDashboard = () => {
   const { ongoingPolls } = useVotingContext();
   const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
   const { pageBackground } = useOrgTheme();
-
+  const { startTour, isActive: isTourActive } = useTour();
   const router = useRouter();
   const userDAO = router.query.org || router.query.userDAO || '';
   const [imageURL, setImageURL] = useState({});
@@ -128,12 +130,17 @@ const PerpetualOrgDashboard = () => {
       />
       <Navbar />
       {poContextLoading ? (
-        <Center height="100vh" background={pageBackground()}>
-          <PulseLoader size="xl" />
-        </Center>
+        router.query.newOrg === 'true' ? (
+          <PostDeployLoadingScreen orgName={userDAO} />
+        ) : (
+          <Center height="100vh" background={pageBackground()}>
+            <PulseLoader size="xl" />
+          </Center>
+        )
       ) : (
         <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }} minH="100vh" background={pageBackground()}>
             <Grid
+              data-tour="dashboard-grid"
               color="whitesmoke"
               templateAreas={{
                 base: educationHubEnabled ? `
@@ -172,6 +179,7 @@ const PerpetualOrgDashboard = () => {
             >
             <GridItem area={'orgInfo'}>
               <Box
+                data-tour="org-info"
                 w={{ base: "100%", md: "125%" }}
                 borderRadius="2xl"
                 bg="transparent"
@@ -240,7 +248,23 @@ const PerpetualOrgDashboard = () => {
                     )}
                   </VStack>
                 </Flex>
-                <Box display="flex" justifyContent="flex-end" px={{ base: 3, md: 4 }} pb={{ base: 3, md: 4 }}>
+                <HStack display="flex" justifyContent="flex-end" px={{ base: 3, md: 4 }} pb={{ base: 3, md: 4 }} spacing={2}>
+                  {!isTourActive && (
+                    <Tooltip label="Take a guided tour of your organization" hasArrow>
+                      <Button
+                        onClick={() => startTour(userDAO)}
+                        size="sm"
+                        variant="outline"
+                        leftIcon={<Icon as={FiMap} />}
+                        borderColor="amethyst.400"
+                        color="amethyst.300"
+                        _hover={{ bg: 'purple.900' }}
+                        transition="all 0.2s"
+                      >
+                        Tour Org
+                      </Button>
+                    </Tooltip>
+                  )}
                   <Tooltip label={hasCopied ? 'Copied!' : 'Copy invite link to clipboard'} closeOnClick={false} hasArrow>
                     <Button
                       onClick={onCopy}
@@ -256,12 +280,13 @@ const PerpetualOrgDashboard = () => {
                       {hasCopied ? 'Copied!' : 'Copy Invite Link'}
                     </Button>
                   </Tooltip>
-                </Box>
+                </HStack>
               </Box>
             </GridItem>
 
             <GridItem area={'orgStats'}>
               <Box
+                data-tour="org-stats"
                 h="100%"
                 ml={{ base: 0, md: "25%" }}
                 w={{ base: "100%", md: "75%" }}

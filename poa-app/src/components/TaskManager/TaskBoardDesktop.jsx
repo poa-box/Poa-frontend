@@ -30,6 +30,7 @@ const TaskBoardDesktop = forwardRef(({
       overflow="hidden"
     >
       <SimpleGrid
+        data-tour="task-board"
         columns={{ base: 1, md: 2, lg: 4 }}
         spacing={2}
         width="100%"

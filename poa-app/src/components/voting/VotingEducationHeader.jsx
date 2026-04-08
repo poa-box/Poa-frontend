@@ -44,6 +44,7 @@ import { ChevronDownIcon, ChevronUpIcon } from "@chakra-ui/icons";
 import { useVotingPower } from "@/hooks";
 import { useUserContext } from "@/context/UserContext";
 import { usePOContext } from "@/context/POContext";
+import { useTour } from "@/features/tour";
 
 const glassLayerStyle = {
   position: "absolute",
@@ -60,7 +61,10 @@ const glassLayerStyle = {
  * Compact education dropdown for users without voting power
  */
 const LearnMoreDropdown = ({ classWeights, classConfig }) => {
+  const { currentStepDef, isActive: isTourActive } = useTour();
+  const tourWantsExpanded = isTourActive && currentStepDef?.id === 'voting-hybrid-detail';
   const [isExpanded, setIsExpanded] = useState(false);
+  const showExpanded = isExpanded || tourWantsExpanded;
   const democracyWeight = classWeights?.democracy ?? 50;
   const contributionWeight = classWeights?.contribution ?? 50;
   const isQuadratic = classConfig?.some(c => c.strategy === 'ERC20_BAL' && c.quadratic) ?? false;
@@ -79,8 +83,9 @@ const LearnMoreDropdown = ({ classWeights, classConfig }) => {
         Learn more about hybrid voting
       </Button>
 
-      <Collapse in={isExpanded} animateOpacity>
+      <Collapse in={showExpanded} animateOpacity>
         <Box
+          data-tour="voting-hybrid-detail"
           mt={4}
           p={{ base: 4, md: 5 }}
           bg="whiteAlpha.50"

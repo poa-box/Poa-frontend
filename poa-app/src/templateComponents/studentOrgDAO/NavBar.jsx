@@ -122,6 +122,7 @@ const Navbar = React.memo(() => {
         
         {/* Desktop Navigation */}
         <Flex
+          data-tour="nav-links"
           justifyContent="space-between"
           flexGrow={1}
           ml={4}

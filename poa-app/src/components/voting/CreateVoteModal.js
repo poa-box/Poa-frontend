@@ -1,4 +1,5 @@
 import React from "react";
+import { useTour } from "@/features/tour";
 import {
   Modal,
   ModalOverlay,
@@ -81,11 +82,14 @@ const CreateVoteModal = ({
   const { orgChainId } = usePOContext();
   const orgNetwork = getNetworkByChainId(orgChainId);
   const nativeCurrencySymbol = orgNetwork?.nativeCurrency?.symbol || 'ETH';
+  const { currentStepDef, isActive: isTourActive } = useTour();
+  const isTourStep = isTourActive && currentStepDef?.id === 'create-vote-preview';
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="xl" isCentered>
-      <ModalOverlay bg="blackAlpha.800" />
+    <Modal isOpen={isOpen} onClose={onClose} size="xl" isCentered {...(isTourStep && { zIndex: 10001 })}>
+      <ModalOverlay bg={isTourStep ? "transparent" : "blackAlpha.800"} />
       <ModalContent
+        data-tour="create-vote-modal"
         bg="transparent"
         borderRadius="xl"
         position="relative"
