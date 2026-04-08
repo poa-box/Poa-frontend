@@ -1,11 +1,10 @@
-import React, { createContext, useContext, useReducer, useCallback, useMemo, useEffect } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useMemo, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
 import { useAuth } from '@/context/AuthContext';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useDataBaseContext } from '@/context/dataBaseContext';
-import { TOUR_STEPS } from './tourSteps';
 
 const TourContext = createContext(null);
 
@@ -60,6 +59,12 @@ export function TourProvider({ children }) {
   const router = useRouter();
   const [state, dispatch] = useReducer(tourReducer, initialState);
 
+  // Lazy-load tour step definitions (defers 17 icon imports from initial bundle)
+  const [tourSteps, setTourSteps] = useState([]);
+  useEffect(() => {
+    import('./tourSteps').then(mod => setTourSteps(mod.TOUR_STEPS));
+  }, []);
+
   // Build tour context from app state (used for skip functions)
   const { isAuthenticated } = useAuth();
   const { hideTreasury, educationHubEnabled, poContextLoading } = usePOContext();
@@ -77,8 +82,8 @@ export function TourProvider({ children }) {
 
   // Reactively compute effective steps from tourCtx (not frozen)
   const effectiveSteps = useMemo(() =>
-    TOUR_STEPS.filter(step => !step.skip || !step.skip(tourCtx)),
-    [tourCtx]
+    tourSteps.filter(step => !step.skip || !step.skip(tourCtx)),
+    [tourSteps, tourCtx]
   );
 
   // Resolve current step index from ID
@@ -121,7 +126,7 @@ export function TourProvider({ children }) {
   }, [state.orgName]);
 
   const startTour = useCallback((orgName) => {
-    const steps = TOUR_STEPS.filter(step => !step.skip || !step.skip(tourCtx));
+    const steps = tourSteps.filter(step => !step.skip || !step.skip(tourCtx));
     const firstId = steps[0]?.id;
     dispatch({ type: 'START_TOUR', payload: { orgName, firstStepId: firstId } });
     saveTourState(orgName, { status: 'active', stepId: firstId, startedAt: Date.now() });
@@ -131,7 +136,7 @@ export function TourProvider({ children }) {
       const dao = router.query.org || router.query.userDAO || orgName;
       router.push(`${firstStep.page}?org=${encodeURIComponent(dao)}`).catch(() => {});
     }
-  }, [router, tourCtx]);
+  }, [router, tourCtx, tourSteps]);
 
   const nextStep = useCallback(() => {
     const nextIdx = safeIndex + 1;
