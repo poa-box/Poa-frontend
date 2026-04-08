@@ -131,8 +131,9 @@ export const TOUR_STEPS = [
     icon: PiPencilLine,
     action: null,
     target: null,
-    placement: 'bottom-fixed', // Position at bottom so it doesn't cover the modal
+    placement: 'bottom-fixed',
     forceInteraction: false,
+    noOverlay: true, // Don't darken the page — the Create Vote modal should stay visible
     skip: (ctx) => !ctx.isAuthenticated || !ctx.hasExecRole,
   },
 
@@ -144,9 +145,10 @@ export const TOUR_STEPS = [
     description: 'Track your organization\'s token balances, active profit shares, and distribution history. This page will populate as your org completes tasks and distributes rewards.',
     icon: PiBank,
     action: null,
-    target: null, // Treasury Grid is too large to spotlight, just show the page
+    target: null,
     placement: 'bottom-fixed',
     forceInteraction: false,
+    noOverlay: true, // Don't darken — let user see the full treasury page
     skip: (ctx) => ctx.hideTreasury,
   },
 
