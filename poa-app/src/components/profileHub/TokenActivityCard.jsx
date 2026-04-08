@@ -1,6 +1,6 @@
 /**
  * TokenActivityCard - Combined token balance and activity stats display
- * Merges token status (tier, progress) with activity metrics (tasks, votes, member since)
+ * Shows shares (prominent), voting power, treasury share, and activity metrics
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -9,18 +9,24 @@ import {
   HStack,
   VStack,
   Text,
-  Image,
-  Progress,
-  Badge,
+  // Image, // TIER FEATURE - kept for future use
+  // Progress, // TIER FEATURE - kept for future use
+  // Badge, // TIER FEATURE - kept for future use
   Icon,
   Divider,
+  Tooltip,
   keyframes,
   usePrefersReducedMotion,
   chakra,
 } from '@chakra-ui/react';
+import { InfoOutlineIcon } from '@chakra-ui/icons';
 import { FiCheckCircle, FiThumbsUp, FiCalendar } from 'react-icons/fi';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
-import { getTierColorScheme, getTierIcon } from '@/utils/profileUtils';
+import { useVotingPower } from '@/hooks/useVotingPower';
+import { useTreasuryShare } from '@/hooks/useTreasuryShare';
+
+// TIER FEATURE - imports kept for future use
+// import { getTierColorScheme, getTierIcon } from '@/utils/profileUtils';
 
 function useAnimatedCounter(target, duration, onComplete) {
   const [value, setValue] = useState(0);
@@ -77,20 +83,12 @@ function StatItem({ icon, label, value, color = 'purple.300' }) {
  * TokenActivityCard component
  * @param {Object} props
  * @param {number} props.ptBalance - Participation token balance
- * @param {string} props.tier - Current tier (Basic, Bronze, Silver, Gold)
- * @param {number} props.progress - Progress percentage to next tier (0-100)
- * @param {string} props.nextTier - Name of the next tier
- * @param {number} props.nextTierThreshold - Token threshold for next tier
  * @param {number} props.tasksCompleted - Number of completed tasks
  * @param {number} props.totalVotes - Number of votes cast
  * @param {string} props.dateJoined - Formatted join date string
  */
 export function TokenActivityCard({
   ptBalance = 0,
-  tier = 'Basic',
-  progress = 0,
-  nextTier,
-  nextTierThreshold,
   tasksCompleted = 0,
   totalVotes = 0,
   dateJoined = 'Unknown',
@@ -98,6 +96,9 @@ export function TokenActivityCard({
   const prefersReducedMotion = usePrefersReducedMotion();
   const [countFinished, setCountFinished] = useState(false);
   const hasAnimatedRef = useRef(false);
+
+  const { percentOfTotal, classWeights, isHybrid, isLoading: votingLoading } = useVotingPower();
+  const { treasuryShare, isLoading: treasuryLoading, isHidden: treasuryHidden } = useTreasuryShare();
 
   const duration = hasAnimatedRef.current ? 500 : 1700;
   const animatedValue = useAnimatedCounter(ptBalance, duration, useCallback(() => {
@@ -111,10 +112,11 @@ export function TokenActivityCard({
         animation: countFinished ? `${glowAnimation} alternate 2.1s ease-in-out` : undefined,
       };
 
-  const tierColorScheme = getTierColorScheme(tier);
-  const tierIcon = getTierIcon(tier);
-  const tokensToNext = nextTierThreshold ? nextTierThreshold - ptBalance : 0;
-  const isMaxTier = progress >= 100;
+  // TIER FEATURE - commented out per redesign, kept for future use
+  // const tierColorScheme = getTierColorScheme(tier);
+  // const tierIcon = getTierIcon(tier);
+  // const tokensToNext = nextTierThreshold ? nextTierThreshold - ptBalance : 0;
+  // const isMaxTier = progress >= 100;
 
   return (
     <Box
@@ -138,7 +140,80 @@ export function TokenActivityCard({
 
       {/* Content */}
       <VStack spacing={4} align="stretch" p={4} pt={2}>
-        {/* Token Section */}
+        {/* Metrics Section */}
+        <VStack align="start" spacing={2}>
+          {/* Shares - prominent display */}
+          <HStack spacing={2} align="baseline">
+            <Text
+              fontSize={{ base: '4xl', md: '5xl' }}
+              fontWeight="bold"
+              color="white"
+              lineHeight="1.1"
+            >
+              {countFinished ? (
+                <chakra.span {...animationProps}>{ptBalance}</chakra.span>
+              ) : (
+                <span>{animatedValue}</span>
+              )}
+            </Text>
+            <Text fontSize="lg" color="gray.400">
+              shares
+            </Text>
+            <Tooltip
+              label="Shares represent your contribution to this organization. You earn them by completing tasks, education modules, and other activities."
+              placement="top"
+              hasArrow
+              bg="gray.700"
+              p={3}
+              maxW="280px"
+            >
+              <Box as="span" display="inline-flex" cursor="help" ml={1}>
+                <InfoOutlineIcon color="gray.500" boxSize="14px" />
+              </Box>
+            </Tooltip>
+          </HStack>
+
+          {/* Voting Power */}
+          <HStack spacing={2} align="baseline">
+            <Text fontSize={{ base: 'lg', md: 'xl' }} fontWeight="semibold" color="purple.300">
+              {votingLoading ? '...' : `${percentOfTotal.toFixed(1)}%`}
+            </Text>
+            <Text fontSize="sm" color="gray.400">
+              voting power
+            </Text>
+            <Tooltip
+              label={
+                isHybrid
+                  ? `Your voting power combines membership (${classWeights.democracy}% weight) and contribution (${classWeights.contribution}% weight) to determine your share of organizational decisions.`
+                  : 'In direct democracy, every member has an equal vote.'
+              }
+              placement="top"
+              hasArrow
+              bg="gray.700"
+              p={3}
+              maxW="300px"
+            >
+              <Box as="span" display="inline-flex" cursor="help">
+                <InfoOutlineIcon color="gray.500" boxSize="12px" />
+              </Box>
+            </Tooltip>
+          </HStack>
+
+          {/* Treasury Share - hidden when org has treasury hidden */}
+          {!treasuryHidden && (
+            <HStack spacing={2} align="baseline">
+              <Text fontSize={{ base: 'lg', md: 'xl' }} fontWeight="semibold" color="green.300">
+                {treasuryLoading || treasuryShare === null ? '...' : `~$${treasuryShare.toFixed(2)}`}
+              </Text>
+              <Text fontSize="sm" color="gray.400">
+                treasury share
+              </Text>
+            </HStack>
+          )}
+        </VStack>
+
+        {/* TIER FEATURE - tier icon, badge, and progress bar commented out per redesign */}
+        {/*
         <HStack spacing={4}>
           <Image
             src={tierIcon}
@@ -148,28 +223,16 @@ export function TokenActivityCard({
           />
           <VStack align="start" spacing={0} flex={1}>
             <HStack spacing={2} align="baseline">
-              <Text
-                fontSize={{ base: '2xl', md: '3xl' }}
-                fontWeight="bold"
-                color="white"
-              >
-                {countFinished ? (
-                  <chakra.span {...animationProps}>{ptBalance}</chakra.span>
-                ) : (
-                  <span>{animatedValue}</span>
-                )}
+              <Text fontSize={{ base: '2xl', md: '3xl' }} fontWeight="bold" color="white">
+                {ptBalance}
               </Text>
-              <Text fontSize="md" color="gray.400">
-                shares
-              </Text>
+              <Text fontSize="md" color="gray.400">shares</Text>
             </HStack>
             <Badge colorScheme={tierColorScheme} fontSize="sm" px={2}>
               {tier} Tier
             </Badge>
           </VStack>
         </HStack>
-
-        {/* Progress Bar */}
         <Box>
           <Progress
             value={progress}
@@ -184,6 +247,7 @@ export function TokenActivityCard({
               : `${tokensToNext} more to ${nextTier}`}
           </Text>
         </Box>
+        */}
 
         {/* Divider */}
         <Divider borderColor="whiteAlpha.200" />

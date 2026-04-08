@@ -214,6 +214,9 @@ export const FETCH_ORG_FULL_DATA = gql`
       eligibilityModule {
         id
       }
+      paymentManager {
+        id
+      }
       users(orderBy: participationTokenBalance, orderDirection: desc, first: 100) {
         id
         address

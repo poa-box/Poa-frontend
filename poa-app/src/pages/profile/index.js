@@ -36,7 +36,9 @@ import RoleProgressionCard, { hasRoleProgressionContent } from '@/components/pro
 
 // Shared utilities
 import { glassLayerStyle } from '@/components/shared/glassStyles';
-import { determineTier, calculateProgress, formatDateToAmerican, normalizeHatId } from '@/utils/profileUtils';
+// TIER FEATURE - determineTier, calculateProgress commented out per redesign
+// import { determineTier, calculateProgress, formatDateToAmerican, normalizeHatId } from '@/utils/profileUtils';
+import { formatDateToAmerican, normalizeHatId } from '@/utils/profileUtils';
 
 /**
  * Format remaining time from timestamp
@@ -205,7 +207,9 @@ const UserprofileHub = () => {
     if (!userData) return {};
 
     const ptBalance = Number(userData.participationTokenBalance) || 0;
-    const progressData = calculateProgress(ptBalance);
+
+    // TIER FEATURE - tier/progress computation commented out per redesign
+    // const progressData = calculateProgress(ptBalance);
 
     return {
       username: graphUsername,
@@ -215,10 +219,11 @@ const UserprofileHub = () => {
       tasksCompleted: userData.tasksCompleted || 0,
       totalVotes: userData.totalVotes || 0,
       dateJoined: userData.firstSeenAt ? formatDateToAmerican(userData.firstSeenAt) : 'Unknown',
-      tier: determineTier(ptBalance),
-      progress: progressData.progress,
-      nextTier: progressData.nextTier,
-      nextTierThreshold: progressData.nextTierThreshold,
+      // TIER FEATURE - commented out per redesign
+      // tier: determineTier(ptBalance),
+      // progress: progressData.progress,
+      // nextTier: progressData.nextTier,
+      // nextTierThreshold: progressData.nextTierThreshold,
     };
   }, [userData, graphUsername]);
 
@@ -332,10 +337,6 @@ const UserprofileHub = () => {
           <GridItem area="tokensActivity">
             <TokenActivityCard
               ptBalance={userInfo.ptBalance}
-              tier={userInfo.tier}
-              progress={userInfo.progress}
-              nextTier={userInfo.nextTier}
-              nextTierThreshold={userInfo.nextTierThreshold}
               tasksCompleted={userInfo.tasksCompleted}
               totalVotes={userInfo.totalVotes}
               dateJoined={userInfo.dateJoined}
