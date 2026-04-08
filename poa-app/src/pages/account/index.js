@@ -39,6 +39,9 @@ import { getAllSubgraphUrls } from '@/config/networks';
 import { formatTokenAmount } from '@/util/formatToken';
 import GlobalAccountSettingsModal from '@/components/account/GlobalAccountSettingsModal';
 import ProfileEditor from '@/components/account/ProfileEditor';
+import TokenBalances from '@/components/account/TokenBalances';
+import TransferModal from '@/components/account/TransferModal';
+import { useTokenBalances } from '@/hooks/useTokenBalances';
 import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
 import SignInModal from '@/components/passkey/SignInModal';
 import Link from 'next/link';
@@ -56,6 +59,9 @@ const AccountPage = () => {
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [organizations, setOrganizations] = useState([]);
   const [orgsLoading, setOrgsLoading] = useState(true);
+  const [selectedTransferToken, setSelectedTransferToken] = useState(null);
+  const { isOpen: isTransferOpen, onOpen: onTransferOpen, onClose: onTransferClose } = useDisclosure();
+  const { balances, nativeBalances, isLoading: balancesLoading, refetch: refetchBalances } = useTokenBalances(accountAddress);
 
   // Fetch user's organizations across all chains via parallel fetch
   useEffect(() => {
@@ -335,6 +341,19 @@ const AccountPage = () => {
             </CardBody>
           </Card>
 
+          {/* Token Balances Section */}
+          <TokenBalances
+            balances={balances}
+            isLoading={balancesLoading}
+            onSend={(token) => {
+              setSelectedTransferToken(token);
+              onTransferOpen();
+            }}
+            cardStyle={glassStyle}
+            textColor={textColor}
+            subtextColor={subtextColor}
+          />
+
           {/* Organizations Section */}
           <Card borderRadius="2xl" boxShadow="2xl" style={glassStyle}>
             <CardBody p={[4, 6, 8]}>
@@ -444,6 +463,16 @@ const AccountPage = () => {
       <GlobalAccountSettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setSettingsModalOpen(false)}
+      />
+
+      {/* Transfer Modal */}
+      <TransferModal
+        isOpen={isTransferOpen}
+        onClose={onTransferClose}
+        token={selectedTransferToken}
+        accountAddress={accountAddress}
+        nativeBalance={selectedTransferToken ? nativeBalances[selectedTransferToken.chainId] : '0'}
+        onSuccess={refetchBalances}
       />
     </Box>
     </>
