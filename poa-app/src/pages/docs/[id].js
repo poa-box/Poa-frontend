@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getPostData, getAllPostIds } from '../../util/posts';
+import SEOHead from '@/components/common/SEOHead';
 import { 
   Box, 
   Text, 
@@ -88,6 +89,12 @@ export default function Post({ postData, navigationData }) {
   };
 
   return (
+    <>
+    <SEOHead
+      title={`${postData.title} - Poa Docs`}
+      description={postData.description}
+      path={`/docs/${postData.id}`}
+    />
     <Layout>
       <Box>
         {isClient && (
@@ -296,6 +303,7 @@ export default function Post({ postData, navigationData }) {
         )}
       </Box>
     </Layout>
+    </>
   );
 }
 

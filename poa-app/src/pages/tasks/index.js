@@ -1,3 +1,4 @@
+import SEOHead from "@/components/common/SEOHead";
 import React, { useRef, useEffect } from 'react';
 import { Box, Center } from '@chakra-ui/react';
 import PulseLoader from "@/components/shared/PulseLoader";
@@ -29,6 +30,12 @@ const Tasks = () => {
 
   return (
     <>
+      <SEOHead
+        title="Tasks"
+        description="Manage and track organization tasks."
+        path="/tasks"
+        noIndex
+      />
       <Navbar />
       {poContextLoading ? (
         <Center height="90vh" background={pageBackground()}>

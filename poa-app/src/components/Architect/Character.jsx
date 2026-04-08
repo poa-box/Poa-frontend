@@ -16,7 +16,7 @@ const Character = () => {
       zIndex="sticky"
     >
       <Image
-        src="/images/high_res_poa.png"
+        src="/images/poa_og.webp"
         alt="Character"
         width={[70,110]}
         height={[70,110]}

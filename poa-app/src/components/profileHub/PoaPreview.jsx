@@ -18,7 +18,7 @@ const PoaPreview = () => {
       m="5"
     >
       <Image
-        src="/images/poa_character.png"
+        src="/images/poa_character.webp"
         alt="Character"
         width={115}
         height={115}

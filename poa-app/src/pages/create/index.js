@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from "react";
+import SEOHead from "@/components/common/SEOHead";
 import {
   Box,
   useToast,
@@ -871,9 +872,16 @@ function DeployerPageContent() {
  */
 const ArchitectPage = () => {
   return (
+    <>
+    <SEOHead
+      title="Create an Organization"
+      description="Build a community-owned organization with democratic governance, contribution-based voting, and on-chain treasury. No code required."
+      path="/create"
+    />
     <DeployerProvider>
       <DeployerPageContent />
     </DeployerProvider>
+    </>
   );
 };
 

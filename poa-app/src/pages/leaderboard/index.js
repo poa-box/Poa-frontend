@@ -1,3 +1,4 @@
+import SEOHead from "@/components/common/SEOHead";
 import React, { useEffect, useState } from 'react';
 import {
   Box,
@@ -51,6 +52,12 @@ const Leaderboard = () => {
 
   return (
     <>
+      <SEOHead
+        title="Leaderboard"
+        description="Organization contribution leaderboard."
+        path="/leaderboard"
+        noIndex
+      />
       <Navbar />
       <Box
         position="relative"
