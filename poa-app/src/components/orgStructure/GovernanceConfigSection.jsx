@@ -17,50 +17,33 @@ import {
 } from '@chakra-ui/react';
 import { FiUsers, FiLayers, FiPercent } from 'react-icons/fi';
 
-const glassLayerStyle = {
-  position: 'absolute',
-  height: '100%',
-  width: '100%',
-  zIndex: -1,
-  borderRadius: 'inherit',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
-  border: '1px solid rgba(148, 115, 220, 0.2)',
-};
-
 /**
  * Card for a single voting system
  */
 function VotingCard({ title, description, quorum, icon, colorScheme = 'purple', classWeights, isQuadratic }) {
   return (
     <Box
-      position="relative"
+      bg="white"
+      border="1px solid"
+      borderColor="warmGray.100"
+      borderLeft="3px solid"
+      borderLeftColor="amethyst.400"
       borderRadius="xl"
       p={5}
-      overflow="hidden"
       height="100%"
+      boxShadow="0 2px 4px rgba(0, 0, 0, 0.04)"
     >
-      <Box
-        position="absolute"
-        inset={0}
-        borderRadius="inherit"
-        bg="rgba(30, 30, 40, 0.6)"
-        border="1px solid rgba(148, 115, 220, 0.2)"
-        zIndex={-1}
-      />
-
       <VStack align="stretch" spacing={4} height="100%">
         {/* Header */}
         <HStack spacing={3}>
           <Box
             p={2}
             borderRadius="lg"
-            bg={`${colorScheme}.900`}
-            opacity={0.8}
+            bg={`${colorScheme}.50`}
           >
-            <Icon as={icon} color={`${colorScheme}.300`} boxSize={5} />
+            <Icon as={icon} color={`${colorScheme}.500`} boxSize={5} />
           </Box>
-          <Heading size="sm" color="white">
+          <Heading size="sm" color="warmGray.900">
             {title}
           </Heading>
           {isQuadratic && (
@@ -74,40 +57,41 @@ function VotingCard({ title, description, quorum, icon, colorScheme = 'purple', 
         {classWeights && (
           <Box
             p={3}
-            bg="rgba(255, 255, 255, 0.05)"
+            bg="warmGray.50"
             borderRadius="lg"
-            border="1px solid rgba(255, 255, 255, 0.1)"
+            border="1px solid"
+            borderColor="warmGray.200"
           >
-            <Text fontSize="xs" color="gray.500" mb={2}>
+            <Text fontSize="xs" color="warmGray.500" mb={2}>
               Voting Power Split
             </Text>
             <HStack spacing={4} justify="center">
               <VStack spacing={0}>
-                <Text fontSize="xl" fontWeight="bold" color="purple.300">
+                <Text fontSize="xl" fontWeight="bold" color="amethyst.500">
                   {classWeights.democracy}%
                 </Text>
-                <Text fontSize="xs" color="gray.400">Democracy</Text>
+                <Text fontSize="xs" color="warmGray.600">Democracy</Text>
               </VStack>
-              <Text color="gray.600">/</Text>
+              <Text color="warmGray.400">/</Text>
               <VStack spacing={0}>
-                <Text fontSize="xl" fontWeight="bold" color="blue.300">
+                <Text fontSize="xl" fontWeight="bold" color="blue.500">
                   {classWeights.contribution}%
                 </Text>
-                <Text fontSize="xs" color="gray.400">Work</Text>
+                <Text fontSize="xs" color="warmGray.600">Work</Text>
               </VStack>
             </HStack>
           </Box>
         )}
 
         {/* Description */}
-        <Text color="gray.400" fontSize="sm" flex={1}>
+        <Text color="warmGray.600" fontSize="sm" flex={1}>
           {description}
         </Text>
 
         {/* Quorum */}
         <Box>
           <HStack justify="space-between" mb={2}>
-            <Text fontSize="xs" color="gray.500">
+            <Text fontSize="xs" color="warmGray.500">
               Quorum Required
             </Text>
             <Badge colorScheme={colorScheme} borderRadius="full" px={2}>
@@ -122,7 +106,7 @@ function VotingCard({ title, description, quorum, icon, colorScheme = 'purple', 
             size="sm"
             colorScheme={colorScheme}
             borderRadius="full"
-            bg="rgba(255, 255, 255, 0.1)"
+            bg="warmGray.200"
           />
         </Box>
       </VStack>
@@ -164,12 +148,13 @@ export function GovernanceConfigSection({
   if (loading) {
     return (
       <Box
-        position="relative"
+        bg="rgba(255, 255, 255, 0.8)"
+        border="1px solid"
+        borderColor="warmGray.200"
         borderRadius="2xl"
         p={{ base: 4, md: 6 }}
-        overflow="hidden"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
       >
-        <Box style={glassLayerStyle} />
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
           <Skeleton height="180px" borderRadius="xl" />
           <Skeleton height="180px" borderRadius="xl" />
@@ -183,27 +168,28 @@ export function GovernanceConfigSection({
   if (!hasVotingSystems) {
     return (
       <Box
-        position="relative"
+        bg="rgba(255, 255, 255, 0.8)"
+        border="1px solid"
+        borderColor="warmGray.200"
         borderRadius="2xl"
         p={{ base: 4, md: 6 }}
-        overflow="hidden"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
         textAlign="center"
       >
-        <Box style={glassLayerStyle} />
-        <Text color="gray.400">No voting systems configured</Text>
+        <Text color="warmGray.500">No voting systems configured</Text>
       </Box>
     );
   }
 
   return (
     <Box
-      position="relative"
+      bg="rgba(255, 255, 255, 0.8)"
+      border="1px solid"
+      borderColor="warmGray.200"
       borderRadius="2xl"
       p={{ base: 4, md: 6 }}
-      overflow="hidden"
+      boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
     >
-      <Box style={glassLayerStyle} />
-
       <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
         {/* Hybrid Voting */}
         {hybridVoting && (
@@ -234,27 +220,19 @@ export function GovernanceConfigSection({
       {tokenInfo && (
         <Box mt={4}>
           <Box
-            position="relative"
+            bg="warmGray.50"
+            border="1px solid"
+            borderColor="warmGray.200"
             borderRadius="xl"
             p={4}
-            overflow="hidden"
           >
-            <Box
-              position="absolute"
-              inset={0}
-              borderRadius="inherit"
-              bg="rgba(30, 30, 40, 0.4)"
-              border="1px solid rgba(148, 115, 220, 0.1)"
-              zIndex={-1}
-            />
-
             <HStack justify="space-between" flexWrap="wrap" gap={4}>
               <VStack align="flex-start" spacing={0}>
-                <Text fontSize="xs" color="gray.500">
+                <Text fontSize="xs" color="warmGray.500">
                   Shares
                 </Text>
                 <HStack>
-                  <Text fontWeight="semibold" color="white">
+                  <Text fontWeight="semibold" color="warmGray.900">
                     {tokenInfo.name}
                   </Text>
                   <Badge colorScheme="purple" variant="subtle">
@@ -264,10 +242,10 @@ export function GovernanceConfigSection({
               </VStack>
 
               <VStack align="flex-end" spacing={0}>
-                <Text fontSize="xs" color="gray.500">
+                <Text fontSize="xs" color="warmGray.500">
                   Total Supply
                 </Text>
-                <Text fontWeight="semibold" color="white">
+                <Text fontWeight="semibold" color="warmGray.900">
                   {tokenInfo.totalSupply} {tokenInfo.symbol}
                 </Text>
               </VStack>

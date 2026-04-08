@@ -25,9 +25,29 @@ export const glassLayerLightStyle = {
 };
 
 /**
- * Shared dark-themed input styles for Chakra UI form elements.
- * Used across modals and forms for consistent look-and-feel.
+ * Light section card — warm glass on gradient background
+ * Used for org structure page sections
  */
+export const lightSectionStyle = {
+  bg: 'rgba(255, 255, 255, 0.8)',
+  border: '1px solid',
+  borderColor: 'warmGray.200',
+  borderRadius: '2xl',
+  boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)',
+};
+
+/**
+ * Light inner card — white on glass section
+ * Used for nested cards within light sections
+ */
+export const lightCardStyle = {
+  bg: 'white',
+  border: '1px solid',
+  borderColor: 'warmGray.100',
+  borderRadius: 'xl',
+  boxShadow: '0 2px 4px rgba(0, 0, 0, 0.04)',
+};
+
 export const inputStyles = {
   bg: 'whiteAlpha.100',
   border: '1px solid',

@@ -48,7 +48,6 @@ export function VouchForNewMember({
   const [selectedRoleHatId, setSelectedRoleHatId] = useState('');
 
   // Filter to roles the user can vouch for — memoized to keep a stable reference
-  // (.filter() creates a new array each render, which would re-trigger the useEffect below)
   const vouchableRoles = useMemo(
     () => rolesWithVouching.filter(role =>
       canUserVouchForRole?.(role.vouchingMembershipHatId, userHatIds)
@@ -90,15 +89,16 @@ export function VouchForNewMember({
     <Box
       p={4}
       borderRadius="xl"
-      bg="whiteAlpha.50"
+      bg="white"
       border="1px solid"
-      borderColor="whiteAlpha.200"
+      borderColor="warmGray.200"
+      boxShadow="0 2px 4px rgba(0, 0, 0, 0.04)"
     >
       <VStack spacing={3} align="stretch">
         {/* Header */}
         <HStack>
-          <Icon as={FiUserPlus} color="purple.400" />
-          <Text fontWeight="medium" color="white">
+          <Icon as={FiUserPlus} color="rose.500" />
+          <Text fontWeight="medium" color="warmGray.900">
             Vouch for a new member
           </Text>
         </HStack>
@@ -114,7 +114,7 @@ export function VouchForNewMember({
         {selectedUser && (
           <HStack
             p={2}
-            bg="purple.900"
+            bg="amethyst.50"
             borderRadius="md"
             justify="space-between"
           >
@@ -122,9 +122,9 @@ export function VouchForNewMember({
               <Avatar
                 size="xs"
                 name={selectedUser.username || selectedUser.address}
-                bg="purple.500"
+                bg="amethyst.500"
               />
-              <Text color="white" fontSize="sm">
+              <Text color="warmGray.900" fontSize="sm">
                 {selectedUser.username || truncateAddress(selectedUser.address)}
               </Text>
             </HStack>
@@ -132,10 +132,10 @@ export function VouchForNewMember({
               icon={<FiX />}
               size="xs"
               variant="ghost"
-              colorScheme="whiteAlpha"
+              colorScheme="gray"
               onClick={() => setSelectedUser(null)}
               aria-label="Clear selection"
-              _hover={{ bg: 'whiteAlpha.200' }}
+              _hover={{ bg: 'warmGray.100' }}
             />
           </HStack>
         )}
@@ -147,16 +147,10 @@ export function VouchForNewMember({
             value={selectedRoleHatId}
             onChange={(e) => setSelectedRoleHatId(e.target.value)}
             disabled={isVouching}
-            bg="whiteAlpha.50"
-            borderColor="whiteAlpha.200"
-            color="white"
-            _hover={{ borderColor: 'whiteAlpha.300' }}
-            sx={{
-              '& option': {
-                bg: 'gray.800',
-                color: 'white',
-              },
-            }}
+            bg="white"
+            borderColor="warmGray.200"
+            color="warmGray.900"
+            _hover={{ borderColor: 'warmGray.300' }}
           >
             {vouchableRoles.map(role => (
               <option key={role.hatId} value={role.hatId}>
@@ -168,8 +162,8 @@ export function VouchForNewMember({
 
         {/* Single role indicator */}
         {vouchableRoles.length === 1 && (
-          <Text color="gray.400" fontSize="sm">
-            Vouching for: <Text as="span" color="white">{vouchableRoles[0].name}</Text>
+          <Text color="warmGray.500" fontSize="sm">
+            Vouching for: <Text as="span" color="warmGray.900">{vouchableRoles[0].name}</Text>
           </Text>
         )}
 
@@ -189,7 +183,7 @@ export function VouchForNewMember({
 
         {/* Connection warning */}
         {!isConnected && (
-          <Text color="gray.500" fontSize="xs" textAlign="center">
+          <Text color="warmGray.500" fontSize="xs" textAlign="center">
             Connect wallet to vouch
           </Text>
         )}

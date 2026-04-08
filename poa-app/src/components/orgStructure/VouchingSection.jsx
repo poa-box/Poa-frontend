@@ -30,17 +30,6 @@ import { useClaimRole } from '@/hooks/useClaimRole';
 import { VouchRequestCard } from './VouchRequestCard';
 import { VouchForNewMember } from './VouchForNewMember';
 
-const glassLayerStyle = {
-  position: 'absolute',
-  height: '100%',
-  width: '100%',
-  zIndex: -1,
-  borderRadius: 'inherit',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
-  border: '1px solid rgba(148, 115, 220, 0.2)',
-};
-
 /**
  * Role accordion item for vouch requests
  */
@@ -62,7 +51,6 @@ function RoleVouchAccordion({
   const { hatId, roleName, quorum, requests = [] } = roleData;
 
   // Find the membership hat required to vouch for this role
-  // (This comes from the role's vouchConfig)
   const membershipHatId = requests[0]?.membershipHatId;
   const canVouch = canUserVouchForRole(membershipHatId, userHatIds);
 
@@ -72,20 +60,13 @@ function RoleVouchAccordion({
 
   return (
     <Box
-      position="relative"
+      bg="white"
+      border="1px solid"
+      borderColor="warmGray.100"
       borderRadius="xl"
       overflow="hidden"
       mb={3}
     >
-      <Box
-        position="absolute"
-        inset={0}
-        borderRadius="inherit"
-        bg="rgba(30, 30, 40, 0.6)"
-        border="1px solid rgba(148, 115, 220, 0.15)"
-        zIndex={-1}
-      />
-
       {/* Header - clickable */}
       <Box
         as="button"
@@ -94,7 +75,7 @@ function RoleVouchAccordion({
         p={4}
         textAlign="left"
         _hover={{
-          bg: 'rgba(148, 115, 220, 0.05)',
+          bg: 'rose.50',
         }}
         transition="background-color 0.2s"
       >
@@ -102,10 +83,10 @@ function RoleVouchAccordion({
           <HStack spacing={3}>
             <Icon
               as={isExpanded ? FiChevronDown : FiChevronRight}
-              color="purple.300"
+              color="rose.500"
               transition="transform 0.2s"
             />
-            <Text fontWeight="semibold" color="white">
+            <Text fontWeight="semibold" color="warmGray.900">
               {roleName}
             </Text>
             <Badge
@@ -120,8 +101,8 @@ function RoleVouchAccordion({
               {requests.length} pending
             </Badge>
             <Badge
-              colorScheme="purple"
-              variant="outline"
+              bg="amethyst.100"
+              color="amethyst.700"
               borderRadius="full"
               px={2}
               fontSize="xs"
@@ -136,7 +117,7 @@ function RoleVouchAccordion({
       <Collapse in={isExpanded} animateOpacity>
         <Box px={4} pb={4}>
           {requests.length === 0 ? (
-            <Text color="gray.500" fontSize="sm" textAlign="center" py={4}>
+            <Text color="warmGray.500" fontSize="sm" textAlign="center" py={4}>
               No pending vouch requests for this role
             </Text>
           ) : (
@@ -181,20 +162,13 @@ function YourVouchesSection({ userGivenVouches = [], onRevokeVouch, isRevokingFo
 
   return (
     <Box
-      position="relative"
+      bg="white"
+      border="1px solid"
+      borderColor="green.200"
       borderRadius="xl"
       overflow="hidden"
       mb={3}
     >
-      <Box
-        position="absolute"
-        inset={0}
-        borderRadius="inherit"
-        bg="rgba(30, 30, 40, 0.6)"
-        border="1px solid rgba(75, 180, 130, 0.2)"
-        zIndex={-1}
-      />
-
       {/* Header */}
       <Box
         as="button"
@@ -203,7 +177,7 @@ function YourVouchesSection({ userGivenVouches = [], onRevokeVouch, isRevokingFo
         p={4}
         textAlign="left"
         _hover={{
-          bg: 'rgba(75, 180, 130, 0.05)',
+          bg: 'green.50',
         }}
         transition="background-color 0.2s"
       >
@@ -211,10 +185,10 @@ function YourVouchesSection({ userGivenVouches = [], onRevokeVouch, isRevokingFo
           <HStack spacing={3}>
             <Icon
               as={isExpanded ? FiChevronDown : FiChevronRight}
-              color="green.300"
+              color="green.500"
               transition="transform 0.2s"
             />
-            <Text fontWeight="semibold" color="white">
+            <Text fontWeight="semibold" color="warmGray.900">
               Your Vouches
             </Text>
             <Badge
@@ -242,15 +216,15 @@ function YourVouchesSection({ userGivenVouches = [], onRevokeVouch, isRevokingFo
                 <HStack
                   key={`${vouch.hatId}-${vouch.wearer}`}
                   justify="space-between"
-                  bg="whiteAlpha.50"
+                  bg="warmGray.50"
                   p={3}
                   borderRadius="md"
                 >
                   <VStack align="start" spacing={0}>
-                    <Text color="white" fontSize="sm">
+                    <Text color="warmGray.900" fontSize="sm">
                       {vouch.wearerUsername || `${vouch.wearer.slice(0, 8)}...`}
                     </Text>
-                    <Text color="gray.500" fontSize="xs">
+                    <Text color="warmGray.500" fontSize="xs">
                       for {vouch.roleName}
                     </Text>
                   </VStack>
@@ -260,7 +234,7 @@ function YourVouchesSection({ userGivenVouches = [], onRevokeVouch, isRevokingFo
                     variant="outline"
                     cursor={isRevoking ? 'wait' : 'pointer'}
                     onClick={() => !isRevoking && onRevokeVouch?.(vouch.wearer, vouch.hatId)}
-                    _hover={{ bg: isRevoking ? undefined : 'red.900' }}
+                    _hover={{ bg: isRevoking ? undefined : 'red.50' }}
                     opacity={isRevoking ? 0.6 : 1}
                   >
                     {isRevoking ? 'Revoking...' : 'Revoke'}
@@ -333,16 +307,22 @@ export function VouchingSection({
     return null;
   }
 
+  const sectionStyle = embedded ? {} : {
+    bg: 'rgba(255, 255, 255, 0.8)',
+    border: '1px solid',
+    borderColor: 'warmGray.200',
+    borderRadius: '2xl',
+    boxShadow: '0 4px 24px rgba(0, 0, 0, 0.06)',
+  };
+
   // Loading state
   if (loading) {
     return (
       <Box
-        position="relative"
+        {...sectionStyle}
         borderRadius={embedded ? 'xl' : '2xl'}
         p={embedded ? { base: 2, md: 3 } : { base: 4, md: 6 }}
-        overflow="hidden"
       >
-        {!embedded && <Box style={glassLayerStyle} />}
         <VStack spacing={3} align="stretch">
           {[1, 2].map((i) => (
             <Skeleton key={i} height="80px" borderRadius="xl" />
@@ -356,13 +336,11 @@ export function VouchingSection({
   if (error) {
     return (
       <Box
-        position="relative"
+        {...sectionStyle}
         borderRadius={embedded ? 'xl' : '2xl'}
         p={embedded ? { base: 2, md: 3 } : { base: 4, md: 6 }}
-        overflow="hidden"
       >
-        {!embedded && <Box style={glassLayerStyle} />}
-        <Alert status="error" borderRadius="md" bg="red.900" color="white">
+        <Alert status="error" borderRadius="md">
           <AlertIcon />
           Failed to load vouching data
         </Alert>
@@ -375,21 +353,18 @@ export function VouchingSection({
 
   return (
     <Box
-      position="relative"
+      {...sectionStyle}
       borderRadius={embedded ? 'xl' : '2xl'}
       p={embedded ? { base: 2, md: 3 } : { base: 4, md: 6 }}
-      overflow="hidden"
     >
-      {!embedded && <Box style={glassLayerStyle} />}
-
       <VStack spacing={embedded ? 3 : 4} align="stretch">
         {/* Info banner */}
         <HStack
           spacing={2}
-          bg="whiteAlpha.50"
+          bg="amethyst.50"
           p={3}
           borderRadius="md"
-          color="gray.400"
+          color="warmGray.600"
         >
           <Icon as={FiInfo} />
           <Text fontSize="sm">
@@ -416,18 +391,18 @@ export function VouchingSection({
               onRevokeVouch={handleRevokeVouch}
               isRevokingFor={isRevokingFor}
             />
-            <Divider borderColor="whiteAlpha.200" />
+            <Divider borderColor="warmGray.200" />
           </>
         )}
 
         {/* Pending requests by role */}
         {!hasPendingRequests ? (
           <Box textAlign="center" py={6}>
-            <Icon as={FiUserPlus} boxSize={8} color="gray.500" mb={2} />
-            <Text color="gray.400">
+            <Icon as={FiUserPlus} boxSize={8} color="warmGray.400" mb={2} />
+            <Text color="warmGray.500">
               No pending vouch requests
             </Text>
-            <Text color="gray.500" fontSize="sm">
+            <Text color="warmGray.400" fontSize="sm">
               Users seeking roles will appear here once they receive their first vouch
             </Text>
           </Box>

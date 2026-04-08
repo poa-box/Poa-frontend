@@ -128,16 +128,17 @@ export function VouchRequestCard({
 
   return (
     <Box
-      bg="whiteAlpha.50"
+      bg="white"
       borderRadius="lg"
       p={4}
       border="1px solid"
-      borderColor="whiteAlpha.100"
+      borderColor="warmGray.100"
+      boxShadow="0 2px 4px rgba(0, 0, 0, 0.04)"
       _hover={{
-        bg: 'whiteAlpha.100',
-        borderColor: 'whiteAlpha.200',
+        bg: 'warmGray.50',
+        borderColor: 'warmGray.200',
       }}
-      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
+      transition="background 0.2s, border-color 0.2s"
     >
       <VStack spacing={3} align="stretch">
         {/* User Info Row */}
@@ -146,14 +147,14 @@ export function VouchRequestCard({
             <Avatar
               size="sm"
               name={displayName}
-              bg="purple.500"
+              bg="amethyst.500"
             />
             <VStack align="start" spacing={0}>
-              <Text color="white" fontWeight="medium" fontSize="sm">
+              <Text color="warmGray.900" fontWeight="medium" fontSize="sm">
                 {displayName}
               </Text>
               {wearerUsername && (
-                <Text color="gray.500" fontSize="xs">
+                <Text color="warmGray.500" fontSize="xs">
                   {truncateAddress(wearer)}
                 </Text>
               )}
@@ -187,7 +188,7 @@ export function VouchRequestCard({
         {/* Voucher List */}
         {vouchers.length > 0 && (
           <Box>
-            <Text fontSize="xs" color="gray.500" mb={1}>
+            <Text fontSize="xs" color="warmGray.500" mb={1}>
               Vouched by:
             </Text>
             <Wrap spacing={1}>
@@ -200,7 +201,7 @@ export function VouchRequestCard({
                     <Avatar
                       size="xs"
                       name={voucher.username || voucher.address}
-                      bg="purple.600"
+                      bg="amethyst.600"
                     />
                   </Tooltip>
                 </WrapItem>
@@ -209,7 +210,7 @@ export function VouchRequestCard({
                 <WrapItem>
                   <Tooltip label={`${vouchers.length - 5} more vouchers`} placement="top">
                     <Box
-                      bg="whiteAlpha.200"
+                      bg="warmGray.100"
                       borderRadius="full"
                       w={6}
                       h={6}
@@ -217,7 +218,7 @@ export function VouchRequestCard({
                       alignItems="center"
                       justifyContent="center"
                     >
-                      <Text fontSize="xs" color="gray.400">
+                      <Text fontSize="xs" color="warmGray.500">
                         +{vouchers.length - 5}
                       </Text>
                     </Box>

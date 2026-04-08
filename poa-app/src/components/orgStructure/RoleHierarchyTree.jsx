@@ -16,17 +16,6 @@ import {
 import { FiUsers, FiShield, FiCheckCircle } from 'react-icons/fi';
 import { ClaimRoleButton } from './ClaimRoleButton';
 
-const glassLayerStyle = {
-  position: 'absolute',
-  height: '100%',
-  width: '100%',
-  zIndex: -1,
-  borderRadius: 'inherit',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
-  border: '1px solid rgba(148, 115, 220, 0.2)',
-};
-
 /**
  * Normalize hat ID for comparison
  */
@@ -59,71 +48,65 @@ function RoleNode({
 }) {
   const { name, memberCount, level, vouchingEnabled, vouchingQuorum } = role;
 
+  // Connector position: centered in the gap created by the current level's padding
+  // Each level adds 32px (8 spacing units * 4px). Connector sits 16px into that gap.
+  const connectorLeft = `${(level - 1) * 32 + 16}px`;
+
   return (
-    <Box position="relative" pl={level > 0 ? 8 : 0} py={2}>
+    <Box position="relative" pl={level * 8} py={2}>
       {/* Connector line for child roles */}
       {level > 0 && (
         <>
           {/* Horizontal line */}
           <Box
             position="absolute"
-            left="16px"
+            left={connectorLeft}
             top="50%"
             width="16px"
             height="2px"
-            bg="purple.500"
-            opacity={0.5}
+            bg="warmGray.300"
           />
           {/* Vertical line */}
           <Box
             position="absolute"
-            left="16px"
+            left={connectorLeft}
             top={0}
             bottom={isLast ? '50%' : 0}
             width="2px"
-            bg="purple.500"
-            opacity={0.5}
+            bg="warmGray.300"
           />
         </>
       )}
 
       {/* Role card */}
       <Box
-        position="relative"
+        bg="white"
+        border="1px solid"
+        borderColor="warmGray.100"
+        borderLeft="3px solid"
+        borderLeftColor="amethyst.400"
         borderRadius="xl"
         p={4}
-        overflow="hidden"
-        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
+        transition="transform 0.2s, box-shadow 0.2s"
         _hover={{
           transform: 'translateX(4px)',
-          '& > div:first-of-type': {
-            borderColor: 'rgba(148, 115, 220, 0.5)',
-          },
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
+          borderColor: 'amethyst.300',
         }}
       >
-        <Box
-          position="absolute"
-          inset={0}
-          borderRadius="inherit"
-          backgroundColor="rgba(30, 30, 40, 0.6)"
-          border="1px solid rgba(148, 115, 220, 0.2)"
-          transition="border-color 0.2s"
-          zIndex={-1}
-        />
-
         <HStack justify="space-between" spacing={4}>
           {/* Role info */}
           <HStack spacing={3}>
             <Box
               p={2}
               borderRadius="lg"
-              bg="rgba(148, 115, 220, 0.2)"
+              bg="amethyst.50"
             >
-              <Icon as={FiShield} color="purple.300" boxSize={5} />
+              <Icon as={FiShield} color="amethyst.500" boxSize={5} />
             </Box>
 
             <VStack align="flex-start" spacing={0}>
-              <Text fontWeight="bold" color="white" fontSize="md">
+              <Text fontWeight="bold" color="warmGray.900" fontSize="md">
                 {name}
               </Text>
               {vouchingEnabled && (
@@ -132,8 +115,8 @@ function RoleNode({
                   placement="top"
                 >
                   <HStack spacing={1}>
-                    <Icon as={FiCheckCircle} color="green.400" boxSize={3} />
-                    <Text fontSize="xs" color="gray.400">
+                    <Icon as={FiCheckCircle} color="green.500" boxSize={3} />
+                    <Text fontSize="xs" color="warmGray.500">
                       Vouching enabled
                     </Text>
                   </HStack>
@@ -145,7 +128,8 @@ function RoleNode({
           {/* Member count badge and claim button */}
           <HStack spacing={3}>
             <Badge
-              colorScheme="purple"
+              bg="amethyst.100"
+              color="amethyst.700"
               px={3}
               py={1}
               borderRadius="full"
@@ -207,12 +191,13 @@ export function RoleHierarchyTree({
   if (loading) {
     return (
       <Box
-        position="relative"
+        bg="rgba(255, 255, 255, 0.8)"
+        border="1px solid"
+        borderColor="warmGray.200"
         borderRadius="2xl"
         p={{ base: 4, md: 6 }}
-        overflow="hidden"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
       >
-        <Box style={glassLayerStyle} />
         <VStack spacing={4} align="stretch">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} height="60px" borderRadius="xl" />
@@ -225,37 +210,36 @@ export function RoleHierarchyTree({
   if (roles.length === 0) {
     return (
       <Box
-        position="relative"
+        bg="rgba(255, 255, 255, 0.8)"
+        border="1px solid"
+        borderColor="warmGray.200"
         borderRadius="2xl"
         p={{ base: 4, md: 6 }}
-        overflow="hidden"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
         textAlign="center"
       >
-        <Box style={glassLayerStyle} />
-        <Text color="gray.400">No roles defined for this organization</Text>
+        <Text color="warmGray.500">No roles defined for this organization</Text>
       </Box>
     );
   }
 
-  // Group roles by level for tree structure
-  const sortedRoles = [...roles].sort((a, b) => a.level - b.level);
-
+  // Roles arrive pre-sorted in tree order with level = display depth (from useOrgStructure)
   return (
     <Box
-      position="relative"
+      bg="rgba(255, 255, 255, 0.8)"
+      border="1px solid"
+      borderColor="warmGray.200"
       borderRadius="2xl"
       p={{ base: 4, md: 6 }}
-      overflow="hidden"
+      boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
     >
-      <Box style={glassLayerStyle} />
-
       <VStack spacing={2} align="stretch">
-        {sortedRoles.map((role, index) => (
+        {roles.map((role, index) => (
           <RoleNode
             key={role.id || role.hatId}
             role={role}
-            isLast={index === sortedRoles.length - 1 ||
-                    (sortedRoles[index + 1]?.level <= role.level)}
+            isLast={index === roles.length - 1 ||
+                    (roles[index + 1]?.level <= role.level)}
             userHasRole={userHasHat(role.hatId)}
             isClaiming={isClaimingHat?.(role.hatId) || false}
             onClaim={onClaimRole}

@@ -19,17 +19,6 @@ import {
 } from '@chakra-ui/react';
 import { FiExternalLink, FiCalendar, FiUsers } from 'react-icons/fi';
 
-const glassLayerStyle = {
-  position: 'absolute',
-  height: '100%',
-  width: '100%',
-  zIndex: -1,
-  borderRadius: 'inherit',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
-  border: '1px solid rgba(148, 115, 220, 0.2)',
-};
-
 export function OrgOverviewCard({
   name,
   description,
@@ -50,12 +39,13 @@ export function OrgOverviewCard({
   if (loading) {
     return (
       <Box
-        position="relative"
+        bg="rgba(255, 255, 255, 0.8)"
+        border="1px solid"
+        borderColor="warmGray.200"
         borderRadius="2xl"
         p={{ base: 4, md: 6 }}
-        overflow="hidden"
+        boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
       >
-        <Box style={glassLayerStyle} />
         <Flex direction={{ base: 'column', md: 'row' }} gap={6}>
           <SkeletonCircle size="100px" />
           <VStack align="flex-start" flex={1} spacing={3}>
@@ -70,13 +60,13 @@ export function OrgOverviewCard({
 
   return (
     <Box
-      position="relative"
+      bg="rgba(255, 255, 255, 0.8)"
+      border="1px solid"
+      borderColor="warmGray.200"
       borderRadius="2xl"
       p={{ base: 4, md: 6 }}
-      overflow="hidden"
+      boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
     >
-      <Box style={glassLayerStyle} />
-
       <Flex direction={{ base: 'column', md: 'row' }} gap={6} align="flex-start">
         {/* Logo */}
         <Box flexShrink={0}>
@@ -87,19 +77,21 @@ export function OrgOverviewCard({
               boxSize={{ base: '80px', md: '100px' }}
               borderRadius="xl"
               objectFit="cover"
-              border="2px solid rgba(148, 115, 220, 0.3)"
+              border="2px solid"
+              borderColor="amethyst.200"
             />
           ) : (
             <Box
               boxSize={{ base: '80px', md: '100px' }}
               borderRadius="xl"
-              bg="rgba(148, 115, 220, 0.2)"
+              bg="amethyst.50"
               display="flex"
               alignItems="center"
               justifyContent="center"
-              border="2px solid rgba(148, 115, 220, 0.3)"
+              border="2px solid"
+              borderColor="amethyst.200"
             >
-              <Text fontSize="3xl" fontWeight="bold" color="purple.300">
+              <Text fontSize="3xl" fontWeight="bold" color="amethyst.500">
                 {name?.charAt(0)?.toUpperCase() || 'O'}
               </Text>
             </Box>
@@ -109,13 +101,13 @@ export function OrgOverviewCard({
         {/* Content */}
         <VStack align="flex-start" flex={1} spacing={4}>
           {/* Name */}
-          <Heading size="lg" color="white">
+          <Heading size="lg" color="warmGray.900">
             {name || 'Organization'}
           </Heading>
 
           {/* Description */}
           {description && (
-            <Text color="gray.300" lineHeight="tall">
+            <Text color="warmGray.600" lineHeight="tall">
               {description}
             </Text>
           )}
@@ -124,7 +116,8 @@ export function OrgOverviewCard({
           <HStack spacing={4} flexWrap="wrap">
             {totalMembers !== undefined && (
               <Badge
-                colorScheme="purple"
+                bg="amethyst.100"
+                color="amethyst.700"
                 px={3}
                 py={1}
                 borderRadius="full"
@@ -139,7 +132,8 @@ export function OrgOverviewCard({
 
             {formattedDate && (
               <Badge
-                colorScheme="gray"
+                bg="warmGray.100"
+                color="warmGray.700"
                 px={3}
                 py={1}
                 borderRadius="full"
@@ -161,12 +155,12 @@ export function OrgOverviewCard({
                   key={index}
                   href={link.url}
                   isExternal
-                  color="purple.300"
+                  color="amethyst.500"
                   fontSize="sm"
                   display="flex"
                   alignItems="center"
                   gap={1}
-                  _hover={{ color: 'purple.200', textDecoration: 'underline' }}
+                  _hover={{ color: 'amethyst.600', textDecoration: 'underline' }}
                 >
                   {link.name || link.url}
                   <Icon as={FiExternalLink} boxSize={3} />

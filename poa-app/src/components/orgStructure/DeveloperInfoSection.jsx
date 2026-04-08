@@ -26,17 +26,6 @@ import {
   FiExternalLink,
 } from 'react-icons/fi';
 
-const glassLayerStyle = {
-  position: 'absolute',
-  height: '100%',
-  width: '100%',
-  zIndex: -1,
-  borderRadius: 'inherit',
-  backgroundColor: 'rgba(0, 0, 0, 0.8)',
-  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
-  border: '1px solid rgba(148, 115, 220, 0.2)',
-};
-
 import { getNetworkByChainId } from '../../config/networks';
 import { usePOContext } from '../../context/POContext';
 
@@ -65,22 +54,23 @@ function ContractRow({ label, address, explorerUrl }) {
     <Box
       p={3}
       borderRadius="lg"
-      bg="rgba(30, 30, 40, 0.5)"
-      border="1px solid rgba(148, 115, 220, 0.1)"
-      transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
+      bg="white"
+      border="1px solid"
+      borderColor="warmGray.100"
+      transition="border-color 0.2s"
       _hover={{
-        borderColor: 'rgba(148, 115, 220, 0.3)',
+        borderColor: 'warmGray.300',
       }}
     >
       <HStack justify="space-between" flexWrap="wrap" gap={2}>
         <VStack align="flex-start" spacing={0} flex={1} minW="150px">
-          <Text fontSize="xs" color="gray.500">
+          <Text fontSize="xs" color="warmGray.500">
             {label}
           </Text>
           <Text
             fontFamily="mono"
             fontSize="sm"
-            color="white"
+            color="warmGray.900"
             wordBreak="break-all"
           >
             {address}
@@ -136,25 +126,25 @@ export function DeveloperInfoSection({ contracts = {} }) {
         onClick={() => setIsExpanded(!isExpanded)}
         p={4}
         borderRadius="xl"
-        bg="rgba(30, 30, 40, 0.3)"
-        border="1px solid rgba(148, 115, 220, 0.1)"
+        bg="warmGray.50"
+        border="1px solid"
+        borderColor="warmGray.200"
         textAlign="left"
-        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
+        transition="background-color 0.2s"
         _hover={{
-          bg: 'rgba(30, 30, 40, 0.5)',
-          borderColor: 'rgba(148, 115, 220, 0.2)',
+          bg: 'warmGray.100',
         }}
       >
         <HStack justify="space-between">
           <HStack spacing={3}>
-            <Icon as={FiCode} color="gray.500" />
-            <Text color="gray.400" fontWeight="medium">
+            <Icon as={FiCode} color="warmGray.400" />
+            <Text color="warmGray.600" fontWeight="medium">
               Developer Info
             </Text>
           </HStack>
           <Icon
             as={isExpanded ? FiChevronDown : FiChevronRight}
-            color="gray.500"
+            color="warmGray.400"
             transition="transform 0.2s"
           />
         </HStack>
@@ -163,23 +153,23 @@ export function DeveloperInfoSection({ contracts = {} }) {
       {/* Expandable content */}
       <Collapse in={isExpanded} animateOpacity>
         <Box
-          position="relative"
+          bg="rgba(255, 255, 255, 0.8)"
+          border="1px solid"
+          borderColor="warmGray.200"
           borderRadius="2xl"
           p={{ base: 4, md: 6 }}
           mt={2}
-          overflow="hidden"
+          boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
         >
-          <Box style={glassLayerStyle} />
-
           <VStack align="stretch" spacing={4}>
             <HStack spacing={2}>
-              <Icon as={FiCode} color="purple.300" />
-              <Text fontWeight="semibold" color="white">
+              <Icon as={FiCode} color="amethyst.500" />
+              <Text fontWeight="semibold" color="warmGray.900">
                 Smart Contract Addresses
               </Text>
             </HStack>
 
-            <Text fontSize="sm" color="gray.400">
+            <Text fontSize="sm" color="warmGray.600">
               These are the deployed smart contracts for this organization.
               You can verify them on the block explorer.
             </Text>
