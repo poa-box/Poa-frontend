@@ -150,6 +150,7 @@ export function useVouchFirstOnboarding({
         accountAddress,
         selectedHatId,
         orgName,
+        username,
       };
 
       // Persist so flow survives browser close
