@@ -737,7 +737,7 @@ const User = () => {
                         </Text>
                       </Box>
 
-                      {/* Pending account address badge */}
+                      {/* Pending account username badge */}
                       <Box
                         p={3}
                         borderRadius="lg"
@@ -747,9 +747,9 @@ const User = () => {
                       >
                         <Flex align="center" justify="center" direction="column" gap={1}>
                           <Flex align="center">
-                            <Icon as={FaFingerprint} color="blue.500" mr={2} />
-                            <Text color={textColor} fontWeight="medium" fontSize="sm" fontFamily="mono">
-                              {vouchFirstHook.pendingCredential.accountAddress?.substring(0, 10)}...{vouchFirstHook.pendingCredential.accountAddress?.substring(vouchFirstHook.pendingCredential.accountAddress.length - 6)}
+                            <Icon as={FaUser} color="blue.500" mr={2} />
+                            <Text color={textColor} fontWeight="medium" fontSize="sm">
+                              {vouchFirstHook.pendingCredential.username || vouchFirstHook.pendingCredential.accountAddress?.substring(0, 10) + '...' + vouchFirstHook.pendingCredential.accountAddress?.substring(vouchFirstHook.pendingCredential.accountAddress.length - 6)}
                             </Text>
                           </Flex>
                           <Text color={hintColor} fontSize="xs">
