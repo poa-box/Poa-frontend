@@ -26,6 +26,7 @@ import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 import { DEFAULT_DEPLOY_CHAIN_ID, getSubgraphUrl } from '@/config/networks';
 import UniversalAccountRegistryABI from '../../abi/UniversalAccountRegistry.json';
 import PasskeyAccountABI from '../../abi/PasskeyAccount.json';
+import PasskeyAccountFactoryABI from '../../abi/PasskeyAccountFactory.json';
 import { ethers } from 'ethers';
 
 // Solidarity-funded operations target Gnosis (onboarding enabled there, not Arbitrum)
@@ -51,6 +52,7 @@ export function useProfileUpdate() {
   // Infrastructure state (fetched from Gnosis subgraph)
   const [paymasterAddress, setPaymasterAddress] = useState(null);
   const [registryAddress, setRegistryAddress] = useState(null);
+  const [factoryAddress, setFactoryAddress] = useState(null);
 
   useEffect(() => {
     const subgraphUrl = getSubgraphUrl(SOLIDARITY_CHAIN_ID);
@@ -61,6 +63,7 @@ export function useProfileUpdate() {
         const query = `{
           poaManagerContracts(first: 1) { paymasterHubProxy }
           universalAccountRegistries(first: 1) { id }
+          passkeyAccountFactories(first: 1) { id }
         }`;
         const res = await fetch(subgraphUrl, {
           method: 'POST',
@@ -71,6 +74,7 @@ export function useProfileUpdate() {
         const data = json?.data;
         setPaymasterAddress(data?.poaManagerContracts?.[0]?.paymasterHubProxy || null);
         setRegistryAddress(data?.universalAccountRegistries?.[0]?.id || null);
+        setFactoryAddress(data?.passkeyAccountFactories?.[0]?.id || null);
       } catch (err) {
         console.error('[ProfileUpdate] Failed to fetch Gnosis infrastructure:', err);
       }
@@ -216,8 +220,38 @@ export function useProfileUpdate() {
   }
 
   /**
+   * Build initCode if account is not yet deployed on Gnosis (cross-chain passkey).
+   * Enables atomic deploy + execute in one UserOp.
+   */
+  async function _buildInitCodeIfNeeded() {
+    if (!passkeyState || !factoryAddress || !publicClient) return '0x';
+
+    const bytecode = await publicClient.getBytecode({ address: accountAddress });
+    if (bytecode && bytecode !== '0x') return '0x'; // Already deployed
+
+    // Verify CREATE2 produces the same address on Gnosis
+    const targetAddr = await publicClient.readContract({
+      address: factoryAddress,
+      abi: PasskeyAccountFactoryABI,
+      functionName: 'getAddress',
+      args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
+    });
+    if (targetAddr.toLowerCase() !== accountAddress.toLowerCase()) {
+      throw new Error('Cross-chain account deployment unavailable: factory address mismatch');
+    }
+
+    const factoryCallData = encodeFunctionData({
+      abi: PasskeyAccountFactoryABI,
+      functionName: 'createAccount',
+      args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
+    });
+    console.log('[ProfileUpdate] Account not on Gnosis — including initCode for cross-chain deploy');
+    return factoryAddress + factoryCallData.slice(2);
+  }
+
+  /**
    * Passkey flow: build UserOp with execute(registry, 0, setProfileMetadata(hash))
-   * sponsored via solidarity onboarding path.
+   * sponsored via solidarity onboarding path. Atomically deploys account on Gnosis if needed.
    */
   async function _updateViaPasskey(metadataHash) {
     if (!bundlerClient || !publicClient || !paymasterAddress) {
@@ -225,6 +259,9 @@ export function useProfileUpdate() {
     }
 
     setStep('building');
+
+    // Check if account needs deployment on Gnosis (created on Arbitrum)
+    const initCode = await _buildInitCodeIfNeeded();
 
     // Encode setProfileMetadata(bytes32) call
     const innerCallData = encodeFunctionData({
@@ -250,6 +287,7 @@ export function useProfileUpdate() {
       publicClient,
       paymasterAddress,
       paymasterData,
+      initCode,
     });
 
     // Sign UserOp with passkey
