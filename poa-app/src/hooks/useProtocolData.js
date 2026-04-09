@@ -66,6 +66,18 @@ const PROTOCOL_QUERY = `{
     eventAt
     transactionHash
   }
+  paymasterOrgConfigs(first: 1000) {
+    id
+    orgId
+    totalSpent
+    totalSolidarityReceived
+    depositBalance
+    totalDeposited
+    stats {
+      totalUserOps
+      totalGasSponsored
+    }
+  }
 }`;
 
 /**
@@ -135,6 +147,19 @@ export function useProtocolData() {
         const onboarding = d.onboardingConfigs?.[0];
         const orgDeploy = d.orgDeployConfigs?.[0];
 
+        // Aggregate gas usage from all org configs on this chain
+        const orgConfigs = d.paymasterOrgConfigs || [];
+        const gasUsage = orgConfigs.reduce((acc, cfg) => {
+          acc.totalSpent += parseInt(cfg.totalSpent || '0');
+          acc.totalDeposited += parseInt(cfg.totalDeposited || '0');
+          acc.totalSolidarityReceived += parseInt(cfg.totalSolidarityReceived || '0');
+          acc.currentBalance += parseInt(cfg.depositBalance || '0');
+          acc.totalUserOps += parseInt(cfg.stats?.totalUserOps || '0');
+          acc.totalGasSponsored += parseInt(cfg.stats?.totalGasSponsored || '0');
+          acc.orgCount += 1;
+          return acc;
+        }, { totalSpent: 0, totalDeposited: 0, totalSolidarityReceived: 0, currentBalance: 0, totalUserOps: 0, totalGasSponsored: 0, orgCount: 0 });
+
         results[chainId] = {
           name,
           chainId,
@@ -146,6 +171,15 @@ export function useProtocolData() {
           paymaster: pm || null,
           beaconUpgrades: d.beaconUpgradeEvents || [],
           solidarityEvents: d.solidarityEvents || [],
+          gasUsage: {
+            totalSpent: (gasUsage.totalSpent / 1e18).toFixed(6),
+            totalDeposited: (gasUsage.totalDeposited / 1e18).toFixed(6),
+            totalSolidarityReceived: (gasUsage.totalSolidarityReceived / 1e18).toFixed(6),
+            currentBalance: (gasUsage.currentBalance / 1e18).toFixed(6),
+            totalUserOps: gasUsage.totalUserOps,
+            totalGasSponsored: (gasUsage.totalGasSponsored / 1e18).toFixed(6),
+            orgCount: gasUsage.orgCount,
+          },
           solidarity: pm ? {
             balance: pm.solidarityBalance ? (parseInt(pm.solidarityBalance) / 1e18).toFixed(4) : '0',
             totalFeesCollected: pm.totalFeesCollected ? (parseInt(pm.totalFeesCollected) / 1e18).toFixed(6) : '0',
@@ -191,12 +225,16 @@ export function useProtocolData() {
     let totalAccounts = 0;
     let totalContracts = 0;
     let totalBeacons = 0;
+    let totalUserOps = 0;
+    let totalGasSponsored = 0;
 
     Object.values(chainData).forEach(chain => {
       totalOrgs += parseInt(chain.orgStats?.totalOrgs || '0');
       totalAccounts += parseInt(chain.accountStats?.totalAccounts || '0');
       totalContracts += parseInt(chain.orgStats?.totalContracts || '0');
       totalBeacons = Math.max(totalBeacons, parseInt(chain.infrastructure?.beaconCount || '0'));
+      totalUserOps += chain.gasUsage?.totalUserOps || 0;
+      totalGasSponsored += parseFloat(chain.gasUsage?.totalGasSponsored || '0');
     });
 
     return {
@@ -205,6 +243,8 @@ export function useProtocolData() {
       totalContracts,
       totalBeacons,
       chainsActive: Object.keys(chainData).length,
+      totalUserOps,
+      totalGasSponsored: totalGasSponsored.toFixed(6),
     };
   }, [chainData]);
 

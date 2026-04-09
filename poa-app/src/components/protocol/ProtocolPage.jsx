@@ -10,6 +10,7 @@ import SolidaritySection from './SolidaritySection';
 import SponsorshipSection from './SponsorshipSection';
 import BeaconSection from './BeaconSection';
 import StatsSection from './StatsSection';
+import GasUsageSection from './GasUsageSection';
 
 const ProtocolPage = () => {
   const { isLoading, chains, aggregated } = useProtocolData();
@@ -35,6 +36,7 @@ const ProtocolPage = () => {
         ) : (
           <>
             <StatsSection chains={chains} aggregated={aggregated} />
+            <GasUsageSection chains={chains} />
             <InfrastructureSection chains={chains} />
             <SolidaritySection chains={chains} />
             <SponsorshipSection chains={chains} />

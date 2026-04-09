@@ -8,37 +8,37 @@
 <!-- Static pages -->
 <url>
   <loc>https://poa.box/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>weekly</changefreq>
   <priority>1.00</priority>
 </url>
 <url>
   <loc>https://poa.box/about/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.80</priority>
 </url>
 <url>
   <loc>https://poa.box/docs/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>weekly</changefreq>
   <priority>0.90</priority>
 </url>
 <url>
   <loc>https://poa.box/explore/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>weekly</changefreq>
   <priority>0.70</priority>
 </url>
 <url>
   <loc>https://poa.box/protocol/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>weekly</changefreq>
   <priority>0.70</priority>
 </url>
 <url>
   <loc>https://poa.box/create/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.80</priority>
 </url>
@@ -46,49 +46,49 @@
 <!-- Documentation pages -->
 <url>
   <loc>https://poa.box/docs/AlphaV1/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.70</priority>
 </url>
 <url>
   <loc>https://poa.box/docs/TheGraph/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.70</priority>
 </url>
 <url>
   <loc>https://poa.box/docs/contributionVoting/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.70</priority>
 </url>
 <url>
   <loc>https://poa.box/docs/create/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.70</priority>
 </url>
 <url>
   <loc>https://poa.box/docs/directDemocracy/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.70</priority>
 </url>
 <url>
   <loc>https://poa.box/docs/hybridVoting/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.70</priority>
 </url>
 <url>
   <loc>https://poa.box/docs/join/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.70</priority>
 </url>
 <url>
   <loc>https://poa.box/docs/perpetualOrganization/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.70</priority>
 </url>
@@ -96,49 +96,49 @@
 <!-- Blog pages -->
 <url>
   <loc>https://poa.box/blog/AlphaV1/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.60</priority>
 </url>
 <url>
   <loc>https://poa.box/blog/TheGraph/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.60</priority>
 </url>
 <url>
   <loc>https://poa.box/blog/contributionVoting/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.60</priority>
 </url>
 <url>
   <loc>https://poa.box/blog/create/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.60</priority>
 </url>
 <url>
   <loc>https://poa.box/blog/directDemocracy/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.60</priority>
 </url>
 <url>
   <loc>https://poa.box/blog/hybridVoting/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.60</priority>
 </url>
 <url>
   <loc>https://poa.box/blog/join/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.60</priority>
 </url>
 <url>
   <loc>https://poa.box/blog/perpetualOrganization/</loc>
-  <lastmod>2026-04-08</lastmod>
+  <lastmod>2026-04-09</lastmod>
   <changefreq>monthly</changefreq>
   <priority>0.60</priority>
 </url>
