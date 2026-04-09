@@ -222,8 +222,8 @@ const User = () => {
 
     const addr = accountAddress || address;
     const hatId = vouchFirstHook.vouchedHatId;
-    // Username: prefer cross-chain existing username, fall back to input field, then subgraph
-    const username = crossChainUsername || newUsername?.trim() || graphUsername || '';
+    // Username: prefer cross-chain existing username, fall back to stored pending credential username, then input field, then subgraph
+    const username = crossChainUsername || vouchFirstHook.pendingCredential?.username || newUsername?.trim() || graphUsername || '';
 
     // Optimistically mark the user as a member so profileHub renders correctly
     optimisticJoin({
@@ -812,13 +812,13 @@ const User = () => {
                       {/* Complete Join button — shown when quorum met AND quorum is actually known */}
                       {vouchFirstPendingProgress?.isComplete && vouchFirstPendingProgress.quorum > 0 ? (
                         <VStack spacing={3}>
-                          {crossChainUsername ? (
-                            /* User already has a username on another chain — show it, skip input */
+                          {(crossChainUsername || vouchFirstHook.pendingCredential?.username) ? (
+                            /* Username already set — show read-only */
                             <Text fontSize="sm" color={hintColor}>
-                              Joining as <strong>{crossChainUsername}</strong>
+                              Joining as <strong>{crossChainUsername || vouchFirstHook.pendingCredential.username}</strong>
                             </Text>
                           ) : (
-                            /* New user — ask for username */
+                            /* Legacy pending credential without stored username — show input */
                             <InputGroup size={isMobile ? "md" : "lg"}>
                               <Input
                                 placeholder="Choose a username"
@@ -841,10 +841,10 @@ const User = () => {
                             height={buttonHeight}
                             isLoading={vouchFirstHook.phase === VouchFirstPhase.COMPLETING}
                             loadingText={vouchFirstHook.stepMessage || "Completing..."}
-                            onClick={() => vouchFirstHook.completeOnboarding(crossChainUsername || newUsername.trim())}
-                            isDisabled={!crossChainUsername && !newUsername.trim()}
+                            onClick={() => vouchFirstHook.completeOnboarding(crossChainUsername || vouchFirstHook.pendingCredential?.username || newUsername.trim())}
+                            isDisabled={!crossChainUsername && !vouchFirstHook.pendingCredential?.username && !newUsername.trim()}
                             leftIcon={<FaCheck />}
-                            animation={(crossChainUsername || newUsername) ? `${pulse} 2s infinite` : undefined}
+                            animation={(crossChainUsername || vouchFirstHook.pendingCredential?.username || newUsername) ? `${pulse} 2s infinite` : undefined}
                           >
                             Complete Join
                           </Button>
