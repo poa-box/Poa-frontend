@@ -1,7 +1,12 @@
-import React from 'react';
-import { Box, Container, Heading, Text, SimpleGrid, VStack, HStack, Badge, Table, Thead, Tbody, Tr, Th, Td, Link } from '@chakra-ui/react';
+import React, { useState } from 'react';
+import { Box, Container, Heading, Text, SimpleGrid, VStack, HStack, Badge, Table, Thead, Tbody, Tr, Th, Td, Link, Button, Input, InputGroup, InputRightAddon, useToast, useDisclosure, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton } from '@chakra-ui/react';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { motion } from 'framer-motion';
+import { useAccount, useSwitchChain, useConfig } from 'wagmi';
+import { getConnectorClient } from 'wagmi/actions';
+import { clientToSigner } from '@/components/ProviderConverter';
+import { useAuth } from '@/context/AuthContext';
+import { ethers } from 'ethers';
 
 const MotionBox = motion(Box);
 
@@ -13,23 +18,111 @@ const StatCard = ({ label, value, subtext, color = 'warmGray.800' }) => (
   </Box>
 );
 
+const DonateModal = ({ isOpen, onClose, chain }) => {
+  const toast = useToast();
+  const { isAuthenticated } = useAuth();
+  const { switchChainAsync } = useSwitchChain();
+  const wagmiConfig = useConfig();
+  const { chain: currentChain } = useAccount();
+  const [amount, setAmount] = useState('');
+  const [isSending, setIsSending] = useState(false);
+
+  const paymasterAddress = chain.infrastructure?.paymasterHubProxy;
+
+  const handleDonate = async () => {
+    if (!amount || parseFloat(amount) <= 0 || !paymasterAddress) return;
+
+    setIsSending(true);
+    try {
+      if (currentChain?.id !== chain.chainId) {
+        await switchChainAsync({ chainId: chain.chainId });
+      }
+      const freshClient = await getConnectorClient(wagmiConfig, { chainId: chain.chainId });
+      const signer = clientToSigner(freshClient);
+
+      const tx = await signer.sendTransaction({
+        to: paymasterAddress,
+        data: new ethers.utils.Interface(['function donateToSolidarity() payable']).encodeFunctionData('donateToSolidarity'),
+        value: ethers.utils.parseEther(amount),
+      });
+      await tx.wait();
+
+      toast({ title: `Donated ${amount} ${chain.nativeCurrency}!`, status: 'success', duration: 5000 });
+      setAmount('');
+      onClose();
+    } catch (err) {
+      toast({ title: 'Donation failed', description: err.message, status: 'error', duration: 5000 });
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="sm" isCentered>
+      <ModalOverlay />
+      <ModalContent>
+        <ModalHeader>Donate to Solidarity Fund</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody>
+          <Text fontSize="sm" color="warmGray.500" mb={4}>
+            Your donation helps subsidize gas for new organizations on {chain.name}.
+          </Text>
+          <InputGroup>
+            <Input
+              placeholder="0.5"
+              type="number"
+              step="any"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              isDisabled={isSending}
+            />
+            <InputRightAddon>{chain.nativeCurrency}</InputRightAddon>
+          </InputGroup>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="ghost" mr={3} onClick={onClose} isDisabled={isSending}>Cancel</Button>
+          <Button
+            colorScheme="green"
+            onClick={handleDonate}
+            isLoading={isSending}
+            loadingText="Sending..."
+            isDisabled={!amount || parseFloat(amount) <= 0 || !isAuthenticated}
+          >
+            Donate
+          </Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  );
+};
+
 const ChainSolidarityCard = ({ chain }) => {
   const solidarity = chain.solidarity;
   const grace = chain.grace;
   const events = chain.solidarityEvents || [];
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isAuthenticated, isPasskeyUser } = useAuth();
 
   return (
     <Box bg="white" border="1px solid" borderColor="warmGray.100" borderRadius="xl" p={5}>
-      <HStack mb={4}>
-        <Heading fontSize="md" fontWeight="700" color="warmGray.800">{chain.name}</Heading>
-        <Badge
-          bg={solidarity?.distributionPaused ? 'warmGray.100' : 'green.50'}
-          color={solidarity?.distributionPaused ? 'warmGray.500' : 'green.600'}
-          fontSize="2xs"
-        >
-          {solidarity?.distributionPaused === true ? 'Paused' : solidarity?.distributionPaused === false ? 'Active' : '...'}
-        </Badge>
+      <HStack mb={4} justify="space-between">
+        <HStack>
+          <Heading fontSize="md" fontWeight="700" color="warmGray.800">{chain.name}</Heading>
+          <Badge
+            bg={solidarity?.distributionPaused ? 'warmGray.100' : 'green.50'}
+            color={solidarity?.distributionPaused ? 'warmGray.500' : 'green.600'}
+            fontSize="2xs"
+          >
+            {solidarity?.distributionPaused === true ? 'Paused' : solidarity?.distributionPaused === false ? 'Active' : '...'}
+          </Badge>
+        </HStack>
+        {isAuthenticated && !isPasskeyUser && (
+          <Button size="xs" colorScheme="green" variant="outline" onClick={onOpen}>
+            Donate
+          </Button>
+        )}
       </HStack>
+      <DonateModal isOpen={isOpen} onClose={onClose} chain={chain} />
 
       <SimpleGrid columns={{ base: 2, md: 3 }} spacing={3} mb={4}>
         <StatCard
