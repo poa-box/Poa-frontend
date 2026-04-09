@@ -1,7 +1,7 @@
 import React from 'react';
 import { Box, Container, Heading, Text, SimpleGrid, VStack, HStack, Icon } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
-import { HiGlobeAlt, HiUserGroup, HiCube, HiLink } from 'react-icons/hi';
+import { HiGlobeAlt, HiUserGroup, HiCube, HiLink, HiLightningBolt } from 'react-icons/hi';
 
 const MotionBox = motion(Box);
 
@@ -47,6 +47,7 @@ const HeroSection = ({ aggregated, isLoading }) => (
           <StatPill icon={HiGlobeAlt} value={isLoading ? '...' : aggregated.totalAccounts} label="Accounts" />
           <StatPill icon={HiLink} value={isLoading ? '...' : aggregated.chainsActive} label="Chains" />
           <StatPill icon={HiCube} value={isLoading ? '...' : aggregated.totalBeacons} label="Beacon Types" />
+          <StatPill icon={HiLightningBolt} value={isLoading ? '...' : aggregated.totalUserOps} label="Txs Sponsored" />
         </HStack>
       </MotionBox>
     </Container>
