@@ -3,6 +3,7 @@ import SEOHead from "@/components/common/SEOHead";
 import { useWeb3, useOrgStructure, useClaimRole, useVouches, useVouchFirstOnboarding } from "@/hooks";
 import { usePOContext } from "@/context/POContext";
 import { useUserContext } from "@/context/UserContext";
+import { useUserActive } from "@/hooks/useUserActive";
 import { findUsernameAcrossChains } from "@/util/crossChainUsername";
 import { useRouter } from 'next/router';
 import {
@@ -247,11 +248,25 @@ const User = () => {
     } catch { /* SSR or storage full */ }
   }, [pendingVouchApplication, userDAO]);
 
-  // Poll for vouches while authenticated user has a pending application (pause during join)
+  const isActive = useUserActive();
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+
+  // Refetch vouches immediately when user returns from inactive state
+  const wasActiveRef = useRef(isActive);
+  useEffect(() => {
+    if (isActive && !wasActiveRef.current && pendingVouchApplication && refetchVouches) {
+      refetchVouches();
+    }
+    wasActiveRef.current = isActive;
+  }, [isActive, pendingVouchApplication, refetchVouches]);
+
+  // Poll for vouches while authenticated user has a pending application (pause during join).
+  // Skips refetch when the tab is hidden or user is idle to reduce subgraph load.
   useEffect(() => {
     if (pendingVouchApplication && refetchVouches && !loading) {
       const interval = setInterval(() => {
-        refetchVouches();
+        if (isActiveRef.current) refetchVouches();
       }, 15000);
       return () => clearInterval(interval);
     }

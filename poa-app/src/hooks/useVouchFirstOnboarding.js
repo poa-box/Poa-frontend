@@ -11,6 +11,7 @@ import { useQuery } from '@apollo/client';
 import { getClient } from '@/util/apolloClient';
 import { useAuth } from '../context/AuthContext';
 import { usePOContext } from '../context/POContext';
+import { useUserActive } from './useUserActive';
 import { DEFAULT_CHAIN_ID } from '../config/networks';
 import { createChainClients } from '../services/web3/utils/chainClients';
 import { createPasskeyCredential } from '../services/web3/passkey/passkeyCreate';
@@ -106,11 +107,25 @@ export function useVouchFirstOnboarding({
     }
   }, [orgName]);
 
-  // Poll for vouches while awaiting (safety net — useVouches already refetches on vouch events)
+  const isActive = useUserActive();
+  const isActiveRef = useRef(isActive);
+  isActiveRef.current = isActive;
+
+  // Refetch vouches immediately when user returns from inactive state
+  const wasActiveRef = useRef(isActive);
+  useEffect(() => {
+    if (isActive && !wasActiveRef.current && phase === VouchFirstPhase.AWAITING_VOUCHES && refetchVouches) {
+      refetchVouches();
+    }
+    wasActiveRef.current = isActive;
+  }, [isActive, phase, refetchVouches]);
+
+  // Poll for vouches while awaiting (safety net — useVouches already refetches on vouch events).
+  // Skips refetch when the tab is hidden or user is idle to reduce subgraph load.
   useEffect(() => {
     if (phase === VouchFirstPhase.AWAITING_VOUCHES && refetchVouches) {
       pollIntervalRef.current = setInterval(() => {
-        refetchVouches();
+        if (isActiveRef.current) refetchVouches();
       }, 45000);
       return () => clearInterval(pollIntervalRef.current);
     }
