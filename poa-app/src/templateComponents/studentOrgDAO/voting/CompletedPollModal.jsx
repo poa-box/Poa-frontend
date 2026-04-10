@@ -17,7 +17,7 @@ import {
   Icon,
   Tooltip,
 } from "@chakra-ui/react";
-import { CheckCircleIcon, TimeIcon, InfoOutlineIcon, LockIcon } from "@chakra-ui/icons";
+import { CheckCircleIcon, TimeIcon, InfoOutlineIcon, LockIcon, WarningIcon } from "@chakra-ui/icons";
 import { useRoleNames } from "@/hooks";
 import { ethers } from "ethers";
 import { useRouter } from "next/router";
@@ -49,6 +49,7 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
   // Determine if this proposal had executable actions
   const hasExecutableActions = selectedPoll?.executionBatchId || selectedPoll?.executedCallsCount > 0;
   const wasExecuted = selectedPoll?.wasExecuted;
+  const executionFailed = selectedPoll?.executionFailed === true;
   const isValid = selectedPoll?.isValid !== false; // Default to true if not specified
 
   const handleModalClose = () => {
@@ -221,18 +222,20 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
               {/* Execution Status */}
               {isValid && (
                 <Tooltip
-                  label={wasExecuted
-                    ? "The winning option's action was applied on-chain"
-                    : hasExecutableActions
-                      ? "This proposal has actions waiting to be executed"
-                      : "This was a signaling vote with no on-chain action"
+                  label={executionFailed
+                    ? "The winning option's on-chain action failed to execute"
+                    : wasExecuted
+                      ? "The winning option's action was applied on-chain"
+                      : hasExecutableActions
+                        ? "This proposal has actions waiting to be executed"
+                        : "This was a signaling vote with no on-chain action"
                   }
                   placement="top"
                   hasArrow
                   bg="gray.700"
                 >
                   <Badge
-                    colorScheme={wasExecuted ? "green" : hasExecutableActions ? "yellow" : "gray"}
+                    colorScheme={executionFailed ? "red" : wasExecuted ? "green" : hasExecutableActions ? "yellow" : "gray"}
                     variant="subtle"
                     px={2}
                     py={1}
@@ -243,10 +246,10 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
                     cursor="help"
                   >
                     <Icon
-                      as={wasExecuted ? CheckCircleIcon : hasExecutableActions ? TimeIcon : InfoOutlineIcon}
+                      as={executionFailed ? WarningIcon : wasExecuted ? CheckCircleIcon : hasExecutableActions ? TimeIcon : InfoOutlineIcon}
                       boxSize={3}
                     />
-                    {wasExecuted ? "Decision Applied" : hasExecutableActions ? "Pending Execution" : "Signal Vote"}
+                    {executionFailed ? "Execution Failed" : wasExecuted ? "Decision Applied" : hasExecutableActions ? "Pending Execution" : "Signal Vote"}
                   </Badge>
                 </Tooltip>
               )}

@@ -298,6 +298,8 @@ export const FETCH_VOTING_DATA_NEW = gql`
           winningOption
           isValid
           wasExecuted
+          executionFailed
+          executionError
           isHatRestricted
           restrictedHatIds
           votes {
@@ -330,6 +332,8 @@ export const FETCH_VOTING_DATA_NEW = gql`
           status
           winningOption
           isValid
+          executionFailed
+          executionError
           isHatRestricted
           restrictedHatIds
           votes {

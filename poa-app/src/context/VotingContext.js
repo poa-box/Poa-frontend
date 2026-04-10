@@ -100,6 +100,8 @@ function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quoru
         winningOption: winningOptionNum,
         isValid: proposal.isValid,
         wasExecuted: proposal.wasExecuted,
+        executionFailed: proposal.executionFailed === true,
+        executionError: proposal.executionError || null,
         status: proposal.status,
         isOngoing,
         isExpired,
