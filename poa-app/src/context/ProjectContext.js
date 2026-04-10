@@ -5,6 +5,7 @@ import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { getTokenByAddress } from '../util/tokens';
+import { useUserActive } from '../hooks/useUserActive';
 
 const ProjectContext = createContext();
 
@@ -24,20 +25,32 @@ export const ProjectProvider = ({ children }) => {
     const { orgId, subgraphUrl } = usePOContext();
 
     const apolloContext = React.useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+    const isActive = useUserActive();
 
     // pollInterval keeps task data fresh. cache-and-network shows cached data instantly.
     // 40s balances liveness against The Graph Studio rate limits.
+    // Polling pauses when the tab is hidden or the user is idle (useUserActive).
     const { data, refetch } = useQuery(FETCH_PROJECTS_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-and-network',
-        pollInterval: 40000,
+        pollInterval: isActive ? 40000 : 0,
         context: apolloContext,
     });
 
     // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
     const refetchRef = useRef(refetch);
     refetchRef.current = refetch;
+
+    // When the user returns (tab visible / mouse moves), refetch immediately
+    // so stale data doesn't persist until the next poll tick.
+    const wasActiveRef = useRef(isActive);
+    useEffect(() => {
+        if (isActive && !wasActiveRef.current && orgId) {
+            refetchRef.current();
+        }
+        wasActiveRef.current = isActive;
+    }, [isActive, orgId]);
 
     // Refetch immediately — executeWithNotification already waited for the
     // subgraph to index the transaction block before emitting the event.
