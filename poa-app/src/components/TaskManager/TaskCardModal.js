@@ -148,16 +148,18 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     }
   }, [router.query.task, task.id, onOpen]);
 
-  // Fetch IPFS metadata when modal opens - only as fallback when indexed data is missing
+  // Fetch IPFS metadata when modal opens - only as fallback when indexed data is missing.
+  // task.description/submission are null when subgraph metadata isn't indexed,
+  // vs a string (even empty) when indexed. Only fetch IPFS when strictly null.
   useEffect(() => {
     let cancelled = false;
 
     const fetchIpfsMetadata = async () => {
       if (!isOpen || !task) return;
 
-      // Only fetch from IPFS if indexed data is missing (fallback for older tasks or indexing delay)
-      const needsTaskMetadata = !task.description && task.metadataHash && !taskMetadata;
-      const needsSubmissionMetadata = !task.submission && task.submissionHash &&
+      // null = subgraph didn't index metadata. '' or string = indexed (don't fetch).
+      const needsTaskMetadata = task.description === null && task.metadataHash && !taskMetadata;
+      const needsSubmissionMetadata = task.submission === null && task.submissionHash &&
         !submissionMetadata && (task.status === 'Submitted' || task.status === 'Completed');
       const needsRejectionMetadata = !task.rejectionReason && task.rejectionHash &&
         task.rejectionCount > 0 && !rejectionMetadata;
@@ -698,7 +700,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                       borderColor="whiteAlpha.100"
                     >
                       <Text fontSize="sm" lineHeight="6" color="gray.200" style={{ whiteSpace: 'pre-wrap' }}>
-                        {metadataLoading ? 'Loading task details...' : (task.description || taskMetadata?.description || 'No description available')}
+                        {metadataLoading ? 'Loading task details...' : (task.description ?? taskMetadata?.description ?? 'No description available')}
                       </Text>
                     </Box>
                     <HStack mt={3} spacing={3}>
@@ -748,7 +750,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                         borderColor="whiteAlpha.100"
                       >
                         <Text fontSize="sm" color="gray.200" style={{ whiteSpace: 'pre-wrap' }}>
-                          {metadataLoading ? 'Loading submission...' : (task.submission || submissionMetadata?.submission || 'No submission available')}
+                          {metadataLoading ? 'Loading submission...' : (task.submission ?? submissionMetadata?.submission ?? 'No submission available')}
                         </Text>
                       </Box>
                     </Box>

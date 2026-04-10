@@ -115,15 +115,17 @@ export const ProjectProvider = ({ children }) => {
                         taskId: task.taskId,
                         title: taskTitle,
                         name: taskTitle, // Alias for TaskManager components
-                        // Use indexed metadata from subgraph as primary source
-                        description: task.metadata?.description || '',
-                        difficulty: task.metadata?.difficulty || 'medium',
-                        estHours: task.metadata?.estimatedHours || 1,
+                        // Use indexed metadata from subgraph as primary source.
+                        // Use ?? (not ||) to preserve empty strings as valid values
+                        // and keep null to signal "not yet loaded" for the IPFS fallback.
+                        description: task.metadata?.description ?? null,
+                        difficulty: task.metadata?.difficulty ?? 'medium',
+                        estHours: task.metadata?.estimatedHours ?? 1,
                         // Raw hashes for IPFS fallback if indexed data is missing
                         metadataHash: task.metadataHash,
                         submissionHash: task.submissionHash,
                         // Submission text from subgraph (stored in metadata entity)
-                        submission: task.metadata?.submission || '',
+                        submission: task.metadata?.submission ?? null,
                         claimedBy: task.assignee || '',
                         payout: taskPayout,
                         Payout: taskPayout, // Alias with capital P for TaskCard
