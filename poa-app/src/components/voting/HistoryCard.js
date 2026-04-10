@@ -210,7 +210,14 @@ const HistoryCard = ({ proposal, onPollClick }) => {
 
         {/* Winner display */}
         <HStack justify="center" spacing={2} pt={1}>
-          {hasWinner ? (
+          {proposal.executionFailed ? (
+            <>
+              <WarningIcon color="red.400" boxSize={4} />
+              <Text fontSize="sm" fontWeight="bold" color="red.300">
+                Execution Failed
+              </Text>
+            </>
+          ) : hasWinner ? (
             <>
               <CheckCircleIcon color="green.400" boxSize={4} />
               <Text fontSize="sm" fontWeight="bold">
