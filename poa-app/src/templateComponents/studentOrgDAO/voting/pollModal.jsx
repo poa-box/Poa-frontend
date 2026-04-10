@@ -228,16 +228,16 @@ const PollModal = ({
                     </HStack>
                   </Tooltip>
                 )}
-                {(selectedPoll?.quorum > 0 || selectedPoll?.thresholdPct > 0) && (
+                {selectedPoll?.quorum > 0 && (
                   <Tooltip
-                    label="Minimum percentage of eligible voters that must participate for the vote to be valid"
+                    label="Minimum number of voters required for the vote to be valid"
                     placement="top"
                     hasArrow
                     bg="gray.700"
                   >
                     <HStack spacing={1} cursor="help">
                       <Text fontSize="sm" color="gray.400">
-                        {selectedPoll.quorum || selectedPoll.thresholdPct}% quorum
+                        {selectedPoll.quorum} voter min
                       </Text>
                       <InfoOutlineIcon boxSize={3} color="gray.500" />
                     </HStack>
