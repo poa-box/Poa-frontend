@@ -17,7 +17,7 @@ export const SETTER_CATEGORIES = {
     name: 'Voting Rules',
     icon: 'FiCheckSquare',
     color: 'purple',
-    description: 'Quorum, voting power, who can create proposals'
+    description: 'Threshold, voting power, who can create proposals'
   },
   permissions: {
     name: 'Role Permissions',
