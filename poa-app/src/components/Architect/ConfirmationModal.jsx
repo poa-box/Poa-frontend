@@ -82,18 +82,18 @@ const ConfirmationModal = ({
               <strong>Logo URL:</strong> {orgDetails.logoURL || "No logo uploaded"}
             </Text>
             <Text>
-              <strong>Direct Democracy Quorum:</strong>{" "}
+              <strong>Direct Democracy Threshold:</strong>{" "}
               {orgDetails.directDemocracyQuorum}%
             </Text>
             {orgDetails.hybridVotingEnabled && (
               <Text>
-                <strong>Hybrid Voting Quorum:</strong>{" "}
+                <strong>Hybrid Voting Threshold:</strong>{" "}
                 {orgDetails.hybridVoteQuorum}%
               </Text>
             )}
             {orgDetails.participationVotingEnabled && (
               <Text>
-                <strong>Participation Voting Quorum:</strong>{" "}
+                <strong>Participation Voting Threshold:</strong>{" "}
                 {orgDetails.participationVoteQuorum}%
               </Text>
             )}

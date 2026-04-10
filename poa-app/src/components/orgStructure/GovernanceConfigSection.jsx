@@ -20,7 +20,7 @@ import { FiUsers, FiLayers, FiPercent } from 'react-icons/fi';
 /**
  * Card for a single voting system
  */
-function VotingCard({ title, description, quorum, icon, colorScheme = 'purple', classWeights, isQuadratic }) {
+function VotingCard({ title, description, quorum: threshold, icon, colorScheme = 'purple', classWeights, isQuadratic }) {
   return (
     <Box
       bg="white"
@@ -88,21 +88,21 @@ function VotingCard({ title, description, quorum, icon, colorScheme = 'purple', 
           {description}
         </Text>
 
-        {/* Quorum */}
+        {/* Threshold */}
         <Box>
           <HStack justify="space-between" mb={2}>
             <Text fontSize="xs" color="warmGray.500">
-              Quorum Required
+              Threshold Required
             </Text>
             <Badge colorScheme={colorScheme} borderRadius="full" px={2}>
               <HStack spacing={1}>
                 <Icon as={FiPercent} boxSize={3} />
-                <Text>{quorum}%</Text>
+                <Text>{threshold}%</Text>
               </HStack>
             </Badge>
           </HStack>
           <Progress
-            value={quorum}
+            value={threshold}
             size="sm"
             colorScheme={colorScheme}
             borderRadius="full"
