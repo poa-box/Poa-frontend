@@ -18,7 +18,7 @@ import {
 } from '@chakra-ui/react';
 import Layout from '../../components/Layout';
 import SideBar from '../../components/docs/SideBar';
-import { FaBook, FaVoteYea, FaInfoCircle, FaArrowRight } from 'react-icons/fa';
+import { FaBook, FaVoteYea, FaInfoCircle, FaArrowRight, FaHardHat } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 
@@ -296,38 +296,52 @@ export default function Home({ allPostsData }) {
                 borderWidth="1px"
                 borderColor="rgba(255, 255, 255, 0.1)"
               >
-                <Heading 
-                  as="h1" 
-                  size="2xl" 
-                  mb={4} 
+                <Heading
+                  as="h1"
+                  size="2xl"
+                  mb={4}
                   color="white"
                   fontWeight="extrabold"
                   letterSpacing="tight"
                 >
                   Poa Documentation
                 </Heading>
-                <Text 
-                  fontSize="xl" 
-                  maxW="3xl" 
+                <Flex
+                  align="center"
+                  bg="yellow.400"
+                  color="gray.800"
+                  px={4}
+                  py={2}
+                  borderRadius="full"
+                  mb={4}
+                  fontWeight="bold"
+                  fontSize="md"
+                >
+                  <Icon as={FaHardHat} mr={2} />
+                  Under Construction
+                </Flex>
+                <Text
+                  fontSize="xl"
+                  maxW="3xl"
                   color="gray.300"
                   mb={6}
                 >
-                  Everything you need to know about creating, joining, and participating in community-owned organizations
+                  We&apos;re working on updating our documentation. Some content may be incomplete or outdated.
                 </Text>
                 <Flex gap={4} wrap="wrap" justify="center">
                   <Link href="/docs/create" passHref>
-                    <Button 
-                      colorScheme="blue" 
-                      size="lg" 
+                    <Button
+                      colorScheme="blue"
+                      size="lg"
                       leftIcon={<Icon as={FaBook} />}
                     >
                       Get Started
                     </Button>
                   </Link>
                   <Link href="/docs/hybrid-voting" passHref>
-                    <Button 
-                      variant="outline" 
-                      size="lg" 
+                    <Button
+                      variant="outline"
+                      size="lg"
                       leftIcon={<Icon as={FaVoteYea} />}
                       bg="transparent"
                       color="white"
