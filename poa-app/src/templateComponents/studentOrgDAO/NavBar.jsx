@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, startTransition } from "react";
 import { Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, Tooltip } from "@chakra-ui/react";
 import NextImage from "next/image";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
@@ -14,6 +14,12 @@ const Navbar = React.memo(() => {
   const router = useRouter();
   const org = router.query.org || router.query.userDAO || '';
   const { isOpen, onOpen, onClose } = useDisclosure();
+  // Drawer mount + lazy NextLink prefetches inside it cost ~4s of main-thread
+  // work on the click. Deferring the open as a transition lets the browser
+  // paint the hamburger's pressed state immediately.
+  const handleOpen = useCallback(() => {
+    startTransition(onOpen);
+  }, [onOpen]);
   const { isPasskeyUser, accountAddress, isAuthenticated } = useAuth();
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -221,7 +227,7 @@ const Navbar = React.memo(() => {
           color="white"
           variant="ghost"
           display={{ base: 'flex', md: 'none' }}
-          onClick={onOpen}
+          onClick={handleOpen}
           zIndex={20}
           position="relative"
           p={3}
@@ -253,8 +259,11 @@ const Navbar = React.memo(() => {
           <DrawerBody p={0}>
             <VStack spacing={0} align="stretch" w="100%">
               {navItems.map((item) => (
-                <Link as={NextLink} key={item.name} href={item.path} passHref>
-                  <Flex 
+                // prefetch={false}: drawer links only mount on open, so default
+                // prefetching fires N HTTP requests on click — adds seconds to INP.
+                // The user is one tap from picking — cheap to load on the actual click.
+                <Link as={NextLink} key={item.name} href={item.path} prefetch={false} passHref>
+                  <Flex
                     p={4}
                     align="center"
                     bg={isActive(item.path) ? "rgba(101, 184, 145, 0.1)" : "transparent"}
@@ -281,6 +290,7 @@ const Navbar = React.memo(() => {
                   <Button
                     as={NextLink}
                     href={orgUrl(org, 'join')}
+                    prefetch={false}
                     onClick={onClose}
                     w="100%"
                     bgGradient="linear(to-r, green.400, teal.400)"

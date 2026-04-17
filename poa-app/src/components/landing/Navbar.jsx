@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, startTransition } from "react";
 import Link from "next/link";
 import {
   Flex,
@@ -38,6 +38,31 @@ const Navbar = ({
   const handleScroll = useCallback(() => {
     setScrolled(window.scrollY > SCROLL_THRESHOLD);
   }, []);
+
+  // Auth modals (SignInModal/SolidarityOnboardingModal) are dynamic-imported
+  // and do heavy context init on mount. Wrapping the open in a transition
+  // lets the click → paint loop finish before the modal mounts.
+  const handleSignInOpen = useCallback(() => {
+    startTransition(onSignInOpen);
+  }, [onSignInOpen]);
+
+  const handleAccountClick = useCallback(() => {
+    if (accountMenuItem?.onClick) {
+      startTransition(accountMenuItem.onClick);
+    }
+  }, [accountMenuItem]);
+
+  const handleMobileSignInOpen = useCallback(() => {
+    startTransition(onSignInOpen);
+    onToggle();
+  }, [onSignInOpen, onToggle]);
+
+  const handleMobileAccountClick = useCallback(() => {
+    if (accountMenuItem?.onClick) {
+      startTransition(accountMenuItem.onClick);
+    }
+    onToggle();
+  }, [accountMenuItem, onToggle]);
 
   useEffect(() => {
     window.addEventListener("scroll", handleScroll, { passive: true });
@@ -126,7 +151,7 @@ const Navbar = ({
               _hover={{ bg: "warmGray.800" }}
               _active={{ bg: "warmGray.700" }}
               transition="all 0.25s ease"
-              onClick={onSignInOpen}
+              onClick={handleSignInOpen}
             >
               Sign In
             </Button>
@@ -140,7 +165,7 @@ const Navbar = ({
               fontWeight="600"
               fontSize={scrolled ? "xs" : "sm"}
               _hover={{ bg: "warmGray.50", borderColor: "warmGray.300" }}
-              onClick={accountMenuItem.onClick}
+              onClick={handleAccountClick}
               transition="all 0.25s ease"
             >
               {accountMenuItem.text}
@@ -203,10 +228,7 @@ const Navbar = ({
                 borderRadius="full"
                 fontWeight="600"
                 _hover={{ bg: "warmGray.800" }}
-                onClick={() => {
-                  onSignInOpen();
-                  onToggle();
-                }}
+                onClick={handleMobileSignInOpen}
               >
                 Sign In
               </Button>
@@ -220,10 +242,7 @@ const Navbar = ({
                 borderRadius="full"
                 fontWeight="600"
                 _hover={{ bg: "warmGray.50" }}
-                onClick={() => {
-                  accountMenuItem.onClick();
-                  onToggle();
-                }}
+                onClick={handleMobileAccountClick}
               >
                 {accountMenuItem.text}
               </Button>

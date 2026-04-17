@@ -2,7 +2,7 @@
  * NavigationButtons - Back/Next buttons for wizard navigation
  */
 
-import React from 'react';
+import React, { startTransition } from 'react';
 import {
   Flex,
   Button,
@@ -28,20 +28,21 @@ export function NavigationButtons({
   const isFirstStep = state.currentStep === STEPS.ORGANIZATION;
   const isLastStep = state.currentStep === STEPS.REVIEW;
 
+  // Step transitions remount heavy step components. Marking them as transitions
+  // keeps the click responsive (browser paints immediately) while React renders
+  // the new step in the background.
   const handleBack = () => {
-    if (onBack) {
-      onBack();
-    } else {
-      actions.prevStep();
-    }
+    startTransition(() => {
+      if (onBack) onBack();
+      else actions.prevStep();
+    });
   };
 
   const handleNext = () => {
-    if (onNext) {
-      onNext();
-    } else {
-      actions.nextStep();
-    }
+    startTransition(() => {
+      if (onNext) onNext();
+      else actions.nextStep();
+    });
   };
 
   // Support both prop names for backwards compatibility
