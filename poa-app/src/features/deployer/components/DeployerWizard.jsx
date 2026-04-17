@@ -8,7 +8,7 @@
  * instead of RoleCardSimple, granular permissions in GovernanceStep)
  */
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, startTransition } from 'react';
 import {
   Box,
   Container,
@@ -51,7 +51,9 @@ const pulseAnimation = keyframes`
 `;
 
 // Minimal Progress Indicator Component
-function StepProgressIndicator({ steps, currentStep, onStepClick, selectors }) {
+// Memoized so wizard re-renders (state changes from heavy step components)
+// don't redraw the indicator and re-run validation selectors.
+const StepProgressIndicator = React.memo(function StepProgressIndicator({ steps, currentStep, onStepClick, selectors }) {
   const activeBg = useColorModeValue('amethyst.500', 'amethyst.400');
   const completedValidBg = useColorModeValue('green.500', 'green.400');
   const completedInvalidBg = useColorModeValue('orange.500', 'orange.400');
@@ -186,7 +188,7 @@ function StepProgressIndicator({ steps, currentStep, onStepClick, selectors }) {
       </HStack>
     </Box>
   );
-}
+});
 
 // Unified step configuration (used for both Simple and Advanced modes)
 // Advanced mode only changes what's shown WITHIN each step, not the steps themselves
@@ -321,6 +323,15 @@ export function DeployerWizard({
     return STEP_CONFIG[state.currentStep]?.component || TemplateStep;
   }, [state.currentStep]);
 
+  // Step navigation runs as a transition so the click → paint loop completes
+  // immediately. Without this, mounting heavy steps (TeamStep, GovernanceStep,
+  // ReviewStep) blocks the main thread for seconds and shows up as poor INP.
+  const handleStepClick = useCallback((stepIndex) => {
+    startTransition(() => {
+      actions.goToStep(stepIndex);
+    });
+  }, [actions]);
+
   // Handle deployment
   const handleDeploy = async (deployConfig = {}) => {
     if (!deployerAddress) {
@@ -442,7 +453,7 @@ export function DeployerWizard({
             <StepProgressIndicator
               steps={STEP_CONFIG}
               currentStep={state.currentStep}
-              onStepClick={(stepIndex) => actions.goToStep(stepIndex)}
+              onStepClick={handleStepClick}
               selectors={selectors}
             />
           </Box>
