@@ -18,11 +18,19 @@ import '@rainbow-me/rainbowkit/styles.css';
 import '../styles/globals.css';
 import '/public/css/prism.css';
 import {
-  getDefaultConfig,
+  connectorsForWallets,
   RainbowKitProvider,
   darkTheme,
 } from '@rainbow-me/rainbowkit';
-import { WagmiProvider } from 'wagmi';
+import {
+  injectedWallet,
+  coinbaseWallet,
+  braveWallet,
+  rabbyWallet,
+  frameWallet,
+  safeWallet,
+} from '@rainbow-me/rainbowkit/wallets';
+import { WagmiProvider, createConfig, http } from 'wagmi';
 import { defineChain } from 'viem';
 import { NETWORKS, DEFAULT_NETWORK } from '../config/networks';
 
@@ -48,11 +56,33 @@ import Notification from '@/components/Notifications';
 
 
 const queryClient = new QueryClient();
-const config = getDefaultConfig({
-  appName: 'Poa',
-  projectId: '7dc7409d6ef96f46e91e9d5797e4deac',
+
+// Injected-first wallet list. No WalletConnect — `injectedWallet` uses EIP-6963
+// (via wagmi's `injected()` + mipd) to surface every installed wallet as its own
+// branded tile. The explicit Brave/Rabby/Frame entries only add install CTAs when
+// those extensions aren't present; EIP-6963 takes over when they are.
+// `coinbaseWallet` uses Coinbase's own SDK (not WalletConnect). `safeWallet` is
+// iframe-only. Deliberately excluded: metaMaskWallet / rainbowWallet / trustWallet
+// / ledgerWallet / argentWallet / walletConnectWallet — all use WC under the hood.
+const connectors = connectorsForWallets(
+  [
+    { groupName: 'Recommended', wallets: [injectedWallet, coinbaseWallet] },
+    { groupName: 'Privacy',     wallets: [braveWallet, rabbyWallet, frameWallet] },
+    { groupName: 'Other',       wallets: [safeWallet] },
+  ],
+  { appName: 'Poa', projectId: '' }
+);
+
+const transports = Object.fromEntries(
+  allChains.map(c => [c.id, http(c.rpcUrls.default.http[0])]),
+);
+
+const config = createConfig({
+  connectors,
   chains: allChains,
+  transports,
   ssr: true,
+  multiInjectedProviderDiscovery: true,
 });
 
 
@@ -203,7 +233,17 @@ const StableProviders = React.memo(function StableProviders({ children }) {
     <AuthProvider>
       <ApolloProvider client={client}>
         <QueryClientProvider client={queryClient}>
-          <RainbowKitProvider initialChain={defaultChain}>
+          <RainbowKitProvider
+            initialChain={defaultChain}
+            theme={darkTheme({
+              accentColor: '#F06543',
+              accentColorForeground: 'white',
+              borderRadius: 'large',
+              fontStack: 'system',
+              overlayBlur: 'small',
+            })}
+            appInfo={{ appName: 'Poa', learnMoreUrl: 'https://poa.box' }}
+          >
             <RefreshProvider>
             <IPFSprovider>
               <ProfileHubProvider>
