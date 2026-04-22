@@ -24,6 +24,7 @@ import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import ExecutiveMenuModal from '@/components/profileHub/ExecutiveMenuModal';
 import PulseLoader from "@/components/shared/PulseLoader";
 import { useOrgStructure, useOrgTheme } from '@/hooks';
+import { useOrgName } from '@/hooks/useOrgName';
 import { useVouches } from '@/hooks/useVouches';
 import WelcomeClaimPage from '@/components/profileHub/WelcomeClaimPage';
 import { useAuth } from '@/context/AuthContext';
@@ -183,7 +184,7 @@ function RecommendedTasksCompact({ tasks, userDAO }) {
 
 const UserprofileHub = () => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const { accountAddress: userAddress } = useAuth();
   const { pageBackground } = useOrgTheme();
 

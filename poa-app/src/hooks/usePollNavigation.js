@@ -6,6 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/router';
 import { useDisclosure } from '@chakra-ui/react';
+import { useOrgName } from '@/hooks/useOrgName';
 
 export function usePollNavigation({
   democracyVotingOngoing = [],
@@ -15,7 +16,11 @@ export function usePollNavigation({
   PTVoteType = 'Hybrid',
 }) {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
+
+  // Keep the resolved org available in callbacks without adding it to deps.
+  const userDAORef = useRef(userDAO);
+  userDAORef.current = userDAO;
 
   // Ref-stabilize router so callbacks don't re-create on every route change
   const routerRef = useRef(router);
@@ -53,8 +58,7 @@ export function usePollNavigation({
   const handlePollClick = useCallback((poll, isCompleted = false) => {
     setSelectedPoll(poll);
     setIsPollCompleted(isCompleted);
-    const currentUserDAO = routerRef.current.query.org || routerRef.current.query.userDAO || '';
-    routerRef.current.push(`/voting?poll=${poll.id}&org=${currentUserDAO}`);
+    routerRef.current.push(`/voting?poll=${poll.id}&org=${userDAORef.current}`);
 
     if (isCompleted) {
       onCompletedModalOpen();

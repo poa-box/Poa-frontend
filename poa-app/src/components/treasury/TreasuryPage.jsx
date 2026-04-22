@@ -16,6 +16,7 @@ import { useQuery } from '@apollo/client';
 import { getClient } from '@/util/apolloClient';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
+import { useOrgName } from '@/hooks/useOrgName';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { FETCH_TREASURY_DATA, FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
@@ -55,7 +56,7 @@ const BALANCE_OF_ABI = [
 
 const TreasuryPage = () => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const {
     orgId,
     poContextLoading,

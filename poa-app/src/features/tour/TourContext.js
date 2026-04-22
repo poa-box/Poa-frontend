@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useDataBaseContext } from '@/context/dataBaseContext';
+import { useOrgName } from '@/hooks/useOrgName';
 
 const TourContext = createContext(null);
 
@@ -96,7 +97,7 @@ export function TourProvider({ children }) {
   const pendingAction = currentStepDef?.action || null;
 
   // After a new org deploy, auto-show the tour prompt once org data has loaded
-  const orgName = router.query.org || router.query.userDAO || '';
+  const orgName = useOrgName();
   useEffect(() => {
     if (poContextLoading || !orgName) return;
     try {
@@ -133,6 +134,8 @@ export function TourProvider({ children }) {
 
     const firstStep = steps[0];
     if (firstStep?.page && firstStep.page !== router.pathname) {
+      // startTour's arg shadows the outer orgName; fall back to it when the
+      // URL / hostname default didn't resolve anything.
       const dao = router.query.org || router.query.userDAO || orgName;
       router.push(`${firstStep.page}?org=${encodeURIComponent(dao)}`).catch(() => {});
     }

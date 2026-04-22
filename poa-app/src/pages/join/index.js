@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import SEOHead from "@/components/common/SEOHead";
 import { useWeb3, useOrgStructure, useClaimRole, useVouches, useVouchFirstOnboarding } from "@/hooks";
+import { useOrgName } from "@/hooks/useOrgName";
 import { usePOContext } from "@/context/POContext";
 import { useUserContext } from "@/context/UserContext";
 import { useUserActive } from "@/hooks/useUserActive";
@@ -71,7 +72,7 @@ const User = () => {
   const { organization, executeWithNotification, signer } = useWeb3();
   const router = useRouter();
   const { vouch: vouchAddress, hatId: vouchHatId } = router.query;
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const usernameInputRef = useRef(null);
   const toast = useToast();
 

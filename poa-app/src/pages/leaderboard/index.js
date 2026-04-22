@@ -11,6 +11,7 @@ import { useRouter } from 'next/router';
 
 import { usePOContext } from '@/context/POContext';
 import { useOrgTheme } from '@/hooks';
+import { useOrgName } from '@/hooks/useOrgName';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
 import LeaderboardCard from '@/components/leaderboard/LeaderboardCard';
@@ -19,7 +20,7 @@ import TopThreePodium from '@/components/leaderboard/TopThreePodium';
 
 const Leaderboard = () => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
 
   const { leaderboardDisplayData, roleNames } = usePOContext();
   const { pageBackground } = useOrgTheme();

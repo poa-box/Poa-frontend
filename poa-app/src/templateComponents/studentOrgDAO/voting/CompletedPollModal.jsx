@@ -19,6 +19,7 @@ import {
 } from "@chakra-ui/react";
 import { CheckCircleIcon, TimeIcon, InfoOutlineIcon, LockIcon, WarningIcon } from "@chakra-ui/icons";
 import { useRoleNames } from "@/hooks";
+import { useOrgName } from "@/hooks/useOrgName";
 import { ethers } from "ethers";
 import { useRouter } from "next/router";
 
@@ -35,7 +36,7 @@ const glassLayerStyle = {
 
 const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, skipRedirect = false }) => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const [processedOptions, setProcessedOptions] = useState([]);
   const { getRoleNamesString, votingEligibleRoles } = useRoleNames();
 

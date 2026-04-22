@@ -37,6 +37,7 @@ import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { usePOContext } from '@/context/POContext';
 import { useAuth } from '@/context/AuthContext';
 import { useWeb3, useOrgTheme } from '@/hooks';
+import { useOrgName } from '@/hooks/useOrgName';
 import { useUserContext } from '@/context/UserContext';
 import { getNetworkByChainId } from '@/config/networks';
 import QuizModal from '@/components/eduHub/QuizModal';
@@ -53,7 +54,7 @@ const EducationHub = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const toast = useToast();
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
 
   // Redirect to dashboard if education hub is disabled (skip during tour)
   const { isActive: isTourActive } = useTour();

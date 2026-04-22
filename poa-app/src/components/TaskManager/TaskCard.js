@@ -7,6 +7,7 @@ import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import Link from 'next/link';
 import { usePOContext } from '../../context/POContext';
+import { useOrgName } from '../../hooks/useOrgName';
 
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const poContext = usePOContext();
@@ -14,7 +15,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
 
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   // Use the stable isMobile prop from parent (passed through TaskColumn)
   // This prevents flash when components remount during project switches
   // isMobile prop should always be provided from TaskColumn

@@ -36,6 +36,7 @@ import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { useProjectContext } from '@/context/ProjectContext';
 import { userCanReviewTask, userCanAssignTask } from '../../util/permissions';
+import { useOrgName } from '@/hooks/useOrgName';
 import UsernameLink from '@/components/common/UsernameLink';
 
 
@@ -86,7 +87,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   const { getUsernameByAddress, setSelectedProject, projects } = useDataBaseContext();
   const { safeFetchFromIpfs } = useIPFScontext();
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const toast = useToast();
   const { isOpen, onOpen, onClose} = useDisclosure();
   const { isOpen: isApplicationModalOpen, onOpen: onOpenApplicationModal, onClose: onCloseApplicationModal } = useDisclosure();
@@ -255,7 +256,6 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     onClose();
 
     const { projectId } = router.query;
-    const userDAO = router.query.org || router.query.userDAO || '';
     const safeProjectId = projectId ? encodeURIComponent(decodeURIComponent(projectId)) : '';
 
     // Wait for URL to update before returning - this prevents new modal instances from opening

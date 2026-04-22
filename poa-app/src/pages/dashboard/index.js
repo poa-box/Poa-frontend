@@ -39,6 +39,7 @@ import { FiUsers, FiAward, FiActivity, FiCheckCircle, FiChevronDown, FiChevronRi
 import { useTour } from '@/features/tour';
 import { useIPFScontext } from "@/context/ipfsContext";
 import { useOrgStructure, useOrgTheme } from '@/hooks';
+import { useOrgName } from '@/hooks/useOrgName';
 import { VouchingSection } from '@/components/orgStructure/VouchingSection';
 import { OrgStructureCard } from '@/components/dashboard/OrgStructureCard';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
@@ -49,7 +50,7 @@ const PerpetualOrgDashboard = () => {
   const { pageBackground } = useOrgTheme();
   const { startTour, isActive: isTourActive } = useTour();
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const [imageURL, setImageURL] = useState({});
   const [imageFetched, setImageFetched] = useState(false);
   const [isVouchingExpanded, setIsVouchingExpanded] = useState(false);

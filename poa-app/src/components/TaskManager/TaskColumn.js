@@ -11,6 +11,7 @@ import { useToast } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
 import { useProjectContext } from '@/context/ProjectContext';
 import { useUserContext } from '@/context/UserContext';
+import { useOrgName } from '@/hooks/useOrgName';
 import { calculatePayout } from '../../util/taskUtils';
 import { userCanCreateTask, userCanReviewTask, PERMISSION_MESSAGES, ROLE_INDICES } from '../../util/permissions';
 
@@ -29,7 +30,7 @@ const glassLayerStyle = {
 
 const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile = false, isEmpty = false, hideTitleInMobile = false }, ref) => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const { moveTask, addTask, editTask } = useTaskBoard();
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
   const { accountAddress: account } = useAuth();
@@ -242,11 +243,11 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
         // Use the task's actual projectId (from subgraph), not constructed from projectName
         const safeProjectId = item.projectId ? encodeURIComponent(decodeURIComponent(item.projectId)) : '';
 
-        // Use the router.query.userDAO to maintain consistency
+        // Use the resolved userDAO to maintain consistency
         router.push({
           pathname: `/tasks/`,
           query: {
-            org: router.query.org || router.query.userDAO,
+            org: userDAO,
             projectId: safeProjectId,
             task: draggedTask.id
           }
