@@ -23,11 +23,12 @@ import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { useAuth } from '@/context/AuthContext';
 import { usePOContext } from '@/context/POContext';
 import { useIsOrgAdmin, useOrgTheme } from '@/hooks';
+import { useOrgName } from '@/hooks/useOrgName';
 import OrgMetadataEditor from '@/components/settings/OrgMetadataEditor';
 
 const SettingsPage = () => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const { isAuthenticated, accountAddress } = useAuth();
 
   const {

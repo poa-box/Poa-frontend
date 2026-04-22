@@ -19,6 +19,7 @@ import { FiUsers, FiActivity, FiCheckCircle, FiGrid, FiCheckSquare, FiBarChart2,
 import Link from "next/link";
 import { usePOContext } from "@/context/POContext";
 import { useOrgTheme } from "@/hooks";
+import { useOrgName } from "@/hooks/useOrgName";
 import { useIPFScontext } from "@/context/ipfsContext";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { useAuth } from "@/context/AuthContext";
@@ -90,7 +91,7 @@ const Home = () => {
   const { logoUrl, poDescription, poLinks, poMembers, activeTaskAmount, completedTaskAmount } = usePOContext();
   const { pageBackground } = useOrgTheme();
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const { fetchImageFromIpfs } = useIPFScontext();
 
   const { isPasskeyUser, isAuthenticated } = useAuth();

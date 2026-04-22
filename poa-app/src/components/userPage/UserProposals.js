@@ -10,6 +10,7 @@ import {
 } from '@chakra-ui/react';
 import Link2 from 'next/link';
 import { useRouter } from "next/router";
+import { useOrgName } from "@/hooks/useOrgName";
 
 const glassLayerStyle = {
     position: 'absolute',
@@ -23,7 +24,7 @@ const glassLayerStyle = {
 const UserProposals = ({ userProposals }) => {
     // Check if user proposals exist
     const router = useRouter();
-    const userDAO = router.query.org || router.query.userDAO || '';
+    const userDAO = useOrgName();
     const userProposalsExist = userProposals && userProposals.length > 0;
     if (!userProposalsExist) {
         return <Text mt="4" ml="7">No proposals available</Text>;

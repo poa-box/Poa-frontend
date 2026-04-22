@@ -20,6 +20,7 @@ import { FiBarChart2 } from 'react-icons/fi';
 
     import Link2 from 'next/link';
     import { useRouter } from "next/router";
+    import { useOrgName } from "@/hooks/useOrgName";
 
 const glassLayerStyle = {
     position: 'absolute',
@@ -35,7 +36,7 @@ const OngoingPolls = ({OngoingPolls}) => {
 
     // check if ongoing polsl exist
     const router = useRouter();
-    const userDAO = router.query.org || router.query.userDAO || '';
+    const userDAO = useOrgName();
     const ongoingPollsExist = OngoingPolls && OngoingPolls.length > 0;
     if (!ongoingPollsExist) {
         return (

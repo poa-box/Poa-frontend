@@ -30,6 +30,7 @@ import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { usePOContext } from "@/context/POContext";
 import { useVotingContext } from "@/context/VotingContext";
 import { useOrgTheme } from "@/hooks";
+import { useOrgName } from "@/hooks/useOrgName";
 import HistoryCard from "@/components/voting/HistoryCard";
 import EmptyState from "@/components/voting/EmptyState";
 import CompletedPollModal from "@/templateComponents/studentOrgDAO/voting/CompletedPollModal";
@@ -49,7 +50,7 @@ const ITEMS_PER_PAGE = 12;
 
 const VotingHistoryPage = () => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
 
   // Context data
   const { poContextLoading } = usePOContext();

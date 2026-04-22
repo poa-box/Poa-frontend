@@ -10,6 +10,7 @@ import { useIPFScontext } from '../../context/ipfsContext';
 import { useAuth } from '../../context/AuthContext';
 import { useWeb3 } from '../../hooks';
 import { usePOContext } from '@/context/POContext';
+import { useOrgName } from '@/hooks/useOrgName';
 import { useRouter } from 'next/router';
 import { DndProvider } from 'react-dnd';
 import { HTML5Backend } from 'react-dnd-html5-backend';
@@ -219,6 +220,7 @@ const MainLayout = () => {
   const { taskManagerContractAddress, roleHatIds, roleNames, creatorHatIds } = usePOContext();
   const { addToIpfs } = useIPFScontext();
   const router = useRouter();
+  const userDAO = useOrgName();
 
   // Use useMediaQuery for more stable breakpoint detection
   // Returns [isMatch] where isMatch is false by default on SSR to prevent flash
@@ -269,7 +271,7 @@ const MainLayout = () => {
      // Decode first to handle any prior encoding, then encode properly
      const safeProjectId = encodeURIComponent(decodeURIComponent(projectId));
 
-    router.push(`/tasks?projectId=${safeProjectId}&org=${router.query.org || router.query.userDAO}`);
+    router.push(`/tasks?projectId=${safeProjectId}&org=${userDAO}`);
     const selected = projects.find((project) => project.id === projectId);
     setSelectedProject(selected);
   };
