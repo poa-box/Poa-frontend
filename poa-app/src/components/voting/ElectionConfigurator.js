@@ -49,6 +49,32 @@ function getCurrentHolders(hatId, leaderboardData) {
     .map(user => ({ address: user.address, name: user.name }));
 }
 
+export const TITLE_PREFIX = 'Election for ';
+export const DESCRIPTION_PREFIX = 'Election between ';
+
+/**
+ * Build the auto-generated description from candidate names.
+ * Uses Oxford-comma prose: "alice", "alice and bob", "alice, bob, and charlie".
+ */
+function buildElectionDescription(candidates) {
+  const names = (candidates || [])
+    .map(c => c?.name?.trim())
+    .filter(Boolean);
+  if (names.length === 0) return '';
+  if (names.length === 1) return `${DESCRIPTION_PREFIX}${names[0]}`;
+  if (names.length === 2) return `${DESCRIPTION_PREFIX}${names[0]} and ${names[1]}`;
+  const head = names.slice(0, -1).join(', ');
+  return `${DESCRIPTION_PREFIX}${head}, and ${names[names.length - 1]}`;
+}
+
+/**
+ * True if the description is empty or matches our auto-generated prefix.
+ * Used to avoid clobbering user-edited descriptions.
+ */
+function isAutoDescription(description) {
+  return !description || description.startsWith(DESCRIPTION_PREFIX);
+}
+
 /**
  * Role card for step 1 selection
  */
@@ -201,15 +227,20 @@ const ElectionConfigurator = ({
       };
 
       // Auto-populate title if it's empty or was auto-generated from a previous role
-      if (!proposal.name || proposal.name.startsWith('Election for ')) {
-        updates.name = `Election for ${role.name}`;
+      if (!proposal.name || proposal.name.startsWith(TITLE_PREFIX)) {
+        updates.name = `${TITLE_PREFIX}${role.name}`;
+      }
+
+      // Candidates reset — clear the auto-generated description too (but preserve a custom one)
+      if (isAutoDescription(proposal.description)) {
+        updates.description = '';
       }
 
       onChange(updates);
       setStep(2);
       setSearchQuery('');
     },
-    [onChange, leaderboardData, proposal.name]
+    [onChange, leaderboardData, proposal.name, proposal.description]
   );
 
   // Toggle an incumbent's selection (whose hat is at stake)
@@ -237,15 +268,18 @@ const ElectionConfigurator = ({
       );
       if (alreadyAdded) return;
 
-      onChange({
-        electionCandidates: [
-          ...(proposal.electionCandidates || []),
-          { name: member.name, address: member.address },
-        ],
-      });
+      const nextCandidates = [
+        ...(proposal.electionCandidates || []),
+        { name: member.name, address: member.address },
+      ];
+      const update = { electionCandidates: nextCandidates };
+      if (isAutoDescription(proposal.description)) {
+        update.description = buildElectionDescription(nextCandidates);
+      }
+      onChange(update);
       setSearchQuery('');
     },
-    [onChange, proposal.electionCandidates]
+    [onChange, proposal.electionCandidates, proposal.description]
   );
 
   // Handle manual candidate entry
@@ -258,26 +292,32 @@ const ElectionConfigurator = ({
     );
     if (alreadyAdded) return;
 
-    onChange({
-      electionCandidates: [
-        ...(proposal.electionCandidates || []),
-        { name: manualName.trim(), address: manualAddress.trim() },
-      ],
-    });
+    const nextCandidates = [
+      ...(proposal.electionCandidates || []),
+      { name: manualName.trim(), address: manualAddress.trim() },
+    ];
+    const update = { electionCandidates: nextCandidates };
+    if (isAutoDescription(proposal.description)) {
+      update.description = buildElectionDescription(nextCandidates);
+    }
+    onChange(update);
     setManualName('');
     setManualAddress('');
-  }, [manualName, manualAddress, onChange, proposal.electionCandidates]);
+  }, [manualName, manualAddress, onChange, proposal.electionCandidates, proposal.description]);
 
   // Handle removing a candidate
   const handleRemoveCandidate = useCallback(
     (index) => {
-      onChange({
-        electionCandidates: (proposal.electionCandidates || []).filter(
-          (_, i) => i !== index
-        ),
-      });
+      const nextCandidates = (proposal.electionCandidates || []).filter(
+        (_, i) => i !== index
+      );
+      const update = { electionCandidates: nextCandidates };
+      if (isAutoDescription(proposal.description)) {
+        update.description = buildElectionDescription(nextCandidates);
+      }
+      onChange(update);
     },
-    [onChange, proposal.electionCandidates]
+    [onChange, proposal.electionCandidates, proposal.description]
   );
 
   // Handle back navigation
@@ -292,13 +332,16 @@ const ElectionConfigurator = ({
         electionFallbackRoleId: '',
         electionFallbackHolders: [],
       };
-      // Clear auto-generated title
-      if (proposal.name.startsWith('Election for ')) {
+      // Clear auto-generated title / description; preserve custom ones
+      if (proposal.name && proposal.name.startsWith(TITLE_PREFIX)) {
         updates.name = '';
+      }
+      if (isAutoDescription(proposal.description)) {
+        updates.description = '';
       }
       onChange(updates);
     }
-  }, [step, onChange, proposal.name]);
+  }, [step, onChange, proposal.name, proposal.description]);
 
   const candidates = proposal.electionCandidates || [];
 
@@ -308,7 +351,7 @@ const ElectionConfigurator = ({
       {step === 1 && (
         <>
           <Text fontSize="sm" color="gray.300" fontWeight="medium">
-            Select the role to be elected:
+            Select the role you are holding an election for.
           </Text>
           <SimpleGrid columns={2} spacing={3}>
             {allRoles.map((role) => {

@@ -14,6 +14,10 @@ import {
 } from '@/config/setterDefinitions';
 import { usePOContext } from '@/context/POContext';
 import { getNetworkByChainId } from '../config/networks';
+import {
+  TITLE_PREFIX as ELECTION_TITLE_PREFIX,
+  DESCRIPTION_PREFIX as ELECTION_DESCRIPTION_PREFIX,
+} from '@/components/voting/ElectionConfigurator';
 
 const defaultProposal = {
   name: "",
@@ -77,19 +81,37 @@ export function useProposalForm({ onSubmit }) {
 
   const handleProposalTypeChange = useCallback((e) => {
     const newType = e.target.value;
-    setProposal(prev => ({
-      ...prev,
-      type: newType,
-      options: newType === 'normal' ? ["", ""] : [],
-      ...(newType !== 'election' ? {
-        electionRoleId: '',
-        electionCandidates: [],
-        electionCurrentHolders: [],
-        electionSelectedIncumbents: [],
-        electionFallbackRoleId: '',
-        electionFallbackHolders: [],
-      } : {}),
-    }));
+    // Election + setter use hybrid voting, which doesn't support hat-restricted voting.
+    // Clear restriction state on switch in so a stale toggle doesn't leak into submit.
+    const isHybrid = newType === 'election' || newType === 'setter';
+    setProposal(prev => {
+      // When switching away from election, drop auto-generated title/description
+      // (matches the sentinel-prefix convention in ElectionConfigurator). Preserve
+      // anything the user typed themselves.
+      const leavingElection = prev.type === 'election' && newType !== 'election';
+      const clearedName = leavingElection && prev.name?.startsWith(ELECTION_TITLE_PREFIX) ? '' : prev.name;
+      const clearedDescription = leavingElection && prev.description?.startsWith(ELECTION_DESCRIPTION_PREFIX) ? '' : prev.description;
+
+      return {
+        ...prev,
+        type: newType,
+        name: clearedName,
+        description: clearedDescription,
+        options: newType === 'normal' ? ["", ""] : [],
+        ...(isHybrid ? {
+          isRestricted: false,
+          restrictedHatIds: [],
+        } : {}),
+        ...(newType !== 'election' ? {
+          electionRoleId: '',
+          electionCandidates: [],
+          electionCurrentHolders: [],
+          electionSelectedIncumbents: [],
+          electionFallbackRoleId: '',
+          electionFallbackHolders: [],
+        } : {}),
+      };
+    });
   }, []);
 
   const handleTransferAddressChange = useCallback((e) => {
@@ -613,11 +635,11 @@ export function useProposalForm({ onSubmit }) {
       return false;
     }
 
-    const duration = Number(proposal.time);
-    if (isNaN(duration) || duration <= 0) {
+    const durationHours = Number(proposal.time);
+    if (isNaN(durationHours) || durationHours <= 0) {
       toast({
         title: "Invalid Duration",
-        description: "Please enter a valid duration in minutes (must be greater than 0).",
+        description: "Please enter a valid duration in hours (must be greater than 0).",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -660,8 +682,10 @@ export function useProposalForm({ onSubmit }) {
 
       const { numOptions, batches, optionNames } = buildProposalData(eligibilityModuleAddress, contractAddresses);
 
-      // Ensure duration is a number for the contract call
-      const durationMinutes = Number(proposal.time);
+      // Form collects hours; contract ABI expects minutes (uint32 minutesDuration).
+      // Math.round avoids FP slop (e.g., 0.5 * 60 = 30, not 29.999...).
+      const durationHours = Number(proposal.time);
+      const durationMinutes = Math.max(1, Math.round(durationHours * 60));
 
       await onSubmit({
         name: proposal.name.trim(),
