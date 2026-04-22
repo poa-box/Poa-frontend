@@ -7,6 +7,7 @@ import { useQuery } from "@apollo/client";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useGlobalAccount } from "@/hooks/useGlobalAccount";
 import { useAuth } from "@/context/AuthContext";
+import { getDefaultOrgForHost } from "@/context/POContext";
 import { FETCH_SOLIDARITY_FUND_STATUS } from "@/util/passkeyQueries";
 import SEOHead from "@/components/common/SEOHead";
 
@@ -35,7 +36,18 @@ export default function Home() {
   const { isPasskeyUser, isAuthenticated, hasStoredPasskey } = useAuth();
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [isWhiteLabelHost, setIsWhiteLabelHost] = useState(false);
   useEffect(() => { setMounted(true); }, []);
+
+  // White-label hosts (e.g. dao.kublockchain.com) skip the generic POA landing
+  // and go straight to the org home. Skipping render avoids a content flash
+  // after hydration.
+  useEffect(() => {
+    if (getDefaultOrgForHost()) {
+      setIsWhiteLabelHost(true);
+      router.replace('/home');
+    }
+  }, [router]);
 
   // Prefetch key routes
   useEffect(() => {
@@ -72,6 +84,10 @@ export default function Home() {
   };
 
   const accountMenuItem = getAccountMenuItem();
+
+  if (isWhiteLabelHost) {
+    return <Box minH="100vh" bg="white" />;
+  }
 
   const jsonLD = {
     "@context": "https://schema.org",

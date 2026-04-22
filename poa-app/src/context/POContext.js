@@ -150,9 +150,22 @@ function poReducer(state, action) {
     }
 }
 
+// White-label hosts that auto-select an org when no ?org= / ?userDAO= is passed.
+// Explicit query params still win, so support can always override.
+const HOST_DEFAULT_ORG = {
+    'dao.kublockchain.com': 'KUBI',
+    'poa.earth': 'Test6',
+    'www.poa.earth': 'Test6',
+};
+
+export function getDefaultOrgForHost() {
+    if (typeof window === 'undefined') return '';
+    return HOST_DEFAULT_ORG[window.location.hostname] || '';
+}
+
 export const POProvider = ({ children }) => {
     const router = useRouter();
-    const poName = router.query.org || router.query.userDAO || '';
+    const poName = router.query.org || router.query.userDAO || getDefaultOrgForHost();
     const { safeFetchFromIpfs } = useIPFScontext();
 
     const [state, dispatch] = useReducer(poReducer, initialState);
