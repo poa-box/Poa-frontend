@@ -3,6 +3,7 @@ import { FiMap } from "react-icons/fi";
 import { useTour } from "@/features/tour";
 import SEOHead from "@/components/common/SEOHead";
 import { useIPFScontext } from "@/context/ipfsContext";
+import { getVisitUrlForOrg } from "@/context/POContext";
 import { useprofileHubContext } from "@/context/profileHubContext";
 import { useAuth } from "@/context/AuthContext";
 import { useGlobalAccount } from "@/hooks/useGlobalAccount";
@@ -339,7 +340,7 @@ const BrowserPage = () => {
               >
                 Tour Org
               </Button>
-              <Link href={`/home?org=${selectedOrg?.id}`} passHref style={{ flex: 1 }}>
+              <Link href={getVisitUrlForOrg(selectedOrg?.id)} passHref style={{ flex: 1 }}>
                 <Button
                   bg="warmGray.900"
                   color="white"
@@ -622,7 +623,7 @@ const BrowserPage = () => {
                           borderColor: "amethyst.200",
                         }}
                       >
-                        <Link href={`/home?org=${po.id}`} passHref>
+                        <Link href={getVisitUrlForOrg(po.id)} passHref>
                           <Box as="a">
                             <OrgBanner name={po.id} logoHash={po.logoHash} logoCid={po.logoCid} />
                           </Box>
@@ -630,7 +631,7 @@ const BrowserPage = () => {
 
                         <Box p={[4, 5]}>
                           <Flex justify="space-between" align="center" mb={3}>
-                            <Link href={`/home?org=${po.id}`} passHref>
+                            <Link href={getVisitUrlForOrg(po.id)} passHref>
                               <Heading
                                 as="a"
                                 fontSize={["lg", "xl"]}
@@ -712,7 +713,7 @@ const BrowserPage = () => {
                                 {po.totalMembers || "0"} Members
                               </Text>
                             </HStack>
-                            <Link href={`/home?org=${po.id}`} passHref>
+                            <Link href={getVisitUrlForOrg(po.id)} passHref>
                               <Button
                                 as="a"
                                 size="sm"
