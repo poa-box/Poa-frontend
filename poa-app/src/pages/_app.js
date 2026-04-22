@@ -49,6 +49,7 @@ import {
 } from "@tanstack/react-query";
 
 import NetworkModalControl from "@/components/NetworkModalControl";
+import WhiteLabelUrlCleaner from "@/components/WhiteLabelUrlCleaner";
 import { ApolloProvider } from '@apollo/client';
 import client from '../util//apolloClient';
 import Notification from '@/components/Notifications';
@@ -256,6 +257,7 @@ const StableProviders = React.memo(function StableProviders({ children }) {
                             <DataBaseProvider>
                               <ChakraProvider theme={theme}>
                                 <TourProvider>
+                                  <WhiteLabelUrlCleaner />
                                   <NetworkModalControl />
                                   <Notification />
                                   <TourOverlay />
