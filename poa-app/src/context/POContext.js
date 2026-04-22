@@ -163,6 +163,17 @@ export function getDefaultOrgForHost() {
     return HOST_DEFAULT_ORG[window.location.hostname] || '';
 }
 
+// Inverse of HOST_DEFAULT_ORG for the explore page's Visit button: send users
+// to an org's white-label domain instead of the default poa.box home route.
+const ORG_WHITE_LABEL_URL = {
+    KUBI: 'https://dao.kublockchain.com',
+};
+
+export function getVisitUrlForOrg(orgId) {
+    if (orgId && ORG_WHITE_LABEL_URL[orgId]) return ORG_WHITE_LABEL_URL[orgId];
+    return `/home?org=${orgId}`;
+}
+
 export const POProvider = ({ children }) => {
     const router = useRouter();
     const poName = router.query.org || router.query.userDAO || getDefaultOrgForHost();
