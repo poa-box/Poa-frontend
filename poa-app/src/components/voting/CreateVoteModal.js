@@ -147,12 +147,14 @@ const CreateVoteModal = ({
 
                 <FormControl>
                   <FormLabel color="gray.200" fontSize="sm">
-                    Vote Duration (minutes)
+                    Vote Duration (hours)
                   </FormLabel>
                   <Input
-                    placeholder="Enter time in minutes"
+                    placeholder="Enter time in hours"
                     name="time"
                     type="number"
+                    step="0.5"
+                    min="0"
                     value={proposal.time}
                     onChange={handleInputChange}
                     {...inputStyles}
@@ -309,74 +311,76 @@ const CreateVoteModal = ({
               </VStack>
             </Box>
 
-            {/* Voting Restrictions Section */}
-            <Box>
-              <Text
-                fontSize="xs"
-                fontWeight="bold"
-                color="purple.300"
-                mb={3}
-                textTransform="uppercase"
-                letterSpacing="wide"
-              >
-                Voting Restrictions
-              </Text>
-              <VStack spacing={4} align="stretch">
-                <FormControl display="flex" alignItems="center">
-                  <HStack flex="1">
-                    <FormLabel htmlFor="restricted-voting" mb="0" color="gray.200" fontSize="sm">
-                      Restrict who can vote
-                    </FormLabel>
-                    <Tooltip
-                      label="Limit voting to specific roles instead of all members"
-                      placement="top"
-                      hasArrow
-                      bg="gray.700"
-                    >
-                      <InfoOutlineIcon boxSize={3} color="gray.400" cursor="help" />
-                    </Tooltip>
-                  </HStack>
-                  <Switch
-                    id="restricted-voting"
-                    isChecked={proposal.isRestricted}
-                    onChange={(e) => handleRestrictedToggle(e.target.checked)}
-                    colorScheme="purple"
-                  />
-                </FormControl>
+            {/* Voting Restrictions — only for direct-democracy types (election + setter use hybrid voting) */}
+            {proposal.type !== "election" && proposal.type !== "setter" && (
+              <Box>
+                <Text
+                  fontSize="xs"
+                  fontWeight="bold"
+                  color="purple.300"
+                  mb={3}
+                  textTransform="uppercase"
+                  letterSpacing="wide"
+                >
+                  Voting Restrictions
+                </Text>
+                <VStack spacing={4} align="stretch">
+                  <FormControl display="flex" alignItems="center">
+                    <HStack flex="1">
+                      <FormLabel htmlFor="restricted-voting" mb="0" color="gray.200" fontSize="sm">
+                        Restrict who can vote
+                      </FormLabel>
+                      <Tooltip
+                        label="Limit voting to specific roles instead of all members"
+                        placement="top"
+                        hasArrow
+                        bg="gray.700"
+                      >
+                        <InfoOutlineIcon boxSize={3} color="gray.400" cursor="help" />
+                      </Tooltip>
+                    </HStack>
+                    <Switch
+                      id="restricted-voting"
+                      isChecked={proposal.isRestricted}
+                      onChange={(e) => handleRestrictedToggle(e.target.checked)}
+                      colorScheme="purple"
+                    />
+                  </FormControl>
 
-                {proposal.isRestricted && (
-                  <Box
-                    p={4}
-                    bg="whiteAlpha.50"
-                    borderRadius="md"
-                    border="1px solid rgba(148, 115, 220, 0.3)"
-                  >
-                    <Text fontSize="sm" color="gray.300" fontWeight="medium" mb={3}>
-                      Select which roles can vote:
-                    </Text>
-                    <Wrap spacing={2}>
-                      {allRoles?.map((role) => (
-                        <WrapItem key={role.hatId}>
-                          <Checkbox
-                            isChecked={proposal.restrictedHatIds?.includes(role.hatId)}
-                            onChange={() => toggleRestrictedRole(role.hatId)}
-                            colorScheme="purple"
-                            size="md"
-                          >
-                            <Text fontSize="sm" color="white">{role.name}</Text>
-                          </Checkbox>
-                        </WrapItem>
-                      ))}
-                    </Wrap>
-                    {proposal.restrictedHatIds?.length === 0 && (
-                      <Text fontSize="xs" color="orange.300" mt={2}>
-                        Please select at least one role
+                  {proposal.isRestricted && (
+                    <Box
+                      p={4}
+                      bg="whiteAlpha.50"
+                      borderRadius="md"
+                      border="1px solid rgba(148, 115, 220, 0.3)"
+                    >
+                      <Text fontSize="sm" color="gray.300" fontWeight="medium" mb={3}>
+                        Select which roles can vote:
                       </Text>
-                    )}
-                  </Box>
-                )}
-              </VStack>
-            </Box>
+                      <Wrap spacing={2}>
+                        {allRoles?.map((role) => (
+                          <WrapItem key={role.hatId}>
+                            <Checkbox
+                              isChecked={proposal.restrictedHatIds?.includes(role.hatId)}
+                              onChange={() => toggleRestrictedRole(role.hatId)}
+                              colorScheme="purple"
+                              size="md"
+                            >
+                              <Text fontSize="sm" color="white">{role.name}</Text>
+                            </Checkbox>
+                          </WrapItem>
+                        ))}
+                      </Wrap>
+                      {proposal.restrictedHatIds?.length === 0 && (
+                        <Text fontSize="xs" color="orange.300" mt={2}>
+                          Please select at least one role
+                        </Text>
+                      )}
+                    </Box>
+                  )}
+                </VStack>
+              </Box>
+            )}
           </VStack>
         </ModalBody>
 
