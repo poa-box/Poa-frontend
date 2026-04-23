@@ -70,7 +70,12 @@ export class EOA7702TransactionManager {
    * Same signature as TransactionManager.execute().
    */
   async execute(contract, method, args = [], options = {}) {
-    const { onStateChange, paymasterHatIds: overrideHatIds } = options;
+    const {
+      onStateChange,
+      paymasterHatIds: overrideHatIds,
+      callGasLimit,
+      callGasLimitMultiplier,
+    } = options;
 
     try {
       this._notifyState(onStateChange, TransactionState.ESTIMATING);
@@ -90,7 +95,10 @@ export class EOA7702TransactionManager {
       const authorization = await buildEOAAuthorization(this.walletClient, this.eoaDelegationAddress);
 
       // 4. Build UserOp with paymaster fallback
-      const userOp = await this._buildUserOpWithFallback(callData, authorization, overrideHatIds);
+      const userOp = await this._buildUserOpWithFallback(callData, authorization, overrideHatIds, {
+        callGasLimit,
+        callGasLimitMultiplier,
+      });
 
       // 5. Sign UserOp hash with wallet (ECDSA via personal_sign)
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
@@ -149,7 +157,7 @@ export class EOA7702TransactionManager {
    * Execute multiple calls atomically via executeBatch.
    */
   async executeBatch(transactions, batchOptions = {}) {
-    const { onStateChange } = batchOptions;
+    const { onStateChange, callGasLimit, callGasLimitMultiplier } = batchOptions;
 
     try {
       this._notifyState(onStateChange, TransactionState.ESTIMATING);
@@ -170,7 +178,10 @@ export class EOA7702TransactionManager {
       });
 
       const authorization = await buildEOAAuthorization(this.walletClient, this.eoaDelegationAddress);
-      const userOp = await this._buildUserOpWithFallback(callData, authorization);
+      const userOp = await this._buildUserOpWithFallback(callData, authorization, null, {
+        callGasLimit,
+        callGasLimitMultiplier,
+      });
 
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
       const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, this.chainId);
@@ -214,7 +225,7 @@ export class EOA7702TransactionManager {
     }
   }
 
-  async _buildUserOpWithFallback(callData, authorization, overrideHatIds = null) {
+  async _buildUserOpWithFallback(callData, authorization, overrideHatIds = null, gasOverrides = {}) {
     const effectiveHatIds = overrideHatIds?.length > 0 ? overrideHatIds : this.hatIds;
     const hasPaymaster = this.paymasterAddress && this.orgId && effectiveHatIds?.length > 0;
 
@@ -234,6 +245,7 @@ export class EOA7702TransactionManager {
         paymasterDataEntries,
       } : {}),
       dummySignatureLength: 65, // ECDSA signature is 65 bytes, not 640 (passkey)
+      gasOverrides,
     });
 
     this._paymasterFellBack = hasPaymaster && !userOp.paymaster;

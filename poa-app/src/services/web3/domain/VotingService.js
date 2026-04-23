@@ -124,9 +124,17 @@ export class VotingService {
 
   /**
    * Announce winner for Hybrid Voting proposal
+   *
+   * NOTE: `announceWinner` triggers the Executor to run the winning batch, which for
+   * role-election proposals walks the Hats protocol tree through beacon-proxy
+   * eligibility + toggle chains. Bundler gas estimation systematically undercounts
+   * this recursive path (dummy-sig traces don't match real cost), so we apply a 3x
+   * multiplier on the bundler's callGasLimit estimate by default. Ignored by the
+   * direct-EOA TransactionManager (ethers estimates are already accurate).
+   *
    * @param {string} contractAddress - HybridVoting contract address
    * @param {number} proposalId - Proposal ID
-   * @param {Object} [options={}] - Transaction options
+   * @param {Object} [options={}] - Transaction options (any caller-provided override wins)
    * @returns {Promise<TransactionResult>}
    */
   async announceHybridWinner(contractAddress, proposalId, options = {}) {
@@ -134,7 +142,10 @@ export class VotingService {
 
     const contract = this.factory.createWritable(contractAddress, HybridVotingABI);
 
-    return this.txManager.execute(contract, 'announceWinner', [proposalId], options);
+    return this.txManager.execute(contract, 'announceWinner', [proposalId], {
+      callGasLimitMultiplier: 3n,
+      ...options,
+    });
   }
 
   // ============================================
@@ -225,7 +236,11 @@ export class VotingService {
 
     const contract = this.factory.createWritable(contractAddress, DirectDemocracyVotingABI);
 
-    return this.txManager.execute(contract, 'announceWinner', [proposalId], options);
+    // See announceHybridWinner for multiplier rationale (same Hats tree-walk path).
+    return this.txManager.execute(contract, 'announceWinner', [proposalId], {
+      callGasLimitMultiplier: 3n,
+      ...options,
+    });
   }
 
   // ============================================
