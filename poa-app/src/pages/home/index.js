@@ -173,7 +173,8 @@ const Home = () => {
                 h={AVATAR_SIZE}
                 borderRadius="2xl"
                 overflow="hidden"
-                boxShadow="0 8px 32px rgba(0, 0, 0, 0.1)"
+                bg="whiteAlpha.900"
+                boxShadow="0 8px 32px rgba(0, 0, 0, 0.15)"
               >
                 <Image
                   src={image}
