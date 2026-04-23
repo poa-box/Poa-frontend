@@ -230,19 +230,35 @@ export async function buildUserOpWithFallback({
 async function estimateGas(userOp, bundlerClient, gasOverrides = {}) {
   const { callGasLimit: callGasLimitOverride, callGasLimitMultiplier } = gasOverrides;
 
+  // Validate overrides eagerly so misuse surfaces at the caller, not deep in the bundler.
+  // 0 / 0n are treated as invalid (not "no override") — these would cause immediate OOG.
+  if (callGasLimitOverride !== undefined && callGasLimitOverride !== null) {
+    if (BigInt(callGasLimitOverride) <= 0n) {
+      throw new Error(`callGasLimit override must be positive, got ${callGasLimitOverride}`);
+    }
+  }
+  if (callGasLimitMultiplier !== undefined && callGasLimitMultiplier !== null) {
+    if (BigInt(callGasLimitMultiplier) <= 0n) {
+      throw new Error(`callGasLimitMultiplier must be positive, got ${callGasLimitMultiplier}`);
+    }
+  }
+
   try {
     const gasEstimate = await bundlerClient.estimateUserOperationGas({
       ...userOp,
       entryPointAddress: ENTRY_POINT_ADDRESS,
     });
 
+    let overrideApplied = false;
     if (callGasLimitOverride !== undefined && callGasLimitOverride !== null) {
       // Absolute override — use exactly this value, ignore bundler estimate
       userOp.callGasLimit = BigInt(callGasLimitOverride);
+      overrideApplied = true;
       console.log(`[UserOp] callGasLimit override: ${userOp.callGasLimit} (bundler estimated ${gasEstimate.callGasLimit})`);
     } else if (callGasLimitMultiplier !== undefined && callGasLimitMultiplier !== null) {
       // Multiplier — scale bundler estimate by this integer factor (e.g. 3n for 3x)
       userOp.callGasLimit = BigInt(gasEstimate.callGasLimit) * BigInt(callGasLimitMultiplier);
+      overrideApplied = true;
       console.log(`[UserOp] callGasLimit ${callGasLimitMultiplier}x multiplier: ${userOp.callGasLimit} (bundler estimated ${gasEstimate.callGasLimit})`);
     } else {
       userOp.callGasLimit = applyBuffer(gasEstimate.callGasLimit);
@@ -284,6 +300,20 @@ async function estimateGas(userOp, bundlerClient, gasOverrides = {}) {
     if (totalGas > MAX_USEROP_GAS) {
       const excess = totalGas - MAX_USEROP_GAS;
       const reduced = userOp.callGasLimit - excess;
+      if (overrideApplied) {
+        // An explicit caller override/multiplier pushed us over the cap.
+        // The caller asked for this much gas specifically — don't silently
+        // reduce it. Fail loudly so the caller can pick a smaller value or
+        // split the op into multiple transactions.
+        // Use a tagged error so the catch below re-throws rather than swallowing.
+        const err = new Error(
+          `callGasLimit override/multiplier would exceed MAX_USEROP_GAS. ` +
+          `Requested total ${totalGas}, max ${MAX_USEROP_GAS} (over by ${excess}). ` +
+          `Reduce callGasLimit or multiplier and retry.`
+        );
+        err.isGasOverrideError = true;
+        throw err;
+      }
       console.warn(
         `[UserOp] Total gas ${totalGas} exceeds max ${MAX_USEROP_GAS}. ` +
         `Reducing callGasLimit from ${userOp.callGasLimit} to ${reduced}`
@@ -291,6 +321,11 @@ async function estimateGas(userOp, bundlerClient, gasOverrides = {}) {
       userOp.callGasLimit = reduced;
     }
   } catch (e) {
+    // Re-throw gas-override errors — caller asked for specific gas and we
+    // can't honor it, so they need to see this instead of a silent fallback.
+    if (e.isGasOverrideError) {
+      throw e;
+    }
     // Re-throw paymaster rejections so callers can fall back to self-funded.
     // AA31=validation failed, AA32=deposit too low, AA33=time range expired
     const msg = e.message || e.shortMessage || e.details || '';
