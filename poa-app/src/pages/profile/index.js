@@ -186,7 +186,7 @@ const UserprofileHub = () => {
   const router = useRouter();
   const userDAO = useOrgName();
   const { accountAddress: userAddress } = useAuth();
-  const { pageBackground } = useOrgTheme();
+  const { pageBackground, onBackground } = useOrgTheme();
 
   const { ongoingPolls } = useVotingContext();
   const { recommendedTasks } = useProjectContext();
@@ -296,7 +296,7 @@ const UserprofileHub = () => {
         {seoHead}
         <Navbar />
         <Center height="100vh" background={pageBackground()}>
-          <Text color="white">Error: {error.message}</Text>
+          <Text color={onBackground}>Error: {error.message}</Text>
         </Center>
       </>
     );

@@ -89,7 +89,7 @@ const GradientAvatar = ({ name, orgGradient }) => (
 
 const Home = () => {
   const { logoUrl, poDescription, poLinks, poMembers, activeTaskAmount, completedTaskAmount } = usePOContext();
-  const { pageBackground } = useOrgTheme();
+  const { pageBackground, backgroundMode, onBackground, onBackgroundMuted, onBackgroundSubtle } = useOrgTheme();
   const router = useRouter();
   const userDAO = useOrgName();
   const { fetchImageFromIpfs } = useIPFScontext();
@@ -123,6 +123,14 @@ const Home = () => {
   const orgGradient = userDAO ? getOrgGradient(userDAO) : "linear-gradient(135deg, #9055E8, #E85D85)";
   const showImage = image && !imageError;
   const hasLinks = Array.isArray(poLinks) && poLinks.length > 0;
+
+  // Adapt ghost-button colors to the org background so the link row stays
+  // legible on both light and dark custom colors. 'unknown' (no org bg set)
+  // uses the light-mode hover since the default body gradient is light.
+  const linkButtonColor = onBackgroundMuted;
+  const linkButtonHover = backgroundMode === 'dark'
+    ? { color: 'white', bg: 'whiteAlpha.200' }
+    : { color: 'warmGray.900', bg: 'blackAlpha.100' };
 
   return (
     <>
@@ -191,7 +199,7 @@ const Home = () => {
             <Heading
               as="h1"
               fontSize={{ base: "3xl", md: "4xl" }}
-              color="warmGray.900"
+              color={onBackground}
               fontWeight="700"
               letterSpacing="-0.02em"
               mb={3}
@@ -202,7 +210,7 @@ const Home = () => {
             {poDescription && (
               <Text
                 fontSize={{ base: "md", md: "lg" }}
-                color="warmGray.600"
+                color={onBackgroundMuted}
                 lineHeight="1.7"
                 fontWeight="500"
                 maxW="480px"
@@ -364,8 +372,8 @@ const Home = () => {
                     key={i}
                     size="sm"
                     variant="ghost"
-                    color="warmGray.500"
-                    _hover={{ color: "warmGray.800", bg: "warmGray.100" }}
+                    color={linkButtonColor}
+                    _hover={linkButtonHover}
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
@@ -379,8 +387,8 @@ const Home = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    color="warmGray.500"
-                    _hover={{ color: "warmGray.800", bg: "warmGray.100" }}
+                    color={linkButtonColor}
+                    _hover={linkButtonHover}
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
@@ -391,8 +399,8 @@ const Home = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    color="warmGray.500"
-                    _hover={{ color: "warmGray.800", bg: "warmGray.100" }}
+                    color={linkButtonColor}
+                    _hover={linkButtonHover}
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
@@ -408,7 +416,7 @@ const Home = () => {
           {/* Footer */}
           <Text
             fontSize="xs"
-            color="warmGray.400"
+            color={onBackgroundSubtle}
             fontWeight="400"
             textAlign="center"
             mt={4}
