@@ -66,11 +66,16 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
   useEffect(() => {
     if (!selectedPoll || !selectedPoll.options) return;
 
+    // Only mark an option as the Winner when the proposal is actually valid.
+    // Invalid proposals (threshold not met, tied in strict-majority mode, etc.)
+    // still have winningOption set by the contract but shouldn't display as winners.
+    const hasValidWinner = selectedPoll.isValid !== false;
+
     const processed = selectedPoll.options.map((option, index) => ({
       ...option,
       processedVotes: typeof option.votes === 'number' ? option.votes : 0,
       percentage: Number.isFinite(option.percentage) ? option.percentage : 0,
-      isWinner: index === selectedPoll.winningOption,
+      isWinner: hasValidWinner && index === selectedPoll.winningOption,
     }));
 
     setProcessedOptions(processed);

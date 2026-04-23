@@ -9,16 +9,23 @@ const VotingContext = createContext();
 export const useVotingContext = () => useContext(VotingContext);
 
 /**
- * Compute per-option scores for a Hybrid proposal using the same N-class
- * slice math the on-chain contract (VotingMath.pickWinnerNSlices) uses:
+ * Compute per-option scores EXACTLY the way the on-chain contract does
+ * (VotingMath.pickWinnerNSlices + HybridVotingCore.vote). This matters:
+ * matching the contract's integer-division precision means the UI shows
+ * ties as ties when the contract sees them as ties, rather than giving
+ * the illusion that one option is slightly ahead when the contract
+ * considers them equal (and picks one by iteration order with
+ * `isValid=false`).
  *
- *   score[opt] = Σ_c [ optRaw[opt][c] × slice[c] / classTotal[c] ]
+ * Contract integer math (all BigInt, all floor division):
  *
- * Each class normalizes option shares independently, then contributes its
- * slice percentage weight. With full weight votes and every class having at
- * least one voter, scores sum to 100. Percentages are derived from these
- * scores (not from flat-summed raw powers, which lets token-balance classes
- * drown out direct-voter classes).
+ *   optionClassRaw[opt][c] = Σ_voters floor(classRawPowers[c] × weight / 100)
+ *   classTotalsRaw[c]      = Σ_voters classRawPowers[c]         // NB: full raw, not weighted
+ *   score[opt]             = Σ_c floor(optionClassRaw[opt][c] × slice[c] / classTotal[c])
+ *
+ * score[opt] is in 0..100 units (when slices sum to 100). Due to integer
+ * truncation when tokens are very large, the class-1 contribution is
+ * typically 0..slice[c] with only a handful of distinct values.
  *
  * @param {Array} votes - Array of Vote entities from the subgraph
  * @param {number} numOptions - Number of options in the proposal
@@ -35,10 +42,12 @@ function computeHybridOptionScores(votes, numOptions, slices) {
         const rawPowers = (vote.classRawPowers || []).map(p => BigInt(p || 0));
         while (rawPowers.length < numClasses) rawPowers.push(0n);
 
+        // Matches contract: p.classTotalsRaw[c] += rawPower (unweighted)
         for (let c = 0; c < numClasses; c++) {
             classTotalRaw[c] += rawPowers[c];
         }
 
+        // Matches contract: p.options[ix].classRaw[c] += floor(rawPower × weight / 100)
         const idxs = vote.optionIndexes || [];
         const weights = vote.optionWeights || [];
         for (let i = 0; i < idxs.length; i++) {
@@ -52,18 +61,19 @@ function computeHybridOptionScores(votes, numOptions, slices) {
         }
     }
 
+    // Contract score: floor((optRaw × slice) / classTotal), summed across classes.
+    // Must NOT add extra precision — ties matter. If we used (× 10000 / 10000)
+    // for basis-point precision, we'd rank tied options differently than the
+    // contract does and the winner label would disagree with the highest %.
     const scores = new Array(numOptions).fill(0);
     for (let opt = 0; opt < numOptions; opt++) {
-        let score = 0;
+        let score = 0n;
         for (let c = 0; c < numClasses; c++) {
             if (classTotalRaw[c] > 0n) {
-                // Use basis-point precision (×10000) in BigInt math, then convert.
-                // Max contribution per class ≤ slice[c] × 10000 = 1,000,000 — safe in Number.
-                const scoreBp = (optionClassRaw[opt][c] * BigInt(slices[c]) * 10000n) / classTotalRaw[c];
-                score += Number(scoreBp) / 10000;
+                score += (optionClassRaw[opt][c] * BigInt(slices[c])) / classTotalRaw[c];
             }
         }
-        scores[opt] = score;
+        scores[opt] = Number(score);
     }
 
     return { scores, voterCounts, distinctVoters: votes.length };
