@@ -60,78 +60,19 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
     }
   };
 
-  // Process vote data when the poll changes
+  // Process options when the poll changes. VotingContext.transformProposal has
+  // already computed per-option vote counts and percentages using the correct
+  // per-class-weighted math that matches the on-chain contract. Don't recompute.
   useEffect(() => {
     if (!selectedPoll || !selectedPoll.options) return;
-    
-    console.log("Modal Poll Data:", JSON.stringify(selectedPoll, null, 2));
-    
-    // Calculate total votes accurately by adding up all votes
-    let calculatedTotalVotes = 0;
-    const normalizedOptions = [];
-    
-    // First pass - calculate total votes
-    selectedPoll.options.forEach((option, index) => {
-      let voteCount = 0;
-      
-      try {
-        if (option.votes !== undefined) {
-          if (typeof option.votes === 'number') {
-            voteCount = option.votes;
-          } else if (typeof option.votes === 'string') {
-            voteCount = parseInt(option.votes, 10) || 0;
-          } else if (typeof option.votes === 'object') {
-            if (option.votes && option.votes._hex) {
-              voteCount = parseInt(option.votes._hex, 16) || 0;
-            } else if (option.votes && typeof option.votes.toNumber === 'function') {
-              try {
-                voteCount = option.votes.toNumber() || 0;
-              } catch (e) {
-                console.error("Error converting BigNumber:", e);
-                voteCount = 0;
-              }
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Error calculating vote count:", error);
-        voteCount = 0;
-      }
-      
-      normalizedOptions.push({
-        ...option,
-        normalizedVotes: voteCount,
-        name: option.name || `Option ${index + 1}`,
-      });
-      
-      calculatedTotalVotes += voteCount;
-    });
-    
-    // Ensure we have at least 1 for division
-    const totalVotes = calculatedTotalVotes || 1;
-    
-    console.log("Calculated Total Votes:", calculatedTotalVotes);
-    
-    // Second pass - process options with vote counts and percentages
-    const processed = normalizedOptions.map((option, index) => {      
-      // Calculate percentage relative to the total votes
-      let percentage = 0;
-      if (totalVotes > 0) {
-        percentage = (option.normalizedVotes / totalVotes) * 100;
-      } else if (option.currentPercentage) {
-        percentage = Number(option.currentPercentage);
-      }
-      
-      console.log(`Option ${index} (${option.name}) - Votes: ${option.normalizedVotes} / ${totalVotes} = ${percentage.toFixed(1)}%`);
-      
-      return {
-        ...option,
-        processedVotes: option.normalizedVotes,
-        percentage: percentage,
-        isWinner: index === selectedPoll.winningOption,
-      };
-    });
-    
+
+    const processed = selectedPoll.options.map((option, index) => ({
+      ...option,
+      processedVotes: typeof option.votes === 'number' ? option.votes : 0,
+      percentage: Number.isFinite(option.percentage) ? option.percentage : 0,
+      isWinner: index === selectedPoll.winningOption,
+    }));
+
     setProcessedOptions(processed);
   }, [selectedPoll]);
 

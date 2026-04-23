@@ -3,13 +3,73 @@ import { useQuery } from '@apollo/client';
 import { FETCH_VOTING_DATA_NEW } from '../util/queries';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
-import { formatTokenAmount } from '../util/formatToken';
 
 const VotingContext = createContext();
 
 export const useVotingContext = () => useContext(VotingContext);
 
-function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quorum = 0) {
+/**
+ * Compute per-option scores for a Hybrid proposal using the same N-class
+ * slice math the on-chain contract (VotingMath.pickWinnerNSlices) uses:
+ *
+ *   score[opt] = Σ_c [ optRaw[opt][c] × slice[c] / classTotal[c] ]
+ *
+ * Each class normalizes option shares independently, then contributes its
+ * slice percentage weight. With full weight votes and every class having at
+ * least one voter, scores sum to 100. Percentages are derived from these
+ * scores (not from flat-summed raw powers, which lets token-balance classes
+ * drown out direct-voter classes).
+ *
+ * @param {Array} votes - Array of Vote entities from the subgraph
+ * @param {number} numOptions - Number of options in the proposal
+ * @param {number[]} slices - Slice percentages per class (sums to 100)
+ * @returns {{scores: number[], voterCounts: number[], distinctVoters: number}}
+ */
+function computeHybridOptionScores(votes, numOptions, slices) {
+    const numClasses = slices.length;
+    const classTotalRaw = new Array(numClasses).fill(0n);
+    const optionClassRaw = Array.from({ length: numOptions }, () => new Array(numClasses).fill(0n));
+    const voterCounts = new Array(numOptions).fill(0);
+
+    for (const vote of votes) {
+        const rawPowers = (vote.classRawPowers || []).map(p => BigInt(p || 0));
+        while (rawPowers.length < numClasses) rawPowers.push(0n);
+
+        for (let c = 0; c < numClasses; c++) {
+            classTotalRaw[c] += rawPowers[c];
+        }
+
+        const idxs = vote.optionIndexes || [];
+        const weights = vote.optionWeights || [];
+        for (let i = 0; i < idxs.length; i++) {
+            const optIdx = idxs[i];
+            if (optIdx < 0 || optIdx >= numOptions) continue;
+            const weight = BigInt(weights[i] ?? 100);
+            for (let c = 0; c < numClasses; c++) {
+                optionClassRaw[optIdx][c] += (rawPowers[c] * weight) / 100n;
+            }
+            voterCounts[optIdx] += 1;
+        }
+    }
+
+    const scores = new Array(numOptions).fill(0);
+    for (let opt = 0; opt < numOptions; opt++) {
+        let score = 0;
+        for (let c = 0; c < numClasses; c++) {
+            if (classTotalRaw[c] > 0n) {
+                // Use basis-point precision (×10000) in BigInt math, then convert.
+                // Max contribution per class ≤ slice[c] × 10000 = 1,000,000 — safe in Number.
+                const scoreBp = (optionClassRaw[opt][c] * BigInt(slices[c]) * 10000n) / classTotalRaw[c];
+                score += Number(scoreBp) / 10000;
+            }
+        }
+        scores[opt] = score;
+    }
+
+    return { scores, voterCounts, distinctVoters: votes.length };
+}
+
+function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quorum = 0, votingClasses = []) {
     const currentTime = Math.floor(Date.now() / 1000);
     const endTime = parseInt(proposal.endTimestamp) || 0;
     // A proposal is "ongoing" if it's still Active (needs voting or winner announcement)
@@ -22,66 +82,86 @@ function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quoru
     const metadata = proposal.metadata || {};
     const description = metadata.description || '';
     const optionNames = metadata.optionNames || [];
+    const numOptions = proposal.numOptions || 2;
 
-    // Aggregate votes per option - different logic for Hybrid vs DD
-    const optionVotes = {};
-    const optionVotesRaw = {}; // BigInt string versions for Hybrid display formatting
+    const options = [];
     let totalVotes = 0;
 
     if (type === 'Hybrid') {
-        // For Hybrid voting, use classRawPowers to calculate weighted voting power
-        (proposal.votes || []).forEach(vote => {
-            // Sum all class powers for this voter (BigInt handling)
-            const classRawPowers = vote.classRawPowers || [];
-            const votePower = classRawPowers.reduce((sum, p) => {
-                const powerValue = typeof p === 'string' ? BigInt(p) : BigInt(p || 0);
-                return sum + powerValue;
-            }, BigInt(0));
+        // Replicate the on-chain winner math. If we don't have voting classes yet
+        // (subgraph lag or no classes defined), fall back to voter-count only —
+        // percentages may be briefly off until classes load.
+        const slices = votingClasses.map(c => Number(c.slicePct));
+        const votes = proposal.votes || [];
 
-            // Apply vote weights to each selected option
-            (vote.optionIndexes || []).forEach((optionIndex, i) => {
-                const weight = vote.optionWeights?.[i] ?? 100;
-                // Calculate power contribution: (votePower * weight) / 100
-                const optionPower = (votePower * BigInt(weight)) / BigInt(100);
-                const current = optionVotes[optionIndex] || BigInt(0);
-                optionVotes[optionIndex] = current + optionPower;
-            });
+        if (slices.length > 0 && slices.some(s => s > 0)) {
+            const { scores, voterCounts, distinctVoters } = computeHybridOptionScores(
+                votes, numOptions, slices
+            );
+            const scoreSum = scores.reduce((a, b) => a + b, 0);
+            totalVotes = distinctVoters;
 
-            totalVotes += Number(votePower);
-        });
-
-        // Store BigInt strings for formatting before losing precision
-        Object.keys(optionVotes).forEach(k => {
-            optionVotesRaw[k] = optionVotes[k].toString();
-            optionVotes[k] = Number(optionVotes[k]);
-        });
+            for (let i = 0; i < numOptions; i++) {
+                // Normalize so bars visually sum to 100% even when some classes
+                // have zero voters (contract's raw score can be < 100 in that case).
+                const percentage = scoreSum > 0 ? (scores[i] / scoreSum) * 100 : 0;
+                options.push({
+                    id: `${proposal.id}-option-${i}`,
+                    name: optionNames[i] || `Option ${i + 1}`,
+                    votes: voterCounts[i],
+                    displayVotes: String(voterCounts[i]),
+                    percentage,
+                    currentPercentage: Math.round(percentage),
+                    rawScore: scores[i], // 0-100 scale (contract units) before normalization
+                });
+            }
+        } else {
+            // Fallback: count voters per option with no class weighting
+            const voterCounts = new Array(numOptions).fill(0);
+            for (const vote of votes) {
+                (vote.optionIndexes || []).forEach(optIdx => {
+                    if (optIdx >= 0 && optIdx < numOptions) voterCounts[optIdx] += 1;
+                });
+            }
+            const total = voterCounts.reduce((a, b) => a + b, 0);
+            totalVotes = votes.length;
+            for (let i = 0; i < numOptions; i++) {
+                const percentage = total > 0 ? (voterCounts[i] / total) * 100 : 0;
+                options.push({
+                    id: `${proposal.id}-option-${i}`,
+                    name: optionNames[i] || `Option ${i + 1}`,
+                    votes: voterCounts[i],
+                    displayVotes: String(voterCounts[i]),
+                    percentage,
+                    currentPercentage: Math.round(percentage),
+                });
+            }
+        }
     } else {
-        // For Direct Democracy, simple 1-person-1-vote with weight distribution
-        (proposal.votes || []).forEach(vote => {
-            (vote.optionIndexes || []).forEach((optionIndex, i) => {
+        // Direct Democracy: 1-person-1-vote with weight distribution
+        const optionWeightSum = new Array(numOptions).fill(0);
+        const voterCounts = new Array(numOptions).fill(0);
+        for (const vote of proposal.votes || []) {
+            (vote.optionIndexes || []).forEach((optIdx, i) => {
+                if (optIdx < 0 || optIdx >= numOptions) return;
                 const weight = vote.optionWeights?.[i] ?? 100;
-                optionVotes[optionIndex] = (optionVotes[optionIndex] || 0) + weight;
+                optionWeightSum[optIdx] += weight;
+                voterCounts[optIdx] += 1;
             });
-            totalVotes += 100; // Each voter contributes 100 points total
-        });
-    }
-
-    // Create options array - use metadata option names if available, fallback to generic
-    const options = [];
-    const totalOptionVotes = Object.values(optionVotes).reduce((sum, v) => sum + v, 0);
-    for (let i = 0; i < (proposal.numOptions || 2); i++) {
-        const votes = optionVotes[i] || 0;
-        const displayVotes = type === 'Hybrid'
-            ? formatTokenAmount(optionVotesRaw[i] || '0')
-            : String(votes);
-        options.push({
-            id: `${proposal.id}-option-${i}`,
-            name: optionNames[i] || `Option ${i + 1}`,
-            votes: votes,
-            displayVotes,
-            percentage: totalOptionVotes > 0 ? (votes / totalOptionVotes) * 100 : 0,
-            currentPercentage: totalOptionVotes > 0 ? Math.round((votes / totalOptionVotes) * 100) : 0,
-        });
+            totalVotes += 100;
+        }
+        const totalWeight = optionWeightSum.reduce((a, b) => a + b, 0);
+        for (let i = 0; i < numOptions; i++) {
+            const percentage = totalWeight > 0 ? (optionWeightSum[i] / totalWeight) * 100 : 0;
+            options.push({
+                id: `${proposal.id}-option-${i}`,
+                name: optionNames[i] || `Option ${i + 1}`,
+                votes: voterCounts[i],
+                displayVotes: String(voterCounts[i]),
+                percentage,
+                currentPercentage: Math.round(percentage),
+            });
+        }
     }
 
     // Parse winningOption as number (comes as BigInt string from subgraph)
@@ -185,21 +265,18 @@ export const VotingProvider = ({ children }) => {
             if (org.hybridVoting) {
                 const hybridThreshold = org.hybridVoting.thresholdPct || 0;
                 const hybridQuorum = org.hybridVoting.quorum || 0;
-                hybridProposals = (org.hybridVoting.proposals || []).map(p =>
-                    transformProposal(p, org.hybridVoting.id, 'Hybrid', hybridThreshold, hybridQuorum)
-                );
-                update.hybridVotingOngoing = hybridProposals.filter(p => p.isOngoing);
-                const hybridCompleted = hybridProposals.filter(p => !p.isOngoing);
-                hybridCompleted.sort((a, b) => parseInt(b.endTimestamp) - parseInt(a.endTimestamp));
-                update.hybridVotingCompleted = hybridCompleted;
 
-                // Process voting classes - convert to usable format
-                // Filter to latest version only (subgraph bug: old versions stay isActive)
+                // Process voting classes first — transformProposal needs them for
+                // the per-class-weighted percentage math (matches contract logic).
+                // Filter to latest version only (subgraph bug: old versions stay isActive).
+                // NOTE: This uses CURRENT classes, not the classesSnapshot stored on
+                // each proposal at creation time. If classes changed mid-proposal
+                // lifetime, percentages may drift from the exact on-chain calculation.
                 const rawClasses = org.hybridVoting.votingClasses || [];
                 const maxVersion = rawClasses.reduce(
                     (max, c) => Math.max(max, Number(c.version || 0)), 0
                 );
-                update.votingClasses = rawClasses
+                const activeClasses = rawClasses
                     .filter(c => Number(c.version || 0) === maxVersion)
                     .map(c => ({
                         classIndex: Number(c.classIndex),
@@ -211,6 +288,15 @@ export const VotingProvider = ({ children }) => {
                         hatIds: (c.hatIds || []).map(h => h.toString()),
                     }))
                     .sort((a, b) => a.classIndex - b.classIndex);
+                update.votingClasses = activeClasses;
+
+                hybridProposals = (org.hybridVoting.proposals || []).map(p =>
+                    transformProposal(p, org.hybridVoting.id, 'Hybrid', hybridThreshold, hybridQuorum, activeClasses)
+                );
+                update.hybridVotingOngoing = hybridProposals.filter(p => p.isOngoing);
+                const hybridCompleted = hybridProposals.filter(p => !p.isOngoing);
+                hybridCompleted.sort((a, b) => parseInt(b.endTimestamp) - parseInt(a.endTimestamp));
+                update.hybridVotingCompleted = hybridCompleted;
             } else {
                 update.hybridVotingOngoing = [];
                 update.hybridVotingCompleted = [];

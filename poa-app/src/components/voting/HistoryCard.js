@@ -22,64 +22,16 @@ const HistoryCard = ({ proposal, onPollClick }) => {
     "#E74C3C", // Red
   ];
 
-  // Parse and normalize all vote counts
-  const normalizedOptions = [];
-  let totalCalculatedVotes = 0;
-
-  if (proposal.options && Array.isArray(proposal.options)) {
-    proposal.options.forEach((option, index) => {
-      let voteCount = 0;
-
-      try {
-        if (option.votes !== undefined) {
-          if (typeof option.votes === 'number') {
-            voteCount = option.votes;
-          } else if (typeof option.votes === 'string') {
-            voteCount = parseInt(option.votes, 10) || 0;
-          } else if (typeof option.votes === 'object') {
-            if (option.votes && option.votes._hex) {
-              voteCount = parseInt(option.votes._hex, 16) || 0;
-            } else if (option.votes && typeof option.votes.toNumber === 'function') {
-              try {
-                voteCount = option.votes.toNumber() || 0;
-              } catch (e) {
-                voteCount = 0;
-              }
-            }
-          }
-        }
-      } catch (error) {
-        voteCount = 0;
-      }
-
-      normalizedOptions.push({
-        ...option,
-        normalizedVotes: voteCount,
-        name: option.name || `Option ${index + 1}`,
-      });
-
-      totalCalculatedVotes += voteCount;
-    });
-  }
-
-  const totalVotes = totalCalculatedVotes > 0
-    ? totalCalculatedVotes
-    : (proposal.totalVotes ? Number(proposal.totalVotes) : 1);
-
-  // Create processed options array with percentages
-  const processedOptions = normalizedOptions.map((option, index) => {
-    const percentage = totalVotes > 0
-      ? (option.normalizedVotes / totalVotes) * 100
-      : 0;
-
-    return {
-      name: option.name,
-      votes: option.normalizedVotes,
-      percentage: percentage,
-      color: predefinedColors[index % predefinedColors.length],
-      isWinner: proposal.winningOption === index && proposal.isValid !== false,
-    };
-  });
+  // VotingContext.transformProposal has already computed per-option vote counts
+  // (voter counts for Hybrid) and contract-equivalent percentages. Trust those.
+  const rawOptions = Array.isArray(proposal.options) ? proposal.options : [];
+  const processedOptions = rawOptions.map((option, index) => ({
+    name: option.name || `Option ${index + 1}`,
+    votes: typeof option.votes === 'number' ? option.votes : 0,
+    percentage: Number.isFinite(option.percentage) ? option.percentage : 0,
+    color: predefinedColors[index % predefinedColors.length],
+    isWinner: proposal.winningOption === index && proposal.isValid !== false,
+  }));
 
   // Determine winner name
   let winnerName = "No Winner";
@@ -87,8 +39,8 @@ const HistoryCard = ({ proposal, onPollClick }) => {
   if (proposal.isValid !== false &&
       proposal.winningOption !== undefined &&
       proposal.winningOption !== null &&
-      normalizedOptions[proposal.winningOption]) {
-    winnerName = normalizedOptions[proposal.winningOption].name;
+      rawOptions[proposal.winningOption]) {
+    winnerName = rawOptions[proposal.winningOption].name || `Option ${proposal.winningOption + 1}`;
     hasWinner = true;
   }
 
