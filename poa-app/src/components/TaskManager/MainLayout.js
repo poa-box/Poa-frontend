@@ -8,7 +8,7 @@ import { TaskBoardProvider } from '../../context/TaskBoardContext';
 import { useDataBaseContext} from '../../context/dataBaseContext';
 import { useIPFScontext } from '../../context/ipfsContext';
 import { useAuth } from '../../context/AuthContext';
-import { useWeb3 } from '../../hooks';
+import { useWeb3, useOrgTheme } from '../../hooks';
 import { usePOContext } from '@/context/POContext';
 import { useOrgName } from '@/hooks/useOrgName';
 import { useRouter } from 'next/router';
@@ -221,6 +221,7 @@ const MainLayout = () => {
   const { addToIpfs } = useIPFScontext();
   const router = useRouter();
   const userDAO = useOrgName();
+  const { onBackground, onBackgroundMuted } = useOrgTheme();
 
   // Use useMediaQuery for more stable breakpoint detection
   // Returns [isMatch] where isMatch is false by default on SSR to prevent flash
@@ -591,18 +592,17 @@ const MainLayout = () => {
             </Box>
           ) : projects.length > 0 ? (
             <Box flex="1" width="100%">
-              <Flex 
+              <Flex
                 flexDirection="column"
                 justifyContent="center"
                 alignItems="center"
                 height="100%"
-                color="white"
                 px={4}
                 py={8}
                 textAlign="center"
               >
-                <Heading size="md" mb={2}>Select a Project</Heading>
-                <Text fontSize="md" mb={4}>Choose a project from the dropdown above to view tasks</Text>
+                <Heading size="md" mb={2} color={onBackground}>Select a Project</Heading>
+                <Text fontSize="md" mb={4} color={onBackgroundMuted}>Choose a project from the dropdown above to view tasks</Text>
               </Flex>
             </Box>
           ) : isTourActive && pendingAction !== 'create-project' && pendingAction !== 'create-task' ? (
@@ -621,13 +621,12 @@ const MainLayout = () => {
                 justifyContent="center"
                 alignItems="center"
                 height="100%"
-                color="white"
                 px={4}
                 py={8}
                 textAlign="center"
               >
-                <Heading size="md" mb={2}>Create Your First Project</Heading>
-                <Text fontSize="md" mb={4}>Get started by creating a project</Text>
+                <Heading size="md" mb={2} color={onBackground}>Create Your First Project</Heading>
+                <Text fontSize="md" mb={4} color={onBackgroundMuted}>Get started by creating a project</Text>
                 <Button
                   data-tour="create-project-mobile-btn"
                   colorScheme="purple"
