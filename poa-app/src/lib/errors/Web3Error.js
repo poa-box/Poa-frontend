@@ -21,6 +21,59 @@ export const Web3ErrorCategory = {
 };
 
 /**
+ * Canonical geth/ethers messages indicating the sender can't cover gas (+ value).
+ *
+ * These are deliberately specific (include the trailing "for gas"/"for transfer"/
+ * "for intrinsic" qualifier, or the erigon-style "sender doesn't have enough funds"
+ * phrase) to avoid false positives on contract reverts that happen to contain the
+ * bare phrase "insufficient funds" — e.g. the PaymentManager's `InsufficientFunds`
+ * error or any Solidity `require(..., "Insufficient funds")`. Those should flow
+ * through the contract-revert path (see REVERT_PATTERNS in ErrorParser.js).
+ */
+const INSUFFICIENT_FUNDS_PATTERNS = [
+  'insufficient funds for gas',        // "insufficient funds for gas * price + value" (geth)
+  'insufficient funds for transfer',   // native value transfer shortfall (geth)
+  'insufficient funds for intrinsic',  // "insufficient funds for intrinsic transaction cost" (ethers v5)
+  "sender doesn't have enough funds",  // erigon
+];
+
+/**
+ * Walk an ethers/RPC error object (through `error`, `error.error`, `error.data`)
+ * and return true if any frame signals the sender can't cover gas.
+ *
+ * Wallets/providers wrap errors inconsistently: MetaMask nests the RPC error
+ * under `error.error`, ethers v5 wraps insufficient-funds failures as
+ * UNPREDICTABLE_GAS_LIMIT with the real cause under `error.error`, and some
+ * providers surface the message at `error.data.message`. A tree walk catches
+ * all of these without guessing the shape.
+ */
+function hasInsufficientFunds(rootError) {
+  const seen = new Set();
+  const queue = [rootError];
+
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (!node || typeof node !== 'object' || seen.has(node)) continue;
+    seen.add(node);
+
+    // ethers canonical code — set whenever ethers itself classified the error
+    if (node.code === 'INSUFFICIENT_FUNDS') return true;
+
+    const msg = typeof node.message === 'string' ? node.message.toLowerCase() : '';
+    if (msg) {
+      for (const pattern of INSUFFICIENT_FUNDS_PATTERNS) {
+        if (msg.includes(pattern)) return true;
+      }
+    }
+
+    if (node.error) queue.push(node.error);
+    if (node.data && typeof node.data === 'object') queue.push(node.data);
+  }
+
+  return false;
+}
+
+/**
  * Base Web3 Error
  */
 export class Web3Error extends AppError {
@@ -99,11 +152,11 @@ export class TransactionError extends Web3Error {
       return Web3ErrorCategory.USER_REJECTED;
     }
 
-    // Insufficient funds
-    if (
-      error.code === 'INSUFFICIENT_FUNDS' ||
-      error.message?.toLowerCase().includes('insufficient funds')
-    ) {
+    // Insufficient funds — check BEFORE UNPREDICTABLE_GAS_LIMIT because ethers
+    // often wraps an insufficient-funds RPC error inside a gas-estimation failure,
+    // e.g. { code: 'UNPREDICTABLE_GAS_LIMIT', error: { code: -32000, message: 'insufficient funds ...' } }.
+    // Walk the nested error tree so we catch the real cause regardless of wrapping.
+    if (hasInsufficientFunds(error)) {
       return Web3ErrorCategory.INSUFFICIENT_FUNDS;
     }
 

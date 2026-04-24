@@ -264,9 +264,12 @@ export class ParsedError {
  * Parse blockchain error into user-friendly format
  * @param {Error} error - Original error from ethers/contract
  * @param {Array} [abi] - Optional ABI for custom error decoding
+ * @param {Object} [context] - Optional chain context for message formatting
+ * @param {string} [context.nativeSymbol] - Native token symbol (e.g. "xDAI", "ETH")
+ * @param {string} [context.networkName] - Human-readable network name (e.g. "Gnosis")
  * @returns {ParsedError} Parsed error with category and messages
  */
-export function parseError(error, abi = null) {
+export function parseError(error, abi = null, context = {}) {
   // Detect category
   const category = TransactionError.detectCategory(error);
 
@@ -280,11 +283,17 @@ export function parseError(error, abi = null) {
     );
   }
 
-  // Insufficient funds
+  // Insufficient funds — name the native token + network when we can, so the
+  // user knows exactly what to top up. EOA has no paymaster fallback, so
+  // adding native token to the connected wallet is the only remedy.
   if (category === Web3ErrorCategory.INSUFFICIENT_FUNDS) {
+    const { nativeSymbol, networkName } = context;
+    const userMessage = nativeSymbol && networkName
+      ? `Not enough ${nativeSymbol} on ${networkName} to cover gas. Add ${nativeSymbol} to your wallet and try again.`
+      : "Not enough funds to cover gas. Add the network's native token to your wallet and try again.";
     return new ParsedError(
       category,
-      'Insufficient funds for this transaction.',
+      userMessage,
       'Account balance too low for gas + value',
       error
     );
