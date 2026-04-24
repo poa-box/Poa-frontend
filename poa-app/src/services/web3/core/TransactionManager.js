@@ -4,7 +4,7 @@
  */
 
 import { parseError, Web3ErrorCategory } from '@/lib/errors';
-import { calculateGasLimit, createGasOptions } from '@/config';
+import { calculateGasLimit, createGasOptions, getNetworkByChainId } from '@/config';
 
 /**
  * Transaction states for tracking progress
@@ -78,6 +78,7 @@ export class TransactionManager {
    */
   constructor(signer, config = {}) {
     this.signer = signer;
+    this._chainId = null; // resolved lazily in _getChainContext()
   }
 
   /**
@@ -153,7 +154,7 @@ export class TransactionManager {
       console.error('Nested error message:', error.error?.message);
       console.error('=== END TRANSACTION ERROR DEBUG ===');
 
-      const parsedError = parseError(error, abi);
+      const parsedError = parseError(error, abi, await this._getChainContext());
 
       // State: Error
       this._notifyState(opts.onStateChange, TransactionState.ERROR, {
@@ -220,6 +221,32 @@ export class TransactionManager {
    */
   updateSigner(signer) {
     this.signer = signer;
+    this._chainId = null; // force re-resolution against the new signer
+  }
+
+  /**
+   * Build chain context for parseError (native symbol + network name).
+   * Resolved on-demand from the signer's provider — this is only called in
+   * the error path, so the (usually cached) RPC call cost never touches the
+   * success path. Returns {} if chainId is unknown or unsupported.
+   */
+  async _getChainContext() {
+    if (this._chainId == null) {
+      this._chainId = this.signer?.provider?.network?.chainId ?? null;
+    }
+    if (this._chainId == null && this.signer?.getChainId) {
+      try {
+        this._chainId = await this.signer.getChainId();
+      } catch {
+        // Provider not ready; fall through to generic message.
+      }
+    }
+    const network = this._chainId != null ? getNetworkByChainId(this._chainId) : null;
+    if (!network) return {};
+    return {
+      nativeSymbol: network.nativeCurrency?.symbol,
+      networkName: network.name,
+    };
   }
 
   /**
