@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { useToast } from '@chakra-ui/react';
-import { utils } from 'ethers';
+import { utils, constants as ethersConstants, providers as ethersProviders } from 'ethers';
 import {
   SETTER_TEMPLATES,
   RAW_FUNCTIONS,
@@ -14,6 +14,8 @@ import {
 } from '@/config/setterDefinitions';
 import { usePOContext } from '@/context/POContext';
 import { getNetworkByChainId } from '../config/networks';
+import { getInfrastructureAddress, CONTRACT_NAMES } from '@/config/contracts';
+import { createHatsService } from '@/services/web3/domain/HatsService';
 import {
   TITLE_PREFIX as ELECTION_TITLE_PREFIX,
   DESCRIPTION_PREFIX as ELECTION_DESCRIPTION_PREFIX,
@@ -35,6 +37,7 @@ const defaultProposal = {
   electionSelectedIncumbents: [],   // Array of { name, address } - holders whose hat is at stake
   electionFallbackRoleId: "",       // Hat ID for fallback role given to losers (optional)
   electionFallbackHolders: [],      // Addresses already holding fallback hat (pre-computed)
+  electionIncludeNoOneOption: false, // If true, append a "No One" option (empty batch) to the ballot
   // Voting restriction fields
   isRestricted: false,    // Whether to restrict who can vote
   restrictedHatIds: [],   // Hat IDs that can vote (if restricted)
@@ -109,6 +112,7 @@ export function useProposalForm({ onSubmit }) {
           electionSelectedIncumbents: [],
           electionFallbackRoleId: '',
           electionFallbackHolders: [],
+          electionIncludeNoOneOption: false,
         } : {}),
       };
     });
@@ -220,10 +224,13 @@ export function useProposalForm({ onSubmit }) {
       return false;
     }
 
-    if (proposal.electionCandidates.length < 2) {
+    const minCandidates = proposal.electionIncludeNoOneOption ? 1 : 2;
+    if (proposal.electionCandidates.length < minCandidates) {
       toast({
         title: "Not Enough Candidates",
-        description: "An election needs at least 2 candidates.",
+        description: proposal.electionIncludeNoOneOption
+          ? "An election with the 'No One' option needs at least 1 candidate."
+          : "An election needs at least 2 candidates.",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -243,6 +250,16 @@ export function useProposalForm({ onSubmit }) {
         });
         return false;
       }
+      if (candidate.address === ethersConstants.AddressZero) {
+        toast({
+          title: "Invalid Candidate Address",
+          description: `"${candidate.name || 'Unnamed'}" uses the zero address. Use the "Allow voters to reject all candidates" option instead.`,
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        return false;
+      }
       if (!candidate.name || candidate.name.trim() === '') {
         toast({
           title: "Missing Candidate Name",
@@ -256,7 +273,7 @@ export function useProposalForm({ onSubmit }) {
     }
 
     return true;
-  }, [proposal.electionRoleId, proposal.electionCandidates, toast]);
+  }, [proposal.electionRoleId, proposal.electionCandidates, proposal.electionIncludeNoOneOption, toast]);
 
   const validateNormalProposal = useCallback(() => {
     const nonEmpty = (proposal.options || []).filter(opt => opt.trim() !== '');
@@ -447,7 +464,7 @@ export function useProposalForm({ onSubmit }) {
     return true;
   }, [proposal.setterMode, proposal.setterTemplate, proposal.setterContract, proposal.setterFunction, proposal.setterValues, proposal.setterParams, toast]);
 
-  const buildProposalData = useCallback((eligibilityModuleAddress, contractAddresses) => {
+  const buildProposalData = useCallback((eligibilityModuleAddress, contractAddresses, freshHoldersOverride = null) => {
     let numOptions;
     let batches = [];
     let optionNames = [];
@@ -478,11 +495,18 @@ export function useProposalForm({ onSubmit }) {
 
       // Only revoke from the specific incumbents the user selected — not all holders
       const selectedIncumbents = proposal.electionSelectedIncumbents || [];
-      // All holders is used to check if candidate already holds the hat
-      const allHolders = proposal.electionCurrentHolders || [];
+      // All holders is used to check if candidate already holds the hat.
+      // Prefer the fresh on-chain snapshot from handleSubmit when available;
+      // form state can be stale (subgraph lag) and that produced AlreadyWearingHat
+      // reverts in past KUBI elections.
+      const allHolders = freshHoldersOverride
+        ? freshHoldersOverride.allHolders
+        : (proposal.electionCurrentHolders || []);
       // Fallback role: losers get downgraded to this hat instead of being fully removed
       const fallbackRoleId = proposal.electionFallbackRoleId;
-      const fallbackHolders = proposal.electionFallbackHolders || [];
+      const fallbackHolders = freshHoldersOverride
+        ? freshHoldersOverride.fallbackHolders
+        : (proposal.electionFallbackHolders || []);
 
       batches = proposal.electionCandidates.map(candidate => {
         const batch = [];
@@ -551,6 +575,14 @@ export function useProposalForm({ onSubmit }) {
 
         return batch;
       });
+
+      // First-class "No One" option — appended last so existing batch indices stay aligned.
+      // Empty batch = no on-chain effect when this option wins.
+      if (proposal.electionIncludeNoOneOption) {
+        optionNames.push("No One");
+        batches.push([]);
+        numOptions = optionNames.length;
+      }
     } else if (proposal.type === "setter") {
       // Setter proposal - call contract setter function(s)
       let setterCalls = [];
@@ -680,7 +712,69 @@ export function useProposalForm({ onSubmit }) {
         return;
       }
 
-      const { numOptions, batches, optionNames } = buildProposalData(eligibilityModuleAddress, contractAddresses);
+      // For elections, re-read hat wearership on-chain right before building
+      // batches. Stale form state previously caused AlreadyWearingHat reverts
+      // (mint calls were emitted for wearers who already held the hat).
+      //
+      // We construct a JsonRpcProvider scoped to the ORG chain rather than
+      // using the wallet's provider — for cross-chain users (passkey, or an
+      // EOA whose wallet is on a different chain) the wallet provider would
+      // read the wrong chain's state. Mirrors the read pattern in
+      // pages/create/index.js:355.
+      let freshHoldersOverride = null;
+      if (proposal.type === "election") {
+        const hatsAddr = getInfrastructureAddress(CONTRACT_NAMES.HATS_PROTOCOL, orgChainId);
+        if (hatsAddr && orgNetwork?.rpcUrl && orgChainId) {
+          try {
+            const readProvider = new ethersProviders.JsonRpcProvider(
+              orgNetwork.rpcUrl,
+              { chainId: orgChainId, name: orgNetwork.name || `chain-${orgChainId}` }
+            );
+            const hats = createHatsService(readProvider);
+            const candidateAddrs = proposal.electionCandidates.map(c => c.address);
+            const incumbentAddrs = (proposal.electionSelectedIncumbents || []).map(i => i.address);
+
+            const candidateMap = await hats.getHolderStatuses(
+              hatsAddr,
+              proposal.electionRoleId,
+              candidateAddrs,
+            );
+            const fallbackMap = proposal.electionFallbackRoleId
+              ? await hats.getHolderStatuses(
+                  hatsAddr,
+                  proposal.electionFallbackRoleId,
+                  incumbentAddrs,
+                )
+              : new Map();
+
+            freshHoldersOverride = {
+              allHolders: candidateAddrs
+                .filter(a => candidateMap.get(a.toLowerCase()) === true)
+                .map(a => ({ address: a, name: '' })),
+              fallbackHolders: incumbentAddrs.filter(
+                a => fallbackMap.get(a.toLowerCase()) === true,
+              ),
+            };
+          } catch (err) {
+            console.error('[useProposalForm] Hats holder refresh failed:', err);
+            toast({
+              title: "Cannot verify current role holders",
+              description: "Could not read the Hats contract. Please try again.",
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            setLoadingSubmit(false);
+            return;
+          }
+        } else {
+          // No Hats address / RPC configured for this chain — defensive fall-through
+          // to cached form state. Not expected on Gnosis/Arbitrum/Sepolia.
+          console.warn('[useProposalForm] No HATS_PROTOCOL or RPC for chain', orgChainId);
+        }
+      }
+
+      const { numOptions, batches, optionNames } = buildProposalData(eligibilityModuleAddress, contractAddresses, freshHoldersOverride);
 
       // Form collects hours; contract ABI expects minutes (uint32 minutesDuration).
       // Math.round avoids FP slop (e.g., 0.5 * 60 = 30, not 29.999...).
@@ -699,6 +793,7 @@ export function useProposalForm({ onSubmit }) {
         transferAmount: proposal.transferAmount,
         electionRoleId: proposal.electionRoleId,
         electionCandidates: proposal.electionCandidates,
+        electionIncludeNoOneOption: proposal.electionIncludeNoOneOption,
         // Setter proposal fields
         setterContract: proposal.setterContract,
         setterTemplate: proposal.setterTemplate,
@@ -743,7 +838,7 @@ export function useProposalForm({ onSubmit }) {
       setLoadingSubmit(false);
       return false;
     }
-  }, [proposal, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, buildProposalData, onSubmit, resetForm, toast]);
+  }, [proposal, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, buildProposalData, onSubmit, resetForm, toast, orgChainId, orgNetwork, nativeCurrencySymbol]);
 
   return {
     proposal,
