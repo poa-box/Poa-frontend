@@ -1,0 +1,12 @@
+[
+  {
+    "type": "function",
+    "name": "isWearerOfHat",
+    "stateMutability": "view",
+    "inputs": [
+      { "name": "_user", "type": "address" },
+      { "name": "_hatId", "type": "uint256" }
+    ],
+    "outputs": [{ "name": "isWearer", "type": "bool" }]
+  }
+]

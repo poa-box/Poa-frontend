@@ -35,7 +35,7 @@ import {
   FiUserPlus,
 } from 'react-icons/fi';
 import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
-import { utils } from 'ethers';
+import { utils, constants as ethersConstants } from 'ethers';
 import { inputStyles } from '@/components/shared/glassStyles';
 
 /**
@@ -286,6 +286,10 @@ const ElectionConfigurator = ({
   const handleAddManual = useCallback(() => {
     if (!manualName.trim() || !manualAddress.trim()) return;
     if (!utils.isAddress(manualAddress.trim())) return;
+    // Block the zero address — it's a valid hex address but minting a hat to
+    // it reverts on-chain. If the user wants an "abstain" option, they should
+    // use the "Allow voters to reject all candidates" toggle.
+    if (manualAddress.trim() === ethersConstants.AddressZero) return;
 
     const alreadyAdded = (proposal.electionCandidates || []).some(
       c => c.address.toLowerCase() === manualAddress.trim().toLowerCase()
@@ -331,6 +335,7 @@ const ElectionConfigurator = ({
         electionSelectedIncumbents: [],
         electionFallbackRoleId: '',
         electionFallbackHolders: [],
+        electionIncludeNoOneOption: false,
       };
       // Clear auto-generated title / description; preserve custom ones
       if (proposal.name && proposal.name.startsWith(TITLE_PREFIX)) {
@@ -512,6 +517,27 @@ const ElectionConfigurator = ({
               </Select>
             </Box>
           )}
+
+          {/* "No One" option — for uncontested or abstain-allowed elections */}
+          <Box
+            p={3}
+            bg="rgba(66, 153, 225, 0.08)"
+            borderRadius="md"
+            border="1px solid rgba(66, 153, 225, 0.2)"
+          >
+            <Checkbox
+              isChecked={Boolean(proposal.electionIncludeNoOneOption)}
+              onChange={(e) => onChange({ electionIncludeNoOneOption: e.target.checked })}
+              colorScheme="blue"
+            >
+              <Text fontSize="sm" color="gray.200" fontWeight="medium">
+                Allow voters to reject all candidates
+              </Text>
+            </Checkbox>
+            <Text fontSize="xs" color="gray.500" mt={1} ml={6}>
+              Adds a &quot;No One&quot; option. If voters choose it, no hat is minted or revoked.
+            </Text>
+          </Box>
 
           {/* Member Search */}
           <Box>
@@ -727,14 +753,20 @@ const ElectionConfigurator = ({
             </Box>
           )}
 
-          {candidates.length < 2 && (
-            <Text fontSize="xs" color="orange.300">
-              Add at least 2 candidates to create an election.
-            </Text>
-          )}
+          {(() => {
+            const minCandidates = proposal.electionIncludeNoOneOption ? 1 : 2;
+            if (candidates.length >= minCandidates) return null;
+            return (
+              <Text fontSize="xs" color="orange.300">
+                {proposal.electionIncludeNoOneOption
+                  ? 'Add at least 1 candidate to create an election.'
+                  : 'Add at least 2 candidates to create an election.'}
+              </Text>
+            );
+          })()}
 
-          {/* Election Preview - shown when >= 2 candidates */}
-          {candidates.length >= 2 && (
+          {/* Election Preview - shown when enough candidates have been added */}
+          {candidates.length >= (proposal.electionIncludeNoOneOption ? 1 : 2) && (
             <Box
               p={4}
               bg="rgba(66, 153, 225, 0.08)"
