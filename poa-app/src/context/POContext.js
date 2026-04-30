@@ -3,6 +3,7 @@ import { useQuery } from '@apollo/client';
 import { FETCH_ORG_FULL_DATA } from '../util/queries';
 import { useRouter } from 'next/router';
 import { formatTokenAmount } from '../util/formatToken';
+import { resolveTokenLabel, DEFAULT_TOKEN_LABEL } from '../util/tokenLabel';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
 import { useIPFScontext } from './ipfsContext';
@@ -133,6 +134,9 @@ const initialState = {
     creatorHatIds: [],
     educationHubEnabled: false,
     hideTreasury: false,
+    useTokenSymbol: false,
+    participationTokenSymbol: null,
+    tokenLabel: DEFAULT_TOKEN_LABEL,
     roleNames: {},
     roleCanVoteMap: {},
 };
@@ -368,6 +372,12 @@ export const POProvider = ({ children }) => {
                     logoUrl: org.metadata?.logo || '',
                     backgroundColor: org.metadata?.backgroundColor || null,
                     hideTreasury: org.metadata?.hideTreasury === true,
+                    useTokenSymbol: org.metadata?.useTokenSymbol === true,
+                    participationTokenSymbol: org.participationToken?.symbol || null,
+                    tokenLabel: resolveTokenLabel({
+                        useTokenSymbol: org.metadata?.useTokenSymbol === true,
+                        symbol: org.participationToken?.symbol,
+                    }),
                     poMembers: org.users?.length || 0,
                     ptTokenBalance: formatTokenAmount(org.participationToken?.totalSupply || '0'),
                     topHatId: org.topHatId,
@@ -443,9 +453,14 @@ export const POProvider = ({ children }) => {
             try {
                 const metadata = await safeFetchFromIpfs(org.metadataHash);
                 dispatch({ type: 'SET_LOGO_URL', payload: metadata?.logo || '' });
+                const useTokenSymbol = metadata?.useTokenSymbol === true;
+                const symbol = org.participationToken?.symbol || null;
                 dispatch({ type: 'SET_ORG_DATA', payload: {
                     hideTreasury: metadata?.hideTreasury === true,
                     backgroundColor: metadata?.backgroundColor || null,
+                    useTokenSymbol,
+                    participationTokenSymbol: symbol,
+                    tokenLabel: resolveTokenLabel({ useTokenSymbol, symbol }),
                 } });
             } catch (e) {
                 console.warn('[POContext] Failed to fetch metadata from IPFS:', e);
@@ -552,6 +567,9 @@ export const POProvider = ({ children }) => {
         creatorHatIds: state.creatorHatIds,
         educationHubEnabled: state.educationHubEnabled,
         hideTreasury: state.hideTreasury,
+        useTokenSymbol: state.useTokenSymbol,
+        participationTokenSymbol: state.participationTokenSymbol,
+        tokenLabel: state.tokenLabel,
         roleNames: state.roleNames,
         roleCanVoteMap: state.roleCanVoteMap,
     }), [state, loading, errorMessage, leaderboardDisplayData, avatarMap, subgraphUrl]);

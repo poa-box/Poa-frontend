@@ -161,6 +161,7 @@ export const FETCH_ORG_FULL_DATA = gql`
         backgroundColor
         logo
         hideTreasury
+        useTokenSymbol
         links {
           name
           url

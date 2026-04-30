@@ -235,6 +235,8 @@ export default function OrgMetadataEditor({
   currentLogoHash,
   currentHideTreasury,
   currentBackgroundColor,
+  currentUseTokenSymbol,
+  currentTokenSymbol,
 }) {
   const toast = useToast();
   const { addToIpfs } = useIPFScontext();
@@ -273,6 +275,7 @@ export default function OrgMetadataEditor({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hideTreasury, setHideTreasury] = useState(currentHideTreasury || false);
   const [bgColor, setBgColor] = useState(currentBackgroundColor || '');
+  const [useTokenSymbol, setUseTokenSymbol] = useState(currentUseTokenSymbol === true);
 
   // Update form when props change (e.g., after successful save + subgraph re-index).
   // Do NOT reset logoURL here — it's set by user actions (upload/remove) only.
@@ -287,7 +290,8 @@ export default function OrgMetadataEditor({
     );
     setHideTreasury(currentHideTreasury || false);
     setBgColor(currentBackgroundColor || '');
-  }, [currentName, currentDescription, currentLinks, currentHideTreasury, currentBackgroundColor]);
+    setUseTokenSymbol(currentUseTokenSymbol === true);
+  }, [currentName, currentDescription, currentLinks, currentHideTreasury, currentBackgroundColor, currentUseTokenSymbol]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -334,6 +338,7 @@ export default function OrgMetadataEditor({
         logo: logoURL || null,
         backgroundColor: bgColor.trim() || null,
         hideTreasury,
+        useTokenSymbol,
       };
 
       // 2. Upload metadata to IPFS
@@ -577,6 +582,28 @@ export default function OrgMetadataEditor({
               onChange={(e) => setHideTreasury(e.target.checked)}
               colorScheme="coral"
             />
+          </FormControl>
+
+          {/* Use Token Symbol Toggle */}
+          <FormControl>
+            <HStack justifyContent="space-between" alignItems="center">
+              <Box>
+                <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={0} htmlFor="use-token-symbol">
+                  Show token symbol instead of &quot;Shares&quot;
+                </FormLabel>
+                <FormHelperText color="warmGray.400" fontSize="xs" mt={1}>
+                  {currentTokenSymbol
+                    ? `When on, the UI shows "${currentTokenSymbol}" wherever it currently says "Shares".`
+                    : 'When on, the UI shows your participation token symbol wherever it currently says "Shares".'}
+                </FormHelperText>
+              </Box>
+              <Switch
+                id="use-token-symbol"
+                isChecked={useTokenSymbol}
+                onChange={(e) => setUseTokenSymbol(e.target.checked)}
+                colorScheme="coral"
+              />
+            </HStack>
           </FormControl>
 
           <Divider borderColor="warmGray.100" />
