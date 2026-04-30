@@ -624,7 +624,15 @@ export function useProposalForm({ onSubmit }) {
   }, [proposal]);
 
   const validateBasicFields = useCallback(() => {
-    if (!proposal.name || proposal.name.trim() === '') {
+    // Setter proposals can be submitted without a manually-entered title:
+    // we auto-fill from the template's preview() at submission time below.
+    // Skip the empty-title gate when a setter template is selected.
+    const setterProvidesTitle =
+      proposal.type === 'setter'
+      && proposal.setterMode === 'template'
+      && proposal.setterTemplate;
+
+    if (!setterProvidesTitle && (!proposal.name || proposal.name.trim() === '')) {
       toast({
         title: "Missing Title",
         description: "Please enter a title for your proposal.",
@@ -648,7 +656,14 @@ export function useProposalForm({ onSubmit }) {
     }
 
     return true;
-  }, [proposal.name, proposal.time, toast]);
+  }, [
+    proposal.name,
+    proposal.time,
+    proposal.type,
+    proposal.setterMode,
+    proposal.setterTemplate,
+    toast,
+  ]);
 
   const handleSubmit = useCallback(async (eligibilityModuleAddress, contractAddresses = {}) => {
     setLoadingSubmit(true);
@@ -687,9 +702,36 @@ export function useProposalForm({ onSubmit }) {
       const durationHours = Number(proposal.time);
       const durationMinutes = Math.max(1, Math.round(durationHours * 60));
 
+      // Auto-fill title/description from setter template preview when the
+      // user left them blank. User-entered text always wins. This is what
+      // voters see in the proposal list and modal — without it, a "Change
+      // token name to FOO" setter proposal would render with a blank title
+      // and meaningless description.
+      let finalName = (proposal.name || '').trim();
+      let finalDescription = (proposal.description || '').trim();
+      if (
+        proposal.type === 'setter'
+        && proposal.setterMode === 'template'
+        && proposal.setterTemplate
+      ) {
+        const tmpl = getTemplateById(proposal.setterTemplate);
+        if (tmpl?.preview) {
+          let previewText = '';
+          try {
+            previewText = tmpl.preview(proposal.setterValues || {});
+          } catch (e) {
+            console.warn('[useProposalForm] template.preview() threw:', e);
+          }
+          if (previewText) {
+            if (!finalName) finalName = previewText;
+            if (!finalDescription) finalDescription = `If this vote passes: ${previewText}`;
+          }
+        }
+      }
+
       await onSubmit({
-        name: proposal.name.trim(),
-        description: proposal.description || '',
+        name: finalName,
+        description: finalDescription,
         time: durationMinutes,
         numOptions,
         batches,
