@@ -546,22 +546,25 @@ export function useProposalForm({ onSubmit }) {
         selectedIncumbents.forEach(incumbent => {
           const incumbentLower = incumbent.address.toLowerCase();
           if (incumbentLower === candidateLower) return; // skip self
-          const isTransferSource = transferSourceLower === incumbentLower;
 
-          // Revoke the elected hat unless we're going to transferHat from
-          // this incumbent (transferHat handles the move atomically).
-          if (!isTransferSource) {
-            batch.push({
-              target: eligibilityModuleAddress,
-              value: "0",
-              data: iface.encodeFunctionData("setWearerEligibility", [
-                incumbent.address,
-                proposal.electionRoleId,
-                false,
-                false,
-              ]),
-            });
-          }
+          // Revoke the elected hat from the incumbent.
+          // Even when we're going to transferHat from this incumbent, the
+          // explicit revoke is still required: transferHat moves the token
+          // but leaves wearerRules untouched, so the loser could call
+          // claimVouchedHat or otherwise re-acquire if a slot opens up.
+          // Setting (false, false) defeats the hierarchy path; for vouching-
+          // gated hats this still gets OR-ed with vouching but at minimum it
+          // prevents re-claim for incumbents who relied on hierarchy alone.
+          batch.push({
+            target: eligibilityModuleAddress,
+            value: "0",
+            data: iface.encodeFunctionData("setWearerEligibility", [
+              incumbent.address,
+              proposal.electionRoleId,
+              false,
+              false,
+            ]),
+          });
 
           // Fallback role handling (independent of transfer optimization).
           if (fallbackRoleId) {
