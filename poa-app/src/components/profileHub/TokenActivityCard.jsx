@@ -24,6 +24,7 @@ import { FiCheckCircle, FiThumbsUp, FiCalendar } from 'react-icons/fi';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
 import { useVotingPower } from '@/hooks/useVotingPower';
 import { useTreasuryShare } from '@/hooks/useTreasuryShare';
+import { usePOContext } from '@/context/POContext';
 
 // TIER FEATURE - imports kept for future use
 // import { getTierColorScheme, getTierIcon } from '@/utils/profileUtils';
@@ -100,6 +101,7 @@ export function TokenActivityCard({
   const { percentOfTotal, classWeights, classConfig, isHybrid, isLoading: votingLoading } = useVotingPower();
   const isQuadratic = classConfig?.some(c => c.strategy === 'ERC20_BAL' && c.quadratic) ?? false;
   const { treasuryShare, isLoading: treasuryLoading, isHidden: treasuryHidden } = useTreasuryShare();
+  const { tokenLabel } = usePOContext();
 
   const duration = hasAnimatedRef.current ? 500 : 1700;
   const animatedValue = useAnimatedCounter(ptBalance, duration, useCallback(() => {
@@ -135,7 +137,7 @@ export function TokenActivityCard({
       <VStack pb={2} align="flex-start" position="relative" borderTopRadius="2xl">
         <div style={glassLayerStyle} />
         <Text pl={6} pt={2} fontWeight="bold" fontSize={{ base: 'xl', md: '2xl' }} color="white">
-          Shares & Activity
+          {tokenLabel} & Activity
         </Text>
       </VStack>
 
@@ -158,10 +160,10 @@ export function TokenActivityCard({
               )}
             </Text>
             <Text fontSize="lg" color="gray.400">
-              shares
+              {tokenLabel}
             </Text>
             <Tooltip
-              label="Shares represent your contribution to this organization. You earn them by completing tasks, education modules, and other activities."
+              label={`${tokenLabel} represent your contribution to this organization. You earn them by completing tasks, education modules, and other activities.`}
               placement="top"
               hasArrow
               bg="gray.700"

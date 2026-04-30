@@ -39,6 +39,8 @@ const SettingsPage = () => {
     logoUrl,
     backgroundColor,
     hideTreasury,
+    useTokenSymbol,
+    participationTokenSymbol,
     poContextLoading,
     error: contextError,
   } = usePOContext();
@@ -164,6 +166,8 @@ const SettingsPage = () => {
             currentLogoHash={logoUrl}
             currentBackgroundColor={backgroundColor}
             currentHideTreasury={hideTreasury}
+            currentUseTokenSymbol={useTokenSymbol}
+            currentTokenSymbol={participationTokenSymbol}
           />
         </VStack>
       </Box>

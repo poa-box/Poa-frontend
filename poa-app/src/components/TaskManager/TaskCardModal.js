@@ -38,6 +38,7 @@ import { useProjectContext } from '@/context/ProjectContext';
 import { userCanReviewTask, userCanAssignTask } from '../../util/permissions';
 import { useOrgName } from '@/hooks/useOrgName';
 import UsernameLink from '@/components/common/UsernameLink';
+import { usePOContext } from '@/context/POContext';
 
 
 const glassLayerStyle = {
@@ -88,6 +89,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   const { safeFetchFromIpfs } = useIPFScontext();
   const router = useRouter();
   const userDAO = useOrgName();
+  const { tokenLabel } = usePOContext();
   const toast = useToast();
   const { isOpen, onOpen, onClose} = useDisclosure();
   const { isOpen: isApplicationModalOpen, onOpen: onOpenApplicationModal, onClose: onCloseApplicationModal } = useDisclosure();
@@ -964,9 +966,9 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                     <Text fontSize="lg" fontWeight="bold" color="white">
                       {task.Payout}
                     </Text>
-                    <Text fontSize="sm" color="gray.300">shares</Text>
+                    <Text fontSize="sm" color="gray.300">{tokenLabel}</Text>
                     <Tooltip
-                      label="Shares are earned through work and contributions. Non-transferable — no speculation, just ownership proportional to what you put in."
+                      label={`${tokenLabel} are earned through work and contributions. Non-transferable — no speculation, just ownership proportional to what you put in.`}
                       placement="top"
                       maxW="250px"
                       fontSize="xs"

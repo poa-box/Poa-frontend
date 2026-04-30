@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fi';
 import { PiCoinVerticalBold } from 'react-icons/pi';
 import UsernameLink from '@/components/common/UsernameLink';
+import { usePOContext } from '@/context/POContext';
 
 const getMedalColor = (rank) => {
   switch (rank) {
@@ -38,6 +39,7 @@ const getMedalGlow = (rank) => {
 
 function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
   const medalColor = getMedalColor(rank);
+  const { tokenLabel } = usePOContext();
 
   return (
     <Box
@@ -113,7 +115,7 @@ function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
             <HStack spacing={1.5}>
               <Icon as={PiCoinVerticalBold} color={medalColor || 'yellow.400'} boxSize={4} />
               <Text fontSize="sm" color="gray.300" fontWeight="medium">
-                {user.token} <Text as="span" textTransform="uppercase">Shares</Text>
+                {user.token} <Text as="span" textTransform="uppercase">{tokenLabel}</Text>
               </Text>
             </HStack>
             <HStack spacing={1.5}>

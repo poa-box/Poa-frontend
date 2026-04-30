@@ -28,6 +28,7 @@ import {
 import { PiCoinVerticalBold } from 'react-icons/pi';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
 import UsernameLink from '@/components/common/UsernameLink';
+import { usePOContext } from '@/context/POContext';
 
 const getMedalColor = (rank) => {
   switch (rank) {
@@ -83,6 +84,7 @@ function StatBox({ icon, label, value, color = 'purple.300' }) {
 
 function LeaderboardUserModal({ isOpen, onClose, user, rank, roleNames = {} }) {
   const { hasCopied, onCopy } = useClipboard(user?.address || '');
+  const { tokenLabel } = usePOContext();
 
   if (!user) return null;
 
@@ -173,7 +175,7 @@ function LeaderboardUserModal({ isOpen, onClose, user, rank, roleNames = {} }) {
               <GridItem>
                 <StatBox
                   icon={PiCoinVerticalBold}
-                  label="Shares"
+                  label={tokenLabel}
                   value={user.token}
                   color="yellow.400"
                 />
