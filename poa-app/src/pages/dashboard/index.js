@@ -46,7 +46,7 @@ import { glassLayerStyle } from '@/components/shared/glassStyles';
 
 const PerpetualOrgDashboard = () => {
   const { ongoingPolls } = useVotingContext();
-  const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled } = usePOContext();
+  const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled, tokenLabel = 'Shares' } = usePOContext();
   const { pageBackground } = useOrgTheme();
   const { startTour, isActive: isTourActive } = useTour();
   const router = useRouter();
@@ -393,7 +393,7 @@ const PerpetualOrgDashboard = () => {
                             </Text>
                             <HStack justify="space-between">
                               <Badge colorScheme="purple">{task.status}</Badge>
-                              <Text fontWeight="bold">{task.payout} Tokens</Text>
+                              <Text fontWeight="bold">{task.payout} {tokenLabel}</Text>
                             </HStack>
                           </VStack>
                         </Link2>
@@ -486,7 +486,7 @@ const PerpetualOrgDashboard = () => {
                               {index + 1}
                             </Text>
                             <Text fontWeight={medalColor ? 'extrabold' : null} fontSize={{ base: "lg", md: "2xl" }}>{entry.name}</Text>
-                            <Badge ml="2" fontSize={{ base: "sm", md: "md" }} colorScheme="blue">{entry.token} Tokens</Badge>
+                            <Badge ml="2" fontSize={{ base: "sm", md: "md" }} colorScheme="blue">{entry.token} {tokenLabel}</Badge>
                           </HStack>
                         );
                       })
@@ -619,7 +619,7 @@ const PerpetualOrgDashboard = () => {
                               </Button>
 
                             </Link2>
-                            <Badge fontSize={{ base: "md", md: "lg" }} colorScheme="teal">{module.payout} Tokens</Badge>
+                            <Badge fontSize={{ base: "md", md: "lg" }} colorScheme="teal">{module.payout} {tokenLabel}</Badge>
                             </HStack>
                           </Box>
                         ))}
