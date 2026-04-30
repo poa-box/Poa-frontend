@@ -492,12 +492,16 @@ export function useProposalForm({ onSubmit }) {
         "function mintHatToAddress(uint256 hatId, address wearer)",
         "function setWearerEligibility(address wearer, uint256 hatId, bool eligible, bool standing)"
       ]);
-      // Hats Protocol — used to actually burn an incumbent's token after their
-      // eligibility is revoked. Without this call the supply slot stays
-      // occupied and `mintHatToAddress` reverts with `AllHatsWorn` when the
-      // hat is at maxSupply (e.g. KUBI's Executive at 10/10).
+      // Hats Protocol — used for the 1-incumbent transfer optimization. When
+      // exactly one incumbent is being replaced by a candidate who doesn't
+      // already hold the role, we use Hats.transferHat to atomically move the
+      // slot. transferHat does NOT decrement supply (just moves the balance)
+      // so it works for capped-supply hats (e.g. KUBI's Executive at 10/10)
+      // AND it bypasses the eligibility module's getWearerStatus check on the
+      // FROM side — vouching can't keep an incumbent in their seat. Verified
+      // on a Gnosis fork against KUBI's actual contracts.
       const hatsIface = new utils.Interface([
-        "function checkHatWearerStatus(uint256 hatId, address wearer) returns (bool)"
+        "function transferHat(uint256 hatId, address from, address to)"
       ]);
 
       // Only revoke from the specific incumbents the user selected — not all holders
@@ -517,11 +521,36 @@ export function useProposalForm({ onSubmit }) {
 
       batches = proposal.electionCandidates.map(candidate => {
         const batch = [];
+        const candidateLower = candidate.address.toLowerCase();
+        const otherIncumbents = selectedIncumbents.filter(
+          i => i.address.toLowerCase() !== candidateLower
+        );
+        const candidateAlreadyHolds = allHolders.some(
+          h => h.address.toLowerCase() === candidateLower
+        );
 
-        // Revoke hat from selected incumbents who are NOT this candidate
+        // 1-incumbent transfer optimization: when exactly one incumbent is
+        // being replaced by a candidate who doesn't already hold the role,
+        // use Hats.transferHat. Atomic, supply-preserving, and works through
+        // vouching gates. For 0 or 2+ incumbents, fall back to the legacy
+        // setEligibility(revoke) + mint flow (best-effort for vouching-gated
+        // hats — KUBI's Executive transfer requires this 1-incumbent path).
+        const useTransferHat =
+          Boolean(hatsProtocolAddress) &&
+          otherIncumbents.length === 1 &&
+          !candidateAlreadyHolds;
+        const transferSourceLower = useTransferHat
+          ? otherIncumbents[0].address.toLowerCase()
+          : null;
+
         selectedIncumbents.forEach(incumbent => {
-          if (incumbent.address.toLowerCase() !== candidate.address.toLowerCase()) {
-            // Revoke the elected hat
+          const incumbentLower = incumbent.address.toLowerCase();
+          if (incumbentLower === candidateLower) return; // skip self
+          const isTransferSource = transferSourceLower === incumbentLower;
+
+          // Revoke the elected hat unless we're going to transferHat from
+          // this incumbent (transferHat handles the move atomically).
+          if (!isTransferSource) {
             batch.push({
               target: eligibilityModuleAddress,
               value: "0",
@@ -532,63 +561,39 @@ export function useProposalForm({ onSubmit }) {
                 false,
               ]),
             });
+          }
 
-            // Settle the hat's token state with the new eligibility — this
-            // burns the incumbent's hat token and decrements supply, so a
-            // capped-supply hat (e.g. Executive at 10/10) frees a slot for
-            // the winner mint below. Skipped if we don't have a Hats address
-            // (defensive — should always be present in production).
-            if (hatsProtocolAddress) {
-              batch.push({
-                target: hatsProtocolAddress,
-                value: "0",
-                data: hatsIface.encodeFunctionData("checkHatWearerStatus", [
-                  proposal.electionRoleId,
-                  incumbent.address,
-                ]),
-              });
-            }
-
-            // Grant fallback role to loser (if configured)
-            if (fallbackRoleId) {
-              // Set eligibility for fallback hat (idempotent, always safe)
+          // Fallback role handling (independent of transfer optimization).
+          if (fallbackRoleId) {
+            batch.push({
+              target: eligibilityModuleAddress,
+              value: "0",
+              data: iface.encodeFunctionData("setWearerEligibility", [
+                incumbent.address,
+                fallbackRoleId,
+                true,
+                true,
+              ]),
+            });
+            const alreadyHoldsFallback = fallbackHolders.some(
+              addr => addr.toLowerCase() === incumbentLower
+            );
+            if (!alreadyHoldsFallback) {
               batch.push({
                 target: eligibilityModuleAddress,
                 value: "0",
-                data: iface.encodeFunctionData("setWearerEligibility", [
-                  incumbent.address,
+                data: iface.encodeFunctionData("mintHatToAddress", [
                   fallbackRoleId,
-                  true,
-                  true,
+                  incumbent.address,
                 ]),
               });
-
-              // Only mint if loser doesn't already hold the fallback hat
-              const alreadyHoldsFallback = fallbackHolders.some(
-                addr => addr.toLowerCase() === incumbent.address.toLowerCase()
-              );
-              if (!alreadyHoldsFallback) {
-                batch.push({
-                  target: eligibilityModuleAddress,
-                  value: "0",
-                  data: iface.encodeFunctionData("mintHatToAddress", [
-                    fallbackRoleId,
-                    incumbent.address,
-                  ]),
-                });
-              }
             }
           }
         });
 
-        // Grant the candidate eligibility on the elected hat BEFORE minting.
-        // The Hats EligibilityModule defaults to (eligible=false, standing=false)
-        // for any (wearer, hat) pair it has never seen, and `mintHatToAddress`
-        // reverts with `NotEligible()` when the module says ineligible. Without
-        // this call, transferring a role to a fresh candidate fails on-chain
-        // (KUBI proposal #14: "Shariva Director of PR Transfer" reverted exactly
-        // here). The call is idempotent — safe even if the candidate is already
-        // marked eligible from a prior election.
+        // Grant the candidate eligibility on the elected hat. Required by
+        // both transferHat's isEligible(to) check and mintHatToAddress's
+        // EligibilityModule check. Idempotent — safe if already eligible.
         batch.push({
           target: eligibilityModuleAddress,
           value: "0",
@@ -600,11 +605,18 @@ export function useProposalForm({ onSubmit }) {
           ]),
         });
 
-        // Mint hat to candidate if they don't already hold it
-        const candidateAlreadyHolds = allHolders.some(
-          h => h.address.toLowerCase() === candidate.address.toLowerCase()
-        );
-        if (!candidateAlreadyHolds) {
+        // Final move: transferHat (1-incumbent case) or mint.
+        if (useTransferHat) {
+          batch.push({
+            target: hatsProtocolAddress,
+            value: "0",
+            data: hatsIface.encodeFunctionData("transferHat", [
+              proposal.electionRoleId,
+              otherIncumbents[0].address,
+              candidate.address,
+            ]),
+          });
+        } else if (!candidateAlreadyHolds) {
           batch.push({
             target: eligibilityModuleAddress,
             value: "0",
