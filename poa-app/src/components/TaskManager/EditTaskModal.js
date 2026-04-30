@@ -60,7 +60,7 @@ const selectStyles = {
 };
 
 const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
-  const { orgChainId } = usePOContext();
+  const { orgChainId, tokenLabel } = usePOContext();
   const tokenOptions = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
   const [name, setName] = useState(task.name);
@@ -283,7 +283,7 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
                     </FormControl>
                   </SimpleGrid>
                   <Text fontSize="xs" color="gray.500" mt={3}>
-                    This bounty will be paid in addition to shares
+                    This bounty will be paid in addition to {tokenLabel.toLowerCase()}
                   </Text>
                 </Box>
               )}

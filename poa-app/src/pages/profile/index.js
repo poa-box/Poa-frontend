@@ -113,6 +113,8 @@ function WelcomePageSkeleton() {
  */
 function RecommendedTasksCompact({ tasks, userDAO }) {
   const displayTasks = tasks?.slice(0, 3) || [];
+  const { tokenLabel = 'Shares' } = usePOContext() || {};
+  const tokenLabelLower = tokenLabel.toLowerCase();
 
   return (
     <Box
@@ -159,7 +161,7 @@ function RecommendedTasksCompact({ tasks, userDAO }) {
                     {task.isIndexing ? 'Indexing...' : task.title}
                   </Text>
                   <Badge colorScheme="yellow" variant="subtle" fontSize="xs" ml={2}>
-                    {task.payout} shares
+                    {task.payout} {tokenLabelLower}
                   </Badge>
                 </HStack>
                 <Badge colorScheme="green" fontSize="xs" mt={2}>{task.status}</Badge>
@@ -193,6 +195,7 @@ const UserprofileHub = () => {
   const { claimedTasks, userProposals, graphUsername, userDataLoading, error, userData, hasExecRole, hasMemberRole, hasApproverRole } = useUserContext();
   const poContext = usePOContext();
   const avatarMap = poContext?.avatarMap || {};
+  const tokenLabel = poContext?.tokenLabel || 'Shares';
 
   // Fetch org structure for roles and claim page
   const { roles, eligibilityModuleAddress, orgName, orgMetadata, permissionsMatrix, loading: orgLoading } = useOrgStructure();
@@ -419,7 +422,7 @@ const UserprofileHub = () => {
                             {task.isIndexing ? 'Indexing...' : task.title}
                           </Text>
                           <Badge colorScheme="yellow" variant="subtle" fontSize="xs" ml={2}>
-                            {task.payout} shares
+                            {task.payout} {tokenLabel.toLowerCase()}
                           </Badge>
                         </HStack>
                         <Badge colorScheme="purple" fontSize="xs" mt={2}>{task.status}</Badge>

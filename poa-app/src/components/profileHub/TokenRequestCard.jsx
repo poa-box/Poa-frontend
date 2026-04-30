@@ -16,6 +16,7 @@ import {
 import { AddIcon, ChevronDownIcon, ChevronUpIcon } from '@chakra-ui/icons';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
 import { TokenRequestModal, UserRequestHistory } from '@/components/tokenRequest';
+import { usePOContext } from '@/context/POContext';
 
 /**
  * TokenRequestCard component
@@ -25,6 +26,7 @@ import { TokenRequestModal, UserRequestHistory } from '@/components/tokenRequest
 export function TokenRequestCard({ hasMemberRole }) {
   const [showHistory, setShowHistory] = useState(false);
   const { isOpen: isModalOpen, onOpen: openModal, onClose: closeModal } = useDisclosure();
+  const { tokenLabel = 'Shares' } = usePOContext() || {};
 
   // Don't render if user doesn't have member role
   if (!hasMemberRole) {
@@ -48,7 +50,7 @@ export function TokenRequestCard({ hasMemberRole }) {
         <VStack pb={2} align="flex-start" position="relative" borderTopRadius="2xl">
           <div style={glassLayerStyle} />
           <Text pl={6} pt={2} fontWeight="bold" fontSize={{ base: 'xl', md: '2xl' }} color="white">
-            Share Requests
+            {tokenLabel} Requests
           </Text>
         </VStack>
 
@@ -62,7 +64,7 @@ export function TokenRequestCard({ hasMemberRole }) {
             onClick={openModal}
             w="100%"
           >
-            Request Shares
+            Request {tokenLabel}
           </Button>
 
           {/* Collapsible History Section */}
