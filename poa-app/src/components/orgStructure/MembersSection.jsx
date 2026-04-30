@@ -26,6 +26,7 @@ import {
   FiThumbsUp,
 } from 'react-icons/fi';
 import PulseLoader from "@/components/shared/PulseLoader";
+import { usePOContext } from '@/context/POContext';
 
 /**
  * Format timestamp to readable date
@@ -52,6 +53,7 @@ function truncateAddress(address) {
  * Single member card
  */
 function MemberCard({ member }) {
+  const { tokenLabel = 'Shares' } = usePOContext() || {};
   const {
     username,
     address,
@@ -105,7 +107,7 @@ function MemberCard({ member }) {
           <GridItem>
             <HStack spacing={1} color="warmGray.500" fontSize="xs">
               <Icon as={FiActivity} />
-              <Text>{participationTokenBalance} tokens</Text>
+              <Text>{participationTokenBalance} {tokenLabel.toLowerCase()}</Text>
             </HStack>
           </GridItem>
           <GridItem>

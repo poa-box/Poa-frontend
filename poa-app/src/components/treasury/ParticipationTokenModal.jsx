@@ -112,7 +112,8 @@ const CustomTooltip = ({ active, payload, label }) => {
 };
 
 const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks = [], tokenAddress }) => {
-  const { leaderboardData, subgraphUrl } = usePOContext();
+  const { leaderboardData, subgraphUrl, tokenLabel = 'Shares' } = usePOContext();
+  const tokenLabelLower = tokenLabel.toLowerCase();
 
   const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
 
@@ -340,7 +341,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                 <StatCard
                   label="Total Supply"
                   value={formatTokenAmount(stats.supply.toString(), 18, 0)}
-                  subtext="shares minted"
+                  subtext={`${tokenLabelLower} minted`}
                 />
                 <StatCard
                   label="Holders"
@@ -541,7 +542,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                 <Box textAlign="center" py={6}>
                   <Text color="gray.400">No mint events yet</Text>
                   <Text fontSize="sm" color="gray.500">
-                    Shares are minted from completed tasks and approved requests
+                    {tokenLabel} are minted from completed tasks and approved requests
                   </Text>
                 </Box>
               )}
