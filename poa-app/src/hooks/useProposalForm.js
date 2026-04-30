@@ -490,7 +490,12 @@ export function useProposalForm({ onSubmit }) {
 
       const iface = new utils.Interface([
         "function mintHatToAddress(uint256 hatId, address wearer)",
-        "function setWearerEligibility(address wearer, uint256 hatId, bool eligible, bool standing)"
+        "function setWearerEligibility(address wearer, uint256 hatId, bool eligible, bool standing)",
+        // EligibilityModule v2: surgically zero a single wearer's vouch state
+        // for one hat. Combined with the eligibility revoke, this fully blocks
+        // an election loser from re-claiming via claimVouchedHat — without
+        // affecting any other wearer or the org's vouching config.
+        "function clearWearerVouches(address wearer, uint256 hatId)"
       ]);
       // Hats Protocol — used for the 1-incumbent transfer optimization. When
       // exactly one incumbent is being replaced by a candidate who doesn't
@@ -552,9 +557,6 @@ export function useProposalForm({ onSubmit }) {
           // explicit revoke is still required: transferHat moves the token
           // but leaves wearerRules untouched, so the loser could call
           // claimVouchedHat or otherwise re-acquire if a slot opens up.
-          // Setting (false, false) defeats the hierarchy path; for vouching-
-          // gated hats this still gets OR-ed with vouching but at minimum it
-          // prevents re-claim for incumbents who relied on hierarchy alone.
           batch.push({
             target: eligibilityModuleAddress,
             value: "0",
@@ -563,6 +565,28 @@ export function useProposalForm({ onSubmit }) {
               proposal.electionRoleId,
               false,
               false,
+            ]),
+          });
+
+          // Surgical vouch clear (EligibilityModule v2). Without this, a
+          // vouched-in incumbent can still pass getWearerStatus's vouch path
+          // and re-claim if supply opens up (combineWithHierarchy=true ORs
+          // hierarchy with vouching). Calling clearWearerVouches sets the
+          // incumbent's wearerVouchEpoch to a sentinel that won't match the
+          // config epoch — their effective vouch count for THIS hat becomes 0.
+          // No effect on other wearers; org-wide vouching stays enabled.
+          //
+          // Wrapped in try/catch at execute-time semantics by the EligibilityModule's
+          // ABI: if the deployed impl is pre-v2 (no clearWearerVouches), the
+          // call would revert and bubble up via Executor.CallFailed. Frontend
+          // assumes v2 has shipped (per the EligibilityModule upgrade PR);
+          // gate by version-detect if needed for staged rollout.
+          batch.push({
+            target: eligibilityModuleAddress,
+            value: "0",
+            data: iface.encodeFunctionData("clearWearerVouches", [
+              incumbent.address,
+              proposal.electionRoleId,
             ]),
           });
 
