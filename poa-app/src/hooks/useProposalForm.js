@@ -464,7 +464,7 @@ export function useProposalForm({ onSubmit }) {
     return true;
   }, [proposal.setterMode, proposal.setterTemplate, proposal.setterContract, proposal.setterFunction, proposal.setterValues, proposal.setterParams, toast]);
 
-  const buildProposalData = useCallback((eligibilityModuleAddress, contractAddresses, freshHoldersOverride = null) => {
+  const buildProposalData = useCallback((eligibilityModuleAddress, contractAddresses, freshHoldersOverride = null, hatsProtocolAddress = null) => {
     let numOptions;
     let batches = [];
     let optionNames = [];
@@ -491,6 +491,13 @@ export function useProposalForm({ onSubmit }) {
       const iface = new utils.Interface([
         "function mintHatToAddress(uint256 hatId, address wearer)",
         "function setWearerEligibility(address wearer, uint256 hatId, bool eligible, bool standing)"
+      ]);
+      // Hats Protocol — used to actually burn an incumbent's token after their
+      // eligibility is revoked. Without this call the supply slot stays
+      // occupied and `mintHatToAddress` reverts with `AllHatsWorn` when the
+      // hat is at maxSupply (e.g. KUBI's Executive at 10/10).
+      const hatsIface = new utils.Interface([
+        "function checkHatWearerStatus(uint256 hatId, address wearer) returns (bool)"
       ]);
 
       // Only revoke from the specific incumbents the user selected — not all holders
@@ -526,6 +533,22 @@ export function useProposalForm({ onSubmit }) {
               ]),
             });
 
+            // Settle the hat's token state with the new eligibility — this
+            // burns the incumbent's hat token and decrements supply, so a
+            // capped-supply hat (e.g. Executive at 10/10) frees a slot for
+            // the winner mint below. Skipped if we don't have a Hats address
+            // (defensive — should always be present in production).
+            if (hatsProtocolAddress) {
+              batch.push({
+                target: hatsProtocolAddress,
+                value: "0",
+                data: hatsIface.encodeFunctionData("checkHatWearerStatus", [
+                  proposal.electionRoleId,
+                  incumbent.address,
+                ]),
+              });
+            }
+
             // Grant fallback role to loser (if configured)
             if (fallbackRoleId) {
               // Set eligibility for fallback hat (idempotent, always safe)
@@ -556,6 +579,25 @@ export function useProposalForm({ onSubmit }) {
               }
             }
           }
+        });
+
+        // Grant the candidate eligibility on the elected hat BEFORE minting.
+        // The Hats EligibilityModule defaults to (eligible=false, standing=false)
+        // for any (wearer, hat) pair it has never seen, and `mintHatToAddress`
+        // reverts with `NotEligible()` when the module says ineligible. Without
+        // this call, transferring a role to a fresh candidate fails on-chain
+        // (KUBI proposal #14: "Shariva Director of PR Transfer" reverted exactly
+        // here). The call is idempotent — safe even if the candidate is already
+        // marked eligible from a prior election.
+        batch.push({
+          target: eligibilityModuleAddress,
+          value: "0",
+          data: iface.encodeFunctionData("setWearerEligibility", [
+            candidate.address,
+            proposal.electionRoleId,
+            true,
+            true,
+          ]),
         });
 
         // Mint hat to candidate if they don't already hold it
@@ -774,7 +816,13 @@ export function useProposalForm({ onSubmit }) {
         }
       }
 
-      const { numOptions, batches, optionNames } = buildProposalData(eligibilityModuleAddress, contractAddresses, freshHoldersOverride);
+      const hatsProtocolAddress = getInfrastructureAddress(CONTRACT_NAMES.HATS_PROTOCOL, orgChainId) || null;
+      const { numOptions, batches, optionNames } = buildProposalData(
+        eligibilityModuleAddress,
+        contractAddresses,
+        freshHoldersOverride,
+        hatsProtocolAddress,
+      );
 
       // Form collects hours; contract ABI expects minutes (uint32 minutesDuration).
       // Math.round avoids FP slop (e.g., 0.5 * 60 = 30, not 29.999...).
