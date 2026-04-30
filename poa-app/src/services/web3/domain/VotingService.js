@@ -77,19 +77,11 @@ export class VotingService {
     const titleBytes = stringToBytes(name);
     const duration = Math.max(1, Math.floor(durationMinutes));
 
-    // Upload metadata to IPFS if service available
-    let descriptionHash = ethers.constants.HashZero;
-    if (this.ipfs && (description || optionNames.length > 0)) {
-      const metadata = {
-        description: description || '',
-        optionNames: optionNames,
-        createdAt: Date.now(),
-      };
-      console.log('[VotingService] Uploading proposal metadata to IPFS:', metadata);
-      const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(metadata));
-      descriptionHash = ipfsCidToBytes32(ipfsResult.path);
-      console.log('[VotingService] IPFS CID:', ipfsResult.path, '-> bytes32:', descriptionHash);
-    }
+    const descriptionHash = await this._uploadProposalMetadata({
+      description,
+      optionNames,
+      label: 'Hybrid',
+    });
 
     return this.txManager.execute(
       contract,
@@ -97,6 +89,57 @@ export class VotingService {
       [titleBytes, descriptionHash, duration, numOptions, batches, hatIds],
       options
     );
+  }
+
+  /**
+   * Upload proposal metadata (description + optionNames) to IPFS and return
+   * the bytes32 hash to pass to the contract. Throws if the IPFS service is
+   * unavailable or returns a malformed CID — silently passing HashZero would
+   * leave the subgraph with no metadata source so the UI falls back to
+   * "Option 1" / "Option 2" labels with no clear failure signal.
+   *
+   * Returns HashZero only when there is genuinely nothing to upload (empty
+   * description AND empty optionNames).
+   */
+  async _uploadProposalMetadata({ description, optionNames, label }) {
+    const hasContent = Boolean(description) || (optionNames && optionNames.length > 0);
+    if (!hasContent) {
+      return ethers.constants.HashZero;
+    }
+
+    if (!this.ipfs || typeof this.ipfs.addToIpfs !== 'function') {
+      throw new Error(
+        `IPFS service unavailable — cannot upload ${label} proposal metadata. ` +
+          'Without IPFS, voters would see generic "Option 1/2" labels instead of the actual option names.'
+      );
+    }
+
+    const metadata = {
+      description: description || '',
+      optionNames: optionNames || [],
+      createdAt: Date.now(),
+    };
+    console.log(`[VotingService] Uploading ${label} proposal metadata to IPFS:`, metadata);
+    const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(metadata));
+
+    const cid = ipfsResult?.path;
+    if (!cid || typeof cid !== 'string' || !cid.startsWith('Qm')) {
+      throw new Error(
+        `IPFS upload returned an invalid CID (${cid ?? 'undefined'}). ` +
+          'Proposal metadata could not be persisted.'
+      );
+    }
+
+    const descriptionHash = ipfsCidToBytes32(cid);
+    if (descriptionHash === ethers.constants.HashZero) {
+      throw new Error(
+        `ipfsCidToBytes32 produced HashZero for CID ${cid}. ` +
+          'Proposal metadata would be unreadable by the subgraph.'
+      );
+    }
+
+    console.log(`[VotingService] IPFS CID: ${cid} -> bytes32: ${descriptionHash}`);
+    return descriptionHash;
   }
 
   /**
@@ -180,19 +223,11 @@ export class VotingService {
     const titleBytes = stringToBytes(name);
     const duration = Math.max(1, Math.floor(durationMinutes));
 
-    // Upload metadata to IPFS if service available
-    let descriptionHash = ethers.constants.HashZero;
-    if (this.ipfs && (description || optionNames.length > 0)) {
-      const metadata = {
-        description: description || '',
-        optionNames: optionNames,
-        createdAt: Date.now(),
-      };
-      console.log('[VotingService] Uploading DD proposal metadata to IPFS:', metadata);
-      const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(metadata));
-      descriptionHash = ipfsCidToBytes32(ipfsResult.path);
-      console.log('[VotingService] IPFS CID:', ipfsResult.path, '-> bytes32:', descriptionHash);
-    }
+    const descriptionHash = await this._uploadProposalMetadata({
+      description,
+      optionNames,
+      label: 'DD',
+    });
 
     return this.txManager.execute(
       contract,
