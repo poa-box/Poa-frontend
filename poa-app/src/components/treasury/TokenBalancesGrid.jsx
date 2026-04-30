@@ -5,6 +5,7 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import TokenBalanceCard from './TokenBalanceCard';
+import { usePOContext } from '@/context/POContext';
 
 /**
  * TokenBalancesGrid - Displays token balances from subgraph data only
@@ -13,10 +14,11 @@ import TokenBalanceCard from './TokenBalanceCard';
  * No direct RPC calls to avoid CORS issues and rate limiting.
  */
 const TokenBalancesGrid = ({ totalSupply, onPTClick, isLoading, erc20Balances = [] }) => {
+  const { tokenLabel = 'Shares' } = usePOContext() || {};
   // Build token list: PT first, then ERC20 treasury balances
   const tokenList = [
     {
-      symbol: 'Shares',
+      symbol: tokenLabel,
       name: 'Total Supply',
       balance: totalSupply || '0',
       decimals: 18,

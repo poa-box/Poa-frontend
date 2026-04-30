@@ -41,10 +41,16 @@ const TokenBalanceCard = ({
     BREAD: 'orange.400',
   };
 
-  const iconColor = iconColors[symbol] || 'gray.400';
+  // Governance token (the org's participation token) keeps purple regardless
+  // of label — the org may have renamed the symbol via setSymbol governance.
+  const iconColor = tokenType === 'Governance'
+    ? 'purple.400'
+    : (iconColors[symbol] || 'gray.400');
 
-  // Display shorter version for icon and card
-  const iconLetter = symbol === 'Shares' ? 'S' : symbol.charAt(0);
+  // Display shorter version for icon and card. The default 'Shares' label
+  // is shown lowercase; an explicit symbol set by an org (e.g. 'KUBIX') is
+  // shown as-is.
+  const iconLetter = symbol.charAt(0).toUpperCase();
   const displaySymbol = symbol === 'Shares' ? 'shares' : symbol;
 
   return (
