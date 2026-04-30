@@ -62,7 +62,7 @@ const BALANCE_ABI = [
 
 const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [], defaultName = '', defaultDescription = '' }) => {
   const toast = useToast();
-  const { orgChainId, taskManagerContractAddress } = usePOContext();
+  const { orgChainId, taskManagerContractAddress, tokenLabel } = usePOContext();
   const [loading, setLoading] = useState(false);
 
   // Basic fields
@@ -382,7 +382,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
               <HStack justify="space-between">
                 <HStack spacing={1}>
                   <FormLabel mb={0}>Share Budget Cap</FormLabel>
-                  <Tooltip label="Set a maximum amount of shares this project can allocate to tasks. Leave unchecked for unlimited." placement="top">
+                  <Tooltip label={`Set a maximum amount of ${tokenLabel.toLowerCase()} this project can allocate to tasks. Leave unchecked for unlimited.`} placement="top">
                     <InfoIcon color="gray.400" boxSize={3} />
                   </Tooltip>
                 </HStack>
@@ -410,7 +410,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                     </NumberInputStepper>
                   </NumberInput>
                   <Text fontSize="xs" color="gray.500" mt={1}>
-                    Total shares that can be allocated to tasks in this project
+                    Total {tokenLabel.toLowerCase()} that can be allocated to tasks in this project
                   </Text>
                 </FormControl>
               </Box>

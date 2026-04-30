@@ -12,6 +12,7 @@ import { useOrgName } from '../../hooks/useOrgName';
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const poContext = usePOContext();
   const avatarMap = poContext?.avatarMap || {};
+  const tokenLabel = poContext?.tokenLabel || 'Shares';
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
 
   const router = useRouter();
@@ -195,7 +196,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
                 <Flex align="center" bg="purple.50" px={2} py={0.5} borderRadius="full">
                   <StarIcon boxSize={3} mr={1} color="purple.500" />
                   <Text fontWeight="bold" color="purple.700" fontSize="xs">
-                    {Payout} shares
+                    {Payout} {tokenLabel}
                   </Text>
                 </Flex>
               )}

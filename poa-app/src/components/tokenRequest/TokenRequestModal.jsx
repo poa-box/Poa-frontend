@@ -29,7 +29,8 @@ import { RefreshEvent } from '@/context/RefreshContext';
 const TokenRequestModal = ({ isOpen, onClose }) => {
   const toast = useToast();
   const { tokenRequest, executeWithNotification } = useWeb3();
-  const { participationTokenAddress } = usePOContext();
+  const { participationTokenAddress, tokenLabel = 'Shares' } = usePOContext();
+  const tokenLabelLower = tokenLabel.toLowerCase();
   const { addToIpfs } = useIPFScontext();
 
   const [loading, setLoading] = useState(false);
@@ -46,7 +47,7 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
     if (!amount || parseFloat(amount) <= 0) {
       toast({
         title: 'Invalid Amount',
-        description: 'Please enter a valid share amount greater than 0',
+        description: `Please enter a valid ${tokenLabelLower} amount greater than 0`,
         status: 'error',
         duration: 3000,
       });
@@ -56,7 +57,7 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
     if (!reason.trim()) {
       toast({
         title: 'Reason Required',
-        description: 'Please provide a reason for your share request',
+        description: `Please provide a reason for your ${tokenLabelLower} request`,
         status: 'error',
         duration: 3000,
       });
@@ -66,7 +67,7 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
     if (!participationTokenAddress) {
       toast({
         title: 'Error',
-        description: 'Shares not found for this organization',
+        description: `${tokenLabel} not found for this organization`,
         status: 'error',
         duration: 3000,
       });
@@ -124,17 +125,17 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
     <Modal isOpen={isOpen} onClose={handleClose} size="md">
       <ModalOverlay />
       <ModalContent>
-        <ModalHeader>Request Shares</ModalHeader>
+        <ModalHeader>Request {tokenLabel}</ModalHeader>
         <ModalCloseButton isDisabled={loading} />
         <ModalBody>
           <VStack spacing={4} align="stretch">
             <Text fontSize="sm" color="gray.600">
-              Request shares for contributions that aren&apos;t covered by tasks or education modules.
+              Request {tokenLabelLower} for contributions that aren&apos;t covered by tasks or education modules.
               Your request will be reviewed by an approver.
             </Text>
 
             <FormControl isRequired>
-              <FormLabel>Share Amount</FormLabel>
+              <FormLabel>{tokenLabel} Amount</FormLabel>
               <NumberInput
                 value={amount}
                 onChange={(value) => setAmount(value)}
@@ -148,14 +149,14 @@ const TokenRequestModal = ({ isOpen, onClose }) => {
                 </NumberInputStepper>
               </NumberInput>
               <FormHelperText>
-                Number of shares to request
+                Number of {tokenLabelLower} to request
               </FormHelperText>
             </FormControl>
 
             <FormControl isRequired>
               <FormLabel>Reason / Justification</FormLabel>
               <Textarea
-                placeholder="Describe your contribution and why you're requesting these shares..."
+                placeholder={`Describe your contribution and why you're requesting these ${tokenLabelLower}...`}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={4}

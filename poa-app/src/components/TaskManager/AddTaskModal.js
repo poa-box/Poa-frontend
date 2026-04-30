@@ -58,7 +58,7 @@ const selectStyles = {
 
 const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
   const { hasExecRole } = useUserContext();
-  const { orgChainId } = usePOContext();
+  const { orgChainId, tokenLabel } = usePOContext();
 
   const tokenOptions = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
@@ -266,7 +266,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                         {estimatedPayout}
                       </Text>
                       <Text fontSize="md" color="purple.300">
-                        shares
+                        {tokenLabel}
                       </Text>
                     </HStack>
                   </VStack>
@@ -371,7 +371,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                     </FormControl>
                   </SimpleGrid>
                   <Text fontSize="xs" color="gray.500" mt={3}>
-                    This bounty will be paid in addition to shares
+                    This bounty will be paid in addition to {tokenLabel.toLowerCase()}
                   </Text>
                 </Box>
               )}
