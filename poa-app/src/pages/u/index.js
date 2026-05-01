@@ -17,7 +17,6 @@ import {
   Card,
   CardBody,
   Grid,
-  GridItem,
   Badge,
   IconButton,
   Tooltip,
@@ -32,7 +31,8 @@ import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Navbar from '@/components/landing/Navbar';
 import { findUserProfileByUsername, findUserOrgsAcrossChains } from '@/util/crossChainUsername';
-import { formatTokenAmount } from '@/util/formatToken';
+import { filterUserOrgsForViewedProfile } from '@/util/profileOrgFilter';
+import UserOrgCard from '@/components/profile/UserOrgCard';
 
 const PublicProfilePage = () => {
   const router = useRouter();
@@ -49,7 +49,6 @@ const PublicProfilePage = () => {
     'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
   );
   const cardBg = useColorModeValue('rgba(255, 255, 255, 0.95)', 'rgba(0, 0, 0, 0.73)');
-  const cardBgOrg = useColorModeValue('white', 'gray.700');
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.600', 'gray.400');
 
@@ -90,6 +89,8 @@ const PublicProfilePage = () => {
     loadProfile();
     return () => { cancelled = true; };
   }, [router.isReady, username]);
+
+  const visibleOrganizations = filterUserOrgsForViewedProfile(organizations, username);
 
   const handleCopyAddress = () => {
     if (profile?.address) {
@@ -250,67 +251,24 @@ const PublicProfilePage = () => {
                         Organizations
                       </Heading>
                       <Badge colorScheme="purple" fontSize="md" px={3} py={1} borderRadius="full">
-                        {organizations.length}
+                        {visibleOrganizations.length}
                       </Badge>
                     </HStack>
 
-                    {organizations.length === 0 ? (
+                    {visibleOrganizations.length === 0 ? (
                       <Text color={subtextColor} textAlign="center" py={4}>
                         Not a member of any organizations yet.
                       </Text>
                     ) : (
                       <Grid templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }} gap={4}>
-                        {organizations.map((userOrg) => (
-                          <GridItem key={userOrg.id}>
-                            <Link href={`/home?org=${userOrg.organization?.name}`} passHref legacyBehavior>
-                              <Card
-                                as="a"
-                                variant="outline"
-                                borderRadius="xl"
-                                cursor="pointer"
-                                transition="transform 0.2s, box-shadow 0.2s, border-color 0.2s"
-                                _hover={{
-                                  transform: 'translateY(-2px)',
-                                  boxShadow: 'lg',
-                                  borderColor: 'purple.400',
-                                }}
-                                bg={cardBgOrg}
-                              >
-                                <CardBody p={4}>
-                                  <VStack align="stretch" spacing={3}>
-                                    <HStack justify="space-between">
-                                      <Text fontWeight="bold" fontSize="lg" color={textColor} noOfLines={1}>
-                                        {userOrg.organization?.name || 'Unknown'}
-                                      </Text>
-                                      <Badge colorScheme="green">{userOrg.membershipStatus}</Badge>
-                                    </HStack>
-
-                                    <Grid templateColumns="repeat(2, 1fr)" gap={2}>
-                                      <VStack align="start" spacing={0}>
-                                        <Text color={subtextColor} fontSize="xs">Shares Earned</Text>
-                                        <Text color={textColor} fontWeight="medium">
-                                          {formatTokenAmount(userOrg.participationTokenBalance)}{' '}
-                                          {userOrg.organization?.participationToken?.symbol || 'shares'}
-                                        </Text>
-                                      </VStack>
-                                      <VStack align="start" spacing={0}>
-                                        <Text color={subtextColor} fontSize="xs">Tasks Completed</Text>
-                                        <Text color={textColor} fontWeight="medium">
-                                          {userOrg.totalTasksCompleted || 0}
-                                        </Text>
-                                      </VStack>
-                                      <VStack align="start" spacing={0}>
-                                        <Text color={subtextColor} fontSize="xs">Votes Cast</Text>
-                                        <Text color={textColor} fontWeight="medium">
-                                          {userOrg.totalVotes || 0}
-                                        </Text>
-                                      </VStack>
-                                    </Grid>
-                                  </VStack>
-                                </CardBody>
-                              </Card>
-                            </Link>
-                          </GridItem>
+                        {visibleOrganizations.map((userOrg) => (
+                          <Link
+                            key={userOrg.id}
+                            href={`/home?org=${encodeURIComponent(userOrg.organization?.name || '')}`}
+                            style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
+                          >
+                            <UserOrgCard userOrg={userOrg} />
+                          </Link>
                         ))}
                       </Grid>
                     )}
