@@ -10,7 +10,6 @@ import {
   VStack,
   Text,
   Button,
-  Avatar,
   Tooltip,
   Wrap,
   WrapItem,
@@ -18,14 +17,7 @@ import {
 } from '@chakra-ui/react';
 import { FiUserPlus, FiUserMinus, FiCheck } from 'react-icons/fi';
 import { VouchProgressBar } from './VouchProgressBar';
-
-/**
- * Truncate an Ethereum address for display
- */
-function truncateAddress(address) {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
+import UserIdentity from '@/components/common/UserIdentity';
 
 /**
  * VouchRequestCard component
@@ -59,7 +51,6 @@ export function VouchRequestCard({
     roleName,
   } = request;
 
-  const displayName = wearerUsername || truncateAddress(wearer);
   const isComplete = vouchCount >= quorum;
 
   // Determine button state and text
@@ -143,23 +134,14 @@ export function VouchRequestCard({
       <VStack spacing={3} align="stretch">
         {/* User Info Row */}
         <HStack justify="space-between" align="flex-start">
-          <HStack spacing={3}>
-            <Avatar
-              size="sm"
-              name={displayName}
-              bg="amethyst.500"
-            />
-            <VStack align="start" spacing={0}>
-              <Text color="warmGray.900" fontWeight="medium" fontSize="sm">
-                {displayName}
-              </Text>
-              {wearerUsername && (
-                <Text color="warmGray.500" fontSize="xs">
-                  {truncateAddress(wearer)}
-                </Text>
-              )}
-            </VStack>
-          </HStack>
+          <UserIdentity
+            address={wearer}
+            usernameHint={wearerUsername}
+            size="sm"
+            nameColor="warmGray.900"
+            nameFontSize="sm"
+            nameFontWeight="medium"
+          />
 
           {/* Action Button */}
           <Tooltip label={buttonConfig.tooltip} placement="top">
@@ -194,16 +176,12 @@ export function VouchRequestCard({
             <Wrap spacing={1}>
               {vouchers.slice(0, 5).map((voucher, index) => (
                 <WrapItem key={voucher.address || index}>
-                  <Tooltip
-                    label={voucher.username || truncateAddress(voucher.address)}
-                    placement="top"
-                  >
-                    <Avatar
-                      size="xs"
-                      name={voucher.username || voucher.address}
-                      bg="amethyst.600"
-                    />
-                  </Tooltip>
+                  <UserIdentity
+                    address={voucher.address}
+                    usernameHint={voucher.username}
+                    size="xs"
+                    showName={false}
+                  />
                 </WrapItem>
               ))}
               {vouchers.length > 5 && (

@@ -31,6 +31,8 @@ import { useAuth } from '@/context/AuthContext';
 
 // Profile hub components
 import ProfileHeader from '@/components/profileHub/ProfileHeader';
+import EditProfileModal from '@/components/profile/EditProfileModal';
+import { useGlobalAccount } from '@/hooks/useGlobalAccount';
 import UserRolesCard from '@/components/profileHub/UserRolesCard';
 import TokenActivityCard from '@/components/profileHub/TokenActivityCard';
 import TokenRequestCard from '@/components/profileHub/TokenRequestCard';
@@ -208,6 +210,10 @@ const UserprofileHub = () => {
   // Modal states
   const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
   const [isExecutiveMenuOpen, setExecutiveMenuOpen] = useState(false);
+  const [isEditProfileOpen, setEditProfileOpen] = useState(false);
+
+  // Global profile metadata (cross-chain) — used for completeness nudge + avatar fallback
+  const { profileMetadata } = useGlobalAccount();
 
   // Compute user info from userData
   const userInfo = useMemo(() => {
@@ -333,9 +339,15 @@ const UserprofileHub = () => {
             <ProfileHeader
               username={userInfo.username}
               address={userInfo.accountAddress}
-              avatarUrl={avatarMap[userInfo.username]}
+              avatarUrl={
+                avatarMap[userInfo.username] ||
+                (profileMetadata?.avatar ? `https://ipfs.io/ipfs/${profileMetadata.avatar}` : undefined)
+              }
               userRoles={userRoles}
               isExec={hasExecRole}
+              profileMetadata={profileMetadata}
+              canEdit={!!userInfo.accountAddress && userAddress?.toLowerCase() === userInfo.accountAddress?.toLowerCase()}
+              onEditProfileClick={() => setEditProfileOpen(true)}
               onSettingsClick={() => setSettingsModalOpen(true)}
               onExecutiveMenuClick={() => setExecutiveMenuOpen(true)}
             />
@@ -522,6 +534,7 @@ const UserprofileHub = () => {
       {/* Modals */}
       <AccountSettingsModal isOpen={isSettingsModalOpen} onClose={() => setSettingsModalOpen(false)} />
       <ExecutiveMenuModal isOpen={isExecutiveMenuOpen} onClose={() => setExecutiveMenuOpen(false)} hasApproverRole={hasApproverRole} />
+      <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setEditProfileOpen(false)} />
     </>
   );
 };

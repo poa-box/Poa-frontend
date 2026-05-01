@@ -3,7 +3,7 @@
  * Compact design with action buttons on the right
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Box,
   HStack,
@@ -15,23 +15,31 @@ import {
   Button,
   Tooltip,
   useClipboard,
+  CloseButton,
 } from '@chakra-ui/react';
-import { SettingsIcon, CopyIcon, CheckIcon } from '@chakra-ui/icons';
+import { SettingsIcon, CopyIcon, CheckIcon, EditIcon } from '@chakra-ui/icons';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
 import { truncateAddress } from '@/utils/profileUtils';
 import { useAuth } from '@/context/AuthContext';
+import { useIdentity } from '@/context/IdentityContext';
 import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
+
+const NUDGE_DISMISS_KEY = (address) => `poa:profileNudgeDismissed:${address?.toLowerCase()}`;
 
 /**
  * ProfileHeader component
  * @param {Object} props
- * @param {string} props.username - User's display name
- * @param {string} props.address - User's wallet address
- * @param {Object[]} props.userRoles - Array of user's roles with name property
- * @param {boolean} props.isExec - Whether user has executive role
- * @param {() => void} props.onSettingsClick - Settings button handler
- * @param {() => void} props.onExecutiveMenuClick - Executive menu handler
+ * @param {string} props.username
+ * @param {string} props.address
+ * @param {string} [props.avatarUrl]
+ * @param {Object[]} [props.userRoles]
+ * @param {boolean} [props.isExec]
+ * @param {Object} [props.profileMetadata] - { bio, avatar, github, twitter, website }
+ * @param {boolean} [props.canEdit] - Whether to show edit button + nudge
+ * @param {() => void} [props.onEditProfileClick]
+ * @param {() => void} props.onSettingsClick
+ * @param {() => void} props.onExecutiveMenuClick
  */
 export function ProfileHeader({
   username,
@@ -39,11 +47,34 @@ export function ProfileHeader({
   avatarUrl,
   userRoles = [],
   isExec,
+  profileMetadata,
+  canEdit = false,
+  onEditProfileClick,
   onSettingsClick,
   onExecutiveMenuClick,
 }) {
   const { hasCopied, onCopy } = useClipboard(address || '');
   const { isPasskeyUser } = useAuth();
+  const identity = useIdentity(address);
+  const resolvedAvatarUrl = avatarUrl || (identity?.avatarCid ? `https://ipfs.io/ipfs/${identity.avatarCid}` : undefined);
+
+  const profileIncomplete = canEdit && !!address && (
+    !profileMetadata?.avatar || !profileMetadata?.bio
+  );
+
+  const [nudgeDismissed, setNudgeDismissed] = useState(true);
+
+  useEffect(() => {
+    if (!address || typeof window === 'undefined') return;
+    const dismissed = window.localStorage.getItem(NUDGE_DISMISS_KEY(address)) === '1';
+    setNudgeDismissed(dismissed);
+  }, [address]);
+
+  const dismissNudge = () => {
+    if (!address || typeof window === 'undefined') return;
+    window.localStorage.setItem(NUDGE_DISMISS_KEY(address), '1');
+    setNudgeDismissed(true);
+  };
 
   return (
     <Box
@@ -69,7 +100,7 @@ export function ProfileHeader({
           <Avatar
             size={{ base: 'lg', md: 'xl' }}
             name={username || address}
-            src={avatarUrl}
+            src={resolvedAvatarUrl}
             bg="purple.500"
             color="white"
             boxShadow="lg"
@@ -149,6 +180,32 @@ export function ProfileHeader({
 
         {/* Right: Action buttons */}
         <HStack spacing={2} flexShrink={0}>
+          {canEdit && onEditProfileClick && (
+            <>
+              <Button
+                size="sm"
+                leftIcon={<EditIcon />}
+                onClick={onEditProfileClick}
+                bg="whiteAlpha.200"
+                color="white"
+                _hover={{ bg: 'whiteAlpha.300' }}
+                display={{ base: 'none', md: 'inline-flex' }}
+              >
+                Edit profile
+              </Button>
+              <IconButton
+                icon={<EditIcon />}
+                isRound
+                size="sm"
+                aria-label="Edit profile"
+                onClick={onEditProfileClick}
+                bg="whiteAlpha.200"
+                color="white"
+                _hover={{ bg: 'whiteAlpha.300' }}
+                display={{ base: 'inline-flex', md: 'none' }}
+              />
+            </>
+          )}
           {isPasskeyUser ? (
             <PasskeyAccountInfo />
           ) : (
@@ -183,6 +240,38 @@ export function ProfileHeader({
           )}
         </HStack>
       </HStack>
+
+      {profileIncomplete && !nudgeDismissed && (
+        <HStack
+          mx={{ base: 4, md: 5 }}
+          mb={{ base: 3, md: 4 }}
+          px={4}
+          py={2}
+          borderRadius="lg"
+          bg="whiteAlpha.100"
+          borderWidth="1px"
+          borderColor="amethyst.300"
+          spacing={3}
+          position="relative"
+          zIndex={2}
+        >
+          <Text fontSize="sm" color="white" flex={1}>
+            {!profileMetadata?.avatar && !profileMetadata?.bio
+              ? 'Add a profile picture and bio so others can recognize you across the org.'
+              : !profileMetadata?.avatar
+                ? 'Add a profile picture so others can recognize you.'
+                : 'Add a short bio so others know who you are.'}
+          </Text>
+          <Button
+            size="xs"
+            colorScheme="purple"
+            onClick={onEditProfileClick}
+          >
+            Add now
+          </Button>
+          <CloseButton size="sm" onClick={dismissNudge} />
+        </HStack>
+      )}
     </Box>
   );
 }

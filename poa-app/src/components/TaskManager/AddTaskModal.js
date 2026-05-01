@@ -22,7 +22,6 @@ import {
   Text,
   Box,
   Tooltip,
-  Avatar,
   IconButton,
   SimpleGrid,
   Image,
@@ -32,6 +31,7 @@ import { getBountyTokenOptions, BOUNTY_TOKENS } from '../../util/tokens';
 import { useUserContext } from '../../context/UserContext';
 import { usePOContext } from '../../context/POContext';
 import { UserSearchInput } from '@/components/common';
+import UserIdentity from '@/components/common/UserIdentity';
 import { calculatePayout, DIFFICULTY_CONFIG } from '@/util/taskUtils';
 import { inputStyles } from '@/components/shared/glassStyles';
 
@@ -455,12 +455,12 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                         borderColor="purple.600"
                       >
                         <HStack spacing={3}>
-                          <Avatar
+                          <UserIdentity
+                            address={selectedUser.address}
+                            usernameHint={selectedUser.username}
                             size="sm"
-                            name={
-                              selectedUser.username || selectedUser.address
-                            }
-                            bg="purple.500"
+                            showName={false}
+                            link={false}
                           />
                           <VStack align="start" spacing={0}>
                             <Text

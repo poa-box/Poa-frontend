@@ -7,6 +7,7 @@ import { resolveTokenLabel, DEFAULT_TOKEN_LABEL } from '../util/tokenLabel';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
 import { useIPFScontext } from './ipfsContext';
+import { useIdentityContext } from './IdentityContext';
 import { getSubgraphUrl, getAllSubgraphUrls } from '../config/networks';
 
 const POContext = createContext();
@@ -182,6 +183,7 @@ export const POProvider = ({ children }) => {
     const router = useRouter();
     const poName = router.query.org || router.query.userDAO || getDefaultOrgForHost();
     const { safeFetchFromIpfs } = useIPFScontext();
+    const { seedIdentities } = useIdentityContext();
 
     const [state, dispatch] = useReducer(poReducer, initialState);
 
@@ -190,7 +192,8 @@ export const POProvider = ({ children }) => {
         return state.leaderboardData.filter(user => user.hasUsername);
     }, [state.leaderboardData]);
 
-    // Username → avatar IPFS URL map for components to look up profile pictures
+    // Username → avatar IPFS URL map for components to look up profile pictures.
+    // Backwards-compat view; new code should resolve via IdentityContext / <UserIdentity>.
     const avatarMap = useMemo(() => {
         const map = {};
         for (const user of state.leaderboardData) {
@@ -200,6 +203,20 @@ export const POProvider = ({ children }) => {
         }
         return map;
     }, [state.leaderboardData]);
+
+    // Seed IdentityContext with leaderboard data so cross-app components can
+    // resolve avatar/username for these addresses without re-fetching.
+    useEffect(() => {
+        if (!state.leaderboardData || state.leaderboardData.length === 0) return;
+        const entries = state.leaderboardData
+            .filter(u => u.address)
+            .map(u => ({
+                address: u.address,
+                username: u.hasUsername ? u.name : null,
+                avatarCid: u.avatarCid,
+            }));
+        if (entries.length > 0) seedIdentities(entries);
+    }, [state.leaderboardData, seedIdentities]);
 
     // Step 1: Look up org by name across all chains via parallel fetch
     const [orgLookupLoading, setOrgLookupLoading] = useState(!!poName);

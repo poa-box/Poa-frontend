@@ -14,11 +14,11 @@ import {
   VStack,
   Text,
   Icon,
-  Avatar,
 } from '@chakra-ui/react';
 import { FiSearch, FiCheck, FiUserPlus } from 'react-icons/fi';
 import PulseLoader from "@/components/shared/PulseLoader";
 import { useUserSearch } from '@/hooks/useUserSearch';
+import UserIdentity from '@/components/common/UserIdentity';
 
 /**
  * UserSearchInput component
@@ -105,10 +105,12 @@ export function UserSearchInput({
             onClick={handleSelect}
             transition="background-color 0.2s"
           >
-            <Avatar
+            <UserIdentity
+              address={searchResult.address}
+              usernameHint={searchResult.username}
               size="sm"
-              name={searchResult.username || searchResult.address}
-              bg="purple.500"
+              showName={false}
+              link={false}
             />
             <VStack align="start" spacing={0} flex={1}>
               <Text color="white" fontSize="sm" fontWeight="medium">
