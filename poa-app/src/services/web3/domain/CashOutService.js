@@ -50,6 +50,14 @@ export const DEFAULT_CONVERSION_RATE = parseUnits('0.98', 18);
 export const DEFAULT_MIN_INTENT = 1n * 10n ** 6n;       // $1 minimum P2P intent
 export const DEFAULT_MIN_DEST_GAS = 800_000n;          // executeData → ZKP2P deposit creation
 
+// Bridge slippage in basis points. We aggressively undercut the quote's minOutputAmount
+// so transmitters have enough margin to take a request that includes a destinationPayload
+// (executing the relay's executeData costs gas + carries failure risk on Base, which the
+// Bungee quote API doesn't price in when the payload is supplied after quoting).
+// Tuned at 5%: confirmed bridges of $7 sat unfilled at 0.6% slippage; 5% gives transmitters
+// ~$0.35 on a $7 cashout, which clears their floor.
+export const BRIDGE_SLIPPAGE_BPS = 500n;
+
 // External APIs (no auth required)
 const BUNGEE_API = 'https://public-backend.bungee.exchange/api';
 const ZKP2P_CURATOR_API = 'https://api.peer.xyz/v1';
@@ -226,10 +234,23 @@ export async function getBridgeQuote({ amountWei, userAddress }) {
 }
 
 /**
+ * Compute the minOutputAmount we'll accept. Bungee's quote returns a minOutput based
+ * on a clean USDC bridge (no destination call); when we supply a destinationPayload
+ * the transmitter takes on extra gas + execution risk that isn't priced in. Override
+ * with a wider slippage so requests actually get filled.
+ */
+export function computeMinOutputAmount(inputAmount) {
+  const input = BigInt(inputAmount);
+  return (input * (10000n - BRIDGE_SLIPPAGE_BPS)) / 10000n;
+}
+
+/**
  * Build the Request struct for BungeeInbox.createRequest from a quote.
  * Overrides:
  *   - basicReq.sender → BungeeInbox (required by inbox._checkRequestValidity)
  *   - basicReq.nonce  → fresh unique value
+ *   - basicReq.minOutputAmount → widened to give transmitters margin to execute
+ *     the destinationPayload (see computeMinOutputAmount)
  *   - destinationPayload → our encoded CashOutParams
  *   - minDestGas → bumped so executeData has gas
  */
@@ -258,7 +279,7 @@ export function buildRequestFromQuote({
       inputToken: basic.inputToken,
       inputAmount: BigInt(basic.inputAmount),
       outputToken: basic.outputToken,
-      minOutputAmount: BigInt(basic.minOutputAmount),
+      minOutputAmount: computeMinOutputAmount(basic.inputAmount),
       refuelAmount: BigInt(basic.refuelAmount),
     },
     swapOutputToken: witness.swapOutputToken,
@@ -303,38 +324,6 @@ export function buildBatchCalls({ amountWei, request, refundAddress }) {
   ];
 }
 
-/**
- * Poll Bungee status until the bridge fills or times out.
- */
-export async function pollBridgeStatus(requestHash, { intervalMs = 5000, timeoutMs = 600_000, onTick } = {}) {
-  const start = Date.now();
-  let attempt = 0;
-  while (Date.now() - start < timeoutMs) {
-    attempt += 1;
-    try {
-      const res = await fetch(
-        `${BUNGEE_API}/v1/bungee/status?requestHash=${requestHash}`,
-        { headers: { 'User-Agent': 'POA-CashOut/1.0' } },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const result = Array.isArray(data?.result) ? data.result[0] : data?.result;
-        if (result) {
-          const status = result.bungeeStatusCode ?? 1;
-          onTick?.({ attempt, elapsedSec: Math.round((Date.now() - start) / 1000), status, result });
-          if (status === 3) return result;             // COMPLETED
-          if (status === 4) throw new Error('Bridge failed at the gateway');
-        }
-      }
-    } catch (e) {
-      if (e.message?.includes('Bridge failed')) throw e;
-      // Otherwise transient — keep polling
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error('Bridge timed out — funds may still arrive at the relay');
-}
-
 /*══════════════════════════════════ ORCHESTRATION ══════════════════════════════════*/
 
 /**
@@ -366,12 +355,17 @@ export async function prepareCashOut({
   tick('quoting', 'Getting bridge quote…');
   const quote = await getBridgeQuote({ amountWei, userAddress });
 
+  // CashOutParams.maxIntentAmount is the cap on a single P2P intent the relay
+  // creates on Base. The deposit is funded with the bridged amount (= our
+  // minOutputAmount), so cap intents to the same value rather than the original
+  // input — that's what's actually available for fills.
+  const expectedDeliveredAmount = computeMinOutputAmount(amountWei);
   const cashOutPayload = encodeCashOutPayload({
     depositor: userAddress,
     platform,
     payeeDetailsHash,
     conversionRate: conversionRate ?? DEFAULT_CONVERSION_RATE,
-    maxIntentAmount: amountWei,
+    maxIntentAmount: expectedDeliveredAmount,
   });
 
   const request = buildRequestFromQuote({ quote, cashOutPayload });

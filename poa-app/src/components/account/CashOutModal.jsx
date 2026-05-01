@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   VStack, HStack, Text, Input, InputGroup, InputRightElement, Button,
-  Alert, AlertIcon, Spinner, Box, Badge, Progress, Select, useToast,
+  Alert, AlertIcon, Spinner, Box, Badge, Progress, Select,
 } from '@chakra-ui/react';
 import { FiCheck, FiDollarSign } from 'react-icons/fi';
 import { ethers } from 'ethers';
@@ -27,13 +27,9 @@ import { clientToSigner } from '@/components/ProviderConverter';
 import PasskeyAccountABI from '../../../abi/PasskeyAccount.json';
 import {
   ARBITRUM_CHAIN_ID,
-  BASE_CHAIN_ID,
-  CASHOUT_RELAY_ADDRESS,
+  BRIDGE_SLIPPAGE_BPS,
   DEFAULT_CONVERSION_RATE,
   PAYMENT_PLATFORMS,
-  buildBatchCalls,
-  encodeCashOutPayload,
-  pollBridgeStatus,
   prepareCashOut,
 } from '@/services/web3/domain/CashOutService';
 
@@ -54,17 +50,18 @@ const glassStyle = {
 };
 
 const PROGRESS_BY_STEP = {
-  registering: 10,
-  quoting: 25,
-  ready: 40,
-  signing: 55,
-  submitted: 70,
-  bridging: 85,
-  deposited: 95,
+  registering: 15,
+  quoting: 35,
+  ready: 50,
+  signing: 70,
+  submitted: 95,
 };
 
+// Bridge slippage (5%) + ZKP2P spread (2%) → user receives ~93% of input in fiat.
+const BRIDGE_SLIPPAGE_PCT = Number(BRIDGE_SLIPPAGE_BPS) / 100;     // 5
+const VENMO_SPREAD_PCT = 2;                                        // 0.98 rate
+
 function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
-  const toast = useToast();
   const { isPasskeyUser, passkeyState } = useAuth();
   const { switchChainAsync } = useSwitchChain();
   const wagmiConfig = useConfig();
@@ -100,7 +97,8 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
 
   const estimatedReceive = useMemo(() => {
     if (!amount || parsedAmount === 0n) return '';
-    return (Number(amount) * 0.98 * 0.995).toFixed(2);
+    const bridged = Number(amount) * (1 - BRIDGE_SLIPPAGE_PCT / 100);
+    return (bridged * (1 - VENMO_SPREAD_PCT / 100)).toFixed(2);
   }, [amount, parsedAmount]);
 
   const isValid =
@@ -139,11 +137,10 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
           : 'Approve USDC in your wallet…',
       });
 
-      let txReceipt;
       if (isPasskeyUser) {
-        txReceipt = await submitViaPasskey({ calls, accountAddress, passkeyState });
+        await submitViaPasskey({ calls, accountAddress, passkeyState });
       } else {
-        txReceipt = await submitViaEOA({
+        await submitViaEOA({
           calls,
           currentChainId: currentChain?.id,
           switchChainAsync,
@@ -153,25 +150,12 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
         });
       }
 
-      handleStep({ step: 'submitted', message: 'Bridge request submitted.' });
-
-      // Step 3: Poll Bungee status
-      handleStep({ step: 'bridging', message: 'Bridging to Base… (~30–90s)' });
-      const requestHash = extractRequestHashFromReceipt(txReceipt);
-      if (requestHash) {
-        await pollBridgeStatus(requestHash, {
-          onTick: ({ elapsedSec }) => handleStep({
-            step: 'bridging',
-            message: `Bridging to Base… (${elapsedSec}s)`,
-          }),
-        }).catch((e) => {
-          // Don't fail the modal — funds may still arrive at the relay
-          console.warn('[CashOut] Bridge poll warning:', e.message);
-        });
-      }
-
-      handleStep({ step: 'deposited', message: 'Deposit listed on peer.xyz!' });
-
+      // Done — bridge request is on-chain. We deliberately don't poll Bungee status
+      // here: their public-backend endpoint blocks browser CORS and aggressive polls
+      // get rate-limited (1015). The transmitter typically delivers in 1–5 minutes;
+      // the user can verify in their payment app. If the bridge fails or the
+      // deadline lapses, BungeeInbox auto-refunds via withdrawFunds.
+      handleStep({ step: 'submitted', message: 'Bridge submitted!' });
       setStep(STEPS.complete);
       setProgressPercent(100);
       onSuccess?.();
@@ -209,10 +193,11 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
               <Box w="64px" h="64px" borderRadius="full" bg="green.500" display="flex" alignItems="center" justifyContent="center">
                 <FiCheck size={32} color="white" />
               </Box>
-              <Text fontSize="xl" fontWeight="bold">Deposit Created!</Text>
+              <Text fontSize="xl" fontWeight="bold">Bridge Submitted!</Text>
               <Text color="gray.400" textAlign="center" fontSize="sm">
-                Your {amount} USDC is listed on peer.xyz. A buyer will send ~${estimatedReceive} to
-                your {platformLabel} shortly. Check peer.xyz to track.
+                Bridging your {amount} USDC to Base, then matching with a P2P buyer.
+                You should see ~${estimatedReceive} in {platformLabel} within ~5 minutes.
+                Check peer.xyz to track if it doesn't arrive.
               </Text>
             </VStack>
           ) : step === STEPS.error ? (
@@ -230,8 +215,8 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
               <Text fontSize="lg" fontWeight="bold">{statusMessage}</Text>
               <Progress value={progressPercent} size="sm" colorScheme="purple" borderRadius="full" w="100%" hasStripe isAnimated />
               <HStack spacing={2} flexWrap="wrap" justify="center">
-                {['Register', 'Quote', 'Sign', 'Submit', 'Bridge', 'Deposit'].map((label, i) => (
-                  <Badge key={label} colorScheme={progressPercent >= (i + 1) * 14 ? 'green' : 'gray'} fontSize="xs">
+                {['Register', 'Quote', 'Sign', 'Submit'].map((label, i) => (
+                  <Badge key={label} colorScheme={progressPercent >= (i + 1) * 20 ? 'green' : 'gray'} fontSize="xs">
                     {label}
                   </Badge>
                 ))}
@@ -241,7 +226,7 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
             <VStack spacing={5}>
               <Text fontSize="sm" color="gray.400">
                 Convert USDC to cash. You sign once — the bridge and P2P matching happen automatically.
-                ~2% spread, fills in minutes to hours.
+                ~7% total spread (5% bridge slippage + 2% P2P spread), fills in minutes.
               </Text>
 
               {token && token.chainId !== ARBITRUM_CHAIN_ID && (
@@ -317,14 +302,18 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
                       <Text fontSize="xs" color="white">{amount} USDC</Text>
                     </HStack>
                     <HStack justify="space-between">
-                      <Text fontSize="xs" color="gray.400">Rate (2% spread)</Text>
-                      <Text fontSize="xs" color="gray.400">0.98 USD/USDC</Text>
+                      <Text fontSize="xs" color="gray.400">Bridge ({BRIDGE_SLIPPAGE_PCT}% slippage)</Text>
+                      <Text fontSize="xs" color="gray.400">Arb → Base</Text>
+                    </HStack>
+                    <HStack justify="space-between">
+                      <Text fontSize="xs" color="gray.400">P2P ({VENMO_SPREAD_PCT}% spread)</Text>
+                      <Text fontSize="xs" color="gray.400">USDC → {platformLabel}</Text>
                     </HStack>
                     <HStack justify="space-between" pt={1} borderTop="1px solid" borderColor="whiteAlpha.100">
                       <Text fontSize="xs" color="gray.300" fontWeight="bold">You receive (est.)</Text>
                       <Text fontSize="xs" color="green.300" fontWeight="bold">~${estimatedReceive}</Text>
                     </HStack>
-                    <Text fontSize="2xs" color="gray.600">Fills in minutes to hours via peer.xyz</Text>
+                    <Text fontSize="2xs" color="gray.600">Fills in minutes via peer.xyz</Text>
                   </VStack>
                 </Box>
               )}
@@ -436,20 +425,6 @@ async function submitViaEOA({ calls, currentChainId, switchChainAsync, wagmiConf
     value: ethers.BigNumber.from(calls[1].value.toString()),
   });
   return createTx.wait();
-}
-
-// keccak256("SingleOutputRequestCreated(bytes32,address,bytes)")
-const SINGLE_OUTPUT_REQUEST_CREATED_TOPIC =
-  '0xaafaed86f175a2b5a9812043ba82df1a5d0ab905b78d0f4bea5ca66a05b12183';
-
-function extractRequestHashFromReceipt(receipt) {
-  if (!receipt?.logs) return undefined;
-  for (const log of receipt.logs) {
-    if (log.topics?.[0]?.toLowerCase() === SINGLE_OUTPUT_REQUEST_CREATED_TOPIC) {
-      return log.topics[1];
-    }
-  }
-  return undefined;
 }
 
 /**
