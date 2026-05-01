@@ -17,14 +17,11 @@ import { useAccount, useSwitchChain, useConfig } from 'wagmi';
 import { getConnectorClient } from 'wagmi/actions';
 import { useAuth } from '@/context/AuthContext';
 import { formatTokenAmount } from '@/util/formatToken';
-import { createChainClients } from '@/services/web3/utils/chainClients';
 import { clientToSigner } from '@/components/ProviderConverter';
 import {
   ARBITRUM_CHAIN_ID,
   DEFAULT_CONVERSION_RATE,
   PAYMENT_PLATFORMS,
-  PERMIT2_ADDRESS,
-  USDC_ARBITRUM,
   prepareCashOut,
 } from '@/services/web3/domain/CashOutService';
 
@@ -146,22 +143,11 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
       // 3. Approve USDC → Permit2 if allowance < amount. We use max approval
       //    so subsequent cashouts skip this step entirely (Permit2 limits
       //    risk via per-cashout signed nonces; max approval is safe here).
-      const { publicClient } = createChainClients(ARBITRUM_CHAIN_ID);
       const erc20 = new ethers.Contract(approval.token, ERC20_ALLOWANCE_ABI, signer);
-      const currentAllowance = BigInt(
-        (await publicClient.readContract({
-          address: approval.token,
-          abi: ERC20_ALLOWANCE_ABI,
-          functionName: 'allowance',
-          args: [accountAddress, approval.spender],
-        })).toString()
-      );
+      const currentAllowance = (await erc20.allowance(accountAddress, approval.spender)).toBigInt();
       if (currentAllowance < approval.amount) {
         handleStep({ step: 'approving', message: 'Approving USDC (one-time)…' });
-        const approveTx = await erc20.approve(
-          approval.spender,
-          ethers.constants.MaxUint256
-        );
+        const approveTx = await erc20.approve(approval.spender, ethers.constants.MaxUint256);
         await approveTx.wait();
       }
 

@@ -25,7 +25,6 @@
 
 import {
   encodeAbiParameters,
-  hashTypedData,
   keccak256,
   parseUnits,
   toBytes,
@@ -136,10 +135,20 @@ export function encodeCashOutPayload({
 
 /**
  * Get a Bungee autoRoute quote (Permit2-signed) for Arb→Base USDC delivery to
- * the relay. Returns the full route including signTypedData, which we mutate
- * with our destinationPayload + minDestGas before signing.
+ * the relay, with our destinationPayload baked in at quote time.
+ *
+ * Critical: passing `destinationPayload` + `destinationGasLimit` as query
+ * params makes Bungee (a) include them in the witness so the user signs them
+ * directly, and (b) price the bridge accounting for the destination call's
+ * gas cost — solvers reject quotes that under-price the work they're being
+ * asked to do.
  */
-export async function getAutoRouteQuote({ amountWei, userAddress }) {
+export async function getAutoRouteQuote({
+  amountWei,
+  userAddress,
+  destinationPayload,
+  minDestGas = DEFAULT_MIN_DEST_GAS,
+}) {
   const params = new URLSearchParams({
     originChainId: String(ARBITRUM_CHAIN_ID),
     destinationChainId: String(BASE_CHAIN_ID),
@@ -148,6 +157,8 @@ export async function getAutoRouteQuote({ amountWei, userAddress }) {
     inputAmount: String(amountWei),
     userAddress,
     receiverAddress: CASHOUT_RELAY_ADDRESS,
+    destinationPayload,
+    destinationGasLimit: String(minDestGas),
   });
   const res = await fetch(`${BUNGEE_API}/v1/bungee/quote?${params}`);
   if (!res.ok) throw new Error(`Bungee HTTP ${res.status}: ${await res.text()}`);
@@ -160,21 +171,15 @@ export async function getAutoRouteQuote({ amountWei, userAddress }) {
 }
 
 /**
- * Mutate the Permit2 typed-data witness so the destination call invokes the
- * relay's executeData with our CashOutParams. Bungee quotes with empty
- * destinationPayload by default; we splice ours in and the user signs the
- * modified witness.
- *
- * Returns the typed data ready for `signTypedData` (domain, types, message).
+ * Build the Permit2 typed data from a quote, normalizing bigints to strings so
+ * the wallet can serialize the message. The witness already contains our
+ * destinationPayload (baked in at quote time) — no mutation needed here.
  */
-export function buildPermit2TypedData({ quote, cashOutPayload, minDestGas = DEFAULT_MIN_DEST_GAS }) {
+export function buildPermit2TypedData({ quote }) {
   const std = quote.signTypedData;
   const message = JSON.parse(JSON.stringify(std.values, (_k, v) =>
     typeof v === 'bigint' ? v.toString() : v
   ));
-  message.witness.destinationPayload = cashOutPayload;
-  message.witness.minDestGas = String(minDestGas);
-
   return {
     domain: std.domain,
     types: std.types,
@@ -188,16 +193,16 @@ export function buildPermit2TypedData({ quote, cashOutPayload, minDestGas = DEFA
  * solvers, the winning solver delivers USDC on Base + calls executeData in the
  * same destination tx (atomic).
  */
-export async function submitSignedRequest({ quote, signature, mutatedMessage }) {
+export async function submitSignedRequest({ quote, signature, message }) {
   const res = await fetch(`${BUNGEE_API}/v1/bungee/submit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       requestType: quote.requestType,        // SINGLE_OUTPUT_REQUEST
-      request: mutatedMessage.witness,       // the witness with our destinationPayload
+      request: message.witness,
       userSignature: signature,
       quoteId: quote.quoteId,
-      permitted: mutatedMessage.permitted,
+      permitted: message.permitted,
     }),
   });
   if (!res.ok) throw new Error(`Bungee submit HTTP ${res.status}: ${await res.text()}`);
@@ -235,9 +240,10 @@ export async function prepareCashOut({
   tick('registering', `Registering ${PAYMENT_PLATFORMS[platform]?.label || platform}…`);
   const payeeDetailsHash = await registerPayee(platform, payeeHandle);
 
-  tick('quoting', 'Getting bridge route…');
-  const quote = await getAutoRouteQuote({ amountWei, userAddress });
-
+  // Encode the payload BEFORE quoting so Bungee builds the witness with it
+  // and prices the destination-call gas into the bridge fee. Quoting empty
+  // and mutating after leaves solvers under-paid — that's what stalled the
+  // earlier on-chain createRequest experiments.
   const cashOutPayload = encodeCashOutPayload({
     depositor: userAddress,
     platform,
@@ -246,14 +252,15 @@ export async function prepareCashOut({
     maxIntentAmount: amountWei,
   });
 
-  const typedData = buildPermit2TypedData({ quote, cashOutPayload });
+  tick('quoting', 'Getting bridge route…');
+  const quote = await getAutoRouteQuote({
+    amountWei,
+    userAddress,
+    destinationPayload: cashOutPayload,
+  });
 
-  // Sanity: the witness hash we just built will go through Permit2's witness
-  // validation. Compute it locally so a debug consumer can compare against the
-  // hash the wallet shows during signing.
-  const expectedHash = hashTypedData(typedData);
-
-  tick('ready', 'Ready to sign.', { quote, payeeDetailsHash, typedData, expectedHash });
+  const typedData = buildPermit2TypedData({ quote });
+  tick('ready', 'Ready to sign.', { quote, payeeDetailsHash, typedData });
 
   return {
     typedData,
@@ -265,10 +272,9 @@ export async function prepareCashOut({
     submit: async (signature) => submitSignedRequest({
       quote,
       signature,
-      mutatedMessage: typedData.message,
+      message: typedData.message,
     }),
     quote,
     payeeDetailsHash,
-    expectedHash,
   };
 }
