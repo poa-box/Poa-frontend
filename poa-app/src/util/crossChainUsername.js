@@ -410,8 +410,27 @@ export async function findUserProfilesByAddresses(addresses) {
 /**
  * Find all organization memberships for an address across ALL chains.
  *
+ * Each entry's `firstSeenAt` is a unix-seconds string (subgraph BigInt) and
+ * `organization.metadata` is the indexed metadata object containing `logo`
+ * (IPFS CID) and `description`. `metadataHash` is retained as a fallback for
+ * subgraphs that have not indexed the metadata entity.
+ *
  * @param {string} address - Wallet address
- * @returns {Promise<Array<{ id, membershipStatus, participationTokenBalance, totalTasksCompleted, totalVotes, organization }>>}
+ * @returns {Promise<Array<{
+ *   id: string,
+ *   membershipStatus: string,
+ *   participationTokenBalance: string,
+ *   totalTasksCompleted: number,
+ *   totalVotes: number,
+ *   firstSeenAt: string | null,
+ *   organization: {
+ *     id: string,
+ *     name: string,
+ *     metadataHash: string,
+ *     metadata: { id: string, logo: string, description: string } | null,
+ *     participationToken: { symbol: string }
+ *   }
+ * }>>}
  */
 export async function findUserOrgsAcrossChains(address) {
   const sources = getAllSubgraphUrls();
@@ -424,10 +443,16 @@ export async function findUserOrgsAcrossChains(address) {
         participationTokenBalance
         totalTasksCompleted
         totalVotes
+        firstSeenAt
         organization {
           id
           name
           metadataHash
+          metadata {
+            id
+            logo
+            description
+          }
           participationToken { symbol }
         }
       }
