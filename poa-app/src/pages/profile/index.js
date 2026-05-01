@@ -228,7 +228,9 @@ const UserprofileHub = () => {
       username: graphUsername,
       ptBalance,
       memberStatus: userData.membershipStatus || 'Member',
-      accountAddress: userData.id,
+      // user.id from the subgraph is the composite `${orgId}-${address}` —
+      // user.address is the bare wallet/account address we actually want to display.
+      accountAddress: userData.address || userAddress,
       tasksCompleted: userData.tasksCompleted || 0,
       totalVotes: userData.totalVotes || 0,
       dateJoined: userData.firstSeenAt ? formatDateToAmerican(userData.firstSeenAt) : 'Unknown',
@@ -238,7 +240,7 @@ const UserprofileHub = () => {
       // nextTier: progressData.nextTier,
       // nextTierThreshold: progressData.nextTierThreshold,
     };
-  }, [userData, graphUsername]);
+  }, [userData, graphUsername, userAddress]);
 
   // Check if user has claimed any roles
   const userHatIds = userData?.hatIds || [];
@@ -346,7 +348,7 @@ const UserprofileHub = () => {
               userRoles={userRoles}
               isExec={hasExecRole}
               profileMetadata={profileMetadata}
-              canEdit={!!userInfo.accountAddress && userAddress?.toLowerCase() === userInfo.accountAddress?.toLowerCase()}
+              canEdit={!!userAddress}
               onEditProfileClick={() => setEditProfileOpen(true)}
               onSettingsClick={() => setSettingsModalOpen(true)}
               onExecutiveMenuClick={() => setExecutiveMenuOpen(true)}
