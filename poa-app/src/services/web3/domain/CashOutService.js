@@ -1,29 +1,31 @@
 /**
  * CashOutService
- * One-click USDC → fiat cashout via Bungee bridge + ZKP2P P2P offramp.
+ * One-click USDC → fiat cashout, atomic.
  *
- * Architecture:
- *   1. Frontend calls ZKP2P curator to register a payment handle (Venmo, CashApp, ...)
- *   2. Frontend calls Bungee /quote to get a route + witness for Arb→Base USDC
- *   3. Frontend overrides the witness sender→BungeeInbox, nonce→fresh,
- *      destinationPayload→encoded CashOutParams
- *   4. User submits a UserOp/tx batch:
- *        a. USDC.approve(BungeeInbox, amount)
- *        b. BungeeInbox.createRequest(request, refundAddress)
- *   5. Bungee transmitter delivers USDC on Base, calls CashOutRelay.executeData()
- *   6. Relay decodes payload + creates ZKP2P deposit owned by user
- *   7. P2P taker fills the deposit by sending fiat to the user's handle
+ *   User signs ONE Permit2 message → Bungee solver delivers USDC on Base AND
+ *   calls CashOutRelay.executeData(...) in the same destination tx → relay
+ *   creates the ZKP2P deposit owned by the user → P2P taker fills → fiat lands
+ *   in the user's payment app.
  *
- * Why on-chain createRequest (not Permit2)?
- *   Permit2 needs an off-chain EIP-712 signature. Passkey smart accounts (ERC-4337)
- *   cannot produce off-chain sigs. The on-chain inbox path takes a UserOp batch
- *   signed once with WebAuthn — works for both EOA and passkey users with the
- *   same code path.
+ * No relay tx, no backend trigger. The relay's executeData IS the deposit
+ * creation, and the Bungee solver runs it as part of delivery.
+ *
+ * Why this works (and the on-chain Inbox path didn't):
+ *   - Bungee's solver pool reliably picks up Permit2-signed autoRoute requests
+ *     with destinationPayload. The original e2e test ($10 → Venmo) verified
+ *     this end-to-end with the same destinationPayload encoding.
+ *   - On-chain `BungeeInbox.createRequest` requests with destinationPayload
+ *     have effectively zero solver coverage at small order sizes — confirmed
+ *     by two production tests that sat for 10 min and auto-refunded.
+ *
+ * Passkey accounts: their account contract has no `isValidSignature`, so
+ * Permit2's EIP-1271 path can't validate them. Atomic cashout for passkey
+ * users requires a contract upgrade to PasskeyAccount (track in a follow-up).
  */
 
 import {
   encodeAbiParameters,
-  encodeFunctionData,
+  hashTypedData,
   keccak256,
   parseUnits,
   toBytes,
@@ -31,11 +33,12 @@ import {
 
 /*══════════════════════════════════ CONSTANTS ══════════════════════════════════*/
 
-// Deployed CashOutRelay on Base mainnet — receives USDC + creates ZKP2P deposit
+// Deployed CashOutRelay on Base mainnet — runs on the destination side,
+// receives USDC, decodes the destinationPayload, and creates the ZKP2P deposit.
 export const CASHOUT_RELAY_ADDRESS = '0xA65414A21dc114199cAfD7c6c3ed99488Eb9eFE5';
 
-// Bungee Inbox — same address on every chain (cross-chain entry point)
-export const BUNGEE_INBOX_ADDRESS = '0x5E0f8E7337C8955D2124b8e85Ca74aF884b3E124';
+// Permit2 — same address on every chain
+export const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
 
 // USDC addresses
 export const USDC_ARBITRUM = '0xaf88d065e77c8cC2239327C5EDb3A432268e5831';
@@ -44,19 +47,11 @@ export const USDC_BASE = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
 export const ARBITRUM_CHAIN_ID = 42161;
 export const BASE_CHAIN_ID = 8453;
 
-// 0.98 USD per USDC = 2% spread to the P2P seller. Lower rates don't get filled
-// (other Venmo deposits sit at 1.02+). Confirmed in production with $10 → @hudsonhrh.
+// 0.98 USD per USDC = 2% spread to the P2P seller. Lower rates don't fill.
+// Confirmed in production with $10 → @hudsonhrh on Venmo.
 export const DEFAULT_CONVERSION_RATE = parseUnits('0.98', 18);
-export const DEFAULT_MIN_INTENT = 1n * 10n ** 6n;       // $1 minimum P2P intent
-export const DEFAULT_MIN_DEST_GAS = 800_000n;          // executeData → ZKP2P deposit creation
-
-// Bridge slippage in basis points. We aggressively undercut the quote's minOutputAmount
-// so transmitters have enough margin to take a request that includes a destinationPayload
-// (executing the relay's executeData costs gas + carries failure risk on Base, which the
-// Bungee quote API doesn't price in when the payload is supplied after quoting).
-// Tuned at 5%: confirmed bridges of $7 sat unfilled at 0.6% slippage; 5% gives transmitters
-// ~$0.35 on a $7 cashout, which clears their floor.
-export const BRIDGE_SLIPPAGE_BPS = 500n;
+export const DEFAULT_MIN_INTENT = 1n * 10n ** 6n;     // $1 minimum P2P intent
+export const DEFAULT_MIN_DEST_GAS = 800_000n;        // executeData → ZKP2P deposit
 
 // External APIs (no auth required)
 const BUNGEE_API = 'https://public-backend.bungee.exchange/api';
@@ -74,74 +69,7 @@ export const PAYMENT_PLATFORMS = {
 
 /*══════════════════════════════════ ABIs ══════════════════════════════════*/
 
-const ERC20_ABI = [
-  {
-    type: 'function',
-    name: 'approve',
-    stateMutability: 'nonpayable',
-    inputs: [
-      { name: 'spender', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    outputs: [{ type: 'bool' }],
-  },
-  {
-    type: 'function',
-    name: 'allowance',
-    stateMutability: 'view',
-    inputs: [
-      { name: 'owner', type: 'address' },
-      { name: 'spender', type: 'address' },
-    ],
-    outputs: [{ type: 'uint256' }],
-  },
-];
-
-const BUNGEE_INBOX_ABI = [
-  {
-    type: 'function',
-    name: 'createRequest',
-    stateMutability: 'payable',
-    inputs: [
-      {
-        name: 'singleOutputRequest',
-        type: 'tuple',
-        components: [
-          {
-            name: 'basicReq',
-            type: 'tuple',
-            components: [
-              { name: 'originChainId', type: 'uint256' },
-              { name: 'destinationChainId', type: 'uint256' },
-              { name: 'deadline', type: 'uint256' },
-              { name: 'nonce', type: 'uint256' },
-              { name: 'sender', type: 'address' },
-              { name: 'receiver', type: 'address' },
-              { name: 'delegate', type: 'address' },
-              { name: 'bungeeGateway', type: 'address' },
-              { name: 'switchboardId', type: 'uint32' },
-              { name: 'inputToken', type: 'address' },
-              { name: 'inputAmount', type: 'uint256' },
-              { name: 'outputToken', type: 'address' },
-              { name: 'minOutputAmount', type: 'uint256' },
-              { name: 'refuelAmount', type: 'uint256' },
-            ],
-          },
-          { name: 'swapOutputToken', type: 'address' },
-          { name: 'minSwapOutput', type: 'uint256' },
-          { name: 'metadata', type: 'bytes32' },
-          { name: 'affiliateFees', type: 'bytes' },
-          { name: 'minDestGas', type: 'uint256' },
-          { name: 'destinationPayload', type: 'bytes' },
-          { name: 'exclusiveTransmitter', type: 'address' },
-        ],
-      },
-      { name: 'refundAddress', type: 'address' },
-    ],
-    outputs: [],
-  },
-];
-
+// Same encoding the relay's executeData decodes
 const CASHOUT_PARAMS_TUPLE = [
   {
     type: 'tuple',
@@ -160,8 +88,8 @@ const CASHOUT_PARAMS_TUPLE = [
 /*══════════════════════════════════ STEP-LEVEL HELPERS ══════════════════════════════════*/
 
 /**
- * Register a P2P payment handle with the ZKP2P curator. Returns the on-chain hash
- * the relay uses to bind a deposit to a specific payee identity.
+ * Register a P2P payment handle with the ZKP2P curator. Returns the on-chain
+ * hash that proves payee identity to the relay.
  */
 export async function registerPayee(platform, handle) {
   const config = PAYMENT_PLATFORMS[platform];
@@ -207,11 +135,11 @@ export function encodeCashOutPayload({
 }
 
 /**
- * Get a Bungee bridge quote for Arb→Base USDC delivery to the relay.
- * Returns the autoRoute object — we only need the witness fields (rates,
- * gateway, delegate, switchboard, affiliate fees, metadata).
+ * Get a Bungee autoRoute quote (Permit2-signed) for Arb→Base USDC delivery to
+ * the relay. Returns the full route including signTypedData, which we mutate
+ * with our destinationPayload + minDestGas before signing.
  */
-export async function getBridgeQuote({ amountWei, userAddress }) {
+export async function getAutoRouteQuote({ amountWei, userAddress }) {
   const params = new URLSearchParams({
     originChainId: String(ARBITRUM_CHAIN_ID),
     destinationChainId: String(BASE_CHAIN_ID),
@@ -221,122 +149,78 @@ export async function getBridgeQuote({ amountWei, userAddress }) {
     userAddress,
     receiverAddress: CASHOUT_RELAY_ADDRESS,
   });
-  const res = await fetch(`${BUNGEE_API}/v1/bungee/quote?${params}`, {
-    headers: { 'User-Agent': 'POA-CashOut/1.0' },
-  });
+  const res = await fetch(`${BUNGEE_API}/v1/bungee/quote?${params}`);
   if (!res.ok) throw new Error(`Bungee HTTP ${res.status}: ${await res.text()}`);
 
   const data = await res.json();
   if (!data.success || !data.result?.autoRoute) {
-    throw new Error(`Bungee quote: ${data.message || 'no route available'}`);
+    throw new Error(`Bungee quote: ${data.message || 'no autoRoute available'}`);
   }
   return data.result.autoRoute;
 }
 
 /**
- * Compute the minOutputAmount we'll accept. Bungee's quote returns a minOutput based
- * on a clean USDC bridge (no destination call); when we supply a destinationPayload
- * the transmitter takes on extra gas + execution risk that isn't priced in. Override
- * with a wider slippage so requests actually get filled.
+ * Mutate the Permit2 typed-data witness so the destination call invokes the
+ * relay's executeData with our CashOutParams. Bungee quotes with empty
+ * destinationPayload by default; we splice ours in and the user signs the
+ * modified witness.
+ *
+ * Returns the typed data ready for `signTypedData` (domain, types, message).
  */
-export function computeMinOutputAmount(inputAmount) {
-  const input = BigInt(inputAmount);
-  return (input * (10000n - BRIDGE_SLIPPAGE_BPS)) / 10000n;
-}
-
-/**
- * Build the Request struct for BungeeInbox.createRequest from a quote.
- * Overrides:
- *   - basicReq.sender → BungeeInbox (required by inbox._checkRequestValidity)
- *   - basicReq.nonce  → fresh unique value
- *   - basicReq.minOutputAmount → widened to give transmitters margin to execute
- *     the destinationPayload (see computeMinOutputAmount)
- *   - destinationPayload → our encoded CashOutParams
- *   - minDestGas → bumped so executeData has gas
- */
-export function buildRequestFromQuote({
-  quote,
-  cashOutPayload,
-  minDestGas = DEFAULT_MIN_DEST_GAS,
-}) {
-  const witness = quote.signTypedData.values.witness;
-  const basic = witness.basicReq;
-
-  // Unique-per-(time, randomness) — must not collide with prior requestInbox[nonce]
-  const nonce = BigInt(Date.now()) * 100000n + BigInt(Math.floor(Math.random() * 100000));
+export function buildPermit2TypedData({ quote, cashOutPayload, minDestGas = DEFAULT_MIN_DEST_GAS }) {
+  const std = quote.signTypedData;
+  const message = JSON.parse(JSON.stringify(std.values, (_k, v) =>
+    typeof v === 'bigint' ? v.toString() : v
+  ));
+  message.witness.destinationPayload = cashOutPayload;
+  message.witness.minDestGas = String(minDestGas);
 
   return {
-    basicReq: {
-      originChainId: BigInt(basic.originChainId),
-      destinationChainId: BigInt(basic.destinationChainId),
-      deadline: BigInt(basic.deadline),
-      nonce,
-      sender: BUNGEE_INBOX_ADDRESS,
-      receiver: CASHOUT_RELAY_ADDRESS,
-      delegate: basic.delegate,
-      bungeeGateway: basic.bungeeGateway,
-      switchboardId: Number(basic.switchboardId),
-      inputToken: basic.inputToken,
-      inputAmount: BigInt(basic.inputAmount),
-      outputToken: basic.outputToken,
-      minOutputAmount: computeMinOutputAmount(basic.inputAmount),
-      refuelAmount: BigInt(basic.refuelAmount),
-    },
-    swapOutputToken: witness.swapOutputToken,
-    minSwapOutput: BigInt(witness.minSwapOutput),
-    metadata: witness.metadata,
-    affiliateFees: witness.affiliateFees,
-    minDestGas,
-    destinationPayload: cashOutPayload,
-    exclusiveTransmitter: witness.exclusiveTransmitter,
+    domain: std.domain,
+    types: std.types,
+    primaryType: 'PermitWitnessTransferFrom',
+    message,
   };
 }
 
 /**
- * Encode the two calls a UserOp/tx batch needs:
- *   1. USDC.approve(BungeeInbox, amount)
- *   2. BungeeInbox.createRequest(request, refundAddress)
- *
- * Returns [{ to, value, data }, { to, value, data }] — pass directly to:
- *   - SmartAccountTransactionManager.executeBatch() for passkey
- *   - sequential walletClient.writeContract() for EOA
+ * Submit the user-signed witness to Bungee's auction. Bungee distributes it to
+ * solvers, the winning solver delivers USDC on Base + calls executeData in the
+ * same destination tx (atomic).
  */
-export function buildBatchCalls({ amountWei, request, refundAddress }) {
-  return [
-    {
-      to: USDC_ARBITRUM,
-      value: 0n,
-      data: encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: 'approve',
-        args: [BUNGEE_INBOX_ADDRESS, amountWei],
-      }),
-    },
-    {
-      to: BUNGEE_INBOX_ADDRESS,
-      value: 0n,
-      data: encodeFunctionData({
-        abi: BUNGEE_INBOX_ABI,
-        functionName: 'createRequest',
-        args: [request, refundAddress],
-      }),
-    },
-  ];
+export async function submitSignedRequest({ quote, signature, mutatedMessage }) {
+  const res = await fetch(`${BUNGEE_API}/v1/bungee/submit`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requestType: quote.requestType,        // SINGLE_OUTPUT_REQUEST
+      request: mutatedMessage.witness,       // the witness with our destinationPayload
+      userSignature: signature,
+      quoteId: quote.quoteId,
+      permitted: mutatedMessage.permitted,
+    }),
+  });
+  if (!res.ok) throw new Error(`Bungee submit HTTP ${res.status}: ${await res.text()}`);
+
+  const data = await res.json();
+  if (!data.success) throw new Error(`Bungee submit: ${data.message || 'rejected'}`);
+
+  return {
+    requestHash: data.result?.requestHash || quote.requestHash,
+  };
 }
 
 /*══════════════════════════════════ ORCHESTRATION ══════════════════════════════════*/
 
 /**
- * Full cashout pipeline up to the moment we hand off the batch calls. Auth-agnostic.
+ * Full cashout up to the Permit2 sign step. Auth-agnostic; the caller signs.
  *
- * Flow:
- *   1. registerPayee  — get payeeDetailsHash from ZKP2P curator
- *   2. encodeCashOutPayload + getBridgeQuote — get fee/route info
- *   3. buildRequestFromQuote — produce the Request struct
- *   4. buildBatchCalls — produce [approve, createRequest]
- *
- * Returns { calls, request, payeeDetailsHash, quote } so the caller can submit via
- * passkey executeBatch or EOA sequential txs.
+ * Returns:
+ *   - typedData: pass to walletClient.signTypedData
+ *   - approval:  { token, spender, amount } — caller must ensure allowance ≥ amount
+ *                 to Permit2 BEFORE submitting the signed message
+ *   - submit:    async (signature) => { requestHash } — calls Bungee /submit
+ *   - quote:     full autoRoute quote
  */
 export async function prepareCashOut({
   amountWei,
@@ -344,37 +228,47 @@ export async function prepareCashOut({
   platform,
   payeeHandle,
   conversionRate,
-  refundAddress,
   onStep,
 }) {
-  const tick = (step, msg, extra = {}) => onStep?.({ step, message: msg, ...extra });
+  const tick = (step, message, extra = {}) => onStep?.({ step, message, ...extra });
 
   tick('registering', `Registering ${PAYMENT_PLATFORMS[platform]?.label || platform}…`);
   const payeeDetailsHash = await registerPayee(platform, payeeHandle);
 
-  tick('quoting', 'Getting bridge quote…');
-  const quote = await getBridgeQuote({ amountWei, userAddress });
+  tick('quoting', 'Getting bridge route…');
+  const quote = await getAutoRouteQuote({ amountWei, userAddress });
 
-  // CashOutParams.maxIntentAmount is the cap on a single P2P intent the relay
-  // creates on Base. The deposit is funded with the bridged amount (= our
-  // minOutputAmount), so cap intents to the same value rather than the original
-  // input — that's what's actually available for fills.
-  const expectedDeliveredAmount = computeMinOutputAmount(amountWei);
   const cashOutPayload = encodeCashOutPayload({
     depositor: userAddress,
     platform,
     payeeDetailsHash,
     conversionRate: conversionRate ?? DEFAULT_CONVERSION_RATE,
-    maxIntentAmount: expectedDeliveredAmount,
+    maxIntentAmount: amountWei,
   });
 
-  const request = buildRequestFromQuote({ quote, cashOutPayload });
-  const calls = buildBatchCalls({
-    amountWei,
-    request,
-    refundAddress: refundAddress || userAddress,
-  });
+  const typedData = buildPermit2TypedData({ quote, cashOutPayload });
 
-  tick('ready', 'Ready to sign.', { request, quote, payeeDetailsHash });
-  return { calls, request, quote, payeeDetailsHash };
+  // Sanity: the witness hash we just built will go through Permit2's witness
+  // validation. Compute it locally so a debug consumer can compare against the
+  // hash the wallet shows during signing.
+  const expectedHash = hashTypedData(typedData);
+
+  tick('ready', 'Ready to sign.', { quote, payeeDetailsHash, typedData, expectedHash });
+
+  return {
+    typedData,
+    approval: {
+      token: USDC_ARBITRUM,
+      spender: PERMIT2_ADDRESS,
+      amount: amountWei,
+    },
+    submit: async (signature) => submitSignedRequest({
+      quote,
+      signature,
+      mutatedMessage: typedData.message,
+    }),
+    quote,
+    payeeDetailsHash,
+    expectedHash,
+  };
 }

@@ -1,9 +1,8 @@
 /**
  * CashOutModal
- * One-click USDC → fiat cashout. User enters amount + payment details, signs once
- * (passkey biometric OR EOA wallet), and receives fiat in ~minutes.
- *
- * Place at: src/components/account/CashOutModal.jsx
+ * One-click USDC → fiat cashout. User signs ONE Permit2 message; the Bungee
+ * solver delivers USDC on Base AND atomically calls CashOutRelay.executeData
+ * to create the ZKP2P deposit. No relay tx, no backend trigger.
  */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -14,22 +13,18 @@ import {
 } from '@chakra-ui/react';
 import { FiCheck, FiDollarSign } from 'react-icons/fi';
 import { ethers } from 'ethers';
-import { encodeFunctionData } from 'viem';
 import { useAccount, useSwitchChain, useConfig } from 'wagmi';
 import { getConnectorClient } from 'wagmi/actions';
 import { useAuth } from '@/context/AuthContext';
 import { formatTokenAmount } from '@/util/formatToken';
 import { createChainClients } from '@/services/web3/utils/chainClients';
-import { buildUserOp, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
-import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';
-import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 import { clientToSigner } from '@/components/ProviderConverter';
-import PasskeyAccountABI from '../../../abi/PasskeyAccount.json';
 import {
   ARBITRUM_CHAIN_ID,
-  BRIDGE_SLIPPAGE_BPS,
   DEFAULT_CONVERSION_RATE,
   PAYMENT_PLATFORMS,
+  PERMIT2_ADDRESS,
+  USDC_ARBITRUM,
   prepareCashOut,
 } from '@/services/web3/domain/CashOutService';
 
@@ -51,18 +46,28 @@ const glassStyle = {
 
 const PROGRESS_BY_STEP = {
   registering: 15,
-  quoting: 35,
-  ready: 50,
-  signing: 70,
+  quoting: 30,
+  ready: 45,
+  approving: 60,
+  signing: 80,
   submitted: 95,
 };
 
-// Bridge slippage (5%) + ZKP2P spread (2%) → user receives ~93% of input in fiat.
-const BRIDGE_SLIPPAGE_PCT = Number(BRIDGE_SLIPPAGE_BPS) / 100;     // 5
-const VENMO_SPREAD_PCT = 2;                                        // 0.98 rate
+const VENMO_SPREAD_PCT = 2;
+const BRIDGE_FEE_PCT = 0.5;
+
+// Minimal ERC20 ABI for the one-time Permit2 approval
+const ERC20_ALLOWANCE_ABI = [
+  { type: 'function', name: 'allowance', stateMutability: 'view',
+    inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }],
+    outputs: [{ type: 'uint256' }] },
+  { type: 'function', name: 'approve', stateMutability: 'nonpayable',
+    inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
+    outputs: [{ type: 'bool' }] },
+];
 
 function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
-  const { isPasskeyUser, passkeyState } = useAuth();
+  const { isPasskeyUser } = useAuth();
   const { switchChainAsync } = useSwitchChain();
   const wagmiConfig = useConfig();
   const { chain: currentChain } = useAccount();
@@ -97,7 +102,7 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
 
   const estimatedReceive = useMemo(() => {
     if (!amount || parsedAmount === 0n) return '';
-    const bridged = Number(amount) * (1 - BRIDGE_SLIPPAGE_PCT / 100);
+    const bridged = Number(amount) * (1 - BRIDGE_FEE_PCT / 100);
     return (bridged * (1 - VENMO_SPREAD_PCT / 100)).toFixed(2);
   }, [amount, parsedAmount]);
 
@@ -105,7 +110,8 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
     parsedAmount > 0n &&
     parsedAmount <= balanceBigInt &&
     payeeId.length >= 2 &&
-    token?.chainId === ARBITRUM_CHAIN_ID;
+    token?.chainId === ARBITRUM_CHAIN_ID &&
+    !isPasskeyUser; // see passkey notice below
 
   const handleStep = useCallback(({ step: name, message }) => {
     setStatusMessage(message || name);
@@ -119,8 +125,8 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
       setStep(STEPS.processing);
       setError(null);
 
-      // Step 1: Prepare quote + build batch calls (auth-agnostic)
-      const { calls, request } = await prepareCashOut({
+      // 1. Build the typed data + approval requirement (auth-agnostic)
+      const { typedData, approval, submit } = await prepareCashOut({
         amountWei: parsedAmount,
         userAddress: accountAddress,
         platform,
@@ -129,33 +135,49 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
         onStep: handleStep,
       });
 
-      // Step 2: Submit the batch — passkey or EOA
-      handleStep({
-        step: 'signing',
-        message: isPasskeyUser
-          ? 'Sign with passkey…'
-          : 'Approve USDC in your wallet…',
-      });
+      // 2. Make sure we're on Arbitrum
+      if (currentChain?.id !== ARBITRUM_CHAIN_ID) {
+        await switchChainAsync({ chainId: ARBITRUM_CHAIN_ID });
+      }
+      const connectorClient = await getConnectorClient(wagmiConfig, { chainId: ARBITRUM_CHAIN_ID });
+      const signer = clientToSigner(connectorClient);
+      if (!signer) throw new Error('Wallet not ready — reconnect and try again.');
 
-      if (isPasskeyUser) {
-        await submitViaPasskey({ calls, accountAddress, passkeyState });
-      } else {
-        await submitViaEOA({
-          calls,
-          currentChainId: currentChain?.id,
-          switchChainAsync,
-          wagmiConfig,
-          onApproveSent: () =>
-            handleStep({ step: 'signing', message: 'Confirm bridge tx in your wallet…' }),
-        });
+      // 3. Approve USDC → Permit2 if allowance < amount. We use max approval
+      //    so subsequent cashouts skip this step entirely (Permit2 limits
+      //    risk via per-cashout signed nonces; max approval is safe here).
+      const { publicClient } = createChainClients(ARBITRUM_CHAIN_ID);
+      const erc20 = new ethers.Contract(approval.token, ERC20_ALLOWANCE_ABI, signer);
+      const currentAllowance = BigInt(
+        (await publicClient.readContract({
+          address: approval.token,
+          abi: ERC20_ALLOWANCE_ABI,
+          functionName: 'allowance',
+          args: [accountAddress, approval.spender],
+        })).toString()
+      );
+      if (currentAllowance < approval.amount) {
+        handleStep({ step: 'approving', message: 'Approving USDC (one-time)…' });
+        const approveTx = await erc20.approve(
+          approval.spender,
+          ethers.constants.MaxUint256
+        );
+        await approveTx.wait();
       }
 
-      // Done — bridge request is on-chain. We deliberately don't poll Bungee status
-      // here: their public-backend endpoint blocks browser CORS and aggressive polls
-      // get rate-limited (1015). The transmitter typically delivers in 1–5 minutes;
-      // the user can verify in their payment app. If the bridge fails or the
-      // deadline lapses, BungeeInbox auto-refunds via withdrawFunds.
-      handleStep({ step: 'submitted', message: 'Bridge submitted!' });
+      // 4. Sign the Permit2 typed data (single signature)
+      handleStep({ step: 'signing', message: 'Sign to confirm cashout…' });
+      const signature = await signer._signTypedData(
+        typedData.domain,
+        // ethers v5 _signTypedData wants types WITHOUT the EIP712Domain entry
+        stripDomainType(typedData.types),
+        typedData.message
+      );
+
+      // 5. Submit to Bungee — solver picks up, delivers atomically
+      handleStep({ step: 'submitted', message: 'Submitting to bridge…' });
+      await submit(signature);
+
       setStep(STEPS.complete);
       setProgressPercent(100);
       onSuccess?.();
@@ -166,8 +188,7 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
     }
   }, [
     isValid, parsedAmount, accountAddress, platform, payeeId,
-    isPasskeyUser, passkeyState, currentChain, switchChainAsync, wagmiConfig,
-    handleStep, onSuccess,
+    currentChain, switchChainAsync, wagmiConfig, handleStep, onSuccess,
   ]);
 
   const handleMax = () => {
@@ -193,11 +214,11 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
               <Box w="64px" h="64px" borderRadius="full" bg="green.500" display="flex" alignItems="center" justifyContent="center">
                 <FiCheck size={32} color="white" />
               </Box>
-              <Text fontSize="xl" fontWeight="bold">Bridge Submitted!</Text>
+              <Text fontSize="xl" fontWeight="bold">Cashout Submitted!</Text>
               <Text color="gray.400" textAlign="center" fontSize="sm">
-                Bridging your {amount} USDC to Base, then matching with a P2P buyer.
-                You should see ~${estimatedReceive} in {platformLabel} within ~5 minutes.
-                Check peer.xyz to track if it doesn't arrive.
+                Your {amount} USDC is bridging to Base, where the relay will atomically
+                create a P2P sell order. A buyer will send ~${estimatedReceive} to your
+                {' '}{platformLabel} within minutes — check peer.xyz to track.
               </Text>
             </VStack>
           ) : step === STEPS.error ? (
@@ -215,8 +236,8 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
               <Text fontSize="lg" fontWeight="bold">{statusMessage}</Text>
               <Progress value={progressPercent} size="sm" colorScheme="purple" borderRadius="full" w="100%" hasStripe isAnimated />
               <HStack spacing={2} flexWrap="wrap" justify="center">
-                {['Register', 'Quote', 'Sign', 'Submit'].map((label, i) => (
-                  <Badge key={label} colorScheme={progressPercent >= (i + 1) * 20 ? 'green' : 'gray'} fontSize="xs">
+                {['Register', 'Quote', 'Approve', 'Sign', 'Submit'].map((label, i) => (
+                  <Badge key={label} colorScheme={progressPercent >= (i + 1) * 16 ? 'green' : 'gray'} fontSize="xs">
                     {label}
                   </Badge>
                 ))}
@@ -225,9 +246,23 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
           ) : (
             <VStack spacing={5}>
               <Text fontSize="sm" color="gray.400">
-                Convert USDC to cash. You sign once — the bridge and P2P matching happen automatically.
-                ~7% total spread (5% bridge slippage + 2% P2P spread), fills in minutes.
+                Convert USDC to cash. You sign once — the bridge delivers and creates the
+                P2P sell order atomically. Funds arrive in your payment app in minutes.
               </Text>
+
+              {isPasskeyUser && (
+                <Alert status="warning" borderRadius="lg" bg="yellow.900" color="yellow.200" fontSize="sm">
+                  <AlertIcon />
+                  <VStack align="start" spacing={1}>
+                    <Text fontWeight="bold">Passkey cashout coming soon</Text>
+                    <Text fontSize="xs">
+                      Atomic cashout uses a Permit2 signature, which today's PasskeyAccount
+                      can't produce. Connect a wallet (MetaMask, Rainbow, etc.) to use cashout
+                      while we ship the contract upgrade.
+                    </Text>
+                  </VStack>
+                </Alert>
+              )}
 
               {token && token.chainId !== ARBITRUM_CHAIN_ID && (
                 <Alert status="warning" borderRadius="lg" bg="yellow.900" color="yellow.200" fontSize="sm">
@@ -302,18 +337,20 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
                       <Text fontSize="xs" color="white">{amount} USDC</Text>
                     </HStack>
                     <HStack justify="space-between">
-                      <Text fontSize="xs" color="gray.400">Bridge ({BRIDGE_SLIPPAGE_PCT}% slippage)</Text>
-                      <Text fontSize="xs" color="gray.400">Arb → Base</Text>
+                      <Text fontSize="xs" color="gray.400">Bridge fee</Text>
+                      <Text fontSize="xs" color="gray.400">~{BRIDGE_FEE_PCT}%</Text>
                     </HStack>
                     <HStack justify="space-between">
-                      <Text fontSize="xs" color="gray.400">P2P ({VENMO_SPREAD_PCT}% spread)</Text>
-                      <Text fontSize="xs" color="gray.400">USDC → {platformLabel}</Text>
+                      <Text fontSize="xs" color="gray.400">P2P spread</Text>
+                      <Text fontSize="xs" color="gray.400">~{VENMO_SPREAD_PCT}%</Text>
                     </HStack>
                     <HStack justify="space-between" pt={1} borderTop="1px solid" borderColor="whiteAlpha.100">
                       <Text fontSize="xs" color="gray.300" fontWeight="bold">You receive (est.)</Text>
                       <Text fontSize="xs" color="green.300" fontWeight="bold">~${estimatedReceive}</Text>
                     </HStack>
-                    <Text fontSize="2xs" color="gray.600">Fills in minutes via peer.xyz</Text>
+                    <Text fontSize="2xs" color="gray.600">
+                      One signature, atomic delivery + ZKP2P listing on Base.
+                    </Text>
                   </VStack>
                 </Box>
               )}
@@ -339,109 +376,30 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
   );
 }
 
-/*══════════════════════════════════ SUBMIT HELPERS ══════════════════════════════════*/
+/*══════════════════════════════════ HELPERS ══════════════════════════════════*/
 
 /**
- * Submit USDC.approve + BungeeInbox.createRequest as a single passkey UserOp batch.
- * One biometric prompt covers both calls.
+ * ethers v5 `_signTypedData` rejects an `EIP712Domain` entry in the types map.
+ * Bungee's quote includes it; we strip it before passing to the signer.
  */
-async function submitViaPasskey({ calls, accountAddress, passkeyState }) {
-  const clients = createChainClients(ARBITRUM_CHAIN_ID);
-  if (!clients) throw new Error('Arbitrum client unavailable');
-
-  const bytecode = await clients.publicClient.getBytecode({ address: accountAddress });
-  if (!bytecode) {
-    throw new Error('Your smart account is not deployed on Arbitrum yet. Join an org on Arbitrum first.');
-  }
-
-  // Wrap calls in PasskeyAccount.executeBatch(targets, values, datas)
-  const targets = calls.map((c) => c.to);
-  const values = calls.map((c) => c.value);
-  const datas = calls.map((c) => c.data);
-  const callData = encodeFunctionData({
-    abi: PasskeyAccountABI,
-    functionName: 'executeBatch',
-    args: [targets, values, datas],
-  });
-
-  // Self-funded UserOp (no paymaster — cashout is not org-related so we skip the
-  // org paymaster lookup; account pays gas with its own ETH on Arb)
-  const userOp = await buildUserOp({
-    sender: accountAddress,
-    callData,
-    bundlerClient: clients.bundlerClient,
-    publicClient: clients.publicClient,
-  });
-
-  const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, ARBITRUM_CHAIN_ID);
-  userOp.signature = await signUserOpWithPasskey(userOpHash, passkeyState.rawCredentialId);
-
-  const submittedHash = await clients.bundlerClient.sendUserOperation({
-    ...userOp,
-    entryPointAddress: ENTRY_POINT_ADDRESS,
-  });
-
-  const receipt = await clients.bundlerClient.waitForUserOperationReceipt({
-    hash: submittedHash,
-    timeout: 180_000,
-  });
-  if (!receipt.success) throw new Error(receipt.reason || 'UserOp failed on-chain');
-
-  return receipt.receipt;
+function stripDomainType(types) {
+  const { EIP712Domain, ...rest } = types || {};
+  return rest;
 }
 
 /**
- * Submit USDC.approve + BungeeInbox.createRequest as two sequential EOA txs.
- *
- * @dev wagmi's getConnectorClient returns a viem `Client` (not `WalletClient`),
- *      which doesn't expose `sendTransaction`. We convert to an ethers v5 signer
- *      via the same `clientToSigner` helper TransferModal uses — keeping the
- *      EOA write path consistent across the app.
- */
-async function submitViaEOA({ calls, currentChainId, switchChainAsync, wagmiConfig, onApproveSent }) {
-  if (currentChainId !== ARBITRUM_CHAIN_ID) {
-    await switchChainAsync({ chainId: ARBITRUM_CHAIN_ID });
-  }
-
-  const connectorClient = await getConnectorClient(wagmiConfig, { chainId: ARBITRUM_CHAIN_ID });
-  const signer = clientToSigner(connectorClient);
-  if (!signer) {
-    throw new Error('Wallet not ready — reconnect and try again.');
-  }
-
-  // Tx 1: USDC.approve(BungeeInbox, amount)
-  const approveTx = await signer.sendTransaction({
-    to: calls[0].to,
-    data: calls[0].data,
-    value: ethers.BigNumber.from(calls[0].value.toString()),
-  });
-  await approveTx.wait();
-  onApproveSent?.();
-
-  // Tx 2: BungeeInbox.createRequest(req, refundAddress)
-  const createTx = await signer.sendTransaction({
-    to: calls[1].to,
-    data: calls[1].data,
-    value: ethers.BigNumber.from(calls[1].value.toString()),
-  });
-  return createTx.wait();
-}
-
-/**
- * Map common ethers/viem/wagmi rejection codes to user-friendly text. Falls
- * back to the raw `.message` when nothing matches so devs still get a signal.
+ * Map common ethers/viem/wagmi rejection codes to user-friendly text.
  */
 function formatCashOutError(err) {
   if (!err) return 'Cash out failed';
-
   const code = err.code;
   const reason = (err.reason || err.shortMessage || err.message || '').toLowerCase();
 
   if (code === 4001 || code === 'ACTION_REJECTED' || reason.includes('user rejected')) {
-    return 'You rejected the transaction in your wallet.';
+    return 'You rejected the signature in your wallet.';
   }
   if (reason.includes('insufficient funds') || code === 'INSUFFICIENT_FUNDS') {
-    return 'Not enough ETH on Arbitrum to cover gas.';
+    return 'Not enough ETH on Arbitrum to cover the one-time approval gas.';
   }
   if (reason.includes('chain') && reason.includes('mismatch')) {
     return 'Wrong network. Switch to Arbitrum and try again.';
