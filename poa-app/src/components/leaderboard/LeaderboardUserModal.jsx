@@ -29,6 +29,7 @@ import { PiCoinVerticalBold } from 'react-icons/pi';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
 import UsernameLink from '@/components/common/UsernameLink';
 import { usePOContext } from '@/context/POContext';
+import { useIdentity } from '@/context/IdentityContext';
 
 const getMedalColor = (rank) => {
   switch (rank) {
@@ -85,10 +86,12 @@ function StatBox({ icon, label, value, color = 'purple.300' }) {
 function LeaderboardUserModal({ isOpen, onClose, user, rank, roleNames = {} }) {
   const { hasCopied, onCopy } = useClipboard(user?.address || '');
   const { tokenLabel } = usePOContext();
+  const identity = useIdentity(user?.address);
 
   if (!user) return null;
 
   const medalColor = getMedalColor(rank);
+  const avatarCid = user.avatarCid || identity?.avatarCid || null;
   const userRoles = (user.hatIds || [])
     .map((hatId) => roleNames[hatId])
     .filter(Boolean);
@@ -132,7 +135,7 @@ function LeaderboardUserModal({ isOpen, onClose, user, rank, roleNames = {} }) {
             <Avatar
               size="xl"
               name={user.name}
-              src={user.avatarCid ? `https://ipfs.io/ipfs/${user.avatarCid}` : undefined}
+              src={avatarCid ? `https://ipfs.io/ipfs/${avatarCid}` : undefined}
               bg="purple.500"
               border={`3px solid ${medalColor || 'purple.400'}`}
             />

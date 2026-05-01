@@ -1,17 +1,16 @@
 import React from 'react';
-import { Box, Text, HStack, Badge, Flex, Spacer, Avatar, Tooltip, Icon, Image } from '@chakra-ui/react';
+import { Box, Text, HStack, Badge, Flex, Spacer, Tooltip, Icon, Image } from '@chakra-ui/react';
+import UserIdentity from '@/components/common/UserIdentity';
 import { useDrag } from 'react-dnd';
 import TaskCardModal from './TaskCardModal';
 import { useRouter } from 'next/router';
 import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
-import Link from 'next/link';
 import { usePOContext } from '../../context/POContext';
 import { useOrgName } from '../../hooks/useOrgName';
 
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const poContext = usePOContext();
-  const avatarMap = poContext?.avatarMap || {};
   const tokenLabel = poContext?.tokenLabel || 'Shares';
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
 
@@ -61,12 +60,6 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
     medium: 2,
     hard: 3,
     veryhard: 4
-  };
-
-  // Get user initials for avatars
-  const getUserInitials = (username) => {
-    if (!username) return "?";
-    return username.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
   };
 
   // Enhanced mobile card style with better visual hierarchy
@@ -224,23 +217,13 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
               })()}
             </HStack>
 
-            {claimerUsername && (
-              <Tooltip label={`Assigned to: ${claimerUsername}`} placement="top">
-                <Link href={`/u?username=${encodeURIComponent(claimerUsername)}`} passHref legacyBehavior>
-                  <Box as="a" onClick={(e) => e.stopPropagation()}>
-                    <Avatar
-                      size="xs"
-                      name={claimerUsername}
-                      src={avatarMap[claimerUsername]}
-                      getInitials={getUserInitials}
-                      bg="purple.500"
-                      color="white"
-                      cursor="pointer"
-                      _hover={{ boxShadow: '0 0 0 2px var(--chakra-colors-purple-400)' }}
-                    />
-                  </Box>
-                </Link>
-              </Tooltip>
+            {(claimedBy || claimerUsername) && (
+              <UserIdentity
+                address={claimedBy}
+                usernameHint={claimerUsername}
+                size="xs"
+                showName={false}
+              />
             )}
 
             {columnId === 'completed' && (

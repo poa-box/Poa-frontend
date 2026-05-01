@@ -24,6 +24,7 @@ import { signUserOpWithWallet } from '@/services/web3/eip7702/walletSigner';
 import { buildEOAAuthorization, checkWallet7702Support } from '@/services/web3/eip7702/authorizationBuilder';
 import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 import { DEFAULT_DEPLOY_CHAIN_ID, getSubgraphUrl } from '@/config/networks';
+import { useRefreshEmit, RefreshEvent } from '@/context/RefreshContext';
 import UniversalAccountRegistryABI from '../../abi/UniversalAccountRegistry.json';
 import PasskeyAccountABI from '../../abi/PasskeyAccount.json';
 import PasskeyAccountFactoryABI from '../../abi/PasskeyAccountFactory.json';
@@ -39,6 +40,7 @@ export function useProfileUpdate() {
   const { switchChainAsync } = useSwitchChain();
   const wagmiConfig = useConfig();
   const { data: walletClient } = useWalletClient();
+  const { emit } = useRefreshEmit();
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState(null);
@@ -117,6 +119,7 @@ export function useProfileUpdate() {
       }
 
       setStep('success');
+      emit(RefreshEvent.PROFILE_UPDATED, { address: accountAddress, cid });
       return txHash;
     } catch (err) {
       console.error('[ProfileUpdate] Error:', err);
@@ -126,7 +129,7 @@ export function useProfileUpdate() {
     } finally {
       setIsUpdating(false);
     }
-  }, [accountAddress, registryAddress, isPasskeyUser, addToIpfs, signer, publicClient, bundlerClient, paymasterAddress, passkeyState]);
+  }, [accountAddress, registryAddress, isPasskeyUser, addToIpfs, signer, publicClient, bundlerClient, paymasterAddress, passkeyState, emit]);
 
   /**
    * EOA flow: try 7702 gas-sponsored via solidarity fund, fallback to direct tx.

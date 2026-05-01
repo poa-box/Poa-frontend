@@ -9,6 +9,7 @@ import { POProvider } from "@/context/POContext";
 import { VotingProvider } from "@/context/VotingContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { RefreshProvider } from "@/context/RefreshContext";
+import { IdentityProvider } from "@/context/IdentityContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ErrorBoundary } from "@/components/common/ErrorBoundary";
 import { TourProvider } from "@/features/tour/TourContext";
@@ -246,6 +247,7 @@ const StableProviders = React.memo(function StableProviders({ children }) {
             appInfo={{ appName: 'Poa', learnMoreUrl: 'https://poa.box' }}
           >
             <RefreshProvider>
+            <IdentityProvider>
             <IPFSprovider>
               <ProfileHubProvider>
                 <POProvider>
@@ -274,6 +276,7 @@ const StableProviders = React.memo(function StableProviders({ children }) {
                 </POProvider>
               </ProfileHubProvider>
             </IPFSprovider>
+            </IdentityProvider>
             </RefreshProvider>
           </RainbowKitProvider>
         </QueryClientProvider>
