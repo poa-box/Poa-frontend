@@ -9,12 +9,14 @@
  * - passkeyState: Credential info for passkey users
  * - connectPasskey(): Reconnect a returning passkey user
  * - activatePasskey(): Save + activate a new passkey credential
- * - disconnectPasskey(): Clear passkey session
+ * - disconnectPasskey(): Clear passkey session (allows auto-restore on reload)
+ * - signOut(): Clear passkey + suppress auto-restore for the rest of the tab
+ *   session. Caller should also invoke wagmi's disconnect() for EOA users.
  * - publicClient: viem public client (shared)
  * - bundlerClient: Pimlico bundler client (shared)
  */
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { createPublicClient, http, defineChain } from 'viem';
 import { createPimlicoClient } from 'permissionless/clients/pimlico';
@@ -58,6 +60,11 @@ export const AuthProvider = ({ children }) => {
   const [passkeyState, setPasskeyState] = useState(null);
   const [passkeyConnecting, setPasskeyConnecting] = useState(false);
 
+  // Suppresses passkey auto-restore for the rest of the tab session after an
+  // explicit signOut(). Without this, disconnecting an EOA wallet while a
+  // passkey credential is stored would silently flip the user back to passkey.
+  const explicitSignOutRef = useRef(false);
+
   // Derived auth type
   const authType = useMemo(() => {
     if (eoaConnected && eoaAddress) return 'eoa';
@@ -98,6 +105,7 @@ export const AuthProvider = ({ children }) => {
   // Auto-reconnect: on mount, check for stored passkey credential
   useEffect(() => {
     if (typeof window === 'undefined') return; // SSR guard
+    if (explicitSignOutRef.current) return;
     if (!eoaConnected && hasStoredCredentials()) {
       const lastCred = getLastUsedCredential();
       if (lastCred) {
@@ -106,15 +114,18 @@ export const AuthProvider = ({ children }) => {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // If EOA connects, passkey deactivates (EOA takes priority)
+  // If EOA connects, passkey deactivates (EOA takes priority).
+  // A fresh wallet connect is also an opt-in, so clear any prior signOut flag.
   useEffect(() => {
-    if (eoaConnected && passkeyState) {
-      setPasskeyState(null);
+    if (eoaConnected) {
+      explicitSignOutRef.current = false;
+      if (passkeyState) setPasskeyState(null);
     }
   }, [eoaConnected]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If EOA disconnects and we have stored passkey, restore it
   useEffect(() => {
+    if (explicitSignOutRef.current) return;
     if (!eoaConnected && !passkeyState && typeof window !== 'undefined' && hasStoredCredentials()) {
       const lastCred = getLastUsedCredential();
       if (lastCred) {
@@ -129,6 +140,7 @@ export const AuthProvider = ({ children }) => {
    * 2. If none stored, trigger WebAuthn discoverable auth and look up account from subgraph.
    */
   const connectPasskey = useCallback(async (credential = null) => {
+    explicitSignOutRef.current = false;
     setPasskeyConnecting(true);
     try {
       // Fast path: use provided credential or localStorage
@@ -154,6 +166,7 @@ export const AuthProvider = ({ children }) => {
    * Save and activate a new passkey credential (after onboarding).
    */
   const activatePasskey = useCallback((credentialData) => {
+    explicitSignOutRef.current = false;
     savePasskeyCredential(credentialData);
     setPasskeyState(credentialData);
   }, []);
@@ -162,6 +175,18 @@ export const AuthProvider = ({ children }) => {
    * Disconnect passkey session (keeps stored credential for re-authentication).
    */
   const disconnectPasskey = useCallback(() => {
+    setPasskeyState(null);
+  }, []);
+
+  /**
+   * Fully sign out for the current tab session: clears passkey state and
+   * suppresses auto-restore so a stored credential won't silently re-attach
+   * after a wallet disconnect. Caller should also invoke wagmi's disconnect()
+   * for EOA users. The flag resets on wallet reconnect or explicit
+   * connectPasskey/activatePasskey.
+   */
+  const signOut = useCallback(() => {
+    explicitSignOutRef.current = true;
     setPasskeyState(null);
   }, []);
 
@@ -181,12 +206,13 @@ export const AuthProvider = ({ children }) => {
     connectPasskey,
     activatePasskey,
     disconnectPasskey,
+    signOut,
     hasStoredPasskey,
 
     // Shared infrastructure
     publicClient,
     bundlerClient,
-  }), [authType, accountAddress, isAuthenticated, passkeyState, passkeyConnecting, connectPasskey, activatePasskey, disconnectPasskey, hasStoredPasskey, publicClient, bundlerClient]);
+  }), [authType, accountAddress, isAuthenticated, passkeyState, passkeyConnecting, connectPasskey, activatePasskey, disconnectPasskey, signOut, hasStoredPasskey, publicClient, bundlerClient]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

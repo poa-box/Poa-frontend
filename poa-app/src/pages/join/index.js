@@ -54,6 +54,7 @@ import PasskeyOnboardingModal from '@/components/passkey/PasskeyOnboardingModal'
 import SignInModal from '@/components/passkey/SignInModal';
 import { BsFillLightningChargeFill } from 'react-icons/bs';
 import { RoleApplicationForm, VouchLinkHandler, VouchProgressBar } from '@/components/orgStructure';
+import ConnectedAccountBadge from '@/components/common/ConnectedAccountBadge';
 import { VouchFirstPhase } from '@/hooks/useVouchFirstOnboarding';
 import { getAllCredentials } from '@/services/web3/passkey/passkeyStorage';
 
@@ -893,23 +894,7 @@ const User = () => {
                       pendingVouchApplication ? (
                         /* ── Branch 3a: Application submitted, waiting for vouches (persisted across refresh) ── */
                         <VStack spacing={formSpacing} align="stretch">
-                          <Box
-                            p={{ base: 3, md: 4 }}
-                            borderRadius="lg"
-                            bg={successBg}
-                            borderWidth="1px"
-                            borderColor={successBorderColor}
-                          >
-                            <Flex align="center" flexWrap="wrap">
-                              <Icon as={isPasskeyUser ? FaFingerprint : FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
-                              <Text color={textColor} fontWeight="medium" fontSize={{ base: "sm", md: "md" }}>
-                                {isPasskeyUser
-                                  ? `Passkey Account: ${accountAddress?.substring(0, 6)}...${accountAddress?.substring(accountAddress.length - 4)}`
-                                  : `Wallet Connected: ${address?.substring(0, 6)}...${address?.substring(address?.length - 4)}`
-                                }
-                              </Text>
-                            </Flex>
-                          </Box>
+                          <ConnectedAccountBadge />
 
                           <Box textAlign="center">
                             {pendingApplicationProgress?.isComplete ? (
@@ -1041,23 +1026,7 @@ const User = () => {
                       ) : authenticatedUserVouchProgress ? (
                         /* ── Branch 3b: Vouches already complete (user returns after being vouched) ── */
                         <VStack spacing={formSpacing} align="stretch">
-                          <Box
-                            p={{ base: 3, md: 4 }}
-                            borderRadius="lg"
-                            bg={successBg}
-                            borderWidth="1px"
-                            borderColor={successBorderColor}
-                          >
-                            <Flex align="center" flexWrap="wrap">
-                              <Icon as={isPasskeyUser ? FaFingerprint : FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
-                              <Text color={textColor} fontWeight="medium" fontSize={{ base: "sm", md: "md" }}>
-                                {isPasskeyUser
-                                  ? `Passkey Account: ${accountAddress?.substring(0, 6)}...${accountAddress?.substring(accountAddress.length - 4)}`
-                                  : `Wallet Connected: ${address?.substring(0, 6)}...${address?.substring(address?.length - 4)}`
-                                }
-                              </Text>
-                            </Flex>
-                          </Box>
+                          <ConnectedAccountBadge />
 
                           <Box textAlign="center">
                             <Icon as={FaCheck} color="green.400" boxSize={{ base: 10, md: 12 }} mb={4} />
@@ -1119,23 +1088,7 @@ const User = () => {
                       ) : (
                         /* ── Branch 3c: No application yet → apply-to-join form ── */
                         <VStack spacing={formSpacing} align="stretch">
-                          <Box
-                            p={{ base: 3, md: 4 }}
-                            borderRadius="lg"
-                            bg={successBg}
-                            borderWidth="1px"
-                            borderColor={successBorderColor}
-                          >
-                            <Flex align="center" flexWrap="wrap">
-                              <Icon as={isPasskeyUser ? FaFingerprint : FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
-                              <Text color={textColor} fontWeight="medium" fontSize={{ base: "sm", md: "md" }}>
-                                {isPasskeyUser
-                                  ? `Passkey Account: ${accountAddress?.substring(0, 6)}...${accountAddress?.substring(accountAddress.length - 4)}`
-                                  : `Wallet Connected: ${address?.substring(0, 6)}...${address?.substring(address?.length - 4)}`
-                                }
-                              </Text>
-                            </Flex>
-                          </Box>
+                          <ConnectedAccountBadge />
 
                           <Box textAlign="center">
                             <Box display="inline-block" mb={4}>
@@ -1216,23 +1169,7 @@ const User = () => {
                       /* ── Default join flow (roles are freely claimable) ── */
                       <>
                         <VStack spacing={formSpacing} align="stretch">
-                          <Box
-                            p={{ base: 3, md: 4 }}
-                            borderRadius="lg"
-                            bg={successBg}
-                            borderWidth="1px"
-                            borderColor={successBorderColor}
-                          >
-                            <Flex align="center" flexWrap="wrap">
-                              <Icon as={isPasskeyUser ? FaFingerprint : FaCheck} color="green.500" mr={3} boxSize={isMobile ? 4 : 5} />
-                              <Text color={textColor} fontWeight="medium" fontSize={{ base: "sm", md: "md" }}>
-                                {isPasskeyUser
-                                  ? `Passkey Account: ${accountAddress?.substring(0, 6)}...${accountAddress?.substring(accountAddress.length - 4)}`
-                                  : `Wallet Connected: ${address?.substring(0, 6)}...${address?.substring(address?.length - 4)}`
-                                }
-                              </Text>
-                            </Flex>
-                          </Box>
+                          <ConnectedAccountBadge />
 
                           <Box textAlign="center">
                             <Box display="inline-block" mb={4}>
