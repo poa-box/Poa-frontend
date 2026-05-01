@@ -1,7 +1,9 @@
 /**
  * CashOutModal
- * One-click USDC → fiat cashout. User enters amount + payment details, signs once
- * (passkey biometric OR EOA wallet), and receives fiat in ~minutes.
+ * One-click USDC → fiat cashout. User enters platform + handle + amount, signs
+ * ONE transaction (a USDC.transfer to a Bungee-computed deposit address), and the
+ * bridge fills in seconds. The ZKP2P deposit creation is then triggered by a
+ * backend service (or admin script) once USDC arrives at the relay on Base.
  *
  * Place at: src/components/account/CashOutModal.jsx
  */
@@ -27,9 +29,9 @@ import { clientToSigner } from '@/components/ProviderConverter';
 import PasskeyAccountABI from '../../../abi/PasskeyAccount.json';
 import {
   ARBITRUM_CHAIN_ID,
-  BRIDGE_SLIPPAGE_BPS,
   DEFAULT_CONVERSION_RATE,
   PAYMENT_PLATFORMS,
+  notifyBackend,
   prepareCashOut,
 } from '@/services/web3/domain/CashOutService';
 
@@ -50,16 +52,17 @@ const glassStyle = {
 };
 
 const PROGRESS_BY_STEP = {
-  registering: 15,
-  quoting: 35,
-  ready: 50,
-  signing: 70,
+  registering: 20,
+  quoting: 40,
+  ready: 55,
+  signing: 75,
   submitted: 95,
 };
 
-// Bridge slippage (5%) + ZKP2P spread (2%) → user receives ~93% of input in fiat.
-const BRIDGE_SLIPPAGE_PCT = Number(BRIDGE_SLIPPAGE_BPS) / 100;     // 5
-const VENMO_SPREAD_PCT = 2;                                        // 0.98 rate
+// Bungee deposit-route slippage typically ~0.4%, plus 2% ZKP2P spread.
+// Estimate user receives ~97% of input as fiat.
+const VENMO_SPREAD_PCT = 2;
+const BRIDGE_SLIPPAGE_PCT = 0.5;
 
 function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
   const { isPasskeyUser, passkeyState } = useAuth();
@@ -119,8 +122,8 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
       setStep(STEPS.processing);
       setError(null);
 
-      // Step 1: Prepare quote + build batch calls (auth-agnostic)
-      const { calls, request } = await prepareCashOut({
+      // Step 1: Prepare quote + intent (auth-agnostic)
+      const { bridgeTx, intent, quote } = await prepareCashOut({
         amountWei: parsedAmount,
         userAddress: accountAddress,
         platform,
@@ -129,33 +132,27 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
         onStep: handleStep,
       });
 
-      // Step 2: Submit the batch — passkey or EOA
+      // Step 2: Sign + send the single bridge tx
       handleStep({
         step: 'signing',
-        message: isPasskeyUser
-          ? 'Sign with passkey…'
-          : 'Approve USDC in your wallet…',
+        message: isPasskeyUser ? 'Sign with passkey…' : 'Confirm in your wallet…',
       });
 
-      if (isPasskeyUser) {
-        await submitViaPasskey({ calls, accountAddress, passkeyState });
-      } else {
-        await submitViaEOA({
-          calls,
-          currentChainId: currentChain?.id,
-          switchChainAsync,
-          wagmiConfig,
-          onApproveSent: () =>
-            handleStep({ step: 'signing', message: 'Confirm bridge tx in your wallet…' }),
-        });
-      }
+      const txHash = isPasskeyUser
+        ? await submitViaPasskey({ bridgeTx, accountAddress, passkeyState })
+        : await submitViaEOA({ bridgeTx, currentChainId: currentChain?.id, switchChainAsync, wagmiConfig });
 
-      // Done — bridge request is on-chain. We deliberately don't poll Bungee status
-      // here: their public-backend endpoint blocks browser CORS and aggressive polls
-      // get rate-limited (1015). The transmitter typically delivers in 1–5 minutes;
-      // the user can verify in their payment app. If the bridge fails or the
-      // deadline lapses, BungeeInbox auto-refunds via withdrawFunds.
       handleStep({ step: 'submitted', message: 'Bridge submitted!' });
+
+      // Step 3: Notify backend so it can call createDepositFromBalance once USDC arrives.
+      // No-op (just logs the intent) if NEXT_PUBLIC_CASHOUT_INTENT_ENDPOINT isn't set —
+      // an admin can use the logged intent to fulfill manually via the existing script.
+      await notifyBackend({
+        intent,
+        bridgeRequestHash: quote?.requestHash,
+        bridgeTxHash: txHash,
+      });
+
       setStep(STEPS.complete);
       setProgressPercent(100);
       onSuccess?.();
@@ -195,9 +192,9 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
               </Box>
               <Text fontSize="xl" fontWeight="bold">Bridge Submitted!</Text>
               <Text color="gray.400" textAlign="center" fontSize="sm">
-                Bridging your {amount} USDC to Base, then matching with a P2P buyer.
-                You should see ~${estimatedReceive} in {platformLabel} within ~5 minutes.
-                Check peer.xyz to track if it doesn't arrive.
+                Your {amount} USDC is bridging to Base. As soon as it arrives,
+                a P2P buyer will send ~${estimatedReceive} to your {platformLabel}.
+                Expect funds in your payment app within ~5 minutes.
               </Text>
             </VStack>
           ) : step === STEPS.error ? (
@@ -215,7 +212,7 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
               <Text fontSize="lg" fontWeight="bold">{statusMessage}</Text>
               <Progress value={progressPercent} size="sm" colorScheme="purple" borderRadius="full" w="100%" hasStripe isAnimated />
               <HStack spacing={2} flexWrap="wrap" justify="center">
-                {['Register', 'Quote', 'Sign', 'Submit'].map((label, i) => (
+                {['Register', 'Quote', 'Sign', 'Bridge'].map((label, i) => (
                   <Badge key={label} colorScheme={progressPercent >= (i + 1) * 20 ? 'green' : 'gray'} fontSize="xs">
                     {label}
                   </Badge>
@@ -226,7 +223,7 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
             <VStack spacing={5}>
               <Text fontSize="sm" color="gray.400">
                 Convert USDC to cash. You sign once — the bridge and P2P matching happen automatically.
-                ~7% total spread (5% bridge slippage + 2% P2P spread), fills in minutes.
+                Funds arrive in your payment app in ~5 minutes.
               </Text>
 
               {token && token.chainId !== ARBITRUM_CHAIN_ID && (
@@ -302,18 +299,18 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
                       <Text fontSize="xs" color="white">{amount} USDC</Text>
                     </HStack>
                     <HStack justify="space-between">
-                      <Text fontSize="xs" color="gray.400">Bridge ({BRIDGE_SLIPPAGE_PCT}% slippage)</Text>
-                      <Text fontSize="xs" color="gray.400">Arb → Base</Text>
+                      <Text fontSize="xs" color="gray.400">Bridge fee</Text>
+                      <Text fontSize="xs" color="gray.400">~{BRIDGE_SLIPPAGE_PCT}%</Text>
                     </HStack>
                     <HStack justify="space-between">
-                      <Text fontSize="xs" color="gray.400">P2P ({VENMO_SPREAD_PCT}% spread)</Text>
-                      <Text fontSize="xs" color="gray.400">USDC → {platformLabel}</Text>
+                      <Text fontSize="xs" color="gray.400">P2P spread</Text>
+                      <Text fontSize="xs" color="gray.400">~{VENMO_SPREAD_PCT}%</Text>
                     </HStack>
                     <HStack justify="space-between" pt={1} borderTop="1px solid" borderColor="whiteAlpha.100">
                       <Text fontSize="xs" color="gray.300" fontWeight="bold">You receive (est.)</Text>
                       <Text fontSize="xs" color="green.300" fontWeight="bold">~${estimatedReceive}</Text>
                     </HStack>
-                    <Text fontSize="2xs" color="gray.600">Fills in minutes via peer.xyz</Text>
+                    <Text fontSize="2xs" color="gray.600">Bridge fills in seconds; fiat in your payment app within ~5 min.</Text>
                   </VStack>
                 </Box>
               )}
@@ -342,10 +339,10 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
 /*══════════════════════════════════ SUBMIT HELPERS ══════════════════════════════════*/
 
 /**
- * Submit USDC.approve + BungeeInbox.createRequest as a single passkey UserOp batch.
- * One biometric prompt covers both calls.
+ * Submit the single bridge tx as a passkey UserOp via PasskeyAccount.execute().
+ * One biometric prompt, no batch needed (deposit route is one ERC20 transfer).
  */
-async function submitViaPasskey({ calls, accountAddress, passkeyState }) {
+async function submitViaPasskey({ bridgeTx, accountAddress, passkeyState }) {
   const clients = createChainClients(ARBITRUM_CHAIN_ID);
   if (!clients) throw new Error('Arbitrum client unavailable');
 
@@ -354,18 +351,12 @@ async function submitViaPasskey({ calls, accountAddress, passkeyState }) {
     throw new Error('Your smart account is not deployed on Arbitrum yet. Join an org on Arbitrum first.');
   }
 
-  // Wrap calls in PasskeyAccount.executeBatch(targets, values, datas)
-  const targets = calls.map((c) => c.to);
-  const values = calls.map((c) => c.value);
-  const datas = calls.map((c) => c.data);
   const callData = encodeFunctionData({
     abi: PasskeyAccountABI,
-    functionName: 'executeBatch',
-    args: [targets, values, datas],
+    functionName: 'execute',
+    args: [bridgeTx.to, bridgeTx.value, bridgeTx.data],
   });
 
-  // Self-funded UserOp (no paymaster — cashout is not org-related so we skip the
-  // org paymaster lookup; account pays gas with its own ETH on Arb)
   const userOp = await buildUserOp({
     sender: accountAddress,
     callData,
@@ -380,56 +371,39 @@ async function submitViaPasskey({ calls, accountAddress, passkeyState }) {
     ...userOp,
     entryPointAddress: ENTRY_POINT_ADDRESS,
   });
-
   const receipt = await clients.bundlerClient.waitForUserOperationReceipt({
     hash: submittedHash,
     timeout: 180_000,
   });
   if (!receipt.success) throw new Error(receipt.reason || 'UserOp failed on-chain');
 
-  return receipt.receipt;
+  return receipt.receipt.transactionHash;
 }
 
 /**
- * Submit USDC.approve + BungeeInbox.createRequest as two sequential EOA txs.
- *
- * @dev wagmi's getConnectorClient returns a viem `Client` (not `WalletClient`),
- *      which doesn't expose `sendTransaction`. We convert to an ethers v5 signer
- *      via the same `clientToSigner` helper TransferModal uses — keeping the
- *      EOA write path consistent across the app.
+ * Submit the single bridge tx through the user's connected wallet. Converts the
+ * viem connector Client → ethers JsonRpcSigner via `clientToSigner` (matching
+ * TransferModal's pattern).
  */
-async function submitViaEOA({ calls, currentChainId, switchChainAsync, wagmiConfig, onApproveSent }) {
+async function submitViaEOA({ bridgeTx, currentChainId, switchChainAsync, wagmiConfig }) {
   if (currentChainId !== ARBITRUM_CHAIN_ID) {
     await switchChainAsync({ chainId: ARBITRUM_CHAIN_ID });
   }
-
   const connectorClient = await getConnectorClient(wagmiConfig, { chainId: ARBITRUM_CHAIN_ID });
   const signer = clientToSigner(connectorClient);
-  if (!signer) {
-    throw new Error('Wallet not ready — reconnect and try again.');
-  }
+  if (!signer) throw new Error('Wallet not ready — reconnect and try again.');
 
-  // Tx 1: USDC.approve(BungeeInbox, amount)
-  const approveTx = await signer.sendTransaction({
-    to: calls[0].to,
-    data: calls[0].data,
-    value: ethers.BigNumber.from(calls[0].value.toString()),
+  const tx = await signer.sendTransaction({
+    to: bridgeTx.to,
+    data: bridgeTx.data,
+    value: ethers.BigNumber.from(bridgeTx.value.toString()),
   });
-  await approveTx.wait();
-  onApproveSent?.();
-
-  // Tx 2: BungeeInbox.createRequest(req, refundAddress)
-  const createTx = await signer.sendTransaction({
-    to: calls[1].to,
-    data: calls[1].data,
-    value: ethers.BigNumber.from(calls[1].value.toString()),
-  });
-  return createTx.wait();
+  const receipt = await tx.wait();
+  return receipt.transactionHash;
 }
 
 /**
- * Map common ethers/viem/wagmi rejection codes to user-friendly text. Falls
- * back to the raw `.message` when nothing matches so devs still get a signal.
+ * Map common ethers/viem/wagmi rejection codes to user-friendly text.
  */
 function formatCashOutError(err) {
   if (!err) return 'Cash out failed';
