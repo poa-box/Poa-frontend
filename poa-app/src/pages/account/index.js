@@ -41,6 +41,7 @@ import GlobalAccountSettingsModal from '@/components/account/GlobalAccountSettin
 import ProfileEditor from '@/components/account/ProfileEditor';
 import TokenBalances from '@/components/account/TokenBalances';
 import TransferModal from '@/components/account/TransferModal';
+import CashOutModal from '@/components/account/CashOutModal';
 import { useTokenBalances } from '@/hooks/useTokenBalances';
 import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
 import SignInModal from '@/components/passkey/SignInModal';
@@ -61,6 +62,8 @@ const AccountPage = () => {
   const [orgsLoading, setOrgsLoading] = useState(true);
   const [selectedTransferToken, setSelectedTransferToken] = useState(null);
   const { isOpen: isTransferOpen, onOpen: onTransferOpen, onClose: onTransferClose } = useDisclosure();
+  const [selectedCashOutToken, setSelectedCashOutToken] = useState(null);
+  const { isOpen: isCashOutOpen, onOpen: onCashOutOpen, onClose: onCashOutClose } = useDisclosure();
   const { balances, nativeBalances, isLoading: balancesLoading, refetch: refetchBalances } = useTokenBalances(accountAddress);
 
   // Fetch user's organizations across all chains via parallel fetch
@@ -349,6 +352,10 @@ const AccountPage = () => {
               setSelectedTransferToken(token);
               onTransferOpen();
             }}
+            onCashOut={(token) => {
+              setSelectedCashOutToken(token);
+              onCashOutOpen();
+            }}
             cardStyle={glassStyle}
             textColor={textColor}
             subtextColor={subtextColor}
@@ -472,6 +479,15 @@ const AccountPage = () => {
         token={selectedTransferToken}
         accountAddress={accountAddress}
         nativeBalance={selectedTransferToken ? nativeBalances[selectedTransferToken.chainId] : '0'}
+        onSuccess={refetchBalances}
+      />
+
+      {/* Cash Out Modal */}
+      <CashOutModal
+        isOpen={isCashOutOpen}
+        onClose={onCashOutClose}
+        token={selectedCashOutToken}
+        accountAddress={accountAddress}
         onSuccess={refetchBalances}
       />
     </Box>
