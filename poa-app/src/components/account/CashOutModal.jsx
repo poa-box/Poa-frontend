@@ -23,6 +23,7 @@ import { createChainClients } from '@/services/web3/utils/chainClients';
 import { buildUserOp, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
 import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';
 import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
+import { clientToSigner } from '@/components/ProviderConverter';
 import PasskeyAccountABI from '../../../abi/PasskeyAccount.json';
 import {
   ARBITRUM_CHAIN_ID,
@@ -131,13 +132,25 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
       });
 
       // Step 2: Submit the batch — passkey or EOA
-      handleStep({ step: 'signing', message: isPasskeyUser ? 'Sign with passkey…' : 'Confirm in your wallet…' });
+      handleStep({
+        step: 'signing',
+        message: isPasskeyUser
+          ? 'Sign with passkey…'
+          : 'Approve USDC in your wallet…',
+      });
 
       let txReceipt;
       if (isPasskeyUser) {
         txReceipt = await submitViaPasskey({ calls, accountAddress, passkeyState });
       } else {
-        txReceipt = await submitViaEOA({ calls, currentChainId: currentChain?.id, switchChainAsync, wagmiConfig });
+        txReceipt = await submitViaEOA({
+          calls,
+          currentChainId: currentChain?.id,
+          switchChainAsync,
+          wagmiConfig,
+          onApproveSent: () =>
+            handleStep({ step: 'signing', message: 'Confirm bridge tx in your wallet…' }),
+        });
       }
 
       handleStep({ step: 'submitted', message: 'Bridge request submitted.' });
@@ -164,7 +177,7 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
       onSuccess?.();
     } catch (err) {
       console.error('[CashOut] Error:', err);
-      setError(err.message || 'Cash out failed');
+      setError(formatCashOutError(err));
       setStep(STEPS.error);
     }
   }, [
@@ -390,35 +403,39 @@ async function submitViaPasskey({ calls, accountAddress, passkeyState }) {
 
 /**
  * Submit USDC.approve + BungeeInbox.createRequest as two sequential EOA txs.
- * Wagmi/viem handles wallet popup for each.
+ *
+ * @dev wagmi's getConnectorClient returns a viem `Client` (not `WalletClient`),
+ *      which doesn't expose `sendTransaction`. We convert to an ethers v5 signer
+ *      via the same `clientToSigner` helper TransferModal uses — keeping the
+ *      EOA write path consistent across the app.
  */
-async function submitViaEOA({ calls, currentChainId, switchChainAsync, wagmiConfig }) {
+async function submitViaEOA({ calls, currentChainId, switchChainAsync, wagmiConfig, onApproveSent }) {
   if (currentChainId !== ARBITRUM_CHAIN_ID) {
     await switchChainAsync({ chainId: ARBITRUM_CHAIN_ID });
   }
 
-  const client = await getConnectorClient(wagmiConfig, { chainId: ARBITRUM_CHAIN_ID });
+  const connectorClient = await getConnectorClient(wagmiConfig, { chainId: ARBITRUM_CHAIN_ID });
+  const signer = clientToSigner(connectorClient);
+  if (!signer) {
+    throw new Error('Wallet not ready — reconnect and try again.');
+  }
 
-  // Send approve tx
-  const approveHash = await client.sendTransaction({
+  // Tx 1: USDC.approve(BungeeInbox, amount)
+  const approveTx = await signer.sendTransaction({
     to: calls[0].to,
     data: calls[0].data,
-    value: calls[0].value,
-    chain: { id: ARBITRUM_CHAIN_ID },
+    value: ethers.BigNumber.from(calls[0].value.toString()),
   });
+  await approveTx.wait();
+  onApproveSent?.();
 
-  const clients = createChainClients(ARBITRUM_CHAIN_ID);
-  await clients.publicClient.waitForTransactionReceipt({ hash: approveHash });
-
-  // Send createRequest tx
-  const createHash = await client.sendTransaction({
+  // Tx 2: BungeeInbox.createRequest(req, refundAddress)
+  const createTx = await signer.sendTransaction({
     to: calls[1].to,
     data: calls[1].data,
-    value: calls[1].value,
-    chain: { id: ARBITRUM_CHAIN_ID },
+    value: ethers.BigNumber.from(calls[1].value.toString()),
   });
-
-  return clients.publicClient.waitForTransactionReceipt({ hash: createHash });
+  return createTx.wait();
 }
 
 // keccak256("SingleOutputRequestCreated(bytes32,address,bytes)")
@@ -433,6 +450,28 @@ function extractRequestHashFromReceipt(receipt) {
     }
   }
   return undefined;
+}
+
+/**
+ * Map common ethers/viem/wagmi rejection codes to user-friendly text. Falls
+ * back to the raw `.message` when nothing matches so devs still get a signal.
+ */
+function formatCashOutError(err) {
+  if (!err) return 'Cash out failed';
+
+  const code = err.code;
+  const reason = (err.reason || err.shortMessage || err.message || '').toLowerCase();
+
+  if (code === 4001 || code === 'ACTION_REJECTED' || reason.includes('user rejected')) {
+    return 'You rejected the transaction in your wallet.';
+  }
+  if (reason.includes('insufficient funds') || code === 'INSUFFICIENT_FUNDS') {
+    return 'Not enough ETH on Arbitrum to cover gas.';
+  }
+  if (reason.includes('chain') && reason.includes('mismatch')) {
+    return 'Wrong network. Switch to Arbitrum and try again.';
+  }
+  return err.shortMessage || err.message || 'Cash out failed';
 }
 
 export default CashOutModal;
