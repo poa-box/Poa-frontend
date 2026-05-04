@@ -20,7 +20,7 @@ import {
 import { PiCoinVerticalBold } from 'react-icons/pi';
 import { formatTokenAmount } from '@/util/formatToken';
 
-function TokenBalances({ balances, isLoading, onSend, cardStyle, textColor, subtextColor }) {
+function TokenBalances({ balances, isLoading, onSend, onCashOut, cardStyle, textColor, subtextColor }) {
   return (
     <Card borderRadius="2xl" boxShadow="2xl" style={cardStyle}>
       <CardBody p={[4, 6, 8]}>
@@ -95,6 +95,16 @@ function TokenBalances({ balances, isLoading, onSend, cardStyle, textColor, subt
                     >
                       Send
                     </Button>
+                    {onCashOut && token.symbol === 'USDC' && token.chainId === 42161 && (
+                      <Button
+                        size="xs"
+                        colorScheme="green"
+                        variant="outline"
+                        onClick={() => onCashOut(token)}
+                      >
+                        Cash Out
+                      </Button>
+                    )}
                   </HStack>
                 </HStack>
               ))}

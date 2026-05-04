@@ -5,7 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { useToast } from '@chakra-ui/react';
-import { utils } from 'ethers';
+import { utils, constants as ethersConstants, providers as ethersProviders } from 'ethers';
 import {
   SETTER_TEMPLATES,
   RAW_FUNCTIONS,
@@ -14,6 +14,12 @@ import {
 } from '@/config/setterDefinitions';
 import { usePOContext } from '@/context/POContext';
 import { getNetworkByChainId } from '../config/networks';
+import { getInfrastructureAddress, CONTRACT_NAMES } from '@/config/contracts';
+import { createHatsService } from '@/services/web3/domain/HatsService';
+import {
+  TITLE_PREFIX as ELECTION_TITLE_PREFIX,
+  DESCRIPTION_PREFIX as ELECTION_DESCRIPTION_PREFIX,
+} from '@/components/voting/ElectionConfigurator';
 
 const defaultProposal = {
   name: "",
@@ -31,6 +37,7 @@ const defaultProposal = {
   electionSelectedIncumbents: [],   // Array of { name, address } - holders whose hat is at stake
   electionFallbackRoleId: "",       // Hat ID for fallback role given to losers (optional)
   electionFallbackHolders: [],      // Addresses already holding fallback hat (pre-computed)
+  electionIncludeNoOneOption: false, // If true, append a "No One" option (empty batch) to the ballot
   // Voting restriction fields
   isRestricted: false,    // Whether to restrict who can vote
   restrictedHatIds: [],   // Hat IDs that can vote (if restricted)
@@ -77,19 +84,38 @@ export function useProposalForm({ onSubmit }) {
 
   const handleProposalTypeChange = useCallback((e) => {
     const newType = e.target.value;
-    setProposal(prev => ({
-      ...prev,
-      type: newType,
-      options: newType === 'normal' ? ["", ""] : [],
-      ...(newType !== 'election' ? {
-        electionRoleId: '',
-        electionCandidates: [],
-        electionCurrentHolders: [],
-        electionSelectedIncumbents: [],
-        electionFallbackRoleId: '',
-        electionFallbackHolders: [],
-      } : {}),
-    }));
+    // Election + setter use hybrid voting, which doesn't support hat-restricted voting.
+    // Clear restriction state on switch in so a stale toggle doesn't leak into submit.
+    const isHybrid = newType === 'election' || newType === 'setter';
+    setProposal(prev => {
+      // When switching away from election, drop auto-generated title/description
+      // (matches the sentinel-prefix convention in ElectionConfigurator). Preserve
+      // anything the user typed themselves.
+      const leavingElection = prev.type === 'election' && newType !== 'election';
+      const clearedName = leavingElection && prev.name?.startsWith(ELECTION_TITLE_PREFIX) ? '' : prev.name;
+      const clearedDescription = leavingElection && prev.description?.startsWith(ELECTION_DESCRIPTION_PREFIX) ? '' : prev.description;
+
+      return {
+        ...prev,
+        type: newType,
+        name: clearedName,
+        description: clearedDescription,
+        options: newType === 'normal' ? ["", ""] : [],
+        ...(isHybrid ? {
+          isRestricted: false,
+          restrictedHatIds: [],
+        } : {}),
+        ...(newType !== 'election' ? {
+          electionRoleId: '',
+          electionCandidates: [],
+          electionCurrentHolders: [],
+          electionSelectedIncumbents: [],
+          electionFallbackRoleId: '',
+          electionFallbackHolders: [],
+          electionIncludeNoOneOption: false,
+        } : {}),
+      };
+    });
   }, []);
 
   const handleTransferAddressChange = useCallback((e) => {
@@ -198,10 +224,13 @@ export function useProposalForm({ onSubmit }) {
       return false;
     }
 
-    if (proposal.electionCandidates.length < 2) {
+    const minCandidates = proposal.electionIncludeNoOneOption ? 1 : 2;
+    if (proposal.electionCandidates.length < minCandidates) {
       toast({
         title: "Not Enough Candidates",
-        description: "An election needs at least 2 candidates.",
+        description: proposal.electionIncludeNoOneOption
+          ? "An election with the 'No One' option needs at least 1 candidate."
+          : "An election needs at least 2 candidates.",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -221,6 +250,16 @@ export function useProposalForm({ onSubmit }) {
         });
         return false;
       }
+      if (candidate.address === ethersConstants.AddressZero) {
+        toast({
+          title: "Invalid Candidate Address",
+          description: `"${candidate.name || 'Unnamed'}" uses the zero address. Use the "Allow voters to reject all candidates" option instead.`,
+          status: "error",
+          duration: 5000,
+          isClosable: true,
+        });
+        return false;
+      }
       if (!candidate.name || candidate.name.trim() === '') {
         toast({
           title: "Missing Candidate Name",
@@ -234,7 +273,7 @@ export function useProposalForm({ onSubmit }) {
     }
 
     return true;
-  }, [proposal.electionRoleId, proposal.electionCandidates, toast]);
+  }, [proposal.electionRoleId, proposal.electionCandidates, proposal.electionIncludeNoOneOption, toast]);
 
   const validateNormalProposal = useCallback(() => {
     const nonEmpty = (proposal.options || []).filter(opt => opt.trim() !== '');
@@ -425,7 +464,7 @@ export function useProposalForm({ onSubmit }) {
     return true;
   }, [proposal.setterMode, proposal.setterTemplate, proposal.setterContract, proposal.setterFunction, proposal.setterValues, proposal.setterParams, toast]);
 
-  const buildProposalData = useCallback((eligibilityModuleAddress, contractAddresses) => {
+  const buildProposalData = useCallback((eligibilityModuleAddress, contractAddresses, freshHoldersOverride = null, hatsProtocolAddress = null) => {
     let numOptions;
     let batches = [];
     let optionNames = [];
@@ -451,72 +490,160 @@ export function useProposalForm({ onSubmit }) {
 
       const iface = new utils.Interface([
         "function mintHatToAddress(uint256 hatId, address wearer)",
-        "function setWearerEligibility(address wearer, uint256 hatId, bool eligible, bool standing)"
+        "function setWearerEligibility(address wearer, uint256 hatId, bool eligible, bool standing)",
+        // EligibilityModule v2: surgically zero a single wearer's vouch state
+        // for one hat. Combined with the eligibility revoke, this fully blocks
+        // an election loser from re-claiming via claimVouchedHat — without
+        // affecting any other wearer or the org's vouching config.
+        "function clearWearerVouches(address wearer, uint256 hatId)"
+      ]);
+      // Hats Protocol — used for the 1-incumbent transfer optimization. When
+      // exactly one incumbent is being replaced by a candidate who doesn't
+      // already hold the role, we use Hats.transferHat to atomically move the
+      // slot. transferHat does NOT decrement supply (just moves the balance)
+      // so it works for capped-supply hats (e.g. KUBI's Executive at 10/10)
+      // AND it bypasses the eligibility module's getWearerStatus check on the
+      // FROM side — vouching can't keep an incumbent in their seat. Verified
+      // on a Gnosis fork against KUBI's actual contracts.
+      const hatsIface = new utils.Interface([
+        "function transferHat(uint256 hatId, address from, address to)"
       ]);
 
       // Only revoke from the specific incumbents the user selected — not all holders
       const selectedIncumbents = proposal.electionSelectedIncumbents || [];
-      // All holders is used to check if candidate already holds the hat
-      const allHolders = proposal.electionCurrentHolders || [];
+      // All holders is used to check if candidate already holds the hat.
+      // Prefer the fresh on-chain snapshot from handleSubmit when available;
+      // form state can be stale (subgraph lag) and that produced AlreadyWearingHat
+      // reverts in past KUBI elections.
+      const allHolders = freshHoldersOverride
+        ? freshHoldersOverride.allHolders
+        : (proposal.electionCurrentHolders || []);
       // Fallback role: losers get downgraded to this hat instead of being fully removed
       const fallbackRoleId = proposal.electionFallbackRoleId;
-      const fallbackHolders = proposal.electionFallbackHolders || [];
+      const fallbackHolders = freshHoldersOverride
+        ? freshHoldersOverride.fallbackHolders
+        : (proposal.electionFallbackHolders || []);
 
       batches = proposal.electionCandidates.map(candidate => {
         const batch = [];
+        const candidateLower = candidate.address.toLowerCase();
+        const otherIncumbents = selectedIncumbents.filter(
+          i => i.address.toLowerCase() !== candidateLower
+        );
+        const candidateAlreadyHolds = allHolders.some(
+          h => h.address.toLowerCase() === candidateLower
+        );
 
-        // Revoke hat from selected incumbents who are NOT this candidate
+        // 1-incumbent transfer optimization: when exactly one incumbent is
+        // being replaced by a candidate who doesn't already hold the role,
+        // use Hats.transferHat. Atomic, supply-preserving, and works through
+        // vouching gates. For 0 or 2+ incumbents, fall back to the legacy
+        // setEligibility(revoke) + mint flow (best-effort for vouching-gated
+        // hats — KUBI's Executive transfer requires this 1-incumbent path).
+        const useTransferHat =
+          Boolean(hatsProtocolAddress) &&
+          otherIncumbents.length === 1 &&
+          !candidateAlreadyHolds;
+        const transferSourceLower = useTransferHat
+          ? otherIncumbents[0].address.toLowerCase()
+          : null;
+
         selectedIncumbents.forEach(incumbent => {
-          if (incumbent.address.toLowerCase() !== candidate.address.toLowerCase()) {
-            // Revoke the elected hat
+          const incumbentLower = incumbent.address.toLowerCase();
+          if (incumbentLower === candidateLower) return; // skip self
+
+          // Revoke the elected hat from the incumbent.
+          // Even when we're going to transferHat from this incumbent, the
+          // explicit revoke is still required: transferHat moves the token
+          // but leaves wearerRules untouched, so the loser could call
+          // claimVouchedHat or otherwise re-acquire if a slot opens up.
+          batch.push({
+            target: eligibilityModuleAddress,
+            value: "0",
+            data: iface.encodeFunctionData("setWearerEligibility", [
+              incumbent.address,
+              proposal.electionRoleId,
+              false,
+              false,
+            ]),
+          });
+
+          // Surgical vouch clear (EligibilityModule v2). Without this, a
+          // vouched-in incumbent can still pass getWearerStatus's vouch path
+          // and re-claim if supply opens up (combineWithHierarchy=true ORs
+          // hierarchy with vouching). Calling clearWearerVouches sets the
+          // incumbent's wearerVouchEpoch to a sentinel that won't match the
+          // config epoch — their effective vouch count for THIS hat becomes 0.
+          // No effect on other wearers; org-wide vouching stays enabled.
+          //
+          // Wrapped in try/catch at execute-time semantics by the EligibilityModule's
+          // ABI: if the deployed impl is pre-v2 (no clearWearerVouches), the
+          // call would revert and bubble up via Executor.CallFailed. Frontend
+          // assumes v2 has shipped (per the EligibilityModule upgrade PR);
+          // gate by version-detect if needed for staged rollout.
+          batch.push({
+            target: eligibilityModuleAddress,
+            value: "0",
+            data: iface.encodeFunctionData("clearWearerVouches", [
+              incumbent.address,
+              proposal.electionRoleId,
+            ]),
+          });
+
+          // Fallback role handling (independent of transfer optimization).
+          if (fallbackRoleId) {
             batch.push({
               target: eligibilityModuleAddress,
               value: "0",
               data: iface.encodeFunctionData("setWearerEligibility", [
                 incumbent.address,
-                proposal.electionRoleId,
-                false,
-                false,
+                fallbackRoleId,
+                true,
+                true,
               ]),
             });
-
-            // Grant fallback role to loser (if configured)
-            if (fallbackRoleId) {
-              // Set eligibility for fallback hat (idempotent, always safe)
+            const alreadyHoldsFallback = fallbackHolders.some(
+              addr => addr.toLowerCase() === incumbentLower
+            );
+            if (!alreadyHoldsFallback) {
               batch.push({
                 target: eligibilityModuleAddress,
                 value: "0",
-                data: iface.encodeFunctionData("setWearerEligibility", [
-                  incumbent.address,
+                data: iface.encodeFunctionData("mintHatToAddress", [
                   fallbackRoleId,
-                  true,
-                  true,
+                  incumbent.address,
                 ]),
               });
-
-              // Only mint if loser doesn't already hold the fallback hat
-              const alreadyHoldsFallback = fallbackHolders.some(
-                addr => addr.toLowerCase() === incumbent.address.toLowerCase()
-              );
-              if (!alreadyHoldsFallback) {
-                batch.push({
-                  target: eligibilityModuleAddress,
-                  value: "0",
-                  data: iface.encodeFunctionData("mintHatToAddress", [
-                    fallbackRoleId,
-                    incumbent.address,
-                  ]),
-                });
-              }
             }
           }
         });
 
-        // Mint hat to candidate if they don't already hold it
-        const candidateAlreadyHolds = allHolders.some(
-          h => h.address.toLowerCase() === candidate.address.toLowerCase()
-        );
-        if (!candidateAlreadyHolds) {
+        // Grant the candidate eligibility on the elected hat. Required by
+        // both transferHat's isEligible(to) check and mintHatToAddress's
+        // EligibilityModule check. Idempotent — safe if already eligible.
+        batch.push({
+          target: eligibilityModuleAddress,
+          value: "0",
+          data: iface.encodeFunctionData("setWearerEligibility", [
+            candidate.address,
+            proposal.electionRoleId,
+            true,
+            true,
+          ]),
+        });
+
+        // Final move: transferHat (1-incumbent case) or mint.
+        if (useTransferHat) {
+          batch.push({
+            target: hatsProtocolAddress,
+            value: "0",
+            data: hatsIface.encodeFunctionData("transferHat", [
+              proposal.electionRoleId,
+              otherIncumbents[0].address,
+              candidate.address,
+            ]),
+          });
+        } else if (!candidateAlreadyHolds) {
           batch.push({
             target: eligibilityModuleAddress,
             value: "0",
@@ -529,6 +656,14 @@ export function useProposalForm({ onSubmit }) {
 
         return batch;
       });
+
+      // First-class "No One" option — appended last so existing batch indices stay aligned.
+      // Empty batch = no on-chain effect when this option wins.
+      if (proposal.electionIncludeNoOneOption) {
+        optionNames.push("No One");
+        batches.push([]);
+        numOptions = optionNames.length;
+      }
     } else if (proposal.type === "setter") {
       // Setter proposal - call contract setter function(s)
       let setterCalls = [];
@@ -602,7 +737,15 @@ export function useProposalForm({ onSubmit }) {
   }, [proposal]);
 
   const validateBasicFields = useCallback(() => {
-    if (!proposal.name || proposal.name.trim() === '') {
+    // Setter proposals can be submitted without a manually-entered title:
+    // we auto-fill from the template's preview() at submission time below.
+    // Skip the empty-title gate when a setter template is selected.
+    const setterProvidesTitle =
+      proposal.type === 'setter'
+      && proposal.setterMode === 'template'
+      && proposal.setterTemplate;
+
+    if (!setterProvidesTitle && (!proposal.name || proposal.name.trim() === '')) {
       toast({
         title: "Missing Title",
         description: "Please enter a title for your proposal.",
@@ -613,11 +756,11 @@ export function useProposalForm({ onSubmit }) {
       return false;
     }
 
-    const duration = Number(proposal.time);
-    if (isNaN(duration) || duration <= 0) {
+    const durationHours = Number(proposal.time);
+    if (isNaN(durationHours) || durationHours <= 0) {
       toast({
         title: "Invalid Duration",
-        description: "Please enter a valid duration in minutes (must be greater than 0).",
+        description: "Please enter a valid duration in hours (must be greater than 0).",
         status: "error",
         duration: 5000,
         isClosable: true,
@@ -626,7 +769,14 @@ export function useProposalForm({ onSubmit }) {
     }
 
     return true;
-  }, [proposal.name, proposal.time, toast]);
+  }, [
+    proposal.name,
+    proposal.time,
+    proposal.type,
+    proposal.setterMode,
+    proposal.setterTemplate,
+    toast,
+  ]);
 
   const handleSubmit = useCallback(async (eligibilityModuleAddress, contractAddresses = {}) => {
     setLoadingSubmit(true);
@@ -658,14 +808,111 @@ export function useProposalForm({ onSubmit }) {
         return;
       }
 
-      const { numOptions, batches, optionNames } = buildProposalData(eligibilityModuleAddress, contractAddresses);
+      // For elections, re-read hat wearership on-chain right before building
+      // batches. Stale form state previously caused AlreadyWearingHat reverts
+      // (mint calls were emitted for wearers who already held the hat).
+      //
+      // We construct a JsonRpcProvider scoped to the ORG chain rather than
+      // using the wallet's provider — for cross-chain users (passkey, or an
+      // EOA whose wallet is on a different chain) the wallet provider would
+      // read the wrong chain's state. Mirrors the read pattern in
+      // pages/create/index.js:355.
+      let freshHoldersOverride = null;
+      if (proposal.type === "election") {
+        const hatsAddr = getInfrastructureAddress(CONTRACT_NAMES.HATS_PROTOCOL, orgChainId);
+        if (hatsAddr && orgNetwork?.rpcUrl && orgChainId) {
+          try {
+            const readProvider = new ethersProviders.JsonRpcProvider(
+              orgNetwork.rpcUrl,
+              { chainId: orgChainId, name: orgNetwork.name || `chain-${orgChainId}` }
+            );
+            const hats = createHatsService(readProvider);
+            const candidateAddrs = proposal.electionCandidates.map(c => c.address);
+            const incumbentAddrs = (proposal.electionSelectedIncumbents || []).map(i => i.address);
 
-      // Ensure duration is a number for the contract call
-      const durationMinutes = Number(proposal.time);
+            const candidateMap = await hats.getHolderStatuses(
+              hatsAddr,
+              proposal.electionRoleId,
+              candidateAddrs,
+            );
+            const fallbackMap = proposal.electionFallbackRoleId
+              ? await hats.getHolderStatuses(
+                  hatsAddr,
+                  proposal.electionFallbackRoleId,
+                  incumbentAddrs,
+                )
+              : new Map();
+
+            freshHoldersOverride = {
+              allHolders: candidateAddrs
+                .filter(a => candidateMap.get(a.toLowerCase()) === true)
+                .map(a => ({ address: a, name: '' })),
+              fallbackHolders: incumbentAddrs.filter(
+                a => fallbackMap.get(a.toLowerCase()) === true,
+              ),
+            };
+          } catch (err) {
+            console.error('[useProposalForm] Hats holder refresh failed:', err);
+            toast({
+              title: "Cannot verify current role holders",
+              description: "Could not read the Hats contract. Please try again.",
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            setLoadingSubmit(false);
+            return;
+          }
+        } else {
+          // No Hats address / RPC configured for this chain — defensive fall-through
+          // to cached form state. Not expected on Gnosis/Arbitrum/Sepolia.
+          console.warn('[useProposalForm] No HATS_PROTOCOL or RPC for chain', orgChainId);
+        }
+      }
+
+      const hatsProtocolAddress = getInfrastructureAddress(CONTRACT_NAMES.HATS_PROTOCOL, orgChainId) || null;
+      const { numOptions, batches, optionNames } = buildProposalData(
+        eligibilityModuleAddress,
+        contractAddresses,
+        freshHoldersOverride,
+        hatsProtocolAddress,
+      );
+
+      // Form collects hours; contract ABI expects minutes (uint32 minutesDuration).
+      // Math.round avoids FP slop (e.g., 0.5 * 60 = 30, not 29.999...).
+      const durationHours = Number(proposal.time);
+      const durationMinutes = Math.max(1, Math.round(durationHours * 60));
+
+      // Auto-fill title/description from setter template preview when the
+      // user left them blank. User-entered text always wins. This is what
+      // voters see in the proposal list and modal — without it, a "Change
+      // token name to FOO" setter proposal would render with a blank title
+      // and meaningless description.
+      let finalName = (proposal.name || '').trim();
+      let finalDescription = (proposal.description || '').trim();
+      if (
+        proposal.type === 'setter'
+        && proposal.setterMode === 'template'
+        && proposal.setterTemplate
+      ) {
+        const tmpl = getTemplateById(proposal.setterTemplate);
+        if (tmpl?.preview) {
+          let previewText = '';
+          try {
+            previewText = tmpl.preview(proposal.setterValues || {});
+          } catch (e) {
+            console.warn('[useProposalForm] template.preview() threw:', e);
+          }
+          if (previewText) {
+            if (!finalName) finalName = previewText;
+            if (!finalDescription) finalDescription = `If this vote passes: ${previewText}`;
+          }
+        }
+      }
 
       await onSubmit({
-        name: proposal.name.trim(),
-        description: proposal.description || '',
+        name: finalName,
+        description: finalDescription,
         time: durationMinutes,
         numOptions,
         batches,
@@ -675,6 +922,7 @@ export function useProposalForm({ onSubmit }) {
         transferAmount: proposal.transferAmount,
         electionRoleId: proposal.electionRoleId,
         electionCandidates: proposal.electionCandidates,
+        electionIncludeNoOneOption: proposal.electionIncludeNoOneOption,
         // Setter proposal fields
         setterContract: proposal.setterContract,
         setterTemplate: proposal.setterTemplate,
@@ -719,7 +967,7 @@ export function useProposalForm({ onSubmit }) {
       setLoadingSubmit(false);
       return false;
     }
-  }, [proposal, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, buildProposalData, onSubmit, resetForm, toast]);
+  }, [proposal, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, buildProposalData, onSubmit, resetForm, toast, orgChainId, orgNetwork, nativeCurrencySymbol]);
 
   return {
     proposal,

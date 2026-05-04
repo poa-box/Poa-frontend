@@ -75,7 +75,13 @@ export class SmartAccountTransactionManager {
    * @returns {Promise<TransactionResult>}
    */
   async execute(contract, method, args = [], options = {}) {
-    const { onStateChange, paymasterHatIds: overrideHatIds, value } = options;
+    const {
+      onStateChange,
+      paymasterHatIds: overrideHatIds,
+      value,
+      callGasLimit,
+      callGasLimitMultiplier,
+    } = options;
 
     try {
       // State: Estimating
@@ -93,7 +99,10 @@ export class SmartAccountTransactionManager {
       });
 
       // 3. Build UserOp — try with paymaster first, fall back to self-funded
-      const userOp = await this._buildUserOpWithFallback(callData, overrideHatIds);
+      const userOp = await this._buildUserOpWithFallback(callData, overrideHatIds, {
+        callGasLimit,
+        callGasLimitMultiplier,
+      });
 
       // State: Awaiting signature (biometric prompt)
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
@@ -162,7 +171,7 @@ export class SmartAccountTransactionManager {
    * @returns {Promise<TransactionResult>}
    */
   async executeBatch(transactions, batchOptions = {}) {
-    const { onStateChange } = batchOptions;
+    const { onStateChange, callGasLimit, callGasLimitMultiplier } = batchOptions;
 
     try {
       this._notifyState(onStateChange, TransactionState.ESTIMATING);
@@ -186,7 +195,10 @@ export class SmartAccountTransactionManager {
       });
 
       // Build UserOp — try with paymaster first, fall back to self-funded
-      const userOp = await this._buildUserOpWithFallback(callData);
+      const userOp = await this._buildUserOpWithFallback(callData, null, {
+        callGasLimit,
+        callGasLimitMultiplier,
+      });
 
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
 
@@ -237,8 +249,12 @@ export class SmartAccountTransactionManager {
   /**
    * Build a UserOp with paymaster-first-then-self-funded fallback.
    * Nonce + gas prices are fetched once; only estimation is retried on paymaster rejection.
+   *
+   * @param {string} callData - Encoded call data
+   * @param {string[]} [overrideHatIds] - Override hat IDs for paymaster budget
+   * @param {Object} [gasOverrides] - Optional gas overrides ({ callGasLimit, callGasLimitMultiplier })
    */
-  async _buildUserOpWithFallback(callData, overrideHatIds = null) {
+  async _buildUserOpWithFallback(callData, overrideHatIds = null, gasOverrides = {}) {
     // Use override hat IDs if provided (e.g., target hat for first role claim),
     // otherwise fall back to the user's current hats.
     const effectiveHatIds = overrideHatIds?.length > 0 ? overrideHatIds : this.hatIds;
@@ -287,6 +303,7 @@ export class SmartAccountTransactionManager {
         paymasterAddress: this.paymasterAddress,
         paymasterDataEntries,
       } : {}),
+      gasOverrides,
     });
 
     // Track whether paymaster was expected but the UserOp ended up self-funded.

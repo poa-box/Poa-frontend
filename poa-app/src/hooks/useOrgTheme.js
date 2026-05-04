@@ -1,23 +1,41 @@
+import { useMemo } from 'react';
 import { usePOContext } from '@/context/POContext';
+import { getBackgroundMode, resolveOnBackground } from '@/util/colorContrast';
 
 /**
  * Hook for accessing org theme settings from metadata.
  *
- * Returns the raw theme values from the org's metadata and a helper
- * to resolve a page background with a per-page fallback.
+ * Returns the raw background color, a helper to resolve a page background
+ * with a per-page fallback, and adaptive foreground tokens that stay legible
+ * regardless of what color the org picked (light, dark, gradient, etc.).
  *
- * Adding a new theme field (e.g. accentColor, textColor) requires:
+ * Use:
+ *   const { pageBackground, onBackground, onBackgroundMuted } = useOrgTheme();
+ *   <Box background={pageBackground()}>
+ *     <Heading color={onBackground}>Title</Heading>
+ *     <Text color={onBackgroundMuted}>Subtitle</Text>
+ *   </Box>
+ *
+ * Adding a new theme field (e.g. accentColor) requires:
  *   1. Add the field to the subgraph OrgMetadata schema
  *   2. Parse it in org-metadata.ts
  *   3. Add it to the GraphQL query + POContext
  *   4. Expose it from this hook
- * No page files need to change unless they consume the new field.
  */
 export function useOrgTheme() {
   const { backgroundColor } = usePOContext();
 
+  const { backgroundMode, onBackground, onBackgroundMuted, onBackgroundSubtle } = useMemo(() => {
+    const mode = getBackgroundMode(backgroundColor);
+    return { backgroundMode: mode, ...resolveOnBackground(mode) };
+  }, [backgroundColor]);
+
   return {
     backgroundColor,
+    backgroundMode,
+    onBackground,
+    onBackgroundMuted,
+    onBackgroundSubtle,
     /**
      * Returns the org's background color or the provided fallback.
      * Use as: <Box background={pageBackground("gray.900")}>

@@ -13,18 +13,10 @@ import {
   Select,
   Icon,
   IconButton,
-  Avatar,
 } from '@chakra-ui/react';
 import { FiUserPlus, FiX } from 'react-icons/fi';
 import { UserSearchInput } from '@/components/common';
-
-/**
- * Truncate an Ethereum address for display
- */
-function truncateAddress(address) {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
+import UserIdentity from '@/components/common/UserIdentity';
 
 /**
  * VouchForNewMember component
@@ -118,16 +110,13 @@ export function VouchForNewMember({
             borderRadius="md"
             justify="space-between"
           >
-            <HStack>
-              <Avatar
-                size="xs"
-                name={selectedUser.username || selectedUser.address}
-                bg="amethyst.500"
-              />
-              <Text color="warmGray.900" fontSize="sm">
-                {selectedUser.username || truncateAddress(selectedUser.address)}
-              </Text>
-            </HStack>
+            <UserIdentity
+              address={selectedUser.address}
+              usernameHint={selectedUser.username}
+              size="xs"
+              nameColor="warmGray.900"
+              nameFontSize="sm"
+            />
             <IconButton
               icon={<FiX />}
               size="xs"

@@ -9,10 +9,11 @@ import LoginButton from "@/components/LoginButton";
 import { useAuth } from "@/context/AuthContext";
 import { usePOContext } from "@/context/POContext";
 import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
+import { useOrgName } from "@/hooks/useOrgName";
 import { orgUrl } from "@/util/orgUrl";
 const Navbar = React.memo(() => {
   const router = useRouter();
-  const org = router.query.org || router.query.userDAO || '';
+  const org = useOrgName();
   const { isOpen, onOpen, onClose } = useDisclosure();
   // Drawer mount + lazy NextLink prefetches inside it cost ~4s of main-thread
   // work on the click. Deferring the open as a transition lets the browser

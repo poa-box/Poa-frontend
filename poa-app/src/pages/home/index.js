@@ -19,6 +19,7 @@ import { FiUsers, FiActivity, FiCheckCircle, FiGrid, FiCheckSquare, FiBarChart2,
 import Link from "next/link";
 import { usePOContext } from "@/context/POContext";
 import { useOrgTheme } from "@/hooks";
+import { useOrgName } from "@/hooks/useOrgName";
 import { useIPFScontext } from "@/context/ipfsContext";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { useAuth } from "@/context/AuthContext";
@@ -88,9 +89,9 @@ const GradientAvatar = ({ name, orgGradient }) => (
 
 const Home = () => {
   const { logoUrl, poDescription, poLinks, poMembers, activeTaskAmount, completedTaskAmount } = usePOContext();
-  const { pageBackground } = useOrgTheme();
+  const { pageBackground, backgroundMode, onBackground, onBackgroundMuted, onBackgroundSubtle } = useOrgTheme();
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const { fetchImageFromIpfs } = useIPFScontext();
 
   const { isPasskeyUser, isAuthenticated } = useAuth();
@@ -122,6 +123,14 @@ const Home = () => {
   const orgGradient = userDAO ? getOrgGradient(userDAO) : "linear-gradient(135deg, #9055E8, #E85D85)";
   const showImage = image && !imageError;
   const hasLinks = Array.isArray(poLinks) && poLinks.length > 0;
+
+  // Adapt ghost-button colors to the org background so the link row stays
+  // legible on both light and dark custom colors. 'unknown' (no org bg set)
+  // uses the light-mode hover since the default body gradient is light.
+  const linkButtonColor = onBackgroundMuted;
+  const linkButtonHover = backgroundMode === 'dark'
+    ? { color: 'white', bg: 'whiteAlpha.200' }
+    : { color: 'warmGray.900', bg: 'blackAlpha.100' };
 
   return (
     <>
@@ -164,7 +173,8 @@ const Home = () => {
                 h={AVATAR_SIZE}
                 borderRadius="2xl"
                 overflow="hidden"
-                boxShadow="0 8px 32px rgba(0, 0, 0, 0.1)"
+                bg="whiteAlpha.900"
+                boxShadow="0 8px 32px rgba(0, 0, 0, 0.15)"
               >
                 <Image
                   src={image}
@@ -190,7 +200,7 @@ const Home = () => {
             <Heading
               as="h1"
               fontSize={{ base: "3xl", md: "4xl" }}
-              color="warmGray.900"
+              color={onBackground}
               fontWeight="700"
               letterSpacing="-0.02em"
               mb={3}
@@ -201,7 +211,7 @@ const Home = () => {
             {poDescription && (
               <Text
                 fontSize={{ base: "md", md: "lg" }}
-                color="warmGray.600"
+                color={onBackgroundMuted}
                 lineHeight="1.7"
                 fontWeight="500"
                 maxW="480px"
@@ -363,8 +373,8 @@ const Home = () => {
                     key={i}
                     size="sm"
                     variant="ghost"
-                    color="warmGray.500"
-                    _hover={{ color: "warmGray.800", bg: "warmGray.100" }}
+                    color={linkButtonColor}
+                    _hover={linkButtonHover}
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
@@ -378,8 +388,8 @@ const Home = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    color="warmGray.500"
-                    _hover={{ color: "warmGray.800", bg: "warmGray.100" }}
+                    color={linkButtonColor}
+                    _hover={linkButtonHover}
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
@@ -390,8 +400,8 @@ const Home = () => {
                   <Button
                     size="sm"
                     variant="ghost"
-                    color="warmGray.500"
-                    _hover={{ color: "warmGray.800", bg: "warmGray.100" }}
+                    color={linkButtonColor}
+                    _hover={linkButtonHover}
                     leftIcon={<Icon as={FaExternalLinkAlt} boxSize={3} />}
                     fontWeight="500"
                     borderRadius="full"
@@ -407,7 +417,7 @@ const Home = () => {
           {/* Footer */}
           <Text
             fontSize="xs"
-            color="warmGray.400"
+            color={onBackgroundSubtle}
             fontWeight="400"
             textAlign="center"
             mt={4}

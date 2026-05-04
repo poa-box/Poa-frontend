@@ -19,13 +19,14 @@ import {
   FiChevronDown,
   FiChevronRight,
   FiUsers,
-  FiUser,
   FiActivity,
   FiCalendar,
   FiCheckSquare,
   FiThumbsUp,
 } from 'react-icons/fi';
 import PulseLoader from "@/components/shared/PulseLoader";
+import { usePOContext } from '@/context/POContext';
+import UserIdentity from '@/components/common/UserIdentity';
 
 /**
  * Format timestamp to readable date
@@ -41,17 +42,10 @@ function formatDate(timestamp) {
 }
 
 /**
- * Truncate address for display
- */
-function truncateAddress(address) {
-  if (!address) return '';
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-/**
  * Single member card
  */
 function MemberCard({ member }) {
+  const { tokenLabel = 'Shares' } = usePOContext() || {};
   const {
     username,
     address,
@@ -62,7 +56,6 @@ function MemberCard({ member }) {
     membershipStatus,
   } = member;
 
-  const displayName = username || truncateAddress(address);
   const isActive = membershipStatus === 'Active';
 
   return (
@@ -82,14 +75,16 @@ function MemberCard({ member }) {
       }}
     >
       <VStack align="stretch" spacing={3}>
-        {/* Name and status */}
-        <HStack justify="space-between">
-          <HStack spacing={2}>
-            <Icon as={FiUser} color="coral.500" />
-            <Text fontWeight="medium" color="warmGray.900">
-              {displayName}
-            </Text>
-          </HStack>
+        {/* Identity and status */}
+        <HStack justify="space-between" minW={0}>
+          <UserIdentity
+            address={address}
+            usernameHint={username}
+            size="sm"
+            nameColor="warmGray.900"
+            nameFontWeight="medium"
+            isTruncated
+          />
           <Badge
             colorScheme={isActive ? 'green' : 'gray'}
             size="sm"
@@ -105,7 +100,7 @@ function MemberCard({ member }) {
           <GridItem>
             <HStack spacing={1} color="warmGray.500" fontSize="xs">
               <Icon as={FiActivity} />
-              <Text>{participationTokenBalance} tokens</Text>
+              <Text>{participationTokenBalance} {tokenLabel.toLowerCase()}</Text>
             </HStack>
           </GridItem>
           <GridItem>

@@ -6,7 +6,7 @@
  * and find existing usernames across chains.
  */
 
-import { getAllSubgraphUrls } from '@/config/networks';
+import { getAllSubgraphUrls, DEFAULT_CHAIN_ID } from '@/config/networks';
 
 /**
  * Check if a username is taken on ANY chain.
@@ -229,10 +229,208 @@ export async function findUserProfileByUsername(username) {
 }
 
 /**
+ * Find a user's profile by address across ALL chains.
+ * Returns canonical username and profile metadata, picking the richest version
+ * across chains (profile may be updated on one chain but not another).
+ *
+ * @param {string} address - Wallet address to look up
+ * @returns {Promise<{ address: string|null, username: string|null, metadata: Object|null, sourceChain: string|null, sourceChainId: number|null }>}
+ */
+export async function findUserProfileByAddress(address) {
+  if (!address) {
+    return { address: null, username: null, metadata: null, sourceChain: null, sourceChainId: null };
+  }
+  const sources = getAllSubgraphUrls();
+  const id = address.toLowerCase();
+
+  const query = `
+    query FindUserProfileByAddress($id: Bytes!) {
+      account(id: $id) {
+        id
+        username
+        metadata {
+          bio
+          avatar
+          github
+          twitter
+          website
+        }
+      }
+    }
+  `;
+
+  const results = await Promise.allSettled(
+    sources.map(async (source) => {
+      const res = await fetch(source.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables: { id } }),
+      });
+      const json = await res.json();
+      return { source, account: json?.data?.account || null };
+    })
+  );
+
+  // Pick richest metadata. Tie-break: prefer the home chain (Arbitrum).
+  let best = null;
+  let bestRichness = -1;
+  let bestIsHome = false;
+
+  for (const result of results) {
+    if (result.status !== 'fulfilled' || !result.value?.account) continue;
+    const { source, account } = result.value;
+    const meta = account.metadata;
+    let richness = 0;
+    if (account.username) richness++;
+    if (meta) {
+      if (meta.bio) richness++;
+      if (meta.avatar) richness++;
+      if (meta.github) richness++;
+      if (meta.twitter) richness++;
+      if (meta.website) richness++;
+    }
+    const isHome = source.chainId === DEFAULT_CHAIN_ID;
+    const beats =
+      richness > bestRichness ||
+      (richness === bestRichness && isHome && !bestIsHome);
+    if (!best || beats) {
+      best = { account, source };
+      bestRichness = richness;
+      bestIsHome = isHome;
+    }
+  }
+
+  if (best) {
+    return {
+      address: best.account.id,
+      username: best.account.username || null,
+      metadata: best.account.metadata || null,
+      sourceChain: best.source.name,
+      sourceChainId: best.source.chainId,
+    };
+  }
+
+  return { address: null, username: null, metadata: null, sourceChain: null, sourceChainId: null };
+}
+
+/**
+ * Batch variant of findUserProfileByAddress: fetches profiles for many addresses
+ * across all chains in parallel. Returns a Map<lowerAddress, profileRecord>.
+ *
+ * @param {string[]} addresses
+ * @returns {Promise<Map<string, { username: string|null, metadata: Object|null, sourceChain: string|null, sourceChainId: number|null }>>}
+ */
+export async function findUserProfilesByAddresses(addresses) {
+  const map = new Map();
+  if (!Array.isArray(addresses) || addresses.length === 0) return map;
+
+  const sources = getAllSubgraphUrls();
+  const ids = Array.from(new Set(addresses.map(a => a?.toLowerCase()).filter(Boolean)));
+  if (ids.length === 0) return map;
+
+  const query = `
+    query FindUserProfilesByAddresses($ids: [Bytes!]!) {
+      accounts(where: { id_in: $ids }, first: 1000) {
+        id
+        username
+        metadata {
+          bio
+          avatar
+          github
+          twitter
+          website
+        }
+      }
+    }
+  `;
+
+  const results = await Promise.allSettled(
+    sources.map(async (source) => {
+      const res = await fetch(source.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables: { ids } }),
+      });
+      const json = await res.json();
+      return { source, accounts: json?.data?.accounts || [] };
+    })
+  );
+
+  const richness = (account) => {
+    let r = 0;
+    if (account.username) r++;
+    const m = account.metadata;
+    if (m) {
+      if (m.bio) r++;
+      if (m.avatar) r++;
+      if (m.github) r++;
+      if (m.twitter) r++;
+      if (m.website) r++;
+    }
+    return r;
+  };
+
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    const { source, accounts } = result.value;
+    const isHome = source.chainId === DEFAULT_CHAIN_ID;
+    for (const account of accounts) {
+      const key = account.id?.toLowerCase();
+      if (!key) continue;
+      const next = {
+        username: account.username || null,
+        metadata: account.metadata || null,
+        sourceChain: source.name,
+        sourceChainId: source.chainId,
+      };
+      const prev = map.get(key);
+      if (!prev) {
+        map.set(key, { ...next, _richness: richness(account), _isHome: isHome });
+        continue;
+      }
+      const nextRichness = richness(account);
+      const beats =
+        nextRichness > prev._richness ||
+        (nextRichness === prev._richness && isHome && !prev._isHome);
+      if (beats) {
+        map.set(key, { ...next, _richness: nextRichness, _isHome: isHome });
+      }
+    }
+  }
+
+  // Strip internal scoring fields before returning
+  for (const [key, value] of map.entries()) {
+    delete value._richness;
+    delete value._isHome;
+  }
+
+  return map;
+}
+
+/**
  * Find all organization memberships for an address across ALL chains.
  *
+ * Each entry's `firstSeenAt` is a unix-seconds string (subgraph BigInt) and
+ * `organization.metadata` is the indexed metadata object containing `logo`
+ * (IPFS CID) and `description`. `metadataHash` is retained as a fallback for
+ * subgraphs that have not indexed the metadata entity.
+ *
  * @param {string} address - Wallet address
- * @returns {Promise<Array<{ id, membershipStatus, participationTokenBalance, totalTasksCompleted, totalVotes, organization }>>}
+ * @returns {Promise<Array<{
+ *   id: string,
+ *   membershipStatus: string,
+ *   participationTokenBalance: string,
+ *   totalTasksCompleted: number,
+ *   totalVotes: number,
+ *   firstSeenAt: string | null,
+ *   organization: {
+ *     id: string,
+ *     name: string,
+ *     metadataHash: string,
+ *     metadata: { id: string, logo: string, description: string } | null,
+ *     participationToken: { symbol: string }
+ *   }
+ * }>>}
  */
 export async function findUserOrgsAcrossChains(address) {
   const sources = getAllSubgraphUrls();
@@ -245,10 +443,16 @@ export async function findUserOrgsAcrossChains(address) {
         participationTokenBalance
         totalTasksCompleted
         totalVotes
+        firstSeenAt
         organization {
           id
           name
           metadataHash
+          metadata {
+            id
+            logo
+            description
+          }
           participationToken { symbol }
         }
       }

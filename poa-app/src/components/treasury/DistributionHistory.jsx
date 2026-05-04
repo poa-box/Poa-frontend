@@ -19,6 +19,7 @@ import { formatTokenAmount } from '@/util/formatToken';
 import { getTokenByAddress } from '@/util/tokens';
 import { getNetworkByChainId } from '@/config/networks';
 import { usePOContext } from '@/context/POContext';
+import UserIdentity from '@/components/common/UserIdentity';
 
 const DistributionHistory = ({ distributions = [], payments = [] }) => {
   const { orgChainId } = usePOContext();
@@ -43,7 +44,8 @@ const DistributionHistory = ({ distributions = [], payments = [] }) => {
         amount: p.amount,
         token: p.token,
         timestamp: parseInt(p.receivedAt),
-        payer: p.payerUsername || `${p.payer?.slice(0, 6)}...${p.payer?.slice(-4)}`,
+        payerAddress: p.payer,
+        payerUsername: p.payerUsername || null,
         txHash: p.transactionHash,
       })),
     ].sort((a, b) => b.timestamp - a.timestamp);
@@ -112,10 +114,17 @@ const DistributionHistory = ({ distributions = [], payments = [] }) => {
                   </Link>
                 )}
               </HStack>
-              {item.type === 'payment' && (
-                <Text fontSize="xs" color="gray.500">
-                  From: {item.payer}
-                </Text>
+              {item.type === 'payment' && item.payerAddress && (
+                <HStack fontSize="xs" color="gray.500" spacing={1}>
+                  <Text>From:</Text>
+                  <UserIdentity
+                    address={item.payerAddress}
+                    usernameHint={item.payerUsername}
+                    size="2xs"
+                    nameFontSize="xs"
+                    nameColor="gray.300"
+                  />
+                </HStack>
               )}
               {item.type === 'distribution' && (
                 <Text fontSize="xs" color="gray.500">
@@ -163,9 +172,20 @@ const DistributionHistory = ({ distributions = [], payments = [] }) => {
                   {item.type === 'payment' ? '+' : '-'}{formattedAmount} {token.symbol}
                 </Td>
                 <Td fontSize="sm" color="gray.400">
-                  {item.type === 'payment'
-                    ? `From: ${item.payer}`
-                    : `${item.claimCount} claimed`}
+                  {item.type === 'payment' && item.payerAddress ? (
+                    <HStack spacing={1}>
+                      <Text>From:</Text>
+                      <UserIdentity
+                        address={item.payerAddress}
+                        usernameHint={item.payerUsername}
+                        size="2xs"
+                        nameFontSize="sm"
+                        nameColor="gray.300"
+                      />
+                    </HStack>
+                  ) : (
+                    `${item.claimCount} claimed`
+                  )}
                 </Td>
                 <Td>
                   {item.txHash && (

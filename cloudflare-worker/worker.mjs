@@ -1,5 +1,14 @@
 const PINATA_GATEWAY = 'https://ipfs.poa.earth';
 
+// White-label hosts whose root ("/") should land directly on the org home page
+// instead of the generic POA landing. The org itself is picked up client-side
+// from window.location.hostname in POContext (HOST_DEFAULT_ORG).
+// Redirecting at the edge avoids any flash of the landing HTML.
+const WHITE_LABEL_HOSTS = new Set([
+  'dao.kublockchain.com',
+  'www.poa.earth',
+]);
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -7,11 +16,20 @@ export default {
     // redirect bare domain -> www
     if (url.hostname === 'poa.earth') {
       url.hostname = 'www.poa.earth';
+      // If they hit the root, fold the white-label redirect into this hop.
+      // Trailing slash matches next.config.mjs `trailingSlash: true`.
+      if (url.pathname === '/') url.pathname = '/home/';
       return Response.redirect(url.toString(), 301);
     }
     if (url.hostname === 'poa.box') {
       url.hostname = 'www.poa.box';
       return Response.redirect(url.toString(), 301);
+    }
+
+    // White-label root -> org home (302, not 301 — we may change this).
+    if (url.pathname === '/' && WHITE_LABEL_HOSTS.has(url.hostname)) {
+      url.pathname = '/home/';
+      return Response.redirect(url.toString(), 302);
     }
 
     // Get CID from environment variable (set by CI/CD)
@@ -45,6 +63,12 @@ export default {
     const contentType = headers.get('content-type') || '';
     if (contentType.includes('text/html')) {
       headers.set('cache-control', 'public, max-age=0, must-revalidate');
+    }
+
+    // WebAuthn Related Origins spec requires application/json on this file;
+    // Pinata serves it as octet-stream because it has no extension.
+    if (url.pathname === '/.well-known/webauthn') {
+      headers.set('content-type', 'application/json');
     }
 
     return new Response(upstreamRes.body, {

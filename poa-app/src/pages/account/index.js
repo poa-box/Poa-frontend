@@ -19,7 +19,6 @@ import {
   Card,
   CardBody,
   Grid,
-  GridItem,
   Divider,
   useToast,
   useColorModeValue,
@@ -35,12 +34,14 @@ import { useAccount } from 'wagmi';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAuth } from '@/context/AuthContext';
 import { useGlobalAccount } from '@/hooks/useGlobalAccount';
-import { getAllSubgraphUrls } from '@/config/networks';
-import { formatTokenAmount } from '@/util/formatToken';
+import { findUserOrgsAcrossChains } from '@/util/crossChainUsername';
+import { filterUserOrgsForViewedProfile } from '@/util/profileOrgFilter';
+import UserOrgCard from '@/components/profile/UserOrgCard';
 import GlobalAccountSettingsModal from '@/components/account/GlobalAccountSettingsModal';
 import ProfileEditor from '@/components/account/ProfileEditor';
 import TokenBalances from '@/components/account/TokenBalances';
 import TransferModal from '@/components/account/TransferModal';
+import CashOutModal from '@/components/account/CashOutModal';
 import { useTokenBalances } from '@/hooks/useTokenBalances';
 import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
 import SignInModal from '@/components/passkey/SignInModal';
@@ -61,6 +62,8 @@ const AccountPage = () => {
   const [orgsLoading, setOrgsLoading] = useState(true);
   const [selectedTransferToken, setSelectedTransferToken] = useState(null);
   const { isOpen: isTransferOpen, onOpen: onTransferOpen, onClose: onTransferClose } = useDisclosure();
+  const [selectedCashOutToken, setSelectedCashOutToken] = useState(null);
+  const { isOpen: isCashOutOpen, onOpen: onCashOutOpen, onClose: onCashOutClose } = useDisclosure();
   const { balances, nativeBalances, isLoading: balancesLoading, refetch: refetchBalances } = useTokenBalances(accountAddress);
 
   // Fetch user's organizations across all chains via parallel fetch
@@ -72,47 +75,24 @@ const AccountPage = () => {
     let cancelled = false;
     setOrgsLoading(true);
 
-    async function fetchOrgs() {
-      const sources = getAllSubgraphUrls();
-      const query = `
-        query FetchUserOrgs($userAddress: Bytes!) {
-          users(where: { address: $userAddress, membershipStatus: Active }) {
-            id
-            membershipStatus
-            participationTokenBalance
-            totalTasksCompleted
-            totalVotes
-            organization {
-              id
-              name
-              metadataHash
-              participationToken { symbol }
-            }
-          }
+    findUserOrgsAcrossChains(accountAddress)
+      .then((orgs) => {
+        if (!cancelled) {
+          setOrganizations(orgs);
+          setOrgsLoading(false);
         }
-      `;
-      const results = await Promise.all(sources.map(async (source) => {
-        try {
-          const res = await fetch(source.url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, variables: { userAddress: accountAddress.toLowerCase() } }),
-          });
-          const json = await res.json();
-          return json?.data?.users || [];
-        } catch {
-          return [];
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setOrganizations([]);
+          setOrgsLoading(false);
         }
-      }));
-      if (!cancelled) {
-        setOrganizations(results.flat());
-        setOrgsLoading(false);
-      }
-    }
+      });
 
-    fetchOrgs();
     return () => { cancelled = true; };
   }, [accountAddress, hasAccount]);
+
+  const visibleOrganizations = filterUserOrgsForViewedProfile(organizations, globalUsername);
 
   // Colors
   const bgGradient = useColorModeValue(
@@ -120,7 +100,6 @@ const AccountPage = () => {
     'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)'
   );
   const cardBg = useColorModeValue('rgba(255, 255, 255, 0.95)', 'rgba(0, 0, 0, 0.73)');
-  const cardBgOrg = useColorModeValue('white', 'gray.700');
   const textColor = useColorModeValue('gray.800', 'white');
   const subtextColor = useColorModeValue('gray.600', 'gray.400');
 
@@ -349,6 +328,10 @@ const AccountPage = () => {
               setSelectedTransferToken(token);
               onTransferOpen();
             }}
+            onCashOut={(token) => {
+              setSelectedCashOutToken(token);
+              onCashOutOpen();
+            }}
             cardStyle={glassStyle}
             textColor={textColor}
             subtextColor={subtextColor}
@@ -367,7 +350,7 @@ const AccountPage = () => {
                     <SkeletonText noOfLines={3} spacing={4} width="100%" />
                     <SkeletonText noOfLines={3} spacing={4} width="100%" />
                   </VStack>
-                ) : organizations.length === 0 ? (
+                ) : visibleOrganizations.length === 0 ? (
                   <VStack spacing={4} py={8}>
                     <Text color={subtextColor} textAlign="center">
                       You haven't joined any organizations yet.
@@ -385,71 +368,14 @@ const AccountPage = () => {
                     templateColumns={{ base: '1fr', md: 'repeat(2, 1fr)' }}
                     gap={4}
                   >
-                    {organizations.map((userOrg) => (
-                      <GridItem key={userOrg.id}>
-                        <Link href={`/home?org=${userOrg.organization?.name}`} passHref>
-                          <Card
-                            variant="outline"
-                            borderRadius="xl"
-                            cursor="pointer"
-                            transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
-                            _hover={{
-                              transform: 'translateY(-2px)',
-                              boxShadow: 'lg',
-                              borderColor: 'purple.400',
-                            }}
-                            bg={cardBgOrg}
-                          >
-                            <CardBody p={4}>
-                              <VStack align="stretch" spacing={3}>
-                                <HStack justify="space-between">
-                                  <Text
-                                    fontWeight="bold"
-                                    fontSize="lg"
-                                    color={textColor}
-                                    noOfLines={1}
-                                  >
-                                    {userOrg.organization?.name || 'Unknown'}
-                                  </Text>
-                                  <Badge colorScheme="green">
-                                    {userOrg.membershipStatus}
-                                  </Badge>
-                                </HStack>
-
-                                <Grid templateColumns="repeat(2, 1fr)" gap={2}>
-                                  <VStack align="start" spacing={0}>
-                                    <Text color={subtextColor} fontSize="xs">
-                                      Shares Earned
-                                    </Text>
-                                    <Text color={textColor} fontWeight="medium">
-                                      {formatTokenAmount(userOrg.participationTokenBalance)}{' '}
-                                      {userOrg.organization?.participationToken?.symbol || 'shares'}
-                                    </Text>
-                                  </VStack>
-
-                                  <VStack align="start" spacing={0}>
-                                    <Text color={subtextColor} fontSize="xs">
-                                      Tasks Completed
-                                    </Text>
-                                    <Text color={textColor} fontWeight="medium">
-                                      {userOrg.totalTasksCompleted || 0}
-                                    </Text>
-                                  </VStack>
-
-                                  <VStack align="start" spacing={0}>
-                                    <Text color={subtextColor} fontSize="xs">
-                                      Votes Cast
-                                    </Text>
-                                    <Text color={textColor} fontWeight="medium">
-                                      {userOrg.totalVotes || 0}
-                                    </Text>
-                                  </VStack>
-                                </Grid>
-                              </VStack>
-                            </CardBody>
-                          </Card>
-                        </Link>
-                      </GridItem>
+                    {visibleOrganizations.map((userOrg) => (
+                      <Link
+                        key={userOrg.id}
+                        href={`/home?org=${encodeURIComponent(userOrg.organization?.name || '')}`}
+                        style={{ display: 'block', textDecoration: 'none', color: 'inherit' }}
+                      >
+                        <UserOrgCard userOrg={userOrg} />
+                      </Link>
                     ))}
                   </Grid>
                 )}
@@ -472,6 +398,15 @@ const AccountPage = () => {
         token={selectedTransferToken}
         accountAddress={accountAddress}
         nativeBalance={selectedTransferToken ? nativeBalances[selectedTransferToken.chainId] : '0'}
+        onSuccess={refetchBalances}
+      />
+
+      {/* Cash Out Modal */}
+      <CashOutModal
+        isOpen={isCashOutOpen}
+        onClose={onCashOutClose}
+        token={selectedCashOutToken}
+        accountAddress={accountAddress}
         onSuccess={refetchBalances}
       />
     </Box>

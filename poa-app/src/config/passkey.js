@@ -25,16 +25,30 @@ export const WEBAUTHN_RP_NAME = 'Perpetual Organization Architect';
 // See https://w3c.github.io/webauthn/#sctn-related-origins
 export const WEBAUTHN_RP_ID = 'poa.box';
 
+// Custom domains whose WebAuthn operations should use WEBAUTHN_RP_ID via Related
+// Origin Requests. Each host listed here MUST also appear in the `origins` array
+// of poa-app/public/.well-known/webauthn — browsers fetch that file from
+// https://poa.box/.well-known/webauthn to authorize the cross-origin RP ID.
+export const RELATED_ORIGIN_HOSTS = new Set([
+  'dao.kublockchain.com',
+  'poa.earth',
+  'www.poa.earth',
+]);
+
 /**
  * Return the RP ID to use for WebAuthn operations.
  *
  * Uses WEBAUTHN_RP_ID when the current hostname is (or is a subdomain of) that
- * domain — this is the WebAuthn "registrable domain suffix" rule. Falls back to
- * the raw hostname otherwise (e.g. localhost during development).
+ * domain — this is the WebAuthn "registrable domain suffix" rule — or when it
+ * is a registered related-origin host. Falls back to the raw hostname otherwise
+ * (e.g. localhost during development).
  */
 export function getWebAuthnRpId() {
   const hostname = window.location.hostname;
   if (hostname === WEBAUTHN_RP_ID || hostname.endsWith('.' + WEBAUTHN_RP_ID)) {
+    return WEBAUTHN_RP_ID;
+  }
+  if (RELATED_ORIGIN_HOSTS.has(hostname)) {
     return WEBAUTHN_RP_ID;
   }
   return hostname;

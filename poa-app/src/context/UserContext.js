@@ -3,6 +3,7 @@ import { useQuery } from '@apollo/client';
 import { useAuth } from './AuthContext';
 import { FETCH_USER_DATA_NEW, FETCH_TOKEN_APPROVER_HATS } from '../util/queries';
 import { useRouter } from 'next/router';
+import { useOrgName } from '../hooks/useOrgName';
 import { usePOContext } from './POContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { useRefresh } from './RefreshContext';
@@ -15,7 +16,7 @@ export const useUserContext = () => useContext(UserContext);
 export const UserProvider = ({ children }) => {
     const { accountAddress: authAddress } = useAuth();
     const router = useRouter();
-    const userDAO = router.query.org || router.query.userDAO || '';
+    const userDAO = useOrgName();
     const { orgId, roleHatIds, participationTokenAddress, subgraphUrl } = usePOContext();
 
     const [userData, setUserData] = useState({});

@@ -11,6 +11,7 @@ import { ArrowForwardIcon } from "@chakra-ui/icons";
 import { useRouter } from "next/router";
 import HistoryCard from "./HistoryCard";
 import EmptyState from "./EmptyState";
+import { useOrgName } from "@/hooks/useOrgName";
 
 const VotingHistoryPreview = ({
   completedProposals = [],
@@ -18,7 +19,7 @@ const VotingHistoryPreview = ({
   maxItems = 3,
 }) => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
 
   const headingSize = useBreakpointValue({ base: "xl", md: "2xl" });
 

@@ -24,6 +24,7 @@ import { useAccount } from 'wagmi';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { useAuth } from '@/context/AuthContext';
 import { useOrgStructure, useClaimRole, useVouches } from '@/hooks';
+import { useOrgName } from '@/hooks/useOrgName';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingContext } from '@/context/VotingContext';
 import {
@@ -39,7 +40,7 @@ import {
 
 const OrgStructurePage = () => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const { isConnected, address: wagmiAddress } = useAccount();
   const { isAuthenticated, accountAddress } = useAuth();
 

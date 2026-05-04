@@ -24,6 +24,7 @@ import {
 import { InfoIcon, ExternalLinkIcon } from '@chakra-ui/icons';
 import { FaProjectDiagram } from 'react-icons/fa';
 import { useDataBaseContext } from '@/context/dataBaseContext';
+import { usePOContext } from '@/context/POContext';
 import { formatTokenAmount } from '@/util/formatToken';
 import { getTokenByAddress } from '@/util/tokens';
 
@@ -39,6 +40,7 @@ const glassLayerStyle = {
 const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { selectedProject } = useDataBaseContext();
+  const { tokenLabel = 'Shares' } = usePOContext() || {};
 
   // Use indexed description from subgraph (no IPFS fetching needed)
   const projectDescription = selectedProject?.description || '';
@@ -130,7 +132,7 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
                 </Text>
                 {projectBudget !== '0' ? (
                   <Text>
-                    {projectBudget} shares
+                    {projectBudget} {tokenLabel.toLowerCase()}
                   </Text>
                 ) : (
                   <Text color="gray.400" fontStyle="italic">

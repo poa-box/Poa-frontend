@@ -8,10 +8,11 @@ import { useRouter } from 'next/router';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import { usePOContext } from '@/context/POContext';
 import { useOrgTheme } from '@/hooks';
+import { useOrgName } from '@/hooks/useOrgName';
 
 const Tasks = () => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const { setSelectedProjectId, projects } = useDataBaseContext();
   const { poContextLoading } = usePOContext();
   const { pageBackground } = useOrgTheme();

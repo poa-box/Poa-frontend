@@ -24,12 +24,15 @@ import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import ExecutiveMenuModal from '@/components/profileHub/ExecutiveMenuModal';
 import PulseLoader from "@/components/shared/PulseLoader";
 import { useOrgStructure, useOrgTheme } from '@/hooks';
+import { useOrgName } from '@/hooks/useOrgName';
 import { useVouches } from '@/hooks/useVouches';
 import WelcomeClaimPage from '@/components/profileHub/WelcomeClaimPage';
 import { useAuth } from '@/context/AuthContext';
 
 // Profile hub components
 import ProfileHeader from '@/components/profileHub/ProfileHeader';
+import EditProfileModal from '@/components/profile/EditProfileModal';
+import { useGlobalAccount } from '@/hooks/useGlobalAccount';
 import UserRolesCard from '@/components/profileHub/UserRolesCard';
 import TokenActivityCard from '@/components/profileHub/TokenActivityCard';
 import TokenRequestCard from '@/components/profileHub/TokenRequestCard';
@@ -112,6 +115,8 @@ function WelcomePageSkeleton() {
  */
 function RecommendedTasksCompact({ tasks, userDAO }) {
   const displayTasks = tasks?.slice(0, 3) || [];
+  const { tokenLabel = 'Shares' } = usePOContext() || {};
+  const tokenLabelLower = tokenLabel.toLowerCase();
 
   return (
     <Box
@@ -158,7 +163,7 @@ function RecommendedTasksCompact({ tasks, userDAO }) {
                     {task.isIndexing ? 'Indexing...' : task.title}
                   </Text>
                   <Badge colorScheme="yellow" variant="subtle" fontSize="xs" ml={2}>
-                    {task.payout} shares
+                    {task.payout} {tokenLabelLower}
                   </Badge>
                 </HStack>
                 <Badge colorScheme="green" fontSize="xs" mt={2}>{task.status}</Badge>
@@ -183,15 +188,16 @@ function RecommendedTasksCompact({ tasks, userDAO }) {
 
 const UserprofileHub = () => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const { accountAddress: userAddress } = useAuth();
-  const { pageBackground } = useOrgTheme();
+  const { pageBackground, onBackground } = useOrgTheme();
 
   const { ongoingPolls } = useVotingContext();
   const { recommendedTasks } = useProjectContext();
   const { claimedTasks, userProposals, graphUsername, userDataLoading, error, userData, hasExecRole, hasMemberRole, hasApproverRole } = useUserContext();
   const poContext = usePOContext();
   const avatarMap = poContext?.avatarMap || {};
+  const tokenLabel = poContext?.tokenLabel || 'Shares';
 
   // Fetch org structure for roles and claim page
   const { roles, eligibilityModuleAddress, orgName, orgMetadata, permissionsMatrix, loading: orgLoading } = useOrgStructure();
@@ -204,6 +210,10 @@ const UserprofileHub = () => {
   // Modal states
   const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
   const [isExecutiveMenuOpen, setExecutiveMenuOpen] = useState(false);
+  const [isEditProfileOpen, setEditProfileOpen] = useState(false);
+
+  // Global profile metadata (cross-chain) — used for completeness nudge + avatar fallback
+  const { profileMetadata } = useGlobalAccount();
 
   // Compute user info from userData
   const userInfo = useMemo(() => {
@@ -218,7 +228,9 @@ const UserprofileHub = () => {
       username: graphUsername,
       ptBalance,
       memberStatus: userData.membershipStatus || 'Member',
-      accountAddress: userData.id,
+      // user.id from the subgraph is the composite `${orgId}-${address}` —
+      // user.address is the bare wallet/account address we actually want to display.
+      accountAddress: userData.address || userAddress,
       tasksCompleted: userData.tasksCompleted || 0,
       totalVotes: userData.totalVotes || 0,
       dateJoined: userData.firstSeenAt ? formatDateToAmerican(userData.firstSeenAt) : 'Unknown',
@@ -228,7 +240,7 @@ const UserprofileHub = () => {
       // nextTier: progressData.nextTier,
       // nextTierThreshold: progressData.nextTierThreshold,
     };
-  }, [userData, graphUsername]);
+  }, [userData, graphUsername, userAddress]);
 
   // Check if user has claimed any roles
   const userHatIds = userData?.hatIds || [];
@@ -295,7 +307,7 @@ const UserprofileHub = () => {
         {seoHead}
         <Navbar />
         <Center height="100vh" background={pageBackground()}>
-          <Text color="white">Error: {error.message}</Text>
+          <Text color={onBackground}>Error: {error.message}</Text>
         </Center>
       </>
     );
@@ -329,9 +341,15 @@ const UserprofileHub = () => {
             <ProfileHeader
               username={userInfo.username}
               address={userInfo.accountAddress}
-              avatarUrl={avatarMap[userInfo.username]}
+              avatarUrl={
+                avatarMap[userInfo.username] ||
+                (profileMetadata?.avatar ? `https://ipfs.io/ipfs/${profileMetadata.avatar}` : undefined)
+              }
               userRoles={userRoles}
               isExec={hasExecRole}
+              profileMetadata={profileMetadata}
+              canEdit={!!userAddress}
+              onEditProfileClick={() => setEditProfileOpen(true)}
               onSettingsClick={() => setSettingsModalOpen(true)}
               onExecutiveMenuClick={() => setExecutiveMenuOpen(true)}
             />
@@ -418,7 +436,7 @@ const UserprofileHub = () => {
                             {task.isIndexing ? 'Indexing...' : task.title}
                           </Text>
                           <Badge colorScheme="yellow" variant="subtle" fontSize="xs" ml={2}>
-                            {task.payout} shares
+                            {task.payout} {tokenLabel.toLowerCase()}
                           </Badge>
                         </HStack>
                         <Badge colorScheme="purple" fontSize="xs" mt={2}>{task.status}</Badge>
@@ -518,6 +536,7 @@ const UserprofileHub = () => {
       {/* Modals */}
       <AccountSettingsModal isOpen={isSettingsModalOpen} onClose={() => setSettingsModalOpen(false)} />
       <ExecutiveMenuModal isOpen={isExecutiveMenuOpen} onClose={() => setExecutiveMenuOpen(false)} hasApproverRole={hasApproverRole} />
+      <EditProfileModal isOpen={isEditProfileOpen} onClose={() => setEditProfileOpen(false)} />
     </>
   );
 };

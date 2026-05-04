@@ -31,6 +31,7 @@ import CountDown from "./countDown";
 import { useRouter } from "next/router";
 import { useAuth } from "@/context/AuthContext";
 import { useRoleNames, useVotingPower } from "@/hooks";
+import { useOrgName } from "@/hooks/useOrgName";
 
 
 const glassLayerStyle = {
@@ -54,7 +55,7 @@ const PollModal = ({
   setSelectedOption,
 }) => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const { accountAddress: address } = useAuth();
   const { getRoleNamesString, votingEligibleRoles } = useRoleNames();
   const {

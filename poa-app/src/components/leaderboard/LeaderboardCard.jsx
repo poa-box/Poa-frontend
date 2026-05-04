@@ -5,14 +5,14 @@ import {
   VStack,
   Text,
   Icon,
-  Avatar,
 } from '@chakra-ui/react';
 import {
   FiCheckSquare,
   FiThumbsUp,
 } from 'react-icons/fi';
 import { PiCoinVerticalBold } from 'react-icons/pi';
-import UsernameLink from '@/components/common/UsernameLink';
+import UserIdentity from '@/components/common/UserIdentity';
+import { usePOContext } from '@/context/POContext';
 
 const getMedalColor = (rank) => {
   switch (rank) {
@@ -38,6 +38,7 @@ const getMedalGlow = (rank) => {
 
 function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
   const medalColor = getMedalColor(rank);
+  const { tokenLabel } = usePOContext();
 
   return (
     <Box
@@ -88,24 +89,18 @@ function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
           </Text>
         </Box>
 
-        {/* Avatar */}
-        <Avatar
-          size={isTopThree ? 'md' : 'sm'}
-          name={user.name}
-          src={user.avatarCid ? `https://ipfs.io/ipfs/${user.avatarCid}` : undefined}
-          bg="purple.500"
-        />
-
-        {/* User info */}
+        {/* Identity (avatar + name) */}
         <VStack align="start" spacing={1} flex={1} minW={0}>
-          <UsernameLink
-            username={user.name}
-            hasUsername={user.hasUsername}
-            fontWeight={isTopThree ? 'bold' : 'medium'}
-            color="white"
-            fontSize={isTopThree ? 'md' : 'sm'}
+          <UserIdentity
+            address={user.address}
+            usernameHint={user.hasUsername ? user.name : null}
+            avatarCidHint={user.avatarCid}
+            size={isTopThree ? 'md' : 'sm'}
+            nameColor="white"
+            nameFontSize={isTopThree ? 'md' : 'sm'}
+            nameFontWeight={isTopThree ? 'bold' : 'medium'}
             isTruncated
-            maxW="100%"
+            maxNameW="100%"
           />
 
           {/* Stats */}
@@ -113,7 +108,7 @@ function LeaderboardCard({ user, rank, onClick, isTopThree = false }) {
             <HStack spacing={1.5}>
               <Icon as={PiCoinVerticalBold} color={medalColor || 'yellow.400'} boxSize={4} />
               <Text fontSize="sm" color="gray.300" fontWeight="medium">
-                {user.token} <Text as="span" textTransform="uppercase">Shares</Text>
+                {user.token} <Text as="span" textTransform="uppercase">{tokenLabel}</Text>
               </Text>
             </HStack>
             <HStack spacing={1.5}>

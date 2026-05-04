@@ -3,9 +3,11 @@ import { useQuery } from '@apollo/client';
 import { FETCH_ORG_FULL_DATA } from '../util/queries';
 import { useRouter } from 'next/router';
 import { formatTokenAmount } from '../util/formatToken';
+import { resolveTokenLabel, DEFAULT_TOKEN_LABEL } from '../util/tokenLabel';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
 import { useIPFScontext } from './ipfsContext';
+import { useIdentityContext } from './IdentityContext';
 import { getSubgraphUrl, getAllSubgraphUrls } from '../config/networks';
 
 const POContext = createContext();
@@ -133,6 +135,9 @@ const initialState = {
     creatorHatIds: [],
     educationHubEnabled: false,
     hideTreasury: false,
+    useTokenSymbol: false,
+    participationTokenSymbol: null,
+    tokenLabel: DEFAULT_TOKEN_LABEL,
     roleNames: {},
     roleCanVoteMap: {},
 };
@@ -150,10 +155,35 @@ function poReducer(state, action) {
     }
 }
 
+// White-label hosts that auto-select an org when no ?org= / ?userDAO= is passed.
+// Explicit query params still win, so support can always override.
+const HOST_DEFAULT_ORG = {
+    'dao.kublockchain.com': 'KUBI',
+    'poa.earth': 'Test6',
+    'www.poa.earth': 'Test6',
+};
+
+export function getDefaultOrgForHost() {
+    if (typeof window === 'undefined') return '';
+    return HOST_DEFAULT_ORG[window.location.hostname] || '';
+}
+
+// Inverse of HOST_DEFAULT_ORG for the explore page's Visit button: send users
+// to an org's white-label domain instead of the default poa.box home route.
+const ORG_WHITE_LABEL_URL = {
+    KUBI: 'https://dao.kublockchain.com',
+};
+
+export function getVisitUrlForOrg(orgId) {
+    if (orgId && ORG_WHITE_LABEL_URL[orgId]) return ORG_WHITE_LABEL_URL[orgId];
+    return `/home?org=${orgId}`;
+}
+
 export const POProvider = ({ children }) => {
     const router = useRouter();
-    const poName = router.query.org || router.query.userDAO || '';
+    const poName = router.query.org || router.query.userDAO || getDefaultOrgForHost();
     const { safeFetchFromIpfs } = useIPFScontext();
+    const { seedIdentities } = useIdentityContext();
 
     const [state, dispatch] = useReducer(poReducer, initialState);
 
@@ -162,7 +192,8 @@ export const POProvider = ({ children }) => {
         return state.leaderboardData.filter(user => user.hasUsername);
     }, [state.leaderboardData]);
 
-    // Username → avatar IPFS URL map for components to look up profile pictures
+    // Username → avatar IPFS URL map for components to look up profile pictures.
+    // Backwards-compat view; new code should resolve via IdentityContext / <UserIdentity>.
     const avatarMap = useMemo(() => {
         const map = {};
         for (const user of state.leaderboardData) {
@@ -172,6 +203,20 @@ export const POProvider = ({ children }) => {
         }
         return map;
     }, [state.leaderboardData]);
+
+    // Seed IdentityContext with leaderboard data so cross-app components can
+    // resolve avatar/username for these addresses without re-fetching.
+    useEffect(() => {
+        if (!state.leaderboardData || state.leaderboardData.length === 0) return;
+        const entries = state.leaderboardData
+            .filter(u => u.address)
+            .map(u => ({
+                address: u.address,
+                username: u.hasUsername ? u.name : null,
+                avatarCid: u.avatarCid,
+            }));
+        if (entries.length > 0) seedIdentities(entries);
+    }, [state.leaderboardData, seedIdentities]);
 
     // Step 1: Look up org by name across all chains via parallel fetch
     const [orgLookupLoading, setOrgLookupLoading] = useState(!!poName);
@@ -344,6 +389,12 @@ export const POProvider = ({ children }) => {
                     logoUrl: org.metadata?.logo || '',
                     backgroundColor: org.metadata?.backgroundColor || null,
                     hideTreasury: org.metadata?.hideTreasury === true,
+                    useTokenSymbol: org.metadata?.useTokenSymbol === true,
+                    participationTokenSymbol: org.participationToken?.symbol || null,
+                    tokenLabel: resolveTokenLabel({
+                        useTokenSymbol: org.metadata?.useTokenSymbol === true,
+                        symbol: org.participationToken?.symbol,
+                    }),
                     poMembers: org.users?.length || 0,
                     ptTokenBalance: formatTokenAmount(org.participationToken?.totalSupply || '0'),
                     topHatId: org.topHatId,
@@ -419,9 +470,14 @@ export const POProvider = ({ children }) => {
             try {
                 const metadata = await safeFetchFromIpfs(org.metadataHash);
                 dispatch({ type: 'SET_LOGO_URL', payload: metadata?.logo || '' });
+                const useTokenSymbol = metadata?.useTokenSymbol === true;
+                const symbol = org.participationToken?.symbol || null;
                 dispatch({ type: 'SET_ORG_DATA', payload: {
                     hideTreasury: metadata?.hideTreasury === true,
                     backgroundColor: metadata?.backgroundColor || null,
+                    useTokenSymbol,
+                    participationTokenSymbol: symbol,
+                    tokenLabel: resolveTokenLabel({ useTokenSymbol, symbol }),
                 } });
             } catch (e) {
                 console.warn('[POContext] Failed to fetch metadata from IPFS:', e);
@@ -528,6 +584,9 @@ export const POProvider = ({ children }) => {
         creatorHatIds: state.creatorHatIds,
         educationHubEnabled: state.educationHubEnabled,
         hideTreasury: state.hideTreasury,
+        useTokenSymbol: state.useTokenSymbol,
+        participationTokenSymbol: state.participationTokenSymbol,
+        tokenLabel: state.tokenLabel,
         roleNames: state.roleNames,
         roleCanVoteMap: state.roleCanVoteMap,
     }), [state, loading, errorMessage, leaderboardDisplayData, avatarMap, subgraphUrl]);

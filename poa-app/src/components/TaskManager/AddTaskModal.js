@@ -22,7 +22,6 @@ import {
   Text,
   Box,
   Tooltip,
-  Avatar,
   IconButton,
   SimpleGrid,
   Image,
@@ -32,6 +31,7 @@ import { getBountyTokenOptions, BOUNTY_TOKENS } from '../../util/tokens';
 import { useUserContext } from '../../context/UserContext';
 import { usePOContext } from '../../context/POContext';
 import { UserSearchInput } from '@/components/common';
+import UserIdentity from '@/components/common/UserIdentity';
 import { calculatePayout, DIFFICULTY_CONFIG } from '@/util/taskUtils';
 import { inputStyles } from '@/components/shared/glassStyles';
 
@@ -58,7 +58,7 @@ const selectStyles = {
 
 const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
   const { hasExecRole } = useUserContext();
-  const { orgChainId } = usePOContext();
+  const { orgChainId, tokenLabel } = usePOContext();
 
   const tokenOptions = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
@@ -266,7 +266,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                         {estimatedPayout}
                       </Text>
                       <Text fontSize="md" color="purple.300">
-                        shares
+                        {tokenLabel}
                       </Text>
                     </HStack>
                   </VStack>
@@ -371,7 +371,7 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                     </FormControl>
                   </SimpleGrid>
                   <Text fontSize="xs" color="gray.500" mt={3}>
-                    This bounty will be paid in addition to shares
+                    This bounty will be paid in addition to {tokenLabel.toLowerCase()}
                   </Text>
                 </Box>
               )}
@@ -455,12 +455,12 @@ const AddTaskModal = ({ isOpen, onClose, onAddTask }) => {
                         borderColor="purple.600"
                       >
                         <HStack spacing={3}>
-                          <Avatar
+                          <UserIdentity
+                            address={selectedUser.address}
+                            usernameHint={selectedUser.username}
                             size="sm"
-                            name={
-                              selectedUser.username || selectedUser.address
-                            }
-                            bg="purple.500"
+                            showName={false}
+                            link={false}
                           />
                           <VStack align="start" spacing={0}>
                             <Text

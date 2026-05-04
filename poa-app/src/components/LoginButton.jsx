@@ -3,13 +3,14 @@ import { Button } from '@chakra-ui/react';
 import { useRouter } from "next/router";
 import NextLink from 'next/link';
 import { useUserContext } from '@/context/UserContext';
+import { useOrgName } from '@/hooks/useOrgName';
 
 const LoginButton = () => {
 
     const { address, hasMemberRole} = useUserContext();
-    
+
     const router = useRouter();
-    const userDAO = router.query.org || router.query.userDAO || '';
+    const userDAO = useOrgName();
 
 
 

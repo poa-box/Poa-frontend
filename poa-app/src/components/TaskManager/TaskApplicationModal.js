@@ -22,6 +22,7 @@ import {
 } from '@chakra-ui/react';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import { inputStyles } from '@/components/shared/glassStyles';
+import { usePOContext } from '../../context/POContext';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -43,6 +44,7 @@ const difficultyColorScheme = {
 
 const TaskApplicationModal = ({ isOpen, onClose, onApply, task }) => {
   const toast = useToast();
+  const { tokenLabel = 'Shares' } = usePOContext() || {};
   const [loading, setLoading] = useState(false);
 
   const [notes, setNotes] = useState('');
@@ -147,7 +149,7 @@ const TaskApplicationModal = ({ isOpen, onClose, onApply, task }) => {
                   </Text>
                   <Spacer />
                   <Text fontSize="xs" color="green.300" fontWeight="bold">
-                    {task.Payout} shares
+                    {task.Payout} {tokenLabel}
                   </Text>
                   {checkHasBounty(task.bountyToken, task.bountyPayout) && (() => {
                     const tokenInfo = getTokenByAddress(task.bountyToken);

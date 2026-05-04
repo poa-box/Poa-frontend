@@ -28,6 +28,7 @@ import { ENTRY_POINT_ADDRESS, GAS_BUFFER_PERCENT, MAX_USEROP_GAS } from '../../.
  * @param {string} [params.initCode='0x'] - Factory address + init calldata for account deployment
  * @param {string} params.paymasterAddress - PaymasterHub address
  * @param {string} params.paymasterData - Encoded paymaster-specific data (after address)
+ * @param {Object} [params.gasOverrides] - Optional gas override params (see estimateGas)
  * @returns {Object} UserOperation object ready for signing
  */
 export async function buildUserOp({
@@ -40,6 +41,7 @@ export async function buildUserOp({
   paymasterData,
   authorization,
   dummySignatureLength,
+  gasOverrides,
 }) {
   const entryPoint = ENTRY_POINT_ADDRESS;
 
@@ -92,7 +94,7 @@ export async function buildUserOp({
   };
 
   // 3. Estimate gas via bundler
-  await estimateGas(userOp, bundlerClient);
+  await estimateGas(userOp, bundlerClient, gasOverrides);
 
   return userOp;
 }
@@ -112,6 +114,7 @@ export async function buildUserOp({
  * @param {string} [params.paymasterAddress] - PaymasterHub address (optional)
  * @param {string} [params.paymasterData] - Paymaster-specific data (optional, single entry)
  * @param {string[]} [params.paymasterDataEntries] - Array of paymaster data to try (tries each before self-pay)
+ * @param {Object} [params.gasOverrides] - Optional gas override params (see estimateGas)
  * @returns {Object} UserOperation ready for signing
  */
 export async function buildUserOpWithFallback({
@@ -125,6 +128,7 @@ export async function buildUserOpWithFallback({
   paymasterDataEntries,
   authorization, // EIP-7702 authorization (optional — for delegated EOAs)
   dummySignatureLength, // Override dummy sig length (65 for ECDSA, 640 for passkey)
+  gasOverrides, // { callGasLimit, callGasLimitMultiplier }
 }) {
   const entryPoint = ENTRY_POINT_ADDRESS;
 
@@ -184,7 +188,7 @@ export async function buildUserOpWithFallback({
       };
 
       try {
-        await estimateGas(userOp, bundlerClient);
+        await estimateGas(userOp, bundlerClient, gasOverrides);
         console.log(`UserOp built with gas sponsorship (entry ${i + 1}/${dataEntries.length})`);
         return userOp;
       } catch (e) {
@@ -206,22 +210,59 @@ export async function buildUserOpWithFallback({
   // 3. Self-funded (no paymaster fields)
   const userOp = { ...baseFields };
   console.log('Building self-funded UserOp (account pays gas)');
-  await estimateGas(userOp, bundlerClient);
+  await estimateGas(userOp, bundlerClient, gasOverrides);
   return userOp;
 }
 
 /**
  * Run bundler gas estimation on a UserOp and apply results.
  * Mutates the userOp in place.
+ *
+ * @param {Object} userOp - UserOp to estimate gas for (mutated in place)
+ * @param {Object} bundlerClient - Pimlico bundler client
+ * @param {Object} [gasOverrides] - Optional gas overrides
+ * @param {bigint} [gasOverrides.callGasLimit] - Absolute callGasLimit override (skips bundler estimate scaling)
+ * @param {bigint} [gasOverrides.callGasLimitMultiplier] - Multiplier applied to bundler's callGasLimit
+ *   estimate INSTEAD of the default 10% buffer. Pass as BigInt (e.g. 3n for 3x).
+ *   Useful for ops like `announceWinner` where the bundler can't simulate recursive
+ *   sub-calls (Hats protocol tree-walk through beacon-proxy chains) and undercounts.
  */
-async function estimateGas(userOp, bundlerClient) {
+async function estimateGas(userOp, bundlerClient, gasOverrides = {}) {
+  const { callGasLimit: callGasLimitOverride, callGasLimitMultiplier } = gasOverrides;
+
+  // Validate overrides eagerly so misuse surfaces at the caller, not deep in the bundler.
+  // 0 / 0n are treated as invalid (not "no override") — these would cause immediate OOG.
+  if (callGasLimitOverride !== undefined && callGasLimitOverride !== null) {
+    if (BigInt(callGasLimitOverride) <= 0n) {
+      throw new Error(`callGasLimit override must be positive, got ${callGasLimitOverride}`);
+    }
+  }
+  if (callGasLimitMultiplier !== undefined && callGasLimitMultiplier !== null) {
+    if (BigInt(callGasLimitMultiplier) <= 0n) {
+      throw new Error(`callGasLimitMultiplier must be positive, got ${callGasLimitMultiplier}`);
+    }
+  }
+
   try {
     const gasEstimate = await bundlerClient.estimateUserOperationGas({
       ...userOp,
       entryPointAddress: ENTRY_POINT_ADDRESS,
     });
 
-    userOp.callGasLimit = applyBuffer(gasEstimate.callGasLimit);
+    let overrideApplied = false;
+    if (callGasLimitOverride !== undefined && callGasLimitOverride !== null) {
+      // Absolute override — use exactly this value, ignore bundler estimate
+      userOp.callGasLimit = BigInt(callGasLimitOverride);
+      overrideApplied = true;
+      console.log(`[UserOp] callGasLimit override: ${userOp.callGasLimit} (bundler estimated ${gasEstimate.callGasLimit})`);
+    } else if (callGasLimitMultiplier !== undefined && callGasLimitMultiplier !== null) {
+      // Multiplier — scale bundler estimate by this integer factor (e.g. 3n for 3x)
+      userOp.callGasLimit = BigInt(gasEstimate.callGasLimit) * BigInt(callGasLimitMultiplier);
+      overrideApplied = true;
+      console.log(`[UserOp] callGasLimit ${callGasLimitMultiplier}x multiplier: ${userOp.callGasLimit} (bundler estimated ${gasEstimate.callGasLimit})`);
+    } else {
+      userOp.callGasLimit = applyBuffer(gasEstimate.callGasLimit);
+    }
     userOp.preVerificationGas = applyBuffer(gasEstimate.preVerificationGas);
 
     // P-256 signature verification costs ~300-400k gas on-chain (Solidity fallback)
@@ -259,6 +300,20 @@ async function estimateGas(userOp, bundlerClient) {
     if (totalGas > MAX_USEROP_GAS) {
       const excess = totalGas - MAX_USEROP_GAS;
       const reduced = userOp.callGasLimit - excess;
+      if (overrideApplied) {
+        // An explicit caller override/multiplier pushed us over the cap.
+        // The caller asked for this much gas specifically — don't silently
+        // reduce it. Fail loudly so the caller can pick a smaller value or
+        // split the op into multiple transactions.
+        // Use a tagged error so the catch below re-throws rather than swallowing.
+        const err = new Error(
+          `callGasLimit override/multiplier would exceed MAX_USEROP_GAS. ` +
+          `Requested total ${totalGas}, max ${MAX_USEROP_GAS} (over by ${excess}). ` +
+          `Reduce callGasLimit or multiplier and retry.`
+        );
+        err.isGasOverrideError = true;
+        throw err;
+      }
       console.warn(
         `[UserOp] Total gas ${totalGas} exceeds max ${MAX_USEROP_GAS}. ` +
         `Reducing callGasLimit from ${userOp.callGasLimit} to ${reduced}`
@@ -266,6 +321,11 @@ async function estimateGas(userOp, bundlerClient) {
       userOp.callGasLimit = reduced;
     }
   } catch (e) {
+    // Re-throw gas-override errors — caller asked for specific gas and we
+    // can't honor it, so they need to see this instead of a silent fallback.
+    if (e.isGasOverrideError) {
+      throw e;
+    }
     // Re-throw paymaster rejections so callers can fall back to self-funded.
     // AA31=validation failed, AA32=deposit too low, AA33=time range expired
     const msg = e.message || e.shortMessage || e.details || '';

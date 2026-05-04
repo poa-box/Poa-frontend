@@ -23,11 +23,12 @@ import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import { useAuth } from '@/context/AuthContext';
 import { usePOContext } from '@/context/POContext';
 import { useIsOrgAdmin, useOrgTheme } from '@/hooks';
+import { useOrgName } from '@/hooks/useOrgName';
 import OrgMetadataEditor from '@/components/settings/OrgMetadataEditor';
 
 const SettingsPage = () => {
   const router = useRouter();
-  const userDAO = router.query.org || router.query.userDAO || '';
+  const userDAO = useOrgName();
   const { isAuthenticated, accountAddress } = useAuth();
 
   const {
@@ -38,13 +39,15 @@ const SettingsPage = () => {
     logoUrl,
     backgroundColor,
     hideTreasury,
+    useTokenSymbol,
+    participationTokenSymbol,
     poContextLoading,
     error: contextError,
   } = usePOContext();
 
   // Check if user is an org admin using unified accountAddress
   const { isAdmin, loading: adminLoading, error: adminError } = useIsOrgAdmin(orgId, accountAddress);
-  const { pageBackground } = useOrgTheme();
+  const { pageBackground, onBackground, onBackgroundMuted, onBackgroundSubtle } = useOrgTheme();
 
   const seoHead = (
     <SEOHead
@@ -65,7 +68,7 @@ const SettingsPage = () => {
           <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
             <VStack spacing={4}>
               <PulseLoader size="xl" color="coral.500" />
-              <Text color="warmGray.500">Loading settings...</Text>
+              <Text color={onBackgroundSubtle}>Loading settings...</Text>
             </VStack>
           </Center>
         </Box>
@@ -146,10 +149,10 @@ const SettingsPage = () => {
       <Box maxW="2xl" mx="auto" px={4} pt={{ base: "80px", md: 10 }} pb={12}>
         <VStack spacing={8} align="stretch">
           <Box>
-            <Heading size="lg" color="warmGray.800" mb={2} fontWeight="600">
+            <Heading size="lg" color={onBackground} mb={2} fontWeight="600">
               Organization Settings
             </Heading>
-            <Text color="warmGray.500" fontSize="md">
+            <Text color={onBackgroundMuted} fontSize="md">
               Edit your organization&apos;s name, description, logo, and links
             </Text>
           </Box>
@@ -163,6 +166,8 @@ const SettingsPage = () => {
             currentLogoHash={logoUrl}
             currentBackgroundColor={backgroundColor}
             currentHideTreasury={hideTreasury}
+            currentUseTokenSymbol={useTokenSymbol}
+            currentTokenSymbol={participationTokenSymbol}
           />
         </VStack>
       </Box>

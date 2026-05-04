@@ -35,7 +35,7 @@ import {
   FiUserPlus,
 } from 'react-icons/fi';
 import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
-import { utils } from 'ethers';
+import { utils, constants as ethersConstants } from 'ethers';
 import { inputStyles } from '@/components/shared/glassStyles';
 
 /**
@@ -47,6 +47,32 @@ function getCurrentHolders(hatId, leaderboardData) {
   return leaderboardData
     .filter(user => user.hatIds.map(String).includes(hatIdStr))
     .map(user => ({ address: user.address, name: user.name }));
+}
+
+export const TITLE_PREFIX = 'Election for ';
+export const DESCRIPTION_PREFIX = 'Election between ';
+
+/**
+ * Build the auto-generated description from candidate names.
+ * Uses Oxford-comma prose: "alice", "alice and bob", "alice, bob, and charlie".
+ */
+function buildElectionDescription(candidates) {
+  const names = (candidates || [])
+    .map(c => c?.name?.trim())
+    .filter(Boolean);
+  if (names.length === 0) return '';
+  if (names.length === 1) return `${DESCRIPTION_PREFIX}${names[0]}`;
+  if (names.length === 2) return `${DESCRIPTION_PREFIX}${names[0]} and ${names[1]}`;
+  const head = names.slice(0, -1).join(', ');
+  return `${DESCRIPTION_PREFIX}${head}, and ${names[names.length - 1]}`;
+}
+
+/**
+ * True if the description is empty or matches our auto-generated prefix.
+ * Used to avoid clobbering user-edited descriptions.
+ */
+function isAutoDescription(description) {
+  return !description || description.startsWith(DESCRIPTION_PREFIX);
 }
 
 /**
@@ -201,15 +227,20 @@ const ElectionConfigurator = ({
       };
 
       // Auto-populate title if it's empty or was auto-generated from a previous role
-      if (!proposal.name || proposal.name.startsWith('Election for ')) {
-        updates.name = `Election for ${role.name}`;
+      if (!proposal.name || proposal.name.startsWith(TITLE_PREFIX)) {
+        updates.name = `${TITLE_PREFIX}${role.name}`;
+      }
+
+      // Candidates reset — clear the auto-generated description too (but preserve a custom one)
+      if (isAutoDescription(proposal.description)) {
+        updates.description = '';
       }
 
       onChange(updates);
       setStep(2);
       setSearchQuery('');
     },
-    [onChange, leaderboardData, proposal.name]
+    [onChange, leaderboardData, proposal.name, proposal.description]
   );
 
   // Toggle an incumbent's selection (whose hat is at stake)
@@ -237,47 +268,60 @@ const ElectionConfigurator = ({
       );
       if (alreadyAdded) return;
 
-      onChange({
-        electionCandidates: [
-          ...(proposal.electionCandidates || []),
-          { name: member.name, address: member.address },
-        ],
-      });
+      const nextCandidates = [
+        ...(proposal.electionCandidates || []),
+        { name: member.name, address: member.address },
+      ];
+      const update = { electionCandidates: nextCandidates };
+      if (isAutoDescription(proposal.description)) {
+        update.description = buildElectionDescription(nextCandidates);
+      }
+      onChange(update);
       setSearchQuery('');
     },
-    [onChange, proposal.electionCandidates]
+    [onChange, proposal.electionCandidates, proposal.description]
   );
 
   // Handle manual candidate entry
   const handleAddManual = useCallback(() => {
     if (!manualName.trim() || !manualAddress.trim()) return;
     if (!utils.isAddress(manualAddress.trim())) return;
+    // Block the zero address — it's a valid hex address but minting a hat to
+    // it reverts on-chain. If the user wants an "abstain" option, they should
+    // use the "Allow voters to reject all candidates" toggle.
+    if (manualAddress.trim() === ethersConstants.AddressZero) return;
 
     const alreadyAdded = (proposal.electionCandidates || []).some(
       c => c.address.toLowerCase() === manualAddress.trim().toLowerCase()
     );
     if (alreadyAdded) return;
 
-    onChange({
-      electionCandidates: [
-        ...(proposal.electionCandidates || []),
-        { name: manualName.trim(), address: manualAddress.trim() },
-      ],
-    });
+    const nextCandidates = [
+      ...(proposal.electionCandidates || []),
+      { name: manualName.trim(), address: manualAddress.trim() },
+    ];
+    const update = { electionCandidates: nextCandidates };
+    if (isAutoDescription(proposal.description)) {
+      update.description = buildElectionDescription(nextCandidates);
+    }
+    onChange(update);
     setManualName('');
     setManualAddress('');
-  }, [manualName, manualAddress, onChange, proposal.electionCandidates]);
+  }, [manualName, manualAddress, onChange, proposal.electionCandidates, proposal.description]);
 
   // Handle removing a candidate
   const handleRemoveCandidate = useCallback(
     (index) => {
-      onChange({
-        electionCandidates: (proposal.electionCandidates || []).filter(
-          (_, i) => i !== index
-        ),
-      });
+      const nextCandidates = (proposal.electionCandidates || []).filter(
+        (_, i) => i !== index
+      );
+      const update = { electionCandidates: nextCandidates };
+      if (isAutoDescription(proposal.description)) {
+        update.description = buildElectionDescription(nextCandidates);
+      }
+      onChange(update);
     },
-    [onChange, proposal.electionCandidates]
+    [onChange, proposal.electionCandidates, proposal.description]
   );
 
   // Handle back navigation
@@ -291,14 +335,18 @@ const ElectionConfigurator = ({
         electionSelectedIncumbents: [],
         electionFallbackRoleId: '',
         electionFallbackHolders: [],
+        electionIncludeNoOneOption: false,
       };
-      // Clear auto-generated title
-      if (proposal.name.startsWith('Election for ')) {
+      // Clear auto-generated title / description; preserve custom ones
+      if (proposal.name && proposal.name.startsWith(TITLE_PREFIX)) {
         updates.name = '';
+      }
+      if (isAutoDescription(proposal.description)) {
+        updates.description = '';
       }
       onChange(updates);
     }
-  }, [step, onChange, proposal.name]);
+  }, [step, onChange, proposal.name, proposal.description]);
 
   const candidates = proposal.electionCandidates || [];
 
@@ -308,7 +356,7 @@ const ElectionConfigurator = ({
       {step === 1 && (
         <>
           <Text fontSize="sm" color="gray.300" fontWeight="medium">
-            Select the role to be elected:
+            Select the role you are holding an election for.
           </Text>
           <SimpleGrid columns={2} spacing={3}>
             {allRoles.map((role) => {
@@ -469,6 +517,27 @@ const ElectionConfigurator = ({
               </Select>
             </Box>
           )}
+
+          {/* "No One" option — for uncontested or abstain-allowed elections */}
+          <Box
+            p={3}
+            bg="rgba(66, 153, 225, 0.08)"
+            borderRadius="md"
+            border="1px solid rgba(66, 153, 225, 0.2)"
+          >
+            <Checkbox
+              isChecked={Boolean(proposal.electionIncludeNoOneOption)}
+              onChange={(e) => onChange({ electionIncludeNoOneOption: e.target.checked })}
+              colorScheme="blue"
+            >
+              <Text fontSize="sm" color="gray.200" fontWeight="medium">
+                Allow voters to reject all candidates
+              </Text>
+            </Checkbox>
+            <Text fontSize="xs" color="gray.500" mt={1} ml={6}>
+              Adds a &quot;No One&quot; option. If voters choose it, no hat is minted or revoked.
+            </Text>
+          </Box>
 
           {/* Member Search */}
           <Box>
@@ -684,14 +753,20 @@ const ElectionConfigurator = ({
             </Box>
           )}
 
-          {candidates.length < 2 && (
-            <Text fontSize="xs" color="orange.300">
-              Add at least 2 candidates to create an election.
-            </Text>
-          )}
+          {(() => {
+            const minCandidates = proposal.electionIncludeNoOneOption ? 1 : 2;
+            if (candidates.length >= minCandidates) return null;
+            return (
+              <Text fontSize="xs" color="orange.300">
+                {proposal.electionIncludeNoOneOption
+                  ? 'Add at least 1 candidate to create an election.'
+                  : 'Add at least 2 candidates to create an election.'}
+              </Text>
+            );
+          })()}
 
-          {/* Election Preview - shown when >= 2 candidates */}
-          {candidates.length >= 2 && (
+          {/* Election Preview - shown when enough candidates have been added */}
+          {candidates.length >= (proposal.electionIncludeNoOneOption ? 1 : 2) && (
             <Box
               p={4}
               bg="rgba(66, 153, 225, 0.08)"
