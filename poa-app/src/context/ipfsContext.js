@@ -1,6 +1,7 @@
 import { create } from 'ipfs-http-client';
 import { createContext, useContext, useMemo, useCallback } from 'react';
 import { IPFSError, IPFSErrorCode, IPFSOperation } from '@/lib/errors';
+import { hybridFetchBytes } from '@/lib/ipfs/hybridFetch';
 import { bytes32ToIpfsCid, ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
 
 const IPFScontext = createContext();
@@ -201,17 +202,11 @@ export const IPFSprovider = ({ children }) => {
         }
 
         try {
-            const result = await withRetry(async () => {
-                let stringData = '';
-                for await (const chunk of ipfsClient.cat(validHash)) {
-                    stringData += new TextDecoder().decode(chunk);
-                }
-                return stringData;
-            });
+            const bytes = await hybridFetchBytes(validHash);
+            const stringData = new TextDecoder().decode(bytes);
 
-            // Parse JSON
             try {
-                return JSON.parse(result);
+                return JSON.parse(stringData);
             } catch (parseError) {
                 console.error("Error parsing IPFS content as JSON:", parseError);
                 throw IPFSError.parseFailed(validHash, parseError);
@@ -227,7 +222,7 @@ export const IPFSprovider = ({ children }) => {
             // Wrap in IPFSError for consistent error handling
             throw IPFSError.fetchFailed(validHash, error);
         }
-    }, [ipfsClient]);
+    }, []);
 
     /**
      * Fetch image from IPFS and return as blob URL
@@ -249,21 +244,9 @@ export const IPFSprovider = ({ children }) => {
         }
 
         try {
-            const binaryData = await withRetry(async () => {
-                const chunks = [];
-                for await (const chunk of ipfsClient.cat(validHash)) {
-                    chunks.push(chunk);
-                }
-                return chunks;
-            });
-
-            // Convert binary data to Blob
-            const blob = new Blob(binaryData, { type: 'image/png' });
-
-            // Create Object URL from Blob
-            const imageUrl = URL.createObjectURL(blob);
-
-            return imageUrl;
+            const bytes = await hybridFetchBytes(validHash);
+            const blob = new Blob([bytes], { type: 'image/png' });
+            return URL.createObjectURL(blob);
         } catch (error) {
             console.error("Error fetching image from IPFS:", error);
 
@@ -280,7 +263,7 @@ export const IPFSprovider = ({ children }) => {
                 IPFSErrorCode.FETCH_FAILED
             );
         }
-    }, [ipfsClient]);
+    }, []);
 
     /**
      * Safely fetch from IPFS, returning null on error (for backwards compatibility)
