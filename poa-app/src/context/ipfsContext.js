@@ -1,5 +1,5 @@
 import { create } from 'ipfs-http-client';
-import { createContext, useContext, useMemo, useCallback } from 'react';
+import { createContext, useContext, useMemo, useCallback, useRef } from 'react';
 import { IPFSError, IPFSErrorCode, IPFSOperation } from '@/lib/errors';
 import { hybridFetchBytes } from '@/lib/ipfs/hybridFetch';
 import { bytes32ToIpfsCid, ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
@@ -109,6 +109,18 @@ export const IPFSprovider = ({ children }) => {
         });
     }, []);
 
+    // Per-session caches keyed by CID. IPFS content is immutable by CID, so
+    // these are safe to hold for the lifetime of the page — a re-mounted
+    // component (org switch, navigation between Home and Dashboard, etc.)
+    // gets its image / metadata back synchronously instead of triggering a
+    // fresh fetch + Blob construction + new object URL on every mount.
+    //
+    // We deliberately cache the resolved Promise rather than the value, so
+    // that concurrent first-time requests for the same CID share a single
+    // in-flight fetch instead of racing to the network N times.
+    const jsonPromiseCache = useRef(new Map());
+    const imagePromiseCache = useRef(new Map());
+
     /**
      * Add content to IPFS
      * @param {string|Buffer} content - Content to add
@@ -201,27 +213,32 @@ export const IPFSprovider = ({ children }) => {
             return null;
         }
 
-        try {
-            const bytes = await hybridFetchBytes(validHash);
-            const stringData = new TextDecoder().decode(bytes);
+        const cached = jsonPromiseCache.current.get(validHash);
+        if (cached) return cached;
 
+        const promise = (async () => {
             try {
-                return JSON.parse(stringData);
-            } catch (parseError) {
-                console.error("Error parsing IPFS content as JSON:", parseError);
-                throw IPFSError.parseFailed(validHash, parseError);
+                const bytes = await hybridFetchBytes(validHash);
+                const stringData = new TextDecoder().decode(bytes);
+                try {
+                    return JSON.parse(stringData);
+                } catch (parseError) {
+                    console.error("Error parsing IPFS content as JSON:", parseError);
+                    throw IPFSError.parseFailed(validHash, parseError);
+                }
+            } catch (error) {
+                console.error("Error fetching from IPFS:", error, "hash:", validHash);
+                if (error instanceof IPFSError) throw error;
+                throw IPFSError.fetchFailed(validHash, error);
             }
-        } catch (error) {
-            console.error("Error fetching from IPFS:", error, "hash:", validHash);
+        })();
 
-            // If already an IPFSError, rethrow
-            if (error instanceof IPFSError) {
-                throw error;
-            }
+        // Cache only on success — a transient network error shouldn't poison
+        // future calls for the same CID.
+        jsonPromiseCache.current.set(validHash, promise);
+        promise.catch(() => jsonPromiseCache.current.delete(validHash));
 
-            // Wrap in IPFSError for consistent error handling
-            throw IPFSError.fetchFailed(validHash, error);
-        }
+        return promise;
     }, []);
 
     /**
@@ -243,26 +260,30 @@ export const IPFSprovider = ({ children }) => {
             return null;
         }
 
-        try {
-            const bytes = await hybridFetchBytes(validHash);
-            const blob = new Blob([bytes], { type: 'image/png' });
-            return URL.createObjectURL(blob);
-        } catch (error) {
-            console.error("Error fetching image from IPFS:", error);
+        const cached = imagePromiseCache.current.get(validHash);
+        if (cached) return cached;
 
-            // If already an IPFSError, rethrow
-            if (error instanceof IPFSError) {
-                throw error;
+        const promise = (async () => {
+            try {
+                const bytes = await hybridFetchBytes(validHash);
+                const blob = new Blob([bytes], { type: 'image/png' });
+                return URL.createObjectURL(blob);
+            } catch (error) {
+                console.error("Error fetching image from IPFS:", error);
+                if (error instanceof IPFSError) throw error;
+                throw new IPFSError(
+                    IPFSOperation.FETCH_IMAGE,
+                    validHash,
+                    error,
+                    IPFSErrorCode.FETCH_FAILED
+                );
             }
+        })();
 
-            // Wrap in IPFSError for consistent error handling
-            throw new IPFSError(
-                IPFSOperation.FETCH_IMAGE,
-                validHash,
-                error,
-                IPFSErrorCode.FETCH_FAILED
-            );
-        }
+        imagePromiseCache.current.set(validHash, promise);
+        promise.catch(() => imagePromiseCache.current.delete(validHash));
+
+        return promise;
     }, []);
 
     /**
