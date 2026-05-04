@@ -40,6 +40,11 @@ import { useIPFScontext } from '@/context/ipfsContext';
 import { useAuth } from '@/context/AuthContext';
 import { useWeb3Services, useTransactionWithNotification } from '@/hooks';
 import { ipfsCidToBytes32, stringToBytes } from '@/services/web3/utils/encoding';
+import {
+  validateImageFile,
+  MAX_LOGO_SIZE_BYTES,
+  ACCEPTED_IMAGE_MIME,
+} from '@/util/imageUpload';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { getSubgraphUrl, getNetworkByChainId } from '@/config/networks';
@@ -62,6 +67,17 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChan
   const onDrop = useCallback(async (acceptedFiles) => {
     const file = acceptedFiles[0];
     if (!file) return;
+
+    const check = validateImageFile(file, MAX_LOGO_SIZE_BYTES);
+    if (!check.valid) {
+      toast({
+        title: 'Upload rejected',
+        description: check.error,
+        status: 'warning',
+        duration: 3000,
+      });
+      return;
+    }
 
     setIsUploading(true);
     onUploadingChange?.(true);
@@ -92,7 +108,7 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChan
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
-    accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'] },
+    accept: ACCEPTED_IMAGE_MIME,
     maxFiles: 1,
     disabled: isUploading,
   });
@@ -141,6 +157,9 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChan
           <Icon as={PiImage} boxSize={8} color="warmGray.300" />
           <Text color="warmGray.400" fontSize="sm">
             {isDragActive ? 'Drop logo here' : 'Click or drag to upload logo'}
+          </Text>
+          <Text color="warmGray.400" fontSize="xs">
+            PNG, JPG, GIF, WebP — up to 2MB
           </Text>
         </VStack>
       )}
