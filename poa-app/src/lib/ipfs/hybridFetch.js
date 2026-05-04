@@ -1,94 +1,138 @@
 import { getVerifiedFetch } from './heliaClient';
 import { recordOutcome } from './ipfsMetrics';
 
-const HELIA_TIMEOUT_MS = 2000;
+// How long Helia gets a head start before we also fire the gateway. Sized to
+// cover an IDB cache hit (<50 ms) and a fast delegated-routing + trustless
+// gateway round trip (~200–350 ms) without unnecessarily firing the fallback.
+// If Helia errors *before* this window elapses, the gateway fires immediately
+// rather than waiting out the rest of the delay.
+const HEDGE_DELAY_MS = 400;
+
 const GATEWAY_URL = 'https://api.thegraph.com/ipfs/api/v0/cat';
 const GATEWAY_MAX_RETRIES = 3;
-const GATEWAY_BASE_DELAY = 1000;
+const GATEWAY_BASE_DELAY_MS = 1000;
 
-async function withRetry(fn, maxRetries = GATEWAY_MAX_RETRIES, baseDelay = GATEWAY_BASE_DELAY) {
+async function withRetry(fn, signal) {
   let lastError;
-  for (let attempt = 0; attempt < maxRetries; attempt++) {
+  for (let attempt = 0; attempt < GATEWAY_MAX_RETRIES; attempt++) {
+    if (signal?.aborted) throw new DOMException('aborted', 'AbortError');
     try {
       return await fn();
     } catch (error) {
       lastError = error;
-      if (attempt < maxRetries - 1) {
-        const delay = baseDelay * Math.pow(2, attempt);
-        await new Promise((resolve) => setTimeout(resolve, delay));
+      // Don't retry if the caller cancelled us — e.g., Helia already won the race.
+      if (error?.name === 'AbortError' || signal?.aborted) throw error;
+      if (attempt < GATEWAY_MAX_RETRIES - 1) {
+        const ms = GATEWAY_BASE_DELAY_MS * Math.pow(2, attempt);
+        await abortableSleep(ms, signal);
       }
     }
   }
   throw lastError;
 }
 
-// Sentinel rather than a thrown error so we can distinguish a timeout from
-// a real fetch failure without relying on string matching.
-const TIMEOUT = Symbol('helia-timeout');
-
-async function tryHelia(cid) {
-  // Single timeout covering BOTH module init (esm.sh load) and the network
-  // fetch. Without this, the first call in a tab waits for esm.sh to deliver
-  // ~300 KB of helia code before the per-fetch timeout would even arm —
-  // blowing the 2 s budget out to whatever the cold-start CDN latency is.
-  const controller = new AbortController();
-  let timeoutId;
-  const timeoutPromise = new Promise((resolve) => {
-    timeoutId = setTimeout(() => {
-      controller.abort();
-      resolve(TIMEOUT);
-    }, HELIA_TIMEOUT_MS);
+function abortableSleep(ms, signal) {
+  return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('aborted', 'AbortError'));
+      return;
+    }
+    const id = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(id);
+      reject(new DOMException('aborted', 'AbortError'));
+    }, { once: true });
   });
-
-  const fetchPromise = (async () => {
-    const { verifiedFetch, disabled } = await getVerifiedFetch();
-    if (disabled || !verifiedFetch) return null;
-    return verifiedFetch(`ipfs://${cid}`, { signal: controller.signal });
-  })();
-
-  try {
-    const result = await Promise.race([fetchPromise, timeoutPromise]);
-    if (result === TIMEOUT) {
-      recordOutcome('p2pTimeout');
-      return null;
-    }
-    if (result === null) return null; // helia disabled; fall through silently
-    if (!result.ok) {
-      recordOutcome('p2pMiss');
-      return null;
-    }
-    recordOutcome('p2pHit');
-    return new Uint8Array(await result.arrayBuffer());
-  } catch {
-    recordOutcome('p2pMiss');
-    return null;
-  } finally {
-    clearTimeout(timeoutId);
-  }
 }
 
-async function gatewayFetch(cid) {
+async function gatewayFetch(cid, signal) {
   return withRetry(async () => {
     const url = `${GATEWAY_URL}?arg=${encodeURIComponent(cid)}`;
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`Gateway fetch failed: ${res.status} ${res.statusText}`);
-    }
-    const buf = await res.arrayBuffer();
-    return new Uint8Array(buf);
-  });
+    const res = await fetch(url, { signal });
+    if (!res.ok) throw new Error(`Gateway fetch failed: ${res.status} ${res.statusText}`);
+    return new Uint8Array(await res.arrayBuffer());
+  }, signal);
 }
 
-export async function hybridFetchBytes(cid) {
-  const p2pBytes = await tryHelia(cid);
-  if (p2pBytes) return p2pBytes;
+async function heliaFetch(verifiedFetch, cid, signal) {
+  const res = await verifiedFetch(`ipfs://${cid}`, { signal });
+  if (!res.ok) throw new Error(`Helia fetch failed: ${res.status}`);
+  return new Uint8Array(await res.arrayBuffer());
+}
 
-  try {
-    const bytes = await gatewayFetch(cid);
-    recordOutcome('gatewayFallback');
-    return bytes;
-  } catch (err) {
-    recordOutcome('gatewayFailure');
-    throw err;
+// Hedged race: Helia gets HEDGE_DELAY_MS head start, then both run in
+// parallel. First successful response wins; the loser is aborted. If Helia
+// errors during the head-start window, the gateway is fired immediately
+// (no point waiting out the rest of the hedge for a request we know failed).
+//
+// UX guarantee: user-visible latency is min(helia, gateway), never the sum.
+// Worst case (both fail) matches the gateway-only behavior we had before.
+export async function hybridFetchBytes(cid) {
+  const { verifiedFetch, disabled } = await getVerifiedFetch();
+
+  // Helia disabled (init failed, no IDB, etc.) — gateway path only.
+  if (disabled || !verifiedFetch) {
+    try {
+      const bytes = await gatewayFetch(cid);
+      recordOutcome('gatewayOnly');
+      return bytes;
+    } catch (err) {
+      recordOutcome('failure');
+      throw err;
+    }
   }
+
+  return new Promise((resolve, reject) => {
+    const heliaCtrl = new AbortController();
+    const gatewayCtrl = new AbortController();
+    let settled = false;
+    let heliaError = null;
+    let gatewayError = null;
+    let gatewayStarted = false;
+    let hedgeTimer = null;
+
+    const win = (source, bytes) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(hedgeTimer);
+      // Cancel the loser to free its socket immediately.
+      (source === 'helia' ? gatewayCtrl : heliaCtrl).abort();
+      recordOutcome(source === 'helia' ? 'p2pWin' : 'gatewayWin');
+      resolve(bytes);
+    };
+
+    const fail = () => {
+      if (settled) return;
+      // Both must have errored. Prefer the gateway error since it's the path
+      // the caller would have seen pre-Helia.
+      settled = true;
+      clearTimeout(hedgeTimer);
+      recordOutcome('failure');
+      reject(gatewayError ?? heliaError ?? new Error('IPFS fetch failed'));
+    };
+
+    const startGateway = () => {
+      if (gatewayStarted || settled) return;
+      gatewayStarted = true;
+      gatewayFetch(cid, gatewayCtrl.signal)
+        .then((bytes) => win('gateway', bytes))
+        .catch((err) => {
+          if (settled || err?.name === 'AbortError') return;
+          gatewayError = err;
+          if (heliaError) fail();
+        });
+    };
+
+    heliaFetch(verifiedFetch, cid, heliaCtrl.signal)
+      .then((bytes) => win('helia', bytes))
+      .catch((err) => {
+        if (settled || err?.name === 'AbortError') return;
+        heliaError = err;
+        // Helia failed — race the gateway right now instead of waiting out the hedge.
+        if (!gatewayStarted) startGateway();
+        else if (gatewayError) fail();
+      });
+
+    hedgeTimer = setTimeout(startGateway, HEDGE_DELAY_MS);
+  });
 }

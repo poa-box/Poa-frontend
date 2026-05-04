@@ -1,9 +1,19 @@
+// Outcomes from a hedged IPFS fetch (Helia raced against the HTTP gateway).
+//
+//   p2pWin       — Helia returned valid bytes first.
+//   gatewayWin   — Gateway returned first (Helia was slow, errored, or both).
+//   gatewayOnly  — Helia was disabled at init time; gateway ran alone.
+//   failure      — Both paths failed; the user saw an error.
+//
+// p2p hit rate (p2pWin / total) tells us how often decentralized retrieval
+// is actually winning. A high `gatewayOnly` count means Helia init is
+// failing in production (esm.sh, IDB, CSP). Any non-zero `failure` is an
+// alert — the user-facing fallback didn't catch.
 const counters = {
-  p2pHit: 0,
-  p2pMiss: 0,
-  p2pTimeout: 0,
-  gatewayFallback: 0,
-  gatewayFailure: 0,
+  p2pWin: 0,
+  gatewayWin: 0,
+  gatewayOnly: 0,
+  failure: 0,
 };
 
 let totalFetches = 0;
@@ -21,26 +31,17 @@ function ensureVisibilityListener() {
 }
 
 export function recordOutcome(kind) {
-  if (kind in counters) {
-    counters[kind] += 1;
-  }
+  if (kind in counters) counters[kind] += 1;
   totalFetches += 1;
   ensureVisibilityListener();
-  if (totalFetches % DUMP_EVERY_N_FETCHES === 0) {
-    dumpMetrics();
-  }
+  if (totalFetches % DUMP_EVERY_N_FETCHES === 0) dumpMetrics();
 }
 
 export function dumpMetrics() {
-  const total =
-    counters.p2pHit +
-    counters.p2pMiss +
-    counters.p2pTimeout +
-    counters.gatewayFallback +
-    counters.gatewayFailure;
-  const p2pRate = total > 0 ? ((counters.p2pHit / total) * 100).toFixed(1) : '0.0';
+  const total = counters.p2pWin + counters.gatewayWin + counters.gatewayOnly + counters.failure;
+  const p2pAttempted = counters.p2pWin + counters.gatewayWin;
+  const p2pRate = p2pAttempted > 0 ? ((counters.p2pWin / p2pAttempted) * 100).toFixed(1) : 'n/a';
   console.info(
-    `[IPFS metrics] p2pHit=${counters.p2pHit} p2pTimeout=${counters.p2pTimeout} p2pMiss=${counters.p2pMiss} gatewayFallback=${counters.gatewayFallback} gatewayFailure=${counters.gatewayFailure} (p2p hit rate=${p2pRate}%)`,
+    `[IPFS metrics] p2pWin=${counters.p2pWin} gatewayWin=${counters.gatewayWin} gatewayOnly=${counters.gatewayOnly} failure=${counters.failure} total=${total} (p2p hit rate=${p2pRate}%)`,
   );
 }
-
