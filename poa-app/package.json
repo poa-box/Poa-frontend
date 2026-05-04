@@ -5,10 +5,15 @@
   "license": "AGPL-3.0-or-later",
   "scripts": {
     "dev": "next dev",
+    "dev:e2e": "NEXT_PUBLIC_E2E_MODE=true next dev",
+    "dev:e2e-passkey": "NEXT_PUBLIC_E2E_MODE=true NEXT_PUBLIC_E2E_AS=passkey next dev",
     "build": "node scripts/generate-sitemap.mjs && next build",
     "generate-sitemap": "node scripts/generate-sitemap.mjs",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "e2e:setup": "node scripts/e2e/setup-machine.js",
+    "e2e:check": "node scripts/e2e/check-prod-leakage.js",
+    "e2e:test-passkey": "node scripts/e2e/test-virtual-passkey.js"
   },
   "dependencies": {
     "@apollo/client": "^3.10.8",

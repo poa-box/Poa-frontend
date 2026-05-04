@@ -9,6 +9,11 @@ import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
 import { useIPFScontext } from './ipfsContext';
 import { useIdentityContext } from './IdentityContext';
 import { getSubgraphUrl, getAllSubgraphUrls } from '../config/networks';
+import { getDefaultOrgForHost, getVisitUrlForOrg } from '../config/hostDefaultOrg';
+import { useOrgName } from '@/hooks/useOrgName';
+
+// Re-export for back-compat with callers that imported these from POContext.
+export { getDefaultOrgForHost, getVisitUrlForOrg };
 
 const POContext = createContext();
 
@@ -155,33 +160,11 @@ function poReducer(state, action) {
     }
 }
 
-// White-label hosts that auto-select an org when no ?org= / ?userDAO= is passed.
-// Explicit query params still win, so support can always override.
-const HOST_DEFAULT_ORG = {
-    'dao.kublockchain.com': 'KUBI',
-    'poa.earth': 'Test6',
-    'www.poa.earth': 'Test6',
-};
-
-export function getDefaultOrgForHost() {
-    if (typeof window === 'undefined') return '';
-    return HOST_DEFAULT_ORG[window.location.hostname] || '';
-}
-
-// Inverse of HOST_DEFAULT_ORG for the explore page's Visit button: send users
-// to an org's white-label domain instead of the default poa.box home route.
-const ORG_WHITE_LABEL_URL = {
-    KUBI: 'https://dao.kublockchain.com',
-};
-
-export function getVisitUrlForOrg(orgId) {
-    if (orgId && ORG_WHITE_LABEL_URL[orgId]) return ORG_WHITE_LABEL_URL[orgId];
-    return `/home?org=${orgId}`;
-}
-
 export const POProvider = ({ children }) => {
     const router = useRouter();
-    const poName = router.query.org || router.query.userDAO || getDefaultOrgForHost();
+    // useOrgName covers query-param + window.location.search fallback +
+    // host-default in one place; POProvider used to inline the same logic.
+    const poName = useOrgName();
     const { safeFetchFromIpfs } = useIPFScontext();
     const { seedIdentities } = useIdentityContext();
 

@@ -1,7 +1,8 @@
-import { providers } from 'ethers';
+import { providers, Wallet } from 'ethers';
 import { useMemo } from 'react';
 import { useClient } from 'wagmi';
 import { useConnectorClient } from 'wagmi';
+import { E2E_ENABLED, E2E_BURNER_PK } from '@/services/e2e/e2eMode';
 
 
 
@@ -57,7 +58,14 @@ export function clientToSigner(client) {
   export function useEthersSigner({ chainId } = {}) {
     // Use the wagmi `useConnectorClient` to get the client data
     const { data: client } = useConnectorClient({ chainId });
-  
-    // Use the client data to generate a signer if available
-    return useMemo(() => (client ? clientToSigner(client) : undefined), [client]);
+    const provider = useEthersProvider({ chainId });
+
+    return useMemo(() => {
+      if (E2E_ENABLED && E2E_BURNER_PK && provider) {
+        // E2E mode: bypass the wagmi mock connector (which has no signing key)
+        // and produce a real ethers.Wallet bound to the burner key.
+        return new Wallet(E2E_BURNER_PK, provider);
+      }
+      return client ? clientToSigner(client) : undefined;
+    }, [client, provider]);
   }

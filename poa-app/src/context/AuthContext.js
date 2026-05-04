@@ -28,6 +28,8 @@ import {
   savePasskeyCredential,
 } from '../services/web3/passkey/passkeyStorage';
 import { discoverPasskeyCredential } from '../services/web3/passkey/passkeyDiscover';
+import { E2E_ENABLED } from '../services/e2e/e2eMode';
+import { ensureVirtualPasskeyPendingSeeded } from '../services/e2e/seedVirtualPasskey';
 
 const AuthContext = createContext();
 
@@ -102,15 +104,21 @@ export const AuthProvider = ({ children }) => {
     });
   }, []);
 
-  // Auto-reconnect: on mount, check for stored passkey credential
+  // Auto-reconnect: on mount, check for stored passkey credential.
+  // In E2E mode, seed the pending credential for the target org so the
+  // /join page enters the same vouch-first onboarding flow real users hit.
   useEffect(() => {
     if (typeof window === 'undefined') return; // SSR guard
     if (explicitSignOutRef.current) return;
-    if (!eoaConnected && hasStoredCredentials()) {
+    if (eoaConnected) return;
+
+    if (E2E_ENABLED) {
+      ensureVirtualPasskeyPendingSeeded().catch(() => { /* logged inside seeder */ });
+    }
+
+    if (hasStoredCredentials()) {
       const lastCred = getLastUsedCredential();
-      if (lastCred) {
-        setPasskeyState(lastCred);
-      }
+      if (lastCred) setPasskeyState(lastCred);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
