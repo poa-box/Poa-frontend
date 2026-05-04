@@ -37,6 +37,12 @@ import { useDeployer, UI_MODES } from '../context/DeployerContext';
 import { StepHeader, NavigationButtons, ValidationSummary } from '../components/common';
 import { validateOrganizationStep } from '../validation/schemas';
 import { useIPFScontext } from '@/context/ipfsContext';
+import {
+  validateImageFile,
+  MAX_LOGO_SIZE_BYTES,
+  ACCEPTED_IMAGE_MIME,
+  ACCEPTED_IMAGE_INPUT,
+} from '@/util/imageUpload';
 
 /**
  * Preview Badge - Shows logo, name, and description as user types
@@ -155,6 +161,19 @@ function InlineLogoUpload({ logoURL, logoPreviewUrl, onUpload, onRemove }) {
     const file = acceptedFiles[0];
     if (!file) return;
 
+    const check = validateImageFile(file, MAX_LOGO_SIZE_BYTES);
+    if (!check.valid) {
+      setError(check.error);
+      toast({
+        title: 'Upload rejected',
+        description: check.error,
+        status: 'warning',
+        duration: 3000,
+        isClosable: true,
+      });
+      return;
+    }
+
     setIsUploading(true);
     setError(null);
 
@@ -189,7 +208,7 @@ function InlineLogoUpload({ logoURL, logoPreviewUrl, onUpload, onRemove }) {
   }, [addToIpfs, onUpload, toast]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    accept: { 'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.webp'] },
+    accept: ACCEPTED_IMAGE_MIME,
     maxFiles: 1,
     onDrop,
     disabled: isUploading,
@@ -238,7 +257,7 @@ function InlineLogoUpload({ logoURL, logoPreviewUrl, onUpload, onRemove }) {
         <input
           id="logo-upload-input"
           type="file"
-          accept="image/*"
+          accept={ACCEPTED_IMAGE_INPUT}
           style={{ display: 'none' }}
           onChange={(e) => {
             if (e.target.files?.[0]) {
@@ -280,7 +299,7 @@ function InlineLogoUpload({ logoURL, logoPreviewUrl, onUpload, onRemove }) {
             {isDragActive ? 'Drop your logo here' : 'Drag logo here or click to upload'}
           </Text>
           <Text fontSize="xs" color="warmGray.400">
-            PNG, JPG, or GIF up to 2MB
+            PNG, JPG, GIF, WebP up to 2MB
           </Text>
         </VStack>
       )}

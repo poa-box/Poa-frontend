@@ -17,35 +17,48 @@ import {
   AlertDescription,
 } from "@chakra-ui/react";
 import { useIPFScontext } from "@/context/ipfsContext";
+import {
+  validateImageFile,
+  MAX_LOGO_SIZE_BYTES,
+  ACCEPTED_IMAGE_MIME,
+} from "@/util/imageUpload";
 
 const LogoDropzoneModal = ({ isOpen, onSave, onClose }) => {
   const [uploadStatus, setUploadStatus] = useState(null); // null, 'success', or 'error'
+  const [errorMessage, setErrorMessage] = useState(null);
   const { addToIpfs } = useIPFScontext();
 
   const { getRootProps, getInputProps } = useDropzone({
-    accept: {
-      "image/png": []
-    },
+    accept: ACCEPTED_IMAGE_MIME,
+    maxFiles: 1,
     onDrop: async (acceptedFiles) => {
-      console.log(acceptedFiles);
-      const file = acceptedFiles[0]; // Assuming single file upload
-      if (file) {
-        try {
-          const addedData = await addToIpfs(file);
-          const ipfsUrl = `${addedData.path}`;
-          onSave(ipfsUrl); 
-          setUploadStatus("success");
-          console.log("Logo uploaded to IPFS:", ipfsUrl);
-        } catch (error) {
-          console.error("Error uploading logo to IPFS:", error);
-          setUploadStatus("error");
-        }
+      const file = acceptedFiles[0];
+      if (!file) return;
+
+      const check = validateImageFile(file, MAX_LOGO_SIZE_BYTES);
+      if (!check.valid) {
+        setErrorMessage(check.error);
+        setUploadStatus("error");
+        return;
+      }
+
+      try {
+        const addedData = await addToIpfs(file);
+        const ipfsUrl = `${addedData.path}`;
+        onSave(ipfsUrl);
+        setErrorMessage(null);
+        setUploadStatus("success");
+      } catch (error) {
+        console.error("Error uploading logo to IPFS:", error);
+        setErrorMessage("There was an issue with the file upload.");
+        setUploadStatus("error");
       }
     },
   });
 
   const resetUploadStatus = () => {
     setUploadStatus(null);
+    setErrorMessage(null);
     if (typeof onClose === "function") {
       onClose(); // Close the modal
     }
@@ -71,7 +84,7 @@ const LogoDropzoneModal = ({ isOpen, onSave, onClose }) => {
                 Drag 'n' drop some files here, or click to select files
               </Text>
               <Text fontSize="sm" color="gray.500">
-                Supports PNG files only
+                PNG, JPG, GIF, WebP — up to 2MB
               </Text>
             </VStack>
           </Box>
@@ -87,7 +100,7 @@ const LogoDropzoneModal = ({ isOpen, onSave, onClose }) => {
               <AlertIcon />
               <AlertTitle>Error!</AlertTitle>
               <AlertDescription>
-                There was an issue with the file upload.
+                {errorMessage || "There was an issue with the file upload."}
               </AlertDescription>
             </Alert>
           )}

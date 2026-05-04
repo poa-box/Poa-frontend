@@ -32,6 +32,11 @@ import { EditIcon, CloseIcon } from '@chakra-ui/icons';
 import { FiCamera } from 'react-icons/fi';
 import Cropper from 'react-easy-crop';
 import { useIPFScontext } from '@/context/ipfsContext';
+import {
+  validateImageFile,
+  MAX_AVATAR_SIZE_BYTES,
+  ACCEPTED_IMAGE_INPUT,
+} from '@/util/imageUpload';
 
 const IPFS_GATEWAY = 'https://ipfs.io/ipfs/';
 
@@ -112,15 +117,9 @@ function AvatarUpload({ avatarCid, localPreview, onUpload, onRemove, isDisabled 
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      toast({ title: 'Please select an image file', status: 'warning', duration: 3000 });
-      return;
-    }
-
-    // Validate size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: 'Image must be under 5MB', status: 'warning', duration: 3000 });
+    const check = validateImageFile(file, MAX_AVATAR_SIZE_BYTES);
+    if (!check.valid) {
+      toast({ title: check.error, status: 'warning', duration: 3000 });
       return;
     }
 
@@ -227,7 +226,7 @@ function AvatarUpload({ avatarCid, localPreview, onUpload, onRemove, isDisabled 
       <input
         ref={fileInputRef}
         type="file"
-        accept="image/png,image/jpeg,image/jpg,image/gif,image/webp"
+        accept={ACCEPTED_IMAGE_INPUT}
         style={{ display: 'none' }}
         onChange={onFileSelected}
       />
