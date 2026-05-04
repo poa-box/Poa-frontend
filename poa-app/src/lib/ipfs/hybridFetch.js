@@ -22,27 +22,45 @@ async function withRetry(fn, maxRetries = GATEWAY_MAX_RETRIES, baseDelay = GATEW
   throw lastError;
 }
 
-async function tryHelia(cid) {
-  const { verifiedFetch, disabled } = await getVerifiedFetch();
-  if (disabled || !verifiedFetch) return null;
+// Sentinel rather than a thrown error so we can distinguish a timeout from
+// a real fetch failure without relying on string matching.
+const TIMEOUT = Symbol('helia-timeout');
 
+async function tryHelia(cid) {
+  // Single timeout covering BOTH module init (esm.sh load) and the network
+  // fetch. Without this, the first call in a tab waits for esm.sh to deliver
+  // ~300 KB of helia code before the per-fetch timeout would even arm —
+  // blowing the 2 s budget out to whatever the cold-start CDN latency is.
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), HELIA_TIMEOUT_MS);
+  let timeoutId;
+  const timeoutPromise = new Promise((resolve) => {
+    timeoutId = setTimeout(() => {
+      controller.abort();
+      resolve(TIMEOUT);
+    }, HELIA_TIMEOUT_MS);
+  });
+
+  const fetchPromise = (async () => {
+    const { verifiedFetch, disabled } = await getVerifiedFetch();
+    if (disabled || !verifiedFetch) return null;
+    return verifiedFetch(`ipfs://${cid}`, { signal: controller.signal });
+  })();
+
   try {
-    const res = await verifiedFetch(`ipfs://${cid}`, { signal: controller.signal });
-    if (!res.ok) {
+    const result = await Promise.race([fetchPromise, timeoutPromise]);
+    if (result === TIMEOUT) {
+      recordOutcome('p2pTimeout');
+      return null;
+    }
+    if (result === null) return null; // helia disabled; fall through silently
+    if (!result.ok) {
       recordOutcome('p2pMiss');
       return null;
     }
-    const buf = await res.arrayBuffer();
     recordOutcome('p2pHit');
-    return new Uint8Array(buf);
-  } catch (err) {
-    if (err?.name === 'AbortError' || controller.signal.aborted) {
-      recordOutcome('p2pTimeout');
-    } else {
-      recordOutcome('p2pMiss');
-    }
+    return new Uint8Array(await result.arrayBuffer());
+  } catch {
+    recordOutcome('p2pMiss');
     return null;
   } finally {
     clearTimeout(timeoutId);

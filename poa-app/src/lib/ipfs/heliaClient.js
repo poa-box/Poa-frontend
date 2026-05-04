@@ -89,7 +89,7 @@ export function getVerifiedFetch() {
       });
 
       const verifiedFetch = await createVerifiedFetch(helia);
-      return { verifiedFetch, helia, disabled: false };
+      return { verifiedFetch, disabled: false };
     } catch (err) {
       console.warn('[IPFS] Helia init failed, gateway-only mode:', err?.message || err);
       return { disabled: true };

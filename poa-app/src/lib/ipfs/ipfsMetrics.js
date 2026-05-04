@@ -44,6 +44,3 @@ export function dumpMetrics() {
   );
 }
 
-export function getMetricsSnapshot() {
-  return { ...counters, totalFetches };
-}
