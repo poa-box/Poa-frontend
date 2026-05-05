@@ -31,10 +31,16 @@ import {
   keccak256,
   parseAbi,
   parseAbiItem,
+  parseEventLogs,
   parseUnits,
   toBytes,
 } from 'viem';
 import { base } from 'viem/chains';
+import { getClient } from '@/util/apolloClient';
+import {
+  PEER_CASHOUTRELAY_BASE_URL,
+  WALLET_CASHOUTS_QUERY,
+} from '@/util/cashoutQueries';
 
 /*══════════════════════════════════ CONSTANTS ══════════════════════════════════*/
 
@@ -46,12 +52,6 @@ export const CASHOUT_RELAY_ADDRESS = '0xA65414A21dc114199cAfD7c6c3ed99488Eb9eFE5
 // creates the deposit; if no taker fills it, the user can recover via
 // withdrawDeposit(depositId) directly from this contract.
 export const ESCROW_V2_ADDRESS = '0x777777779d229cdF3110e9de47943791c26300Ef';
-
-// Block EscrowV2 was deployed at on Base. Used as fromBlock for the
-// DepositReceived getLogs scan (filtered by indexed depositor topic, so the
-// result set is small even over a wide range).
-// Source: zkp2p/zkp2p-contracts/deployments/base/EscrowV2.json receipt.blockNumber
-export const ESCROW_V2_DEPLOY_BLOCK = 43224628n;
 
 // Permit2 — same address on every chain
 export const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
@@ -296,21 +296,33 @@ export async function prepareCashOut({
   };
 }
 
-/*══════════════════════════════════ OUTSTANDING DEPOSITS (recover unfilled) ══════════════════════════════════*/
+/*══════════════════════════════════ OUTSTANDING / FAILED CASHOUTS ══════════════════════════════════*/
 
-// Minimal EscrowV2 ABI — just what we need to enumerate, inspect, and withdraw
-// the user's deposits. Full ABI in zkp2p/zkp2p-contracts/deployments/base/EscrowV2.json.
+// EscrowV2 functions we need: read deposit state to confirm a DEPOSITED row is
+// still unfilled, plus build calldata for withdrawDeposit. Full ABI lives in
+// zkp2p/zkp2p-contracts/deployments/base/EscrowV2.json — only need two here.
 const ESCROW_V2_ABI = parseAbi([
   'function getDeposit(uint256 depositId) view returns ((address depositor, address delegate, address token, (uint256 min, uint256 max) intentAmountRange, bool acceptingIntents, uint256 remainingDeposits, uint256 outstandingIntentAmount, address intentGuardian, bool retainOnEmpty))',
-  'function getDepositPaymentMethods(uint256 depositId) view returns (bytes32[])',
   'function withdrawDeposit(uint256 depositId)',
 ]);
 
+// CashOutRelay function we need: recover USDC stuck in the relay because the
+// downstream EscrowV2.depositTo call reverted. Full source in poa-box/POP
+// src/cashout/CashOutRelay.sol.
+const CASHOUT_RELAY_ABI = parseAbi([
+  'function recoverFailed(bytes32 requestHash)',
+]);
+
+// Used to extract the depositId from a DEPOSITED row's tx receipt — the relay's
+// executeData call inline-invokes EscrowV2.depositTo, which emits DepositReceived
+// in the same tx. One log per tx today (relay creates exactly one deposit per
+// executeData call), so parseEventLogs(...)[0] is safe. If a future relay
+// upgrade batches deposits per tx, this branch needs a more specific match.
 const DEPOSIT_RECEIVED_EVENT = parseAbiItem(
   'event DepositReceived(uint256 indexed depositId, address indexed depositor, address indexed token, uint256 amount, (uint256 min, uint256 max) intentAmountRange, address delegate, address intentGuardian)'
 );
 
-// Maps the bytes32 paymentMethod stored on each deposit (= keccak256 of the
+// Maps the bytes32 paymentMethod stored on each cashout (= keccak256 of the
 // platform key) back to the human label. Keys mirror PAYMENT_PLATFORMS above.
 const PAYMENT_METHOD_TO_PLATFORM = Object.fromEntries(
   Object.entries(PAYMENT_PLATFORMS).map(([key, { label }]) => [
@@ -319,6 +331,11 @@ const PAYMENT_METHOD_TO_PLATFORM = Object.fromEntries(
   ])
 );
 
+function platformLabelFor(paymentMethod) {
+  if (!paymentMethod) return null;
+  return PAYMENT_METHOD_TO_PLATFORM[paymentMethod.toLowerCase()] || null;
+}
+
 // Reusable read-only viem client for Base. RPC override via env, public fallback.
 const baseRpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
 const baseClient = createPublicClient({
@@ -326,91 +343,106 @@ const baseClient = createPublicClient({
   transport: http(baseRpcUrl),
 });
 
-// Public Base RPCs (mainnet.base.org, publicnode, etc.) cap eth_getLogs to ~10k
-// blocks per request. Since our query is filtered by an indexed depositor topic
-// the result set per chunk is tiny — we just need to chunk the range.
-const LOG_CHUNK_SIZE = 9_500n;
-
 /**
- * Scan EscrowV2 DepositReceived events filtered by indexed depositor across the
- * full contract lifetime, chunked to fit public RPC block-range limits.
- */
-async function scanDepositReceivedLogs(userAddress) {
-  const head = await baseClient.getBlockNumber();
-  const ranges = [];
-  for (let from = ESCROW_V2_DEPLOY_BLOCK; from <= head; from += LOG_CHUNK_SIZE) {
-    const to = from + LOG_CHUNK_SIZE - 1n;
-    ranges.push({ fromBlock: from, toBlock: to > head ? head : to });
-  }
-  const chunks = await Promise.all(
-    ranges.map(({ fromBlock, toBlock }) =>
-      baseClient.getLogs({
-        address: ESCROW_V2_ADDRESS,
-        event: DEPOSIT_RECEIVED_EVENT,
-        args: { depositor: userAddress },
-        fromBlock,
-        toBlock,
-      })
-    )
-  );
-  return chunks.flat();
-}
-
-/**
- * Fetch all of a user's outstanding (unfilled) cashout deposits in EscrowV2.
+ * Fetch the user's recoverable cashouts via the peer-cashoutrelay-base subgraph.
+ *
+ * Returns a unified list of two row kinds the UI can render directly:
+ *   - { kind: 'unfilled', depositId, requestHash, ... } → recover via
+ *       EscrowV2.withdrawDeposit(depositId). Issue #380 case.
+ *   - { kind: 'failed',                requestHash, ... } → recover via
+ *       CashOutRelay.recoverFailed(requestHash). USDC stuck in the relay.
  *
  * Path:
- *   1. chunked getLogs(DepositReceived, depositor=user) → list of (depositId, blockNumber)
- *   2. multicall getDeposit(id) + getDepositPaymentMethods(id) for each
- *   3. filter remainingDeposits > 0 (= USDC still sitting unfilled in the deposit)
- *   4. resolve creation timestamp via batched eth_getBlockByNumber
+ *   1. Subgraph: pendingCashouts (FAILED) + cashoutRequests(status:DEPOSITED).
+ *   2. For each DEPOSITED row, getTransactionReceipt(createdTxHash) → parse
+ *      the inline EscrowV2.DepositReceived log → depositId.
+ *   3. multicall EscrowV2.getDeposit(id) for each → keep only those still
+ *      unfilled (remainingDeposits > 0).
  *
- * Returns rows shaped for the UI: { depositId, remainingAmount, paymentMethod, platform, createdAtSec }.
- * Returns [] for any falsy address.
+ * Empty list (or subgraph error) returns []; the caller hides the section.
  */
 export async function fetchOutstandingDeposits(userAddress) {
   if (!userAddress) return [];
 
-  const logs = await scanDepositReceivedLogs(userAddress);
-  if (logs.length === 0) return [];
-
-  // Batch deposit reads via multicall3 (auto-detected on Base by viem).
-  const depositCalls = logs.flatMap((log) => [
-    { address: ESCROW_V2_ADDRESS, abi: ESCROW_V2_ABI, functionName: 'getDeposit', args: [log.args.depositId] },
-    { address: ESCROW_V2_ADDRESS, abi: ESCROW_V2_ABI, functionName: 'getDepositPaymentMethods', args: [log.args.depositId] },
-  ]);
-  const results = await baseClient.multicall({ contracts: depositCalls, allowFailure: true });
-
-  // Resolve unique block timestamps for "Listed N hours ago" display.
-  const uniqueBlocks = [...new Set(logs.map((l) => l.blockNumber))];
-  const blockResults = await Promise.all(
-    uniqueBlocks.map((bn) => baseClient.getBlock({ blockNumber: bn }))
-  );
-  const blockTimes = new Map(blockResults.map((b) => [b.number, Number(b.timestamp)]));
-
-  const rows = [];
-  for (let i = 0; i < logs.length; i += 1) {
-    const log = logs[i];
-    const depositRes = results[i * 2];
-    const methodsRes = results[i * 2 + 1];
-    if (depositRes.status !== 'success' || methodsRes.status !== 'success') continue;
-
-    const deposit = depositRes.result;
-    if (deposit.remainingDeposits === 0n) continue;
-
-    const paymentMethod = (methodsRes.result?.[0]) || null;
-    rows.push({
-      depositId: log.args.depositId,
-      remainingAmount: deposit.remainingDeposits,
-      outstandingIntentAmount: deposit.outstandingIntentAmount,
-      paymentMethod,
-      platform: paymentMethod ? (PAYMENT_METHOD_TO_PLATFORM[paymentMethod] || null) : null,
-      createdAtSec: blockTimes.get(log.blockNumber) ?? null,
+  let wallet;
+  try {
+    const apollo = getClient(PEER_CASHOUTRELAY_BASE_URL);
+    const { data } = await apollo.query({
+      query: WALLET_CASHOUTS_QUERY,
+      variables: { wallet: userAddress.toLowerCase() },
+      // Subgraph state changes whenever a cashout is created / filled / withdrawn,
+      // so don't cache — Apollo would otherwise return stale results across refreshes.
+      fetchPolicy: 'no-cache',
     });
+    wallet = data?.wallet;
+  } catch (err) {
+    console.warn('[CashOutService] subgraph query failed:', err?.message || err);
+    return [];
   }
-  // Newest first
-  rows.sort((a, b) => (b.createdAtSec || 0) - (a.createdAtSec || 0));
-  return rows;
+  if (!wallet) return [];
+
+  const failedRows = (wallet.pendingCashouts || []).map((r) => ({
+    kind: 'failed',
+    requestHash: r.requestHash,
+    amount: BigInt(r.amount),
+    paymentMethod: r.paymentMethod || null,
+    platform: platformLabelFor(r.paymentMethod),
+    createdAtSec: Number(r.createdAtTimestamp),
+  }));
+
+  const depositedRequests = wallet.cashoutRequests || [];
+
+  // Recover depositId per DEPOSITED row from its creation tx receipt — the relay
+  // calls EscrowV2.depositTo inline, so the DepositReceived log is in the same tx.
+  const receipts = await Promise.all(
+    depositedRequests.map((r) =>
+      baseClient.getTransactionReceipt({ hash: r.createdTxHash }).catch(() => null)
+    )
+  );
+  const depositIds = receipts.map((receipt) => {
+    if (!receipt) return null;
+    const events = parseEventLogs({
+      abi: [DEPOSIT_RECEIVED_EVENT],
+      logs: receipt.logs,
+      eventName: 'DepositReceived',
+    });
+    return events[0]?.args?.depositId ?? null;
+  });
+
+  const validIndexes = depositIds.flatMap((id, i) => (id === null ? [] : [i]));
+  const fillStates = validIndexes.length === 0 ? [] : await baseClient.multicall({
+    contracts: validIndexes.map((i) => ({
+      address: ESCROW_V2_ADDRESS,
+      abi: ESCROW_V2_ABI,
+      functionName: 'getDeposit',
+      args: [depositIds[i]],
+    })),
+    allowFailure: true,
+  });
+  const stateByIndex = new Map();
+  validIndexes.forEach((i, k) => stateByIndex.set(i, fillStates[k]));
+
+  const unfilledRows = depositedRequests.flatMap((r, i) => {
+    const id = depositIds[i];
+    if (id === null) return [];
+    const state = stateByIndex.get(i);
+    if (state?.status !== 'success') return [];
+    const { remainingDeposits, outstandingIntentAmount } = state.result;
+    if (remainingDeposits === 0n) return []; // filled or already withdrawn
+    return [{
+      kind: 'unfilled',
+      depositId: id,
+      requestHash: r.requestHash,
+      amount: BigInt(r.amount),
+      remainingAmount: remainingDeposits,
+      outstandingIntentAmount,
+      paymentMethod: r.paymentMethod || null,
+      platform: platformLabelFor(r.paymentMethod),
+      createdAtSec: Number(r.createdAtTimestamp),
+    }];
+  });
+
+  return [...failedRows, ...unfilledRows].sort((a, b) => b.createdAtSec - a.createdAtSec);
 }
 
 /**
@@ -426,6 +458,25 @@ export function buildWithdrawDeposit(depositId) {
       abi: ESCROW_V2_ABI,
       functionName: 'withdrawDeposit',
       args: [BigInt(depositId)],
+    }),
+    value: 0n,
+  };
+}
+
+/**
+ * Build the calldata for CashOutRelay.recoverFailed(requestHash). Used to pull
+ * USDC out of the relay when the downstream EscrowV2.depositTo reverted (the
+ * relay holds the funds for the depositor; only msg.sender == depositor passes
+ * the contract's NotOwner check).
+ */
+export function buildRecoverFailed(requestHash) {
+  return {
+    chainId: BASE_CHAIN_ID,
+    to: CASHOUT_RELAY_ADDRESS,
+    data: encodeFunctionData({
+      abi: CASHOUT_RELAY_ABI,
+      functionName: 'recoverFailed',
+      args: [requestHash],
     }),
     value: 0n,
   };

@@ -1,8 +1,10 @@
 /**
  * PendingCashouts
- * Lists the user's outstanding (unfilled) cashout deposits on peer.xyz EscrowV2
- * (Base) and offers a one-click withdraw back to USDC. Hides itself entirely
- * when there are no outstanding deposits.
+ * Lists the user's recoverable cashouts on Base — two row kinds:
+ *   - 'unfilled': ZKP2P deposit on EscrowV2 with no taker yet → withdrawDeposit
+ *   - 'failed':   USDC stuck in CashOutRelay (executeData reverted) → recoverFailed
+ * Data comes from the peer-cashoutrelay-base subgraph (see CashOutService.fetchOutstandingDeposits).
+ * Hides itself entirely when the user has nothing to recover.
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
@@ -25,6 +27,7 @@ import { clientToSigner } from '@/components/ProviderConverter';
 import { formatTokenAmount } from '@/util/formatToken';
 import {
   BASE_CHAIN_ID,
+  buildRecoverFailed,
   buildWithdrawDeposit,
   fetchOutstandingDeposits,
 } from '@/services/web3/domain/CashOutService';
@@ -32,23 +35,31 @@ import {
 const POLL_INTERVAL_MS = 30_000;
 const USDC_DECIMALS = 6;
 
+// Stable per-row id used for both React keys and "in-flight" tracking. Spans
+// both row kinds so two rows can be processed independently.
+function rowKey(row) {
+  return row.kind === 'unfilled'
+    ? `unfilled:${row.depositId.toString()}`
+    : `failed:${row.requestHash}`;
+}
+
 function PendingCashouts({ accountAddress, cardStyle, textColor, subtextColor, onWithdrawSuccess }) {
   const { isPasskeyUser } = useAuth();
   const { switchChainAsync } = useSwitchChain();
   const wagmiConfig = useConfig();
   const toast = useToast();
 
-  const [deposits, setDeposits] = useState([]);
-  const [withdrawingId, setWithdrawingId] = useState(null);
+  const [rows, setRows] = useState([]);
+  const [actingKey, setActingKey] = useState(null);
 
   const refresh = useCallback(async () => {
     if (!accountAddress) {
-      setDeposits([]);
+      setRows([]);
       return;
     }
     try {
-      const rows = await fetchOutstandingDeposits(accountAddress);
-      setDeposits(rows);
+      const next = await fetchOutstandingDeposits(accountAddress);
+      setRows(next);
     } catch (err) {
       console.error('[PendingCashouts] fetch error', err);
     }
@@ -67,31 +78,31 @@ function PendingCashouts({ accountAddress, cardStyle, textColor, subtextColor, o
     };
   }, [refresh]);
 
-  const handleWithdraw = useCallback(async (depositId) => {
+  const handleAction = useCallback(async (row) => {
     if (isPasskeyUser) return;
-    const idStr = depositId.toString();
+    const key = rowKey(row);
+    const tx = row.kind === 'unfilled'
+      ? buildWithdrawDeposit(row.depositId)
+      : buildRecoverFailed(row.requestHash);
+    const labels = ACTION_LABELS[row.kind];
+
     try {
-      setWithdrawingId(idStr);
+      setActingKey(key);
       await switchChainAsync({ chainId: BASE_CHAIN_ID });
       const connectorClient = await getConnectorClient(wagmiConfig, { chainId: BASE_CHAIN_ID });
       const signer = clientToSigner(connectorClient);
       if (!signer) throw new Error('Wallet not ready — reconnect and try again.');
 
-      const tx = buildWithdrawDeposit(depositId);
-      const sent = await signer.sendTransaction({
-        to: tx.to,
-        data: tx.data,
-        value: tx.value,
-      });
+      const sent = await signer.sendTransaction({ to: tx.to, data: tx.data, value: tx.value });
       toast({
-        title: 'Withdraw submitted',
+        title: labels.submitted,
         description: 'Waiting for confirmation on Base…',
         status: 'info',
         duration: 5000,
       });
       await sent.wait();
       toast({
-        title: 'Withdraw confirmed',
+        title: labels.confirmed,
         description: 'Your USDC has been returned to your wallet on Base.',
         status: 'success',
         duration: 6000,
@@ -99,19 +110,19 @@ function PendingCashouts({ accountAddress, cardStyle, textColor, subtextColor, o
       onWithdrawSuccess?.();
       await refresh();
     } catch (err) {
-      console.error('[PendingCashouts] withdraw error', err);
+      console.error('[PendingCashouts] action error', err);
       toast({
-        title: 'Withdraw failed',
-        description: formatWithdrawError(err),
+        title: labels.failed,
+        description: formatActionError(err),
         status: 'error',
         duration: 6000,
       });
     } finally {
-      setWithdrawingId(null);
+      setActingKey(null);
     }
   }, [isPasskeyUser, switchChainAsync, wagmiConfig, toast, onWithdrawSuccess, refresh]);
 
-  if (deposits.length === 0) return null;
+  if (rows.length === 0) return null;
 
   return (
     <Card borderRadius="2xl" boxShadow="2xl" style={cardStyle}>
@@ -122,23 +133,26 @@ function PendingCashouts({ accountAddress, cardStyle, textColor, subtextColor, o
               Pending Cashouts
             </Heading>
             <Text color={subtextColor} fontSize="sm">
-              Cashouts that haven&apos;t been filled by a peer yet. You can withdraw the USDC back
-              to your wallet on Base any time.
+              Cashouts that haven&apos;t completed yet. You can pull the USDC back to your
+              wallet on Base any time.
             </Text>
           </VStack>
 
           <VStack spacing={3} align="stretch">
-            {deposits.map((d) => (
-              <PendingCashoutRow
-                key={d.depositId.toString()}
-                deposit={d}
-                isPasskeyUser={isPasskeyUser}
-                isWithdrawing={withdrawingId === d.depositId.toString()}
-                onWithdraw={() => handleWithdraw(d.depositId)}
-                textColor={textColor}
-                subtextColor={subtextColor}
-              />
-            ))}
+            {rows.map((row) => {
+              const key = rowKey(row);
+              return (
+                <PendingCashoutRow
+                  key={key}
+                  row={row}
+                  isPasskeyUser={isPasskeyUser}
+                  isActing={actingKey === key}
+                  onAct={() => handleAction(row)}
+                  textColor={textColor}
+                  subtextColor={subtextColor}
+                />
+              );
+            })}
           </VStack>
         </VStack>
       </CardBody>
@@ -146,18 +160,42 @@ function PendingCashouts({ accountAddress, cardStyle, textColor, subtextColor, o
   );
 }
 
-function PendingCashoutRow({
-  deposit,
-  isPasskeyUser,
-  isWithdrawing,
-  onWithdraw,
-  textColor,
-  subtextColor,
-}) {
-  const amountStr = formatTokenAmount(deposit.remainingAmount, USDC_DECIMALS, 2);
-  const platformLabel = deposit.platform || 'P2P seller listing';
-  const ageText = formatAge(deposit.createdAtSec);
-  const hasOutstandingIntent = deposit.outstandingIntentAmount > 0n;
+const ACTION_LABELS = {
+  unfilled: {
+    button: 'Withdraw to USDC',
+    loading: 'Withdrawing',
+    submitted: 'Withdraw submitted',
+    confirmed: 'Withdraw confirmed',
+    failed: 'Withdraw failed',
+  },
+  failed: {
+    button: 'Recover USDC',
+    loading: 'Recovering',
+    submitted: 'Recovery submitted',
+    confirmed: 'Recovery confirmed',
+    failed: 'Recovery failed',
+  },
+};
+
+function PendingCashoutRow({ row, isPasskeyUser, isActing, onAct, textColor, subtextColor }) {
+  const labels = ACTION_LABELS[row.kind];
+  const platformLabel = row.platform || 'P2P seller listing';
+  const ageText = formatAge(row.createdAtSec);
+
+  // Title differs by kind (the user is in a different mental model in each case).
+  // Subtitle keeps depositId/requestHash visible so support can match on-chain state.
+  let title;
+  let subtitle;
+  if (row.kind === 'unfilled') {
+    const amountStr = formatTokenAmount(row.remainingAmount, USDC_DECIMALS, 2);
+    const fillState = row.outstandingIntentAmount > 0n ? 'taker intent active' : 'not yet filled';
+    title = `$${amountStr} USDC → ${platformLabel}`;
+    subtitle = `${ageText} · deposit #${row.depositId.toString()} · ${fillState}`;
+  } else {
+    const amountStr = formatTokenAmount(row.amount, USDC_DECIMALS, 2);
+    title = `$${amountStr} USDC stuck in relay`;
+    subtitle = `${ageText} · request ${shortHash(row.requestHash)} · on-chain deposit step reverted, USDC held in the relay`;
+  }
 
   return (
     <HStack
@@ -174,39 +212,46 @@ function PendingCashoutRow({
       <VStack align="start" spacing={1} flex={1} minW={0}>
         <HStack spacing={2}>
           <Text color={textColor} fontWeight="bold" fontSize="sm">
-            ${amountStr} USDC → {platformLabel}
+            {title}
           </Text>
           <Badge colorScheme="blue" fontSize="2xs" borderRadius="full">Base</Badge>
+          {row.kind === 'failed' && (
+            <Badge colorScheme="orange" fontSize="2xs" borderRadius="full">Failed</Badge>
+          )}
         </HStack>
         <Text color={subtextColor} fontSize="xs">
-          {ageText} · deposit #{deposit.depositId.toString()}
-          {hasOutstandingIntent ? ' · taker intent active' : ' · not yet filled'}
+          {subtitle}
         </Text>
       </VStack>
 
       {isPasskeyUser ? (
         <Tooltip
-          label="Passkey withdraw is coming soon — connect from the wallet that owns this deposit to withdraw."
+          label="Passkey recovery is coming soon — connect from the wallet that owns this cashout to recover."
           hasArrow
         >
           <Button size="sm" variant="outline" colorScheme="gray" isDisabled>
-            Withdraw unavailable
+            Recover unavailable
           </Button>
         </Tooltip>
       ) : (
         <Button
           size="sm"
-          colorScheme="green"
+          colorScheme={row.kind === 'failed' ? 'orange' : 'green'}
           variant="outline"
-          isLoading={isWithdrawing}
-          loadingText="Withdrawing"
-          onClick={onWithdraw}
+          isLoading={isActing}
+          loadingText={labels.loading}
+          onClick={onAct}
         >
-          Withdraw to USDC
+          {labels.button}
         </Button>
       )}
     </HStack>
   );
+}
+
+function shortHash(hash) {
+  if (!hash || typeof hash !== 'string') return '—';
+  return hash.length > 12 ? `${hash.slice(0, 6)}…${hash.slice(-4)}` : hash;
 }
 
 function formatAge(createdAtSec) {
@@ -225,8 +270,8 @@ function formatAge(createdAtSec) {
   return `Listed ${d} day${d === 1 ? '' : 's'} ago`;
 }
 
-function formatWithdrawError(err) {
-  if (!err) return 'Withdraw failed';
+function formatActionError(err) {
+  if (!err) return 'Action failed';
   const code = err.code;
   const reason = (err.reason || err.shortMessage || err.message || '').toLowerCase();
   if (code === 4001 || code === 'ACTION_REJECTED' || reason.includes('user rejected')) {
@@ -238,7 +283,7 @@ function formatWithdrawError(err) {
   if (reason.includes('chain') && reason.includes('mismatch')) {
     return 'Wrong network. Switch to Base and try again.';
   }
-  return err.shortMessage || err.message || 'Withdraw failed';
+  return err.shortMessage || err.message || 'Action failed';
 }
 
 export default PendingCashouts;
