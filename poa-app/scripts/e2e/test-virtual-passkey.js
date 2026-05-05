@@ -68,7 +68,13 @@ function signAssertion(challengeHex, privKey, hostname = 'localhost', origin = '
 
   const rpIdHash = sha256(utf8(hostname));
   const flags = new Uint8Array([0x05]);
-  const counter = new Uint8Array([0, 0, 0, 1]);
+  const signCount = Math.floor(Date.now() / 1000);
+  const counter = new Uint8Array([
+    (signCount >>> 24) & 0xff,
+    (signCount >>> 16) & 0xff,
+    (signCount >>> 8) & 0xff,
+    signCount & 0xff,
+  ]);
   const authenticatorData = concat(rpIdHash, flags, counter);
 
   const clientDataHash = sha256(clientDataJSON);

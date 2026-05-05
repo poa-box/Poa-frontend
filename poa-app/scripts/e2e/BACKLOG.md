@@ -28,19 +28,21 @@ the other and the test passes while real signatures fail at the bundler.
 `window.location.origin`/`hostname`. The core module would be Node-importable.
 Test imports core directly. Defer until the test gives a false pass.
 
-## On-chain validation of virtual passkey signatures
+## On-chain validation of virtual passkey signatures — RESOLVED
 
-The current `e2e:test-passkey` only validates the assertion math off-chain
-(P-256 verify, byte indices, low-s, flags byte). The remaining unknown is
-that the on-chain `WebAuthnLib` accepts the assertion end-to-end — this
-depends on `rpIdHash` matching what the contract expects, which in turn
-depends on runtime `window.location.hostname`. Today the first claim
-attempt is the validator.
+The virtual passkey now validates end-to-end on Gnosis: deploy + first
+vote both pass `validateUserOp` and the bundler accepts the UserOp.
 
-**Action:** add an integration test that submits a real UserOp via the
-bundler against a deployed `PasskeyAccount` and asserts no `AA25` (signature
-validation failed) error. Could run as a manual one-time check after deploy
-or as a periodic CI job against a staging fixture.
+The bug was a stale read of the contract source: `new-york/upgrades/
+current/PasskeyAccount.sol` had a permissive signCount check, but the
+deployed `geneva-v2` `WebAuthnLib.verifyWithSignCount` was tightened to
+also reject `lastSignCount > 0 && newSignCount == 0` (treats counter=0
+after a non-zero counter as "possible cloned key"). Since the deploy
+UserOp seeded `signCount=1`, every subsequent virtual sig with the old
+hardcoded `counter=[0,0,0,1]` or `[0,0,0,0]` failed. Fix in
+`virtualPasskey.js`: emit `Math.floor(Date.now()/1000)` as the counter
+— always strictly greater than any plausible stored signCount, fits in
+uint32 until 2106. `test-virtual-passkey.js` was synced to match.
 
 ## Test artifact accumulation in the configured org
 

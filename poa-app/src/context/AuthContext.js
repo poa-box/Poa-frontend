@@ -28,8 +28,11 @@ import {
   savePasskeyCredential,
 } from '../services/web3/passkey/passkeyStorage';
 import { discoverPasskeyCredential } from '../services/web3/passkey/passkeyDiscover';
-import { E2E_ENABLED } from '../services/e2e/e2eMode';
-import { ensureVirtualPasskeyPendingSeeded } from '../services/e2e/seedVirtualPasskey';
+import { E2E_ENABLED, E2E_AS } from '../services/e2e/e2eMode';
+import {
+  ensureVirtualPasskeyPendingSeeded,
+  ensureVirtualPasskeyActivated,
+} from '../services/e2e/seedVirtualPasskey';
 
 const AuthContext = createContext();
 
@@ -113,6 +116,14 @@ export const AuthProvider = ({ children }) => {
     if (eoaConnected) return;
 
     if (E2E_ENABLED) {
+      // In passkey mode, restore the deployed virtual passkey before falling
+      // back to the pending/onboarding flow — otherwise a fresh tab can't act
+      // as the already-deployed E2E identity.
+      if (E2E_AS === 'passkey') {
+        ensureVirtualPasskeyActivated().then((cred) => {
+          if (cred && !explicitSignOutRef.current) setPasskeyState(cred);
+        }).catch(() => { /* logged inside activator */ });
+      }
       ensureVirtualPasskeyPendingSeeded().catch(() => { /* logged inside seeder */ });
     }
 

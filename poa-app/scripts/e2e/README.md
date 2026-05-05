@@ -28,13 +28,24 @@ Both addresses must be vouched once before the agent can claim hats.
 
 ```
 yarn dev:e2e             # auto-connects burner EOA
-yarn dev:e2e-passkey     # skips EOA auto-connect; passkey vouch-first flow
+yarn dev:e2e-passkey     # skips EOA auto-connect; activates virtual passkey
 ```
 
-The agent then drives `/join?org=Test6` (or whatever org was configured)
-and the production code path takes over: `useVouchFirstOnboarding` →
-`PasskeyOnboardingService.deployWithExistingCredential` for the passkey
-case, or `quickJoinWithUser` for the EOA case.
+**EOA mode** auto-connects the burner via `E2EAutoConnect`; agent is
+immediately signed in.
+
+**Passkey mode** has two phases:
+1. *First run, before deploy.* `seedVirtualPasskey.ensureVirtualPasskeyPendingSeeded()`
+   primes the pending credential, agent drives `/join?org=Test6`, and the
+   production code path takes over: `useVouchFirstOnboarding` →
+   `PasskeyOnboardingService.deployWithExistingCredential`.
+2. *Every run after deploy.* `seedVirtualPasskey.ensureVirtualPasskeyActivated()`
+   queries the subgraph for the deployed smart account by credentialId and
+   restores it into `AuthContext` on mount, so a fresh tab is signed in
+   immediately — no `/join` round-trip. UserOps go through the same
+   `signUserOpWithPasskey` path real users hit; `virtualPasskey.js` emits a
+   strictly-increasing `signCount` (Unix seconds) to satisfy the contract's
+   anti-replay check.
 
 ## Production safety
 

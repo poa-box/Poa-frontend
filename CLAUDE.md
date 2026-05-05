@@ -30,6 +30,21 @@ virtual passkey at `~/.poa/e2e.env` (shared across every workspace) and prints
 two vouch URLs for a member to click. Once vouched, the agent can claim hats and
 exercise every member-tier flow.
 
+For browser-driven testing, use the Playwright MCP server (configured in
+`.mcp.json`). The `mcp__playwright__browser_*` tools (navigate, snapshot,
+console_messages, click, fill_form, etc.) drive the auto-connected E2E
+session — preferred over running a separate Playwright script. Pair it
+with `yarn dev:e2e` to exercise flows end-to-end.
+
+When you need a visual artifact to share back, **record a gif of the
+flow rather than dropping individual screenshots into the repo root**.
+Gifs are gitignored (`/*.gif`, `/poa-app/*.gif`); PNGs in the repo are
+not, so they pile up. Capture a sequence with `browser_run_code_unsafe`
++ Playwright's video recording, then convert with ffmpeg
+(`ffmpeg -i video.webm -vf "fps=10,scale=800:-1" out.gif`). For a
+single-frame snapshot, prefer `browser_snapshot` (cheap text accessibility
+tree, no image artifact written) over `browser_take_screenshot`.
+
 Before opening a PR that touches anything in `src/services/e2e/` or any of the
 files E2E intercepts (`AuthContext.js`, `_app.js`, `passkeySign.js`,
 `passkeyCreate.js`, `ProviderConverter.jsx`), run `yarn build && yarn e2e:check`

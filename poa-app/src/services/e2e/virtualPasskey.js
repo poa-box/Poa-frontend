@@ -96,9 +96,22 @@ export function signVirtualAssertion(challengeHashHex) {
 
   // 2. Build authenticatorData: rpIdHash(32) || flags(1) || counter(4)
   // flags = 0x05 (UP=0x01 | UV=0x04). Required by userVerification: 'required'.
+  // counter = current Unix seconds: PasskeyAccount enforces strictly-increasing
+  // signCount via `verifyWithSignCount`: once any prior sig stored signCount>0,
+  // both `newSignCount==0` AND `newSignCount<=last` are rejected. A stateless
+  // virtual signer can't track increments across reloads, so we use
+  // floor(Date.now()/1000) — fits in uint32 until 2106, monotonically
+  // increasing across all calls (assuming we don't sign more than once per
+  // second), and always greater than any plausible stored signCount.
   const rpIdHash = sha256(utf8(window.location.hostname));
   const flags = new Uint8Array([0x05]);
-  const counter = new Uint8Array([0, 0, 0, 1]);
+  const signCount = Math.floor(Date.now() / 1000);
+  const counter = new Uint8Array([
+    (signCount >>> 24) & 0xff,
+    (signCount >>> 16) & 0xff,
+    (signCount >>> 8) & 0xff,
+    signCount & 0xff,
+  ]);
   const authenticatorData = concat(rpIdHash, flags, counter);
 
   // 3. Sign sha256(authData || sha256(clientDataJSON)) with P-256.
