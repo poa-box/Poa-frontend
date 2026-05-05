@@ -5,12 +5,37 @@
 All commands run from `poa-app/`:
 
 ```bash
-cd poa-app && yarn dev      # dev server
-cd poa-app && yarn build    # production build (static export to IPFS)
-cd poa-app && yarn lint     # ESLint (Next.js built-in)
+cd poa-app && yarn dev              # dev server
+cd poa-app && yarn dev:e2e          # dev server in E2E mode (burner EOA auto-connects)
+cd poa-app && yarn dev:e2e-passkey  # dev server in E2E mode, passkey identity
+cd poa-app && yarn build            # production build (static export to IPFS)
+cd poa-app && yarn lint             # ESLint (Next.js built-in)
+cd poa-app && yarn e2e:setup        # one-time machine setup (writes ~/.poa/e2e.env)
+cd poa-app && yarn e2e:check        # CI guard — fails if E2E code leaks into prod bundle
+cd poa-app && yarn e2e:test-passkey # virtual-passkey crypto self-test
 ```
 
-No tests. No Prettier. No formatting commands.
+No unit/integration tests; the E2E harness above is the only automated coverage.
+No Prettier. No formatting commands.
+
+## Default workflow for agents
+
+When making frontend changes, **always use `yarn dev:e2e`** instead of `yarn dev`.
+The E2E harness gives you an auto-connected burner EOA on Test6 (Gnosis) so you
+can drive flows end-to-end without a wallet popup. Switch to `yarn dev:e2e-passkey`
+when testing the passkey/UserOp path.
+
+Setup is one-time per laptop: `yarn e2e:setup` generates a stable burner EOA +
+virtual passkey at `~/.poa/e2e.env` (shared across every workspace) and prints
+two vouch URLs for a member to click. Once vouched, the agent can claim hats and
+exercise every member-tier flow.
+
+Before opening a PR that touches anything in `src/services/e2e/` or any of the
+files E2E intercepts (`AuthContext.js`, `_app.js`, `passkeySign.js`,
+`passkeyCreate.js`, `ProviderConverter.jsx`), run `yarn build && yarn e2e:check`
+to confirm no E2E symbols leaked into the production bundle.
+
+Full docs: `poa-app/scripts/e2e/README.md`. Known follow-ups: `BACKLOG.md` next to it.
 
 ## Stack
 
@@ -144,3 +169,9 @@ for Safari CPU performance. The constants use opacity-based fallbacks instead.
 All prefixed `NEXT_PUBLIC_*`. `NEXT_PUBLIC_PIMLICO_API_KEY` is required for passkey auth.
 RPCs and subgraph URLs have hardcoded fallbacks in `config/networks.js`.
 No `.env` file is committed — defaults work for read-only browsing.
+
+E2E mode (`NEXT_PUBLIC_E2E_MODE=true`) reads `~/.poa/e2e.env` (machine-level,
+shared across workspaces). All `NEXT_PUBLIC_E2E_*` vars are force-inlined at
+build time via webpack `DefinePlugin` in `next.config.mjs` so production builds
+tree-shake every E2E branch. The `yarn e2e:check` guard verifies this on every
+build. Never read these env vars at runtime in non-E2E code paths.
