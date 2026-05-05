@@ -24,17 +24,34 @@
  */
 
 import {
+  createPublicClient,
   encodeAbiParameters,
+  encodeFunctionData,
+  http,
   keccak256,
+  parseAbi,
+  parseAbiItem,
   parseUnits,
   toBytes,
 } from 'viem';
+import { base } from 'viem/chains';
 
 /*══════════════════════════════════ CONSTANTS ══════════════════════════════════*/
 
 // Deployed CashOutRelay on Base mainnet — runs on the destination side,
 // receives USDC, decodes the destinationPayload, and creates the ZKP2P deposit.
 export const CASHOUT_RELAY_ADDRESS = '0xA65414A21dc114199cAfD7c6c3ed99488Eb9eFE5';
+
+// peer.xyz EscrowV2 on Base — holds the user-owned ZKP2P deposit. The relay
+// creates the deposit; if no taker fills it, the user can recover via
+// withdrawDeposit(depositId) directly from this contract.
+export const ESCROW_V2_ADDRESS = '0x777777779d229cdF3110e9de47943791c26300Ef';
+
+// Block EscrowV2 was deployed at on Base. Used as fromBlock for the
+// DepositReceived getLogs scan (filtered by indexed depositor topic, so the
+// result set is small even over a wide range).
+// Source: zkp2p/zkp2p-contracts/deployments/base/EscrowV2.json receipt.blockNumber
+export const ESCROW_V2_DEPLOY_BLOCK = 43224628n;
 
 // Permit2 — same address on every chain
 export const PERMIT2_ADDRESS = '0x000000000022D473030F116dDEE9F6B43aC78BA3';
@@ -276,5 +293,140 @@ export async function prepareCashOut({
     }),
     quote,
     payeeDetailsHash,
+  };
+}
+
+/*══════════════════════════════════ OUTSTANDING DEPOSITS (recover unfilled) ══════════════════════════════════*/
+
+// Minimal EscrowV2 ABI — just what we need to enumerate, inspect, and withdraw
+// the user's deposits. Full ABI in zkp2p/zkp2p-contracts/deployments/base/EscrowV2.json.
+const ESCROW_V2_ABI = parseAbi([
+  'function getDeposit(uint256 depositId) view returns ((address depositor, address delegate, address token, (uint256 min, uint256 max) intentAmountRange, bool acceptingIntents, uint256 remainingDeposits, uint256 outstandingIntentAmount, address intentGuardian, bool retainOnEmpty))',
+  'function getDepositPaymentMethods(uint256 depositId) view returns (bytes32[])',
+  'function withdrawDeposit(uint256 depositId)',
+]);
+
+const DEPOSIT_RECEIVED_EVENT = parseAbiItem(
+  'event DepositReceived(uint256 indexed depositId, address indexed depositor, address indexed token, uint256 amount, (uint256 min, uint256 max) intentAmountRange, address delegate, address intentGuardian)'
+);
+
+// Maps the bytes32 paymentMethod stored on each deposit (= keccak256 of the
+// platform key) back to the human label. Keys mirror PAYMENT_PLATFORMS above.
+const PAYMENT_METHOD_TO_PLATFORM = Object.fromEntries(
+  Object.entries(PAYMENT_PLATFORMS).map(([key, { label }]) => [
+    keccak256(toBytes(key)),
+    label,
+  ])
+);
+
+// Reusable read-only viem client for Base. RPC override via env, public fallback.
+const baseRpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
+const baseClient = createPublicClient({
+  chain: base,
+  transport: http(baseRpcUrl),
+});
+
+// Public Base RPCs (mainnet.base.org, publicnode, etc.) cap eth_getLogs to ~10k
+// blocks per request. Since our query is filtered by an indexed depositor topic
+// the result set per chunk is tiny — we just need to chunk the range.
+const LOG_CHUNK_SIZE = 9_500n;
+
+/**
+ * Scan EscrowV2 DepositReceived events filtered by indexed depositor across the
+ * full contract lifetime, chunked to fit public RPC block-range limits.
+ */
+async function scanDepositReceivedLogs(userAddress) {
+  const head = await baseClient.getBlockNumber();
+  const ranges = [];
+  for (let from = ESCROW_V2_DEPLOY_BLOCK; from <= head; from += LOG_CHUNK_SIZE) {
+    const to = from + LOG_CHUNK_SIZE - 1n;
+    ranges.push({ fromBlock: from, toBlock: to > head ? head : to });
+  }
+  const chunks = await Promise.all(
+    ranges.map(({ fromBlock, toBlock }) =>
+      baseClient.getLogs({
+        address: ESCROW_V2_ADDRESS,
+        event: DEPOSIT_RECEIVED_EVENT,
+        args: { depositor: userAddress },
+        fromBlock,
+        toBlock,
+      })
+    )
+  );
+  return chunks.flat();
+}
+
+/**
+ * Fetch all of a user's outstanding (unfilled) cashout deposits in EscrowV2.
+ *
+ * Path:
+ *   1. chunked getLogs(DepositReceived, depositor=user) → list of (depositId, blockNumber)
+ *   2. multicall getDeposit(id) + getDepositPaymentMethods(id) for each
+ *   3. filter remainingDeposits > 0 (= USDC still sitting unfilled in the deposit)
+ *   4. resolve creation timestamp via batched eth_getBlockByNumber
+ *
+ * Returns rows shaped for the UI: { depositId, remainingAmount, paymentMethod, platform, createdAtSec }.
+ * Returns [] for any falsy address.
+ */
+export async function fetchOutstandingDeposits(userAddress) {
+  if (!userAddress) return [];
+
+  const logs = await scanDepositReceivedLogs(userAddress);
+  if (logs.length === 0) return [];
+
+  // Batch deposit reads via multicall3 (auto-detected on Base by viem).
+  const depositCalls = logs.flatMap((log) => [
+    { address: ESCROW_V2_ADDRESS, abi: ESCROW_V2_ABI, functionName: 'getDeposit', args: [log.args.depositId] },
+    { address: ESCROW_V2_ADDRESS, abi: ESCROW_V2_ABI, functionName: 'getDepositPaymentMethods', args: [log.args.depositId] },
+  ]);
+  const results = await baseClient.multicall({ contracts: depositCalls, allowFailure: true });
+
+  // Resolve unique block timestamps for "Listed N hours ago" display.
+  const uniqueBlocks = [...new Set(logs.map((l) => l.blockNumber))];
+  const blockResults = await Promise.all(
+    uniqueBlocks.map((bn) => baseClient.getBlock({ blockNumber: bn }))
+  );
+  const blockTimes = new Map(blockResults.map((b) => [b.number, Number(b.timestamp)]));
+
+  const rows = [];
+  for (let i = 0; i < logs.length; i += 1) {
+    const log = logs[i];
+    const depositRes = results[i * 2];
+    const methodsRes = results[i * 2 + 1];
+    if (depositRes.status !== 'success' || methodsRes.status !== 'success') continue;
+
+    const deposit = depositRes.result;
+    if (deposit.remainingDeposits === 0n) continue;
+
+    const paymentMethod = (methodsRes.result?.[0]) || null;
+    rows.push({
+      depositId: log.args.depositId,
+      remainingAmount: deposit.remainingDeposits,
+      outstandingIntentAmount: deposit.outstandingIntentAmount,
+      paymentMethod,
+      platform: paymentMethod ? (PAYMENT_METHOD_TO_PLATFORM[paymentMethod] || null) : null,
+      createdAtSec: blockTimes.get(log.blockNumber) ?? null,
+    });
+  }
+  // Newest first
+  rows.sort((a, b) => (b.createdAtSec || 0) - (a.createdAtSec || 0));
+  return rows;
+}
+
+/**
+ * Build the calldata for EscrowV2.withdrawDeposit(depositId). The caller is
+ * responsible for switching the wallet to Base and signing/sending the tx —
+ * keeps this service auth-agnostic, mirroring prepareCashOut.
+ */
+export function buildWithdrawDeposit(depositId) {
+  return {
+    chainId: BASE_CHAIN_ID,
+    to: ESCROW_V2_ADDRESS,
+    data: encodeFunctionData({
+      abi: ESCROW_V2_ABI,
+      functionName: 'withdrawDeposit',
+      args: [BigInt(depositId)],
+    }),
+    value: 0n,
   };
 }
