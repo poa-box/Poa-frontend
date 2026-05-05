@@ -42,6 +42,7 @@ import ProfileEditor from '@/components/account/ProfileEditor';
 import TokenBalances from '@/components/account/TokenBalances';
 import TransferModal from '@/components/account/TransferModal';
 import CashOutModal from '@/components/account/CashOutModal';
+import PendingCashouts from '@/components/account/PendingCashouts';
 import { useTokenBalances } from '@/hooks/useTokenBalances';
 import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
 import SignInModal from '@/components/passkey/SignInModal';
@@ -335,6 +336,15 @@ const AccountPage = () => {
             cardStyle={glassStyle}
             textColor={textColor}
             subtextColor={subtextColor}
+          />
+
+          {/* Pending Cashouts Section — only renders when the user has unfilled cashout deposits on EscrowV2/Base */}
+          <PendingCashouts
+            accountAddress={accountAddress}
+            cardStyle={glassStyle}
+            textColor={textColor}
+            subtextColor={subtextColor}
+            onWithdrawSuccess={refetchBalances}
           />
 
           {/* Organizations Section */}

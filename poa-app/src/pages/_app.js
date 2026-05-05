@@ -33,16 +33,21 @@ import {
 } from '@rainbow-me/rainbowkit/wallets';
 import { WagmiProvider, createConfig, http } from 'wagmi';
 import { defineChain } from 'viem';
+import { base } from 'viem/chains';
 import { NETWORKS, DEFAULT_NETWORK } from '../config/networks';
 
-// Build viem chains for ALL supported networks (needed for useSwitchChain)
-const allChains = Object.values(NETWORKS).map(cfg => defineChain({
-  id: cfg.chainId,
-  name: cfg.name,
-  nativeCurrency: cfg.nativeCurrency,
-  rpcUrls: { default: { http: [cfg.rpcUrl] } },
-  blockExplorers: { default: { name: 'Explorer', url: cfg.blockExplorer } },
-}));
+// Build viem chains for ALL supported networks (needed for useSwitchChain).
+// Base mainnet is appended for the cashout-withdraw flow (see CashOutService.fetchOutstandingDeposits / buildWithdrawDeposit) — it is NOT a Poa org chain, so it is NOT in NETWORKS to keep org/subgraph routing untouched.
+const allChains = [
+  ...Object.values(NETWORKS).map(cfg => defineChain({
+    id: cfg.chainId,
+    name: cfg.name,
+    nativeCurrency: cfg.nativeCurrency,
+    rpcUrls: { default: { http: [cfg.rpcUrl] } },
+    blockExplorers: { default: { name: 'Explorer', url: cfg.blockExplorer } },
+  })),
+  base,
+];
 const defaultChain = allChains.find(c => c.id === NETWORKS[DEFAULT_NETWORK].chainId);
 import {
   QueryClientProvider,

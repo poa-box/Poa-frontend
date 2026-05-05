@@ -204,7 +204,8 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
               <Text color="gray.400" textAlign="center" fontSize="sm">
                 Your {amount} USDC is bridging to Base, where the relay will atomically
                 create a P2P sell order. A buyer will send ~${estimatedReceive} to your
-                {' '}{platformLabel} within minutes — check peer.xyz to track.
+                {' '}{platformLabel} within minutes — check peer.xyz to track. If no buyer
+                takes it, you can withdraw it back to USDC from your account page.
               </Text>
             </VStack>
           ) : step === STEPS.error ? (
