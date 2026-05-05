@@ -5,12 +5,52 @@
 All commands run from `poa-app/`:
 
 ```bash
-cd poa-app && yarn dev      # dev server
-cd poa-app && yarn build    # production build (static export to IPFS)
-cd poa-app && yarn lint     # ESLint (Next.js built-in)
+cd poa-app && yarn dev              # dev server
+cd poa-app && yarn dev:e2e          # dev server in E2E mode (burner EOA auto-connects)
+cd poa-app && yarn dev:e2e-passkey  # dev server in E2E mode, passkey identity
+cd poa-app && yarn build            # production build (static export to IPFS)
+cd poa-app && yarn lint             # ESLint (Next.js built-in)
+cd poa-app && yarn e2e:setup        # one-time machine setup (writes ~/.poa/e2e.env)
+cd poa-app && yarn e2e:check        # CI guard — fails if E2E code leaks into prod bundle
+cd poa-app && yarn e2e:test-passkey # virtual-passkey crypto self-test
 ```
 
-No tests. No Prettier. No formatting commands.
+No unit/integration tests; the E2E harness above is the only automated coverage.
+No Prettier. No formatting commands.
+
+## Default workflow for agents
+
+When making frontend changes, **always use `yarn dev:e2e`** instead of `yarn dev`.
+The E2E harness gives you an auto-connected burner EOA on Test6 (Gnosis) so you
+can drive flows end-to-end without a wallet popup. Switch to `yarn dev:e2e-passkey`
+when testing the passkey/UserOp path.
+
+Setup is one-time per laptop: `yarn e2e:setup` generates a stable burner EOA +
+virtual passkey at `~/.poa/e2e.env` (shared across every workspace) and prints
+two vouch URLs for a member to click. Once vouched, the agent can claim hats and
+exercise every member-tier flow.
+
+For browser-driven testing, use the Playwright MCP server (configured in
+`.mcp.json`). The `mcp__playwright__browser_*` tools (navigate, snapshot,
+console_messages, click, fill_form, etc.) drive the auto-connected E2E
+session — preferred over running a separate Playwright script. Pair it
+with `yarn dev:e2e` to exercise flows end-to-end.
+
+When you need a visual artifact to share back, **record a gif of the
+flow rather than dropping individual screenshots into the repo root**.
+Gifs are gitignored (`/*.gif`, `/poa-app/*.gif`); PNGs in the repo are
+not, so they pile up. Capture a sequence with `browser_run_code_unsafe`
++ Playwright's video recording, then convert with ffmpeg
+(`ffmpeg -i video.webm -vf "fps=10,scale=800:-1" out.gif`). For a
+single-frame snapshot, prefer `browser_snapshot` (cheap text accessibility
+tree, no image artifact written) over `browser_take_screenshot`.
+
+Before opening a PR that touches anything in `src/services/e2e/` or any of the
+files E2E intercepts (`AuthContext.js`, `_app.js`, `passkeySign.js`,
+`passkeyCreate.js`, `ProviderConverter.jsx`), run `yarn build && yarn e2e:check`
+to confirm no E2E symbols leaked into the production bundle.
+
+Full docs: `poa-app/scripts/e2e/README.md`. Known follow-ups: `BACKLOG.md` next to it.
 
 ## Stack
 
@@ -144,3 +184,9 @@ for Safari CPU performance. The constants use opacity-based fallbacks instead.
 All prefixed `NEXT_PUBLIC_*`. `NEXT_PUBLIC_PIMLICO_API_KEY` is required for passkey auth.
 RPCs and subgraph URLs have hardcoded fallbacks in `config/networks.js`.
 No `.env` file is committed — defaults work for read-only browsing.
+
+E2E mode (`NEXT_PUBLIC_E2E_MODE=true`) reads `~/.poa/e2e.env` (machine-level,
+shared across workspaces). All `NEXT_PUBLIC_E2E_*` vars are force-inlined at
+build time via webpack `DefinePlugin` in `next.config.mjs` so production builds
+tree-shake every E2E branch. The `yarn e2e:check` guard verifies this on every
+build. Never read these env vars at runtime in non-E2E code paths.

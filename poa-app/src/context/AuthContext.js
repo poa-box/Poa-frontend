@@ -28,6 +28,11 @@ import {
   savePasskeyCredential,
 } from '../services/web3/passkey/passkeyStorage';
 import { discoverPasskeyCredential } from '../services/web3/passkey/passkeyDiscover';
+import { E2E_ENABLED, E2E_AS } from '../services/e2e/e2eMode';
+import {
+  ensureVirtualPasskeyPendingSeeded,
+  ensureVirtualPasskeyActivated,
+} from '../services/e2e/seedVirtualPasskey';
 
 const AuthContext = createContext();
 
@@ -102,15 +107,29 @@ export const AuthProvider = ({ children }) => {
     });
   }, []);
 
-  // Auto-reconnect: on mount, check for stored passkey credential
+  // Auto-reconnect: on mount, check for stored passkey credential.
+  // In E2E mode, seed the pending credential for the target org so the
+  // /join page enters the same vouch-first onboarding flow real users hit.
   useEffect(() => {
     if (typeof window === 'undefined') return; // SSR guard
     if (explicitSignOutRef.current) return;
-    if (!eoaConnected && hasStoredCredentials()) {
-      const lastCred = getLastUsedCredential();
-      if (lastCred) {
-        setPasskeyState(lastCred);
+    if (eoaConnected) return;
+
+    if (E2E_ENABLED) {
+      // In passkey mode, restore the deployed virtual passkey before falling
+      // back to the pending/onboarding flow — otherwise a fresh tab can't act
+      // as the already-deployed E2E identity.
+      if (E2E_AS === 'passkey') {
+        ensureVirtualPasskeyActivated().then((cred) => {
+          if (cred && !explicitSignOutRef.current) setPasskeyState(cred);
+        }).catch(() => { /* logged inside activator */ });
       }
+      ensureVirtualPasskeyPendingSeeded().catch(() => { /* logged inside seeder */ });
+    }
+
+    if (hasStoredCredentials()) {
+      const lastCred = getLastUsedCredential();
+      if (lastCred) setPasskeyState(lastCred);
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

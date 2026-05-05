@@ -35,6 +35,9 @@ import { WagmiProvider, createConfig, http } from 'wagmi';
 import { defineChain } from 'viem';
 import { base } from 'viem/chains';
 import { NETWORKS, DEFAULT_NETWORK } from '../config/networks';
+import { E2E_ENABLED } from '@/services/e2e/e2eMode';
+import { burnerConnector } from '@/services/e2e/burnerConnector';
+import E2EAutoConnect from '@/services/e2e/E2EAutoConnect';
 
 // Build viem chains for ALL supported networks (needed for useSwitchChain).
 // Base mainnet is appended for the cashout-withdraw flow (see CashOutService.fetchOutstandingDeposits / buildWithdrawDeposit) — it is NOT a Poa org chain, so it is NOT in NETWORKS to keep org/subgraph routing untouched.
@@ -84,12 +87,22 @@ const transports = Object.fromEntries(
   allChains.map(c => [c.id, http(c.rpcUrls.default.http[0])]),
 );
 
+// E2E mode REPLACES the wallet connectors with a synthetic burner.
+// Prepending isn't enough — wagmi persists `recentConnectorId` and will
+// happily reconnect to the user's real MetaMask if it's still in the list,
+// shadowing the burner. In production builds, NEXT_PUBLIC_E2E_MODE is unset
+// so this branch is dead code and webpack tree-shakes it.
+const finalConnectors = E2E_ENABLED ? [burnerConnector()] : connectors;
+
 const config = createConfig({
-  connectors,
+  connectors: finalConnectors,
   chains: allChains,
   transports,
   ssr: true,
-  multiInjectedProviderDiscovery: true,
+  // EIP-6963 wallet discovery is on for production so installed wallets
+  // self-announce. In E2E mode it must be off, otherwise MetaMask hijacks
+  // the burner connector.
+  multiInjectedProviderDiscovery: !E2E_ENABLED,
 });
 
 
@@ -264,6 +277,7 @@ const StableProviders = React.memo(function StableProviders({ children }) {
                             <DataBaseProvider>
                               <ChakraProvider theme={theme}>
                                 <TourProvider>
+                                  <E2EAutoConnect />
                                   <WhiteLabelUrlCleaner />
                                   <NetworkModalControl />
                                   <Notification />
