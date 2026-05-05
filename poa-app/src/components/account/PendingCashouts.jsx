@@ -194,7 +194,7 @@ function PendingCashoutRow({ row, isPasskeyUser, isActing, onAct, textColor, sub
   } else {
     const amountStr = formatTokenAmount(row.amount, USDC_DECIMALS, 2);
     title = `$${amountStr} USDC stuck in relay`;
-    subtitle = `${ageText} · the on-chain deposit step reverted, USDC is held in the relay for you`;
+    subtitle = `${ageText} · request ${shortHash(row.requestHash)} · on-chain deposit step reverted, USDC held in the relay`;
   }
 
   return (
@@ -247,6 +247,11 @@ function PendingCashoutRow({ row, isPasskeyUser, isActing, onAct, textColor, sub
       )}
     </HStack>
   );
+}
+
+function shortHash(hash) {
+  if (!hash || typeof hash !== 'string') return '—';
+  return hash.length > 12 ? `${hash.slice(0, 6)}…${hash.slice(-4)}` : hash;
 }
 
 function formatAge(createdAtSec) {

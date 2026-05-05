@@ -300,7 +300,7 @@ export async function prepareCashOut({
 
 // EscrowV2 functions we need: read deposit state to confirm a DEPOSITED row is
 // still unfilled, plus build calldata for withdrawDeposit. Full ABI lives in
-// zkp2p/zkp2p-contracts/deployments/base/EscrowV2.json — only need three here.
+// zkp2p/zkp2p-contracts/deployments/base/EscrowV2.json — only need two here.
 const ESCROW_V2_ABI = parseAbi([
   'function getDeposit(uint256 depositId) view returns ((address depositor, address delegate, address token, (uint256 min, uint256 max) intentAmountRange, bool acceptingIntents, uint256 remainingDeposits, uint256 outstandingIntentAmount, address intentGuardian, bool retainOnEmpty))',
   'function withdrawDeposit(uint256 depositId)',
