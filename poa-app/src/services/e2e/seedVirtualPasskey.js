@@ -72,6 +72,10 @@ export async function ensureVirtualPasskeyPendingSeeded() {
       args: [cred.credentialId, cred.publicKeyX, cred.publicKeyY, cred.salt],
     });
 
+    // Username is intentionally not seeded — `useVouchFirstOnboarding
+    // .completeOnboarding(username)` takes the typed-in value as its
+    // source of truth, so an empty string here would be silently submitted
+    // if any future caller ever read pendingCredential.username directly.
     savePendingCredential({
       credentialId: cred.credentialId,
       rawCredentialId: cred.rawCredentialId,
@@ -81,7 +85,6 @@ export async function ensureVirtualPasskeyPendingSeeded() {
       accountAddress,
       selectedHatId: hatId,
       orgName: E2E_ORG_NAME,
-      username: '',
     });
 
     return accountAddress;

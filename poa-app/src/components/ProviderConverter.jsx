@@ -54,18 +54,28 @@ export function clientToSigner(client) {
     return provider.getSigner(account.address);
   }
   
-  /** Hook to convert a Viem Client to an ethers.js Signer. */
-  export function useEthersSigner({ chainId } = {}) {
-    // Use the wagmi `useConnectorClient` to get the client data
+  /**
+   * Hook to convert a Viem Client to an ethers.js Signer.
+   *
+   * In E2E mode we bypass the wagmi mock connector (no signing key) and
+   * return a real ethers.Wallet bound to the burner key. The E2E variant
+   * needs an additional `useEthersProvider` call, which we don't want
+   * production paying for on every render — `useEthersSigner` is exported
+   * as one of two implementations chosen at module-load by the build-time
+   * `E2E_ENABLED` constant. Webpack folds the unused branch away.
+   */
+  function useEthersSignerProd({ chainId } = {}) {
+    const { data: client } = useConnectorClient({ chainId });
+    return useMemo(() => (client ? clientToSigner(client) : undefined), [client]);
+  }
+
+  function useEthersSignerE2E({ chainId } = {}) {
     const { data: client } = useConnectorClient({ chainId });
     const provider = useEthersProvider({ chainId });
-
     return useMemo(() => {
-      if (E2E_ENABLED && E2E_BURNER_PK && provider) {
-        // E2E mode: bypass the wagmi mock connector (which has no signing key)
-        // and produce a real ethers.Wallet bound to the burner key.
-        return new Wallet(E2E_BURNER_PK, provider);
-      }
+      if (E2E_BURNER_PK && provider) return new Wallet(E2E_BURNER_PK, provider);
       return client ? clientToSigner(client) : undefined;
     }, [client, provider]);
   }
+
+  export const useEthersSigner = E2E_ENABLED ? useEthersSignerE2E : useEthersSignerProd;

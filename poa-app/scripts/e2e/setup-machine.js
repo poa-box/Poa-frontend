@@ -122,16 +122,42 @@ async function gqlPost(url, query) {
   return json.data;
 }
 
+// Pick the role with the lowest-privilege "member" name. Picking
+// org.roleHatIds[0] by index works for Test6 by convention but isn't
+// guaranteed across orgs — the agent could end up with admin/executive
+// privileges if a higher-tier role lands at index 0. Filter by role name,
+// require a confirm prompt for anything that doesn't look like a member,
+// and bail if nothing matches.
+const MEMBER_NAME_PATTERNS = [/^member$/i, /^members$/i, /\bmember\b/i];
+const RISKY_NAME_PATTERNS = [/admin/i, /executive/i, /owner/i, /founder/i];
+
 async function fetchOrgMemberHat(orgName) {
   const data = await gqlPost(
     GNOSIS_SUBGRAPH_URL,
-    `{ organizations(where: { name: "${orgName.replace(/"/g, '\\"')}" }, first: 1) { id name roleHatIds } }`,
+    `{ organizations(where: { name: "${orgName.replace(/"/g, '\\"')}" }, first: 1) {
+       id name roleHatIds
+       roles(where: { isUserRole: true }) { hatId name }
+     } }`,
   );
   const org = data?.organizations?.[0];
   if (!org) throw new Error(`Org "${orgName}" not found on Gnosis subgraph`);
-  const memberHat = org.roleHatIds?.[0];
-  if (!memberHat) throw new Error(`Org "${orgName}" has no roleHatIds — cannot resolve member hat`);
-  return { orgId: org.id, memberHatId: memberHat };
+
+  const userRoles = (org.roles || []).filter((r) => r.hatId && r.name);
+  if (userRoles.length === 0) {
+    throw new Error(`Org "${orgName}" has no user roles — cannot resolve member hat`);
+  }
+
+  const memberRole =
+    userRoles.find((r) => MEMBER_NAME_PATTERNS.some((rx) => rx.test(r.name)))
+    || userRoles.find((r) => !RISKY_NAME_PATTERNS.some((rx) => rx.test(r.name)));
+
+  if (!memberRole) {
+    const names = userRoles.map((r) => `"${r.name}"`).join(', ');
+    throw new Error(`Org "${orgName}" has no role matching "member"; all roles look privileged (${names}). Refusing to pick one — vouch the agent into a member-tier role explicitly.`);
+  }
+
+  console.log(`[setup-machine] Picked role "${memberRole.name}" (hatId ${memberRole.hatId}) for vouching.`);
+  return { orgId: org.id, memberHatId: memberRole.hatId };
 }
 
 // The smart account address is computed on the *deploy chain* (Gnosis, where
