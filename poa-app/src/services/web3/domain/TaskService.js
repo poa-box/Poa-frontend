@@ -20,6 +20,29 @@ import {
 import { getTokenByAddress } from '../../../util/tokens';
 
 /**
+ * Run an async mapper over `items` with at most `limit` concurrent in-flight
+ * promises, preserving input order in the result. Used to throttle parallel
+ * IPFS uploads in createTasksBatch.
+ */
+async function mapWithConcurrency(items, mapper, limit) {
+  const results = new Array(items.length);
+  let nextIdx = 0;
+  const worker = async () => {
+    while (true) {
+      const i = nextIdx++;
+      if (i >= items.length) return;
+      results[i] = await mapper(items[i], i);
+    }
+  };
+  const workers = Array.from(
+    { length: Math.min(Math.max(1, limit), items.length) },
+    worker
+  );
+  await Promise.all(workers);
+  return results;
+}
+
+/**
  * TaskService - Project and task management
  */
 export class TaskService {
@@ -195,6 +218,73 @@ export class TaskService {
       [payoutWei, titleBytes, metadataHash, pid, bountyToken, bountyPayoutWei, requiresApplication],
       options
     );
+  }
+
+  /**
+   * Create many tasks in a single transaction.
+   * @param {string} contractAddress - TaskManager contract address
+   * @param {string} projectId - Project ID (raw bytes32 or composite "{address}-{id}")
+   * @param {Array<Object>} tasks - Per-task data, same shape as createTask's taskData (minus projectId)
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async createTasksBatch(contractAddress, projectId, tasks, options = {}) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      throw new Error('createTasksBatch: tasks[] must be a non-empty array');
+    }
+    tasks.forEach((t, i) => {
+      requireString(t.name, `tasks[${i}].name`);
+      requireValidPayout(t.payout);
+    });
+
+    const buildInput = async (t) => {
+      let metadataHash = ethers.constants.HashZero;
+      if (this.ipfs) {
+        const ipfsData = {
+          name: t.name,
+          description: t.description ?? '',
+          location: t.location ?? '',
+          difficulty: t.difficulty ?? 'medium',
+          estHours: t.estHours ?? 0,
+          submission: '',
+        };
+        const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(ipfsData));
+        metadataHash = ipfsCidToBytes32(ipfsResult.path);
+      }
+
+      const payoutWei = ethers.utils.parseUnits(t.payout.toString(), 18);
+
+      const bountyToken = t.bountyToken || ethers.constants.AddressZero;
+      let bountyPayoutWei = ethers.BigNumber.from(0);
+      if (
+        t.bountyPayout &&
+        Number(t.bountyPayout) > 0 &&
+        bountyToken !== ethers.constants.AddressZero
+      ) {
+        const tokenInfo = getTokenByAddress(bountyToken);
+        bountyPayoutWei = ethers.utils.parseUnits(t.bountyPayout.toString(), tokenInfo.decimals);
+      }
+
+      return {
+        payout: payoutWei,
+        title: stringToBytes(t.name),
+        metadataHash,
+        bountyToken,
+        bountyPayout: bountyPayoutWei,
+        requiresApplication: !!t.requiresApplication,
+      };
+    };
+
+    // Cap simultaneous IPFS uploads to keep large batches under
+    // gateway/Pinata rate limits and avoid bursty failures. 5 is enough
+    // throughput for realistic batches (10–20) without hammering the API.
+    const inputs = await mapWithConcurrency(tasks, buildInput, 5);
+
+    const contract = this.factory.createWritable(contractAddress, TaskManagerABI);
+    const pid = parseProjectId(projectId);
+
+    return this.txManager.execute(contract, 'createTasksBatch', [pid, inputs], options);
   }
 
   /**

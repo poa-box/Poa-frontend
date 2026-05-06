@@ -12,6 +12,7 @@ import { useRouter } from 'next/router';
 import { useProjectContext } from '@/context/ProjectContext';
 import { useUserContext } from '@/context/UserContext';
 import { useOrgName } from '@/hooks/useOrgName';
+import { useTaskDrafts } from '@/hooks/useTaskDrafts';
 import { calculatePayout } from '../../util/taskUtils';
 import { userCanCreateTask, userCanReviewTask, PERMISSION_MESSAGES, ROLE_INDICES } from '../../util/permissions';
 
@@ -31,8 +32,11 @@ const glassLayerStyle = {
 const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile = false, isEmpty = false, hideTitleInMobile = false }, ref) => {
   const router = useRouter();
   const userDAO = useOrgName();
-  const { moveTask, addTask, editTask } = useTaskBoard();
+  const { moveTask, addTask, addTaskBatch, editTask } = useTaskBoard();
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState('quick');
+  const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
+  const { draftsForProject, addDraft, replaceDraft, removeDraft, clearProjectDrafts } = useTaskDrafts();
   const { accountAddress: account } = useAuth();
   const { taskManagerContractAddress, roleHatIds } = usePOContext();
   const { taskCount, projectsData } = useProjectContext();
@@ -51,6 +55,11 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
   }, [projectsData, projectName]);
 
   const projectRolePermissions = currentProject?.rolePermissions || [];
+  const currentProjectId = currentProject?.id;
+  const projectDrafts = useMemo(
+    () => (currentProjectId ? draftsForProject(currentProjectId) : []),
+    [currentProjectId, draftsForProject]
+  );
 
   // Check if user has a non-member role (executive+)
   const hasNonMemberRole = useMemo(() => {
@@ -148,6 +157,30 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
       addTask(updatedTask, 'open').catch(error => {
         console.error("Error adding task:", error);
       });
+    }
+  };
+
+  const handleSaveDraft = (taskData, editingDraftId) => {
+    if (!currentProjectId) return;
+    if (editingDraftId) {
+      replaceDraft(editingDraftId, taskData);
+    } else {
+      addDraft(taskData, currentProjectId);
+    }
+  };
+
+  const handleSubmitDrafts = async () => {
+    if (!currentProjectId || projectDrafts.length === 0) return;
+    setIsSubmittingDrafts(true);
+    try {
+      const result = await addTaskBatch(projectDrafts, currentProjectId, columnId);
+      if (result?.success) {
+        clearProjectDrafts(currentProjectId);
+        setIsAddTaskModalOpen(false);
+        setModalMode('quick');
+      }
+    } finally {
+      setIsSubmittingDrafts(false);
     }
   };
   
@@ -439,6 +472,13 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
           isOpen={isAddTaskModalOpen}
           onClose={handleCloseAddTaskModal}
           onAddTask={handleAddTask}
+          mode={modalMode}
+          onModeChange={setModalMode}
+          drafts={projectDrafts}
+          onSaveDraft={currentProjectId ? handleSaveDraft : undefined}
+          onDeleteDraft={removeDraft}
+          onSubmitDrafts={handleSubmitDrafts}
+          isSubmittingDrafts={isSubmittingDrafts}
         />
       )}
     </Box>
