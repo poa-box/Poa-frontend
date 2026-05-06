@@ -1,3 +1,45 @@
+// E2E mode: pull burner key + passkey seed + Pimlico key from a single
+// machine-level file so workspaces don't need per-clone env files. Only runs
+// when the explicit E2E flag is set, so production builds never read the file
+// even if it exists.
+const E2E_ON = process.env.NEXT_PUBLIC_E2E_MODE === 'true';
+if (E2E_ON) {
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const e2eEnvPath = path.join(os.homedir(), '.poa', 'e2e.env');
+  if (fs.existsSync(e2eEnvPath)) {
+    for (const line of fs.readFileSync(e2eEnvPath, 'utf8').split('\n')) {
+      const m = line.match(/^POA_(.+?)=(.*)$/);
+      if (!m) continue;
+      let key = m[1];
+      // The Pimlico API key matches the production env name with no E2E prefix.
+      if (key === 'E2E_PIMLICO_API_KEY' || key === 'PIMLICO_API_KEY') {
+        key = 'PIMLICO_API_KEY';
+      }
+      const targetKey = `NEXT_PUBLIC_${key}`;
+      if (!process.env[targetKey]) process.env[targetKey] = m[2];
+    }
+  } else {
+    console.warn(`[e2e] NEXT_PUBLIC_E2E_MODE=true but ${e2eEnvPath} not found. Run: node scripts/e2e/setup-machine.js`);
+  }
+}
+
+// Force-inline the E2E env vars at build time. Next.js only does literal
+// substitution when an env var is *defined* at build; missing ones stay as
+// runtime lookups against the `process.env` polyfill — which defeats
+// `if (E2E_ENABLED)` tree-shaking. Defaulting to empty/'false' here gives
+// webpack a constant to fold against in production builds.
+const e2eEnvInlines = {
+  NEXT_PUBLIC_E2E_MODE: E2E_ON ? 'true' : 'false',
+  NEXT_PUBLIC_E2E_BURNER_PK: E2E_ON ? (process.env.NEXT_PUBLIC_E2E_BURNER_PK || '') : '',
+  NEXT_PUBLIC_E2E_PASSKEY_SEED: E2E_ON ? (process.env.NEXT_PUBLIC_E2E_PASSKEY_SEED || '') : '',
+  NEXT_PUBLIC_E2E_ORG_NAME: E2E_ON ? (process.env.NEXT_PUBLIC_E2E_ORG_NAME || 'Test6') : '',
+  NEXT_PUBLIC_E2E_HAT_ID: E2E_ON ? (process.env.NEXT_PUBLIC_E2E_HAT_ID || '') : '',
+  NEXT_PUBLIC_E2E_ORG_ID: E2E_ON ? (process.env.NEXT_PUBLIC_E2E_ORG_ID || '') : '',
+  NEXT_PUBLIC_E2E_AS: E2E_ON ? (process.env.NEXT_PUBLIC_E2E_AS || 'eoa') : '',
+};
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -5,6 +47,18 @@ const nextConfig = {
   output: 'export',
   images: {
     unoptimized: true,
+  },
+  webpack: (config, { webpack }) => {
+    // Force-inline the E2E env vars as string literals. Next.js's `env`
+    // config field skips empty-string values, leaving them as runtime lookups
+    // (`process.env.NEXT_PUBLIC_X || ""`) which keeps the env var names in
+    // the production bundle. DefinePlugin substitutes them unconditionally.
+    config.plugins.push(new webpack.DefinePlugin(
+      Object.fromEntries(
+        Object.entries(e2eEnvInlines).map(([k, v]) => [`process.env.${k}`, JSON.stringify(v)]),
+      ),
+    ));
+    return config;
   },
   async redirects() {
     return [

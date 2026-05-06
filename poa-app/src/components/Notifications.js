@@ -13,6 +13,7 @@ const Notification = () => {
 
   return (
     <VStack
+      data-testid="notifications-root"
       spacing={3}
       position="fixed"
       bottom="20px"
@@ -23,6 +24,7 @@ const Notification = () => {
       {notifications.map(({ id, message, status }) => (
         <Box
           key={id}
+          data-testid={`notification-${status}`}
           display="flex"
           alignItems="center"
           bg="white"

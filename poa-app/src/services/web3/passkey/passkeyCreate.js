@@ -9,6 +9,8 @@ import { base64URLStringToBuffer, bufferToBase64URLString } from '@simplewebauth
 import { keccak256, encodePacked, pad, toHex } from 'viem';
 import { WEBAUTHN_RP_NAME, getWebAuthnRpId } from '../../../config/passkey';
 import { computeCredentialId } from './passkeyUtils';
+import { E2E_ENABLED } from '../../../services/e2e/e2eMode';
+import { getVirtualPasskeyCredential } from '../../../services/e2e/virtualPasskey';
 
 /**
  * Create a new WebAuthn credential (passkey).
@@ -21,6 +23,17 @@ import { computeCredentialId } from './passkeyUtils';
  *   salt: BigInt = derived from credentialId for deterministic account address
  */
 export async function createPasskeyCredential(username) {
+  if (E2E_ENABLED) {
+    const cred = getVirtualPasskeyCredential();
+    return {
+      credentialId: cred.credentialId,
+      publicKeyX: cred.publicKeyX,
+      publicKeyY: cred.publicKeyY,
+      rawCredentialId: cred.rawCredentialId,
+      salt: cred.salt,
+    };
+  }
+
   // Generate a random challenge (not verified server-side; on-chain verification is separate)
   const challengeBytes = crypto.getRandomValues(new Uint8Array(32));
   const challenge = bufferToBase64URLString(challengeBytes);
