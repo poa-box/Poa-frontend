@@ -2,42 +2,34 @@
 
 import React, { useMemo } from 'react';
 
-
 import CountDown from '../../templateComponents/studentOrgDAO/voting/countDown';
 
-
 import {
-    Box,
     HStack,
-    Heading,
     Text,
     VStack,
     Badge,
     Center,
     Icon,
-    } from '@chakra-ui/react';
+    SimpleGrid,
+    Box,
+} from '@chakra-ui/react';
 import { FiBarChart2 } from 'react-icons/fi';
 
-    import Link2 from 'next/link';
-    import { useRouter } from "next/router";
-    import { useOrgName } from "@/hooks/useOrgName";
+import Link2 from 'next/link';
+import { useRouter } from "next/router";
+import { useOrgName } from "@/hooks/useOrgName";
 
-const glassLayerStyle = {
-    position: 'absolute',
-    width: '100%',
-    height: '100%',
-    zIndex: -1,
-    borderRadius: 'inherit',
-    backgroundColor: 'rgba(0, 0, 0, .9)',
-};
-
-
-const OngoingPolls = ({OngoingPolls}) => {
-
-    // check if ongoing polsl exist
+const OngoingPolls = ({ OngoingPolls }) => {
     const router = useRouter();
     const userDAO = useOrgName();
     const ongoingPollsExist = OngoingPolls && OngoingPolls.length > 0;
+
+    const randomPolls = useMemo(
+        () => (ongoingPollsExist ? [...OngoingPolls].slice(0, 3) : []),
+        [OngoingPolls, ongoingPollsExist]
+    );
+
     if (!ongoingPollsExist) {
         return (
             <Center py={8} flexDirection="column">
@@ -52,56 +44,47 @@ const OngoingPolls = ({OngoingPolls}) => {
         );
     }
 
-    // Take first 3 polls without mutating the prop array
-    const randomPolls = useMemo(() => [...OngoingPolls].slice(0, 3), [OngoingPolls]);
-
-
     function calculateRemainingTime(expirationTimestamp) {
-        // Current timestamp in seconds
         const currentTimestamp = Math.floor(Date.now() / 1000);
-        
-        // Calculate the duration
-        const duration = expirationTimestamp - currentTimestamp;
-        return duration;
+        return expirationTimestamp - currentTimestamp;
     }
 
     return (
-            <HStack ml={0} mr={8} spacing="3.5%" >
-                        {randomPolls.map((poll) => (
-                            
-                            
-                            <Box
-                                _hover={{ transform: 'scale(1.07)' }}
-                                key={poll.id}
-                                bg="transparent"
-                                borderRadius="2xl"
-                                p={2}
-                                position="relative"
-                                w="31%"
-                                mt="-4"
-                            >
-                                
-                                <div style={glassLayerStyle}/>
-                                
-                                <Link2  href={`/voting/?poll=${poll.id}&org=${userDAO}`}>
-                                <VStack textColor="white"  spacing={2}>
-
-                                    <Heading  ml={4} fontWeight="extrabold" mt={2} size="sm">{poll.title}</Heading>
-
-                                    <Box pl="4" mt="0"><CountDown duration={calculateRemainingTime(poll?.endTimestamp)}/></Box>
-                                    <Box alignSelf={"flex-start"} ml="4" mt="0">
-                                        <Badge colorScheme="blue">{poll.type}</Badge>
-                                    </Box>
-                                </VStack>
-                                </Link2>
-                                
-                            </Box>
-                        
-
-                        ))}
-            </HStack>
+        <SimpleGrid minChildWidth="240px" spacing={3}>
+            {randomPolls.map((poll) => {
+                const remaining = calculateRemainingTime(poll?.endTimestamp);
+                return (
+                    <Box
+                        key={poll.id}
+                        _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
+                        transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
+                        p={4}
+                        borderRadius="2xl"
+                        overflow="hidden"
+                        bg="black"
+                    >
+                        <Link2 href={`/voting/?poll=${poll.id}&org=${userDAO}`}>
+                            <VStack textColor="white" align="stretch" spacing={3}>
+                                <Text mt="-2" fontSize="md" lineHeight="99%" fontWeight="extrabold" noOfLines={2}>
+                                    {poll.title}
+                                </Text>
+                                <HStack justify="space-between" align="center">
+                                    <Badge colorScheme="blue">{poll.type}</Badge>
+                                    {remaining > 0 ? (
+                                        <CountDown duration={remaining} />
+                                    ) : (
+                                        <Text fontSize="sm" fontWeight="bold" color="whiteAlpha.700" whiteSpace="nowrap">
+                                            Voting open
+                                        </Text>
+                                    )}
+                                </HStack>
+                            </VStack>
+                        </Link2>
+                    </Box>
+                );
+            })}
+        </SimpleGrid>
     );
-
-}
+};
 
 export default OngoingPolls;

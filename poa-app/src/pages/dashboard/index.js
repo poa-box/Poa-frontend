@@ -431,7 +431,7 @@ const PerpetualOrgDashboard = () => {
                     Ongoing Polls
                   </Text>
                 </VStack>
-                
+
                 <Box w="100%" p={{ base: 2, md: 4 }}>
                   <OngoingPolls OngoingPolls={ongoingPolls} />
                 </Box>
