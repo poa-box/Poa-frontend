@@ -74,7 +74,7 @@ function WelcomePageSkeleton() {
     <>
       <Navbar />
       <Box
-        minH="calc(100vh - 80px)"
+        minH={{ base: '100vh', md: 'calc(100vh - 80px)' }}
         display="flex"
         alignItems="center"
         justifyContent="center"

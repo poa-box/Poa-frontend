@@ -3,13 +3,18 @@
  * Mobile view for TaskBoard with swipe navigation
  */
 
-import { useRef, forwardRef, useImperativeHandle } from 'react';
-import { Box, VStack, HStack, Text, IconButton, Badge, Progress, Flex } from '@chakra-ui/react';
-import { ChevronLeftIcon, ChevronRightIcon, AddIcon, InfoIcon } from '@chakra-ui/icons';
+import { useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
+import { Box, VStack, HStack, Text, IconButton, Badge, Progress } from '@chakra-ui/react';
+import { AddIcon, InfoIcon } from '@chakra-ui/icons';
 import TaskColumn from './TaskColumn';
-import EmptyColumnState from './EmptyColumnState';
 import { useSwipeNavigation } from '../../hooks/useSwipeNavigation';
 import { mobileGlassStyle, mobileNavGlassStyle, infoPopupStyle } from './styles/taskBoardStyles';
+import { useUserContext } from '@/context/UserContext';
+import { useProjectContext } from '@/context/ProjectContext';
+import { usePOContext } from '@/context/POContext';
+import { userCanCreateTask, ROLE_INDICES } from '@/util/permissions';
+
+const normalizeHatId = (id) => String(id).trim();
 
 const TaskBoardMobile = forwardRef(({
   taskColumns,
@@ -21,16 +26,42 @@ const TaskBoardMobile = forwardRef(({
     activeIndex,
     showGuide,
     dismissGuide,
-    navigateNext,
-    navigatePrev,
-    canNavigateNext,
-    canNavigatePrev,
     touchHandlers,
     containerRef,
   } = useSwipeNavigation({
     itemCount: taskColumns?.length || 0,
     initialIndex: 0,
   });
+
+  const { userData } = useUserContext();
+  const { projectsData } = useProjectContext();
+  const { roleHatIds } = usePOContext();
+
+  const userHatIds = userData?.hatIds || [];
+
+  const currentProject = useMemo(() => {
+    return projectsData?.find(p => p.name === projectName || p.title === projectName);
+  }, [projectsData, projectName]);
+
+  const projectRolePermissions = currentProject?.rolePermissions || [];
+
+  const hasNonMemberRole = useMemo(() => {
+    if (!userHatIds.length || !roleHatIds?.length) return false;
+    const normalizedUserHats = userHatIds.map(normalizeHatId);
+    if (roleHatIds.length > 1) {
+      const nonMemberRoles = roleHatIds.slice(ROLE_INDICES.EXECUTIVE);
+      return nonMemberRoles.some(roleId =>
+        normalizedUserHats.includes(normalizeHatId(roleId))
+      );
+    }
+    return false;
+  }, [userHatIds, roleHatIds]);
+
+  const canCreateTask = useMemo(() => {
+    if (userCanCreateTask(userHatIds, projectRolePermissions)) return true;
+    if (!projectRolePermissions?.length && hasNonMemberRole) return true;
+    return false;
+  }, [userHatIds, projectRolePermissions, hasNonMemberRole]);
 
   // Expose methods to parent
   useImperativeHandle(ref, () => ({
@@ -41,7 +72,6 @@ const TaskBoardMobile = forwardRef(({
   const currentColumn = taskColumns && taskColumns[activeIndex];
   const columnTitle = currentColumn?.title || '';
   const columnId = currentColumn?.id || '';
-  const hasNoTasks = currentColumn?.tasks?.length === 0;
 
   const getTaskCount = (colId) => {
     const column = taskColumns?.find(col => col.id === colId);
@@ -54,6 +84,8 @@ const TaskBoardMobile = forwardRef(({
       columnRef.handleOpenAddTaskModal();
     }
   };
+
+  const showFab = columnTitle === 'Open' && canCreateTask && !showGuide;
 
   return (
     <Box
@@ -78,23 +110,12 @@ const TaskBoardMobile = forwardRef(({
           mt={1}
           overflow="hidden"
         >
-          <HStack spacing={3} py={2} px={3} w="100%" align="center" justify="space-between" overflow="visible">
-            <IconButton
-              icon={<ChevronLeftIcon />}
-              onClick={navigatePrev}
-              isDisabled={!canNavigatePrev}
-              aria-label="Previous column"
-              size="sm"
-              colorScheme="purple"
-              variant="ghost"
-            />
-
+          <HStack spacing={2} py={2} px={3} w="100%" align="center" justify="center" overflow="visible">
             <Text
               fontSize="md"
               fontWeight="bold"
               textAlign="center"
               color="white"
-              flex={1}
               noOfLines={1}
               display="flex"
               alignItems="center"
@@ -104,39 +125,7 @@ const TaskBoardMobile = forwardRef(({
               <Badge ml={2} colorScheme="purple" fontSize="0.7em">
                 {getTaskCount(columnId)}
               </Badge>
-              {columnTitle === 'Open' && (
-                <IconButton
-                  ml={3}
-                  icon={<AddIcon color="white" boxSize="1em" />}
-                  aria-label="Add task mobile"
-                  onClick={handleAddTask}
-                  size="sm"
-                  minW="24px"
-                  minH="20px"
-                  p={0}
-                  bg="purple.500"
-                  _hover={{ bg: "purple.600" }}
-                  _active={{ bg: "purple.700" }}
-                  boxShadow="0px 3px 6px rgba(0, 0, 0, 0.2)"
-                  borderRadius="md"
-                  display="inline-flex"
-                  alignItems="center"
-                  justifyContent="center"
-                  verticalAlign="middle"
-                  transform="translateY(0px)"
-                />
-              )}
             </Text>
-
-            <IconButton
-              icon={<ChevronRightIcon />}
-              onClick={navigateNext}
-              isDisabled={!canNavigateNext}
-              aria-label="Next column"
-              size="sm"
-              colorScheme="purple"
-              variant="ghost"
-            />
           </HStack>
         </Box>
 
@@ -173,26 +162,38 @@ const TaskBoardMobile = forwardRef(({
             sx={mobileGlassStyle}
             p={2}
           >
-            {hasNoTasks ? (
-              <Flex direction="column" h="100%" align="center" justify="flex-start" pt={4}>
-                <EmptyColumnState columnType={columnTitle} />
-                <Box flex="1" w="100%" minH="300px" />
-              </Flex>
-            ) : (
-              <TaskColumn
-                ref={el => taskColumnsRef.current[activeIndex] = el}
-                title={columnTitle}
-                tasks={currentColumn?.tasks || []}
-                columnId={columnId}
-                projectName={projectName}
-                zIndex={1}
-                isMobile={true}
-                hideTitleInMobile={true}
-              />
-            )}
+            <TaskColumn
+              ref={el => taskColumnsRef.current[activeIndex] = el}
+              title={columnTitle}
+              tasks={currentColumn?.tasks || []}
+              columnId={columnId}
+              projectName={projectName}
+              zIndex={1}
+              isMobile={true}
+              hideTitleInMobile={true}
+            />
           </Box>
         </Box>
       </VStack>
+
+      {/* Add Task FAB */}
+      {showFab && (
+        <IconButton
+          icon={<AddIcon color="white" boxSize="1.25em" />}
+          aria-label="Add task"
+          onClick={handleAddTask}
+          position="fixed"
+          bottom={4}
+          right={4}
+          boxSize="56px"
+          borderRadius="full"
+          bg="purple.500"
+          _hover={{ bg: 'purple.600' }}
+          _active={{ bg: 'purple.700' }}
+          boxShadow="0 6px 16px rgba(0,0,0,0.4)"
+          zIndex={9}
+        />
+      )}
 
       {/* Swipe guide overlay */}
       {showGuide && (

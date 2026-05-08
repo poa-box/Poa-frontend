@@ -531,9 +531,9 @@ const MainLayout = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
-      <Flex 
-        height="calc(100vh - 80px)"
-        direction={{ base: "column", md: "row" }} 
+      <Flex
+        height={{ base: '100vh', md: 'calc(100vh - 80px)' }}
+        direction={{ base: "column", md: "row" }}
         position="relative"
         overflow="hidden"
         mb={0}
