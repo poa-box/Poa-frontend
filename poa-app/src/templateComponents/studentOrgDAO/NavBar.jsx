@@ -33,8 +33,15 @@ const Navbar = React.memo(() => {
   const showDraftsChip = !!orgId && draftCount > 0;
   const draftsTooltip = `${draftCount} draft${draftCount === 1 ? '' : 's'} in ${projectsWithDrafts} project${projectsWithDrafts === 1 ? '' : 's'}`;
 
-  const handleSwitchToProject = useCallback(() => {
-    if (org) router.push(orgUrl(org, 'tasks'));
+  const handleSwitchToProject = useCallback((projectId) => {
+    if (!org) return;
+    const safeProjectId = projectId
+      ? encodeURIComponent(decodeURIComponent(projectId))
+      : null;
+    router.push(orgUrl(org, 'tasks', {
+      ...(safeProjectId ? { projectId: safeProjectId } : {}),
+      openDrafts: '1',
+    }));
   }, [org, router]);
 
   // Check if user is an org admin (for showing Settings link)
