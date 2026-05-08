@@ -2,7 +2,7 @@
  * PermissionsMatrix - Polished table showing role permissions
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Table,
@@ -16,6 +16,9 @@ import {
   Tooltip,
   Skeleton,
   HStack,
+  VStack,
+  Divider,
+  Collapse,
 } from '@chakra-ui/react';
 import {
   FiCheck,
@@ -28,6 +31,7 @@ import {
   FiFileText,
   FiThumbsUp,
   FiPlusSquare,
+  FiChevronDown,
 } from 'react-icons/fi';
 
 /**
@@ -66,16 +70,16 @@ const SHORT_LABELS = {
  * Full descriptions for tooltips
  */
 const FULL_DESCRIPTIONS = {
-  QuickJoin_Member: 'Can quick join the organization',
-  ParticipationToken_Member: 'Can earn and hold shares',
-  ParticipationToken_Approver: 'Can approve share requests',
-  EducationHub_Creator: 'Can create education modules',
-  EducationHub_Member: 'Can access education content',
-  HybridVoting_Creator: 'Can create hybrid voting proposals',
-  HybridVoting_Voter: 'Can vote on hybrid proposals',
-  DirectDemocracyVoting_Creator: 'Can create direct democracy polls',
-  DirectDemocracyVoting_Voter: 'Can vote on direct democracy polls',
-  Executor_Voter: 'Can execute approved proposals',
+  QuickJoin_Member: 'Join the organization instantly with this role — no vouching required.',
+  ParticipationToken_Member: 'Request and hold the org shares (its on-chain token) for tasks and contributions.',
+  ParticipationToken_Approver: 'Review and approve member share requests — controls who earns the org token.',
+  EducationHub_Creator: 'Publish education modules — lessons and quizzes — with a configured share payout for completion.',
+  EducationHub_Member: 'Complete education modules to onboard and earn the share payout set by the creator.',
+  HybridVoting_Creator: 'Submit binding governance proposals: change org rules, transfer treasury, assign roles, etc.',
+  HybridVoting_Voter: 'Vote on binding governance — change rules, elect officials, transfer treasury. Voting power blends democracy with participation shares.',
+  DirectDemocracyVoting_Creator: 'Start a non-binding community poll — one member, one vote — for sentiment decisions.',
+  DirectDemocracyVoting_Voter: 'Vote in non-binding community polls. One member, one vote, regardless of shares held.',
+  Executor_Voter: 'Trigger on-chain execution of proposals that have passed voting (treasury transfers, role changes, etc.).',
 };
 
 function PermissionCell({ allowed }) {
@@ -98,6 +102,118 @@ function PermissionCell({ allowed }) {
         />
       )}
     </Td>
+  );
+}
+
+function MobilePermissionRow({ col, allowed, isOpen, onToggle }) {
+  const IconComponent = PERMISSION_ICONS[col.key] || FiCheck;
+  const shortLabel = SHORT_LABELS[col.key] || col.permissionRole;
+  const description = FULL_DESCRIPTIONS[col.key] || col.label;
+
+  return (
+    <Box>
+      <Box
+        as="button"
+        type="button"
+        w="100%"
+        py={3}
+        px={3}
+        textAlign="left"
+        _hover={{ bg: 'warmGray.50' }}
+        _active={{ bg: 'warmGray.100' }}
+        transition="background-color 0.15s"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        aria-label={`${shortLabel}: ${allowed ? 'allowed' : 'not allowed'}`}
+      >
+        <HStack justify="space-between" spacing={3}>
+          <HStack spacing={3} minW={0}>
+            <Icon as={IconComponent} boxSize={4} color="amethyst.500" flexShrink={0} />
+            <Text fontSize="sm" color="warmGray.800" noOfLines={1}>
+              {shortLabel}
+            </Text>
+          </HStack>
+          <HStack spacing={2} flexShrink={0}>
+            {allowed ? (
+              <Icon
+                as={FiCheck}
+                color="green.500"
+                boxSize={5}
+                bg="green.50"
+                p={1}
+                borderRadius="md"
+              />
+            ) : (
+              <Icon as={FiMinus} color="warmGray.300" boxSize={5} />
+            )}
+            <Icon
+              as={FiChevronDown}
+              boxSize={4}
+              color="warmGray.400"
+              transform={isOpen ? 'rotate(180deg)' : 'rotate(0deg)'}
+              transition="transform 0.2s"
+            />
+          </HStack>
+        </HStack>
+      </Box>
+      <Collapse in={isOpen} animateOpacity>
+        <Box pl={10} pr={3} pb={3}>
+          <Text fontSize="xs" color="warmGray.600">
+            {description}
+          </Text>
+        </Box>
+      </Collapse>
+    </Box>
+  );
+}
+
+function MobileRoleCard({ role, permissionColumns, rolePermissions }) {
+  const [openKey, setOpenKey] = useState(null);
+
+  return (
+    <Box
+      bg="white"
+      border="1px solid"
+      borderColor="warmGray.100"
+      borderRadius="xl"
+      overflow="hidden"
+      boxShadow="0 2px 4px rgba(0, 0, 0, 0.04)"
+    >
+      <HStack
+        px={4}
+        py={3}
+        bg="warmGray.50"
+        borderBottom="1px solid"
+        borderColor="warmGray.100"
+        spacing={2}
+      >
+        <Text fontWeight="semibold" color="warmGray.900">
+          {role.name}
+        </Text>
+        <Text color="warmGray.400" fontSize="xs">
+          ({role.memberCount})
+        </Text>
+      </HStack>
+      <VStack
+        spacing={0}
+        align="stretch"
+        py={1}
+        px={1}
+        divider={<Divider borderColor="warmGray.100" />}
+      >
+        {permissionColumns.map((col) => (
+          <MobilePermissionRow
+            key={col.key}
+            col={col}
+            allowed={Boolean(rolePermissions[col.key])}
+            isOpen={openKey === col.key}
+            onToggle={() =>
+              setOpenKey((prev) => (prev === col.key ? null : col.key))
+            }
+          />
+        ))}
+      </VStack>
+    </Box>
   );
 }
 
@@ -147,7 +263,19 @@ export function PermissionsMatrix({
       overflow="hidden"
       boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
     >
-      <Box overflowX="auto">
+      <Box display={{ base: 'block', md: 'none' }} p={3}>
+        <VStack spacing={3} align="stretch">
+          {roles.map((role) => (
+            <MobileRoleCard
+              key={role.id || role.hatId}
+              role={role}
+              permissionColumns={permissionColumns}
+              rolePermissions={permissionsMatrix[role.hatId] || {}}
+            />
+          ))}
+        </VStack>
+      </Box>
+      <Box display={{ base: 'none', md: 'block' }} overflowX="auto">
         <Table
           variant="unstyled"
           size="sm"
