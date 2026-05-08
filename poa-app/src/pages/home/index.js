@@ -143,7 +143,7 @@ const Home = () => {
       {isNavbarReady && <Navbar userDAO={userDAO} />}
 
       <Box
-        pt={{ base: "80px", md: "100px" }}
+        pt={{ base: 4, md: "100px" }}
         pb={{ base: 12, md: 20 }}
         position="relative"
         minH="100vh"

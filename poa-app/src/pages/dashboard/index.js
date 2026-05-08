@@ -139,7 +139,7 @@ const PerpetualOrgDashboard = () => {
           </Center>
         )
       ) : (
-        <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }} minH="100vh" background={pageBackground()}>
+        <Box p={{ base: 2, md: 4 }} minH="100vh" background={pageBackground()}>
             <Grid
               data-tour="dashboard-grid"
               color="whitesmoke"

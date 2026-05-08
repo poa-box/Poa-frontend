@@ -13,6 +13,7 @@ import { useOrgName } from "@/hooks/useOrgName";
 import { useTaskDrafts } from "@/hooks/useTaskDrafts";
 import { orgUrl } from "@/util/orgUrl";
 import DraftsReviewModal from "@/components/TaskManager/DraftsReviewModal";
+import { NAVBAR_MOBILE_HEIGHT } from "./navbarLayout";
 const Navbar = React.memo(() => {
   const router = useRouter();
   const org = useOrgName();
@@ -57,9 +58,10 @@ const Navbar = React.memo(() => {
   }, [router.pathname]);
 
   return (
-    <Box 
-      bg="black" 
-      p={2.5} 
+    <>
+    <Box
+      bg="black"
+      p={2.5}
       alignItems={"center"}
       position={{ base: "fixed", md: "relative" }}
       top="0"
@@ -389,6 +391,12 @@ const Navbar = React.memo(() => {
       />
 
     </Box>
+    <Box
+      h={NAVBAR_MOBILE_HEIGHT}
+      display={{ base: "block", md: "none" }}
+      aria-hidden
+    />
+    </>
   );
 });
 

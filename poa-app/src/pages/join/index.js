@@ -581,7 +581,7 @@ const User = () => {
         />
       </Box>
 
-      <Container maxW="container.xl" pt={{ base: 16, md: 8 }} overflowX="hidden">
+      <Container maxW="container.xl" pt={{ base: 4, md: 8 }} overflowX="hidden">
         {address && !isPasskeyUser ? (
           <Flex justify="flex-end" mb={4}>
             <ConnectButton showBalance={false} chainStatus="icon" />

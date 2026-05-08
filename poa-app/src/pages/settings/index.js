@@ -65,7 +65,7 @@ const SettingsPage = () => {
         {seoHead}
         <Box minH="100vh" background={pageBackground()}>
           <Navbar />
-          <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
+          <Center minH="80vh">
             <VStack spacing={4}>
               <PulseLoader size="xl" color="coral.500" />
               <Text color={onBackgroundSubtle}>Loading settings...</Text>
@@ -83,7 +83,7 @@ const SettingsPage = () => {
         {seoHead}
         <Box minH="100vh" background={pageBackground()}>
           <Navbar />
-          <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
+          <Center minH="80vh">
             <Alert status="error" maxW="lg" borderRadius="xl" bg="red.50">
               <AlertIcon />
               <Box>
@@ -104,7 +104,7 @@ const SettingsPage = () => {
         {seoHead}
         <Box minH="100vh" background={pageBackground()}>
           <Navbar />
-          <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
+          <Center minH="80vh">
             <Alert status="warning" maxW="lg" borderRadius="xl" bg="orange.50">
               <AlertIcon />
               <Box>
@@ -125,7 +125,7 @@ const SettingsPage = () => {
         {seoHead}
         <Box minH="100vh" background={pageBackground()}>
           <Navbar />
-          <Center minH="80vh" pt={{ base: "60px", md: 0 }}>
+          <Center minH="80vh">
             <Alert status="warning" maxW="lg" borderRadius="xl" bg="orange.50">
               <AlertIcon />
               <Box>
@@ -146,7 +146,7 @@ const SettingsPage = () => {
       {seoHead}
     <Box minH="100vh" background={pageBackground()}>
       <Navbar />
-      <Box maxW="2xl" mx="auto" px={4} pt={{ base: "80px", md: 10 }} pb={12}>
+      <Box maxW="2xl" mx="auto" px={4} pt={{ base: 4, md: 10 }} pb={12}>
         <VStack spacing={8} align="stretch">
           <Box>
             <Heading size="lg" color={onBackground} mb={2} fontWeight="600">
