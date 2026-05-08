@@ -210,6 +210,9 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
   const isQuadratic = classConfig?.some(c => c.strategy === 'ERC20_BAL' && c.quadratic) ?? false;
   const democracyWeight = classWeights?.democracy ?? 50;
   const contributionWeight = classWeights?.contribution ?? 50;
+  // Hide the secondary in-segment label below this width % to avoid clipping.
+  // Quadratic gets a stricter desktop threshold because " √" makes the label wider.
+  const labelMinPct = useBreakpointValue({ base: 35, md: isQuadratic ? 25 : 20 }) ?? 35;
 
   // If loading, show skeleton
   if (isLoading) {
@@ -263,9 +266,11 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
                 <Text fontSize="sm" fontWeight="bold" color="white">
                   {democracyWeight}%
                 </Text>
-                <Text fontSize="2xs" color="whiteAlpha.800">
-                  membership
-                </Text>
+                {democracyWeight >= labelMinPct && (
+                  <Text fontSize="2xs" color="whiteAlpha.800">
+                    membership
+                  </Text>
+                )}
               </HStack>
             </Flex>
           </Tooltip>
@@ -302,13 +307,29 @@ const TwoVoicesBar = ({ membershipPower, contributionPower, classWeights, classC
                 <Text fontSize="sm" fontWeight="bold" color="white">
                   {contributionWeight}%
                 </Text>
-                <Text fontSize="2xs" color="whiteAlpha.800">
-                  contribution{isQuadratic ? ' √' : ''}
-                </Text>
+                {contributionWeight >= labelMinPct && (
+                  <Text fontSize="2xs" color="whiteAlpha.800">
+                    contribution{isQuadratic ? ' √' : ''}
+                  </Text>
+                )}
               </HStack>
             </Flex>
           </Tooltip>
         </Flex>
+
+        {/* Legend — anchors color to label so narrow segments stay readable on touch */}
+        <HStack spacing={3} justify="center" mt={1.5}>
+          <HStack spacing={1}>
+            <Box w="8px" h="8px" borderRadius="full" bg="#9F7AEA" />
+            <Text fontSize="2xs" color="gray.400">membership</Text>
+          </HStack>
+          <HStack spacing={1}>
+            <Box w="8px" h="8px" borderRadius="full" bg="#63B3ED" />
+            <Text fontSize="2xs" color="gray.400">
+              contribution{isQuadratic ? ' √' : ''}
+            </Text>
+          </HStack>
+        </HStack>
       </Box>
 
     </VStack>
