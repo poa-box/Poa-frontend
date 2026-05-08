@@ -106,6 +106,32 @@ export const TaskBoardProvider = ({
   // Keep ref in sync so scheduleLockClear can apply the latest server data
   latestInitialColumnsRef.current = initialColumns;
 
+  // Local prediction for the next task ID. The subgraph-derived `nextTaskId`
+  // lags behind chain state (and is actively suppressed during the 65s
+  // optimistic lock), so back-to-back submissions would all predict the same
+  // ID and collide. We bump locally on each consume and forward-sync from the
+  // subgraph when it eventually catches up.
+  const nextTaskIdRef = useRef(null);
+  useEffect(() => {
+    if (nextTaskId == null) return;
+    const incoming = Number(nextTaskId);
+    if (Number.isNaN(incoming)) return;
+    const current = Number(nextTaskIdRef.current ?? -1);
+    if (incoming > current) {
+      nextTaskIdRef.current = String(incoming);
+    }
+  }, [nextTaskId]);
+
+  const consumeNextTaskIds = useCallback(
+    (count = 1) => {
+      const fallback = Number(nextTaskId ?? 0) || 0;
+      const base = Number(nextTaskIdRef.current ?? fallback) || fallback;
+      nextTaskIdRef.current = String(base + count);
+      return base;
+    },
+    [nextTaskId]
+  );
+
   // Clear optimistic lock after a delay, giving the subgraph refetch time to arrive.
   // Timestamp-guarded: if a newer operation sets a fresh lock, this timer won't clobber it.
   const scheduleLockClear = useCallback(() => {
@@ -327,11 +353,12 @@ export const TaskBoardProvider = ({
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    const predictedId = `${taskManagerContractAddress}-${nextTaskId}`.toLowerCase();
+    const predictedTaskId = String(consumeNextTaskIds(1));
+    const predictedId = `${taskManagerContractAddress}-${predictedTaskId}`.toLowerCase();
     const newTask = {
       ...task,
       id: task.id || predictedId,
-      taskId: String(nextTaskId),
+      taskId: predictedTaskId,
       projectId: selectedProject.id,
       kubixPayout: kubixPayout,
       isIndexing: true,
@@ -407,7 +434,123 @@ export const TaskBoardProvider = ({
     taskService,
     taskManagerContractAddress,
     selectedProject,
-    nextTaskId,
+    consumeNextTaskIds,
+    isReady,
+    addNotification,
+    updateNotification,
+    emit,
+    onUpdateColumns,
+    scheduleLockClear,
+  ]);
+
+  /**
+   * Submit many drafted tasks in a single createTasksBatch transaction.
+   * `drafts` are the same shape AddTaskModal emits (name, description, difficulty,
+   * estHours, bountyToken, bountyAmount, requiresApplication). All drafts must
+   * target the same `projectId`.
+   */
+  const addTaskBatch = useCallback(async (drafts, projectId, destColumnId) => {
+    if (!isReady || !taskService) {
+      addNotification('Web3 not ready. Please connect your wallet.', 'error');
+      return { success: false };
+    }
+    if (!Array.isArray(drafts) || drafts.length === 0) {
+      addNotification('No drafts to submit.', 'error');
+      return { success: false };
+    }
+
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
+    optimisticLockRef.current = Date.now();
+
+    const baseTaskId = consumeNextTaskIds(drafts.length);
+
+    const optimisticTasks = drafts.map((d, i) => {
+      const kubixPayout = calculatePayout(d.difficulty, d.estHours);
+      const predictedTaskId = String(baseTaskId + i);
+      const predictedId = `${taskManagerContractAddress}-${predictedTaskId}`.toLowerCase();
+      return {
+        id: predictedId,
+        taskId: predictedTaskId,
+        projectId,
+        name: d.name,
+        description: d.description,
+        difficulty: d.difficulty,
+        estHours: d.estHours,
+        bountyToken: d.bountyToken,
+        bountyAmount: d.bountyAmount,
+        requiresApplication: !!d.requiresApplication,
+        kubixPayout,
+        isIndexing: true,
+      };
+    });
+
+    const newTaskColumns = taskColumnsRef.current.map(col => {
+      if (col.id !== destColumnId) return col;
+      return { ...col, tasks: [...col.tasks, ...optimisticTasks] };
+    });
+    setTaskColumns(newTaskColumns);
+
+    const notifId = addNotification(`Creating ${drafts.length} tasks...`, 'loading');
+
+    try {
+      // NOTE: assignTo is intentionally omitted. createTasksBatch has no
+      // per-item assignee parameter (tracked in poa-box/POP#152). The modal
+      // also clears selectedUser when entering draft mode, so drafts should
+      // never carry one — but we don't forward it even if a future code path
+      // does, to keep the behaviour explicit at the boundary.
+      const taskData = drafts.map(d => ({
+        payout: calculatePayout(d.difficulty, d.estHours),
+        name: d.name,
+        description: d.description,
+        location: 'Open',
+        difficulty: d.difficulty,
+        estHours: d.estHours,
+        bountyToken: d.bountyToken,
+        bountyPayout: d.bountyAmount,
+        requiresApplication: !!d.requiresApplication,
+      }));
+
+      const result = await taskService.createTasksBatch(
+        taskManagerContractAddress,
+        projectId,
+        taskData
+      );
+
+      if (result.success) {
+        updateNotification(notifId, `${drafts.length} tasks created!`, 'success');
+
+        const optimisticIds = new Set(optimisticTasks.map(t => t.id));
+        let confirmedColumns;
+        setTaskColumns(prev => {
+          confirmedColumns = prev.map(col => ({
+            ...col,
+            tasks: col.tasks.map(t =>
+              optimisticIds.has(t.id) ? { ...t, isIndexing: false } : t
+            ),
+          }));
+          return confirmedColumns;
+        });
+
+        optimisticTasks.forEach(t => emit(RefreshEvent.TASK_CREATED, { task: t }));
+
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, projectId);
+        }
+        scheduleLockClear();
+        return { success: true };
+      }
+      throw new Error(result.error?.userMessage || 'Failed to create tasks');
+    } catch (error) {
+      console.error('Error creating task batch:', error);
+      updateNotification(notifId, error.message || 'Error creating tasks', 'error');
+      optimisticLockRef.current = null;
+      setTaskColumns(previousTaskColumns);
+      return { success: false, error };
+    }
+  }, [
+    taskService,
+    taskManagerContractAddress,
+    consumeNextTaskIds,
     isReady,
     addNotification,
     updateNotification,
@@ -842,13 +985,14 @@ export const TaskBoardProvider = ({
     taskColumns,
     moveTask,
     addTask,
+    addTaskBatch,
     editTask,
     deleteTask,
     applyForTask,
     approveApplication,
     assignTask,
     rejectTask,
-  }), [taskColumns, moveTask, addTask, editTask, deleteTask, applyForTask, approveApplication, assignTask, rejectTask]);
+  }), [taskColumns, moveTask, addTask, addTaskBatch, editTask, deleteTask, applyForTask, approveApplication, assignTask, rejectTask]);
 
   return (
     <TaskBoardContext.Provider value={value}>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo, useCallback, startTransition } from "react";
-import { Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, Tooltip } from "@chakra-ui/react";
+import { Badge, Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, Tooltip } from "@chakra-ui/react";
 import NextImage from "next/image";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
-import { FaHome } from 'react-icons/fa';
+import { FaHome, FaRegFileAlt } from 'react-icons/fa';
 import NextLink from "next/link";
 import { useRouter } from "next/router";
 import LoginButton from "@/components/LoginButton";
@@ -10,7 +10,9 @@ import { useAuth } from "@/context/AuthContext";
 import { usePOContext } from "@/context/POContext";
 import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
 import { useOrgName } from "@/hooks/useOrgName";
+import { useTaskDrafts } from "@/hooks/useTaskDrafts";
 import { orgUrl } from "@/util/orgUrl";
+import DraftsReviewModal from "@/components/TaskManager/DraftsReviewModal";
 const Navbar = React.memo(() => {
   const router = useRouter();
   const org = useOrgName();
@@ -25,6 +27,14 @@ const Navbar = React.memo(() => {
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const { educationHubEnabled, hideTreasury, orgId } = usePOContext();
+  const { drafts, count: draftCount, projectsWithDrafts, removeDraft, clearProjectDrafts } = useTaskDrafts();
+  const [isDraftsModalOpen, setIsDraftsModalOpen] = useState(false);
+  const showDraftsChip = !!orgId && draftCount > 0;
+  const draftsTooltip = `${draftCount} draft${draftCount === 1 ? '' : 's'} in ${projectsWithDrafts} project${projectsWithDrafts === 1 ? '' : 's'}`;
+
+  const handleSwitchToProject = useCallback(() => {
+    if (org) router.push(orgUrl(org, 'tasks'));
+  }, [org, router]);
 
   // Check if user is an org admin (for showing Settings link)
   // Use AuthContext's unified address so passkey users get admin check too
@@ -199,6 +209,34 @@ const Navbar = React.memo(() => {
               />
             </Tooltip>
           )}
+          {showDraftsChip && (
+            <Tooltip label={draftsTooltip} placement="bottom" hasArrow>
+              <Button
+                aria-label="Open task drafts"
+                onClick={() => setIsDraftsModalOpen(true)}
+                leftIcon={<FaRegFileAlt />}
+                size="sm"
+                variant="ghost"
+                color="white"
+                _hover={{ bg: "whiteAlpha.200" }}
+                mx={"2%"}
+                position="relative"
+              >
+                Drafts
+                <Badge
+                  ml={2}
+                  colorScheme="purple"
+                  bg="purple.400"
+                  color="white"
+                  borderRadius="full"
+                  fontSize="0.7rem"
+                  px={2}
+                >
+                  {draftCount}
+                </Badge>
+              </Button>
+            </Tooltip>
+          )}
           {mounted && (isPasskeyUser || isAuthenticated) ? (
             <LoginButton />
           ) : (
@@ -281,6 +319,31 @@ const Navbar = React.memo(() => {
               ))}
             </VStack>
             
+            {showDraftsChip && (
+              <Box px={4} pt={4}>
+                <Button
+                  w="100%"
+                  variant="outline"
+                  colorScheme="purple"
+                  leftIcon={<FaRegFileAlt />}
+                  justifyContent="space-between"
+                  onClick={() => {
+                    onClose();
+                    setIsDraftsModalOpen(true);
+                  }}
+                >
+                  <Text flex="1" textAlign="left">{draftsTooltip}</Text>
+                  <Badge
+                    colorScheme="purple"
+                    bg="purple.400"
+                    color="white"
+                    borderRadius="full"
+                  >
+                    {draftCount}
+                  </Badge>
+                </Button>
+              </Box>
+            )}
             <Box p={6} mt={4}>
               {mounted && (isPasskeyUser || isAuthenticated) ? (
                 <VStack spacing={3}>
@@ -313,6 +376,17 @@ const Navbar = React.memo(() => {
           </DrawerBody>
         </DrawerContent>
       </Drawer>
+
+      <DraftsReviewModal
+        isOpen={isDraftsModalOpen}
+        onClose={() => setIsDraftsModalOpen(false)}
+        drafts={drafts}
+        removeDraft={removeDraft}
+        clearProjectDrafts={clearProjectDrafts}
+        activeProjectId={null}
+        destColumnId="open"
+        onSwitchToProject={handleSwitchToProject}
+      />
 
     </Box>
   );
