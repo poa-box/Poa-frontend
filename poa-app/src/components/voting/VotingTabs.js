@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Tabs,
   TabList,
@@ -6,12 +6,23 @@ import {
   TabPanels,
   Box,
   useBreakpointValue,
+  useDisclosure,
   Tooltip,
   HStack,
   Text,
   Badge,
+  Drawer,
+  DrawerBody,
+  DrawerContent,
+  DrawerCloseButton,
+  DrawerOverlay,
   keyframes,
 } from "@chakra-ui/react";
+import { useTour } from "@/features/tour";
+import {
+  VotingEducationContent,
+  VotingMobileHeader,
+} from "./VotingEducationHeader";
 
 // Breathing animation for official governance indicator
 const breathe = keyframes`
@@ -45,7 +56,19 @@ const VotingTabs = ({
   const tabFontSize = useBreakpointValue({ base: "md", sm: "xl", md: "2xl" });
   const tabPadding = useBreakpointValue({ base: 2, sm: 2, md: 3 });
   const listPadding = useBreakpointValue({ base: 2, sm: 3, md: 4 });
-  
+
+  // Mobile-only educational drawer
+  const { isOpen, onOpen, onClose } = useDisclosure();
+  const { currentStepDef, isActive: isTourActive } = useTour();
+
+  // Tour step targeting deep educational content forces the drawer open on mobile
+  // so the spotlight can land on the right element.
+  useEffect(() => {
+    if (isTourActive && currentStepDef?.id === "voting-hybrid-detail" && !isOpen) {
+      onOpen();
+    }
+  }, [isTourActive, currentStepDef?.id, isOpen, onOpen]);
+
   return (
     <Tabs
       index={selectedTab}
@@ -56,6 +79,11 @@ const VotingTabs = ({
     >
       <Box data-tour="voting-header">
         {headerSlot}
+        <VotingMobileHeader
+          selectedTab={selectedTab}
+          PTVoteType={PTVoteType}
+          onInfoClick={onOpen}
+        />
       <TabList
         data-tour="voting-tabs"
         alignItems="center"
@@ -197,6 +225,22 @@ const VotingTabs = ({
       <TabPanels>
         {children}
       </TabPanels>
+
+      <Drawer isOpen={isOpen} onClose={onClose} placement="bottom">
+        <DrawerOverlay bg="blackAlpha.700" />
+        <DrawerContent
+          bg="rgba(15, 15, 20, 0.98)"
+          borderTopRadius="2xl"
+          maxH="85vh"
+          color="white"
+          boxShadow="0 -4px 24px rgba(148, 115, 220, 0.2)"
+        >
+          <DrawerCloseButton color="gray.400" />
+          <DrawerBody py={8} px={5}>
+            <VotingEducationContent selectedTab={selectedTab} PTVoteType={PTVoteType} />
+          </DrawerBody>
+        </DrawerContent>
+      </Drawer>
     </Tabs>
   );
 };

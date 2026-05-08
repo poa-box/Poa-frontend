@@ -20,6 +20,7 @@ import {
   HStack,
   Collapse,
   Button,
+  IconButton,
   useBreakpointValue,
   Tooltip,
   Badge,
@@ -436,7 +437,111 @@ const VotingPowerStats = ({ classWeights, orgStats, poMembers, classConfig }) =>
   );
 };
 
-const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
+/**
+ * Slim mobile-only page header. Sits between the (fixed) navbar clearance
+ * and the tabs — fills what was otherwise dead space with a real page title,
+ * the user's voting power as a subtitle, and an info icon that opens the
+ * explainer drawer. Two-line layout for proper visual hierarchy.
+ */
+export const VotingMobileHeader = ({ selectedTab, PTVoteType, onInfoClick }) => {
+  const { hasMemberRole } = useUserContext();
+  const { orgStats, hasVotingPower } = useVotingPower();
+  const totalPct = orgStats?.percentOfTotal ?? 0;
+
+  const title = (() => {
+    if (selectedTab === 1) return "Temperature Check";
+    if (PTVoteType === "Hybrid") return "Hybrid Voting";
+    return "Participation Voting";
+  })();
+
+  const subtitle = (() => {
+    if (selectedTab === 1) return "One person, one vote · non-binding";
+    if (!hasMemberRole) return "Members only — join to vote";
+    if (hasVotingPower) return `Your share: ${totalPct.toFixed(1)}%`;
+    return "You don't hold voting power yet";
+  })();
+
+  const isOfficial = selectedTab === 0;
+
+  return (
+    <Flex
+      display={{ base: "flex", md: "none" }}
+      align="center"
+      justify="space-between"
+      px={4}
+      py={3}
+      mb={3}
+      borderRadius="2xl"
+      boxShadow="lg"
+      position="relative"
+      zIndex={0}
+    >
+      <Box
+        className="glass"
+        style={glassLayerStyle}
+        position="absolute"
+        top={0}
+        left={0}
+        right={0}
+        bottom={0}
+        borderRadius="inherit"
+        zIndex={-1}
+      />
+      <VStack align="start" spacing={0.5} flex={1} minW={0}>
+        <HStack spacing={2}>
+          <Box
+            w="8px"
+            h="8px"
+            borderRadius="full"
+            bg={isOfficial
+              ? "linear-gradient(135deg, #F6AD55 0%, #ED8936 100%)"
+              : "blue.400"
+            }
+            boxShadow={isOfficial
+              ? "0 0 8px rgba(237, 137, 54, 0.6)"
+              : "0 0 8px rgba(66, 153, 225, 0.5)"
+            }
+            flexShrink={0}
+          />
+          <Heading
+            as="h1"
+            fontSize="md"
+            fontWeight="bold"
+            bgGradient={isOfficial
+              ? "linear(to-r, orange.300, purple.400)"
+              : "linear(to-r, blue.300, blue.400)"
+            }
+            bgClip="text"
+            noOfLines={1}
+          >
+            {title}
+          </Heading>
+        </HStack>
+        <Text fontSize="xs" color="gray.400" pl={4} noOfLines={1}>
+          {subtitle}
+        </Text>
+      </VStack>
+      <IconButton
+        aria-label="How voting works"
+        icon={<InfoOutlineIcon boxSize="18px" />}
+        variant="ghost"
+        size="sm"
+        color="gray.400"
+        onClick={onInfoClick}
+        _hover={{ color: "white", bg: "whiteAlpha.100" }}
+        flexShrink={0}
+        ml={2}
+      />
+    </Flex>
+  );
+};
+
+/**
+ * Inner content of the educational header. Used by both the desktop card
+ * (rendered inline above the tabs) and the mobile bottom-sheet drawer
+ * (opened from the info icon in the mobile page header).
+ */
+export const VotingEducationContent = ({ selectedTab, PTVoteType }) => {
 
   const { userData, hasMemberRole } = useUserContext();
   const { poMembers } = usePOContext();
@@ -482,37 +587,7 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
   const ptBalance = userData?.participationTokenBalance || "0";
 
   return (
-    <Flex
-      align="center"
-      mb={{ base: 4, md: 6 }}
-      flexDirection="column"
-      alignItems="center"
-      justifyContent="center"
-      borderRadius="3xl"
-      boxShadow="lg"
-      p={{ base: 4, md: 6 }}
-      w="100%"
-      maxW="1440px"
-      mx="auto"
-      bg="transparent"
-      position="relative"
-      display="flex"
-      zIndex={0}
-      transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
-    >
-      <Box
-        className="glass"
-        style={glassLayerStyle}
-        position="absolute"
-        top={0}
-        left={0}
-        right={0}
-        bottom={0}
-        borderRadius="inherit"
-        zIndex={-1}
-      />
-
-      <VStack spacing={5} w="100%">
+    <VStack spacing={5} w="100%">
         {/* Type indicator badge + Title */}
         <VStack spacing={3}>
           {/* Official/Informal badge */}
@@ -662,7 +737,47 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
           </Text>
         )}
       </VStack>
-    </Flex>
+  );
+};
+
+/**
+ * Desktop-only educational header card. Mobile users access the same content
+ * via the "How voting works" button + bottom-sheet drawer in VotingTabs.
+ */
+const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
+  return (
+    <Box display={{ base: "none", md: "block" }}>
+      <Flex
+        align="center"
+        mb={6}
+        flexDirection="column"
+        alignItems="center"
+        justifyContent="center"
+        borderRadius="3xl"
+        boxShadow="lg"
+        p={6}
+        w="100%"
+        maxW="1440px"
+        mx="auto"
+        bg="transparent"
+        position="relative"
+        zIndex={0}
+        transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
+      >
+        <Box
+          className="glass"
+          style={glassLayerStyle}
+          position="absolute"
+          top={0}
+          left={0}
+          right={0}
+          bottom={0}
+          borderRadius="inherit"
+          zIndex={-1}
+        />
+        <VotingEducationContent selectedTab={selectedTab} PTVoteType={PTVoteType} />
+      </Flex>
+    </Box>
   );
 };
 
