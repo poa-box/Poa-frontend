@@ -251,7 +251,7 @@ const VotingPage = () => {
           <PulseLoader size="xl" />
         </Center>
       ) : (
-        <Container maxW="container.2xl" py={{ base: 20, md: 4 }} px={{ base: "1%", md: "3%" }} minH="100vh" background={pageBackground()}>
+        <Container maxW="container.2xl" py={4} px={{ base: "1%", md: "3%" }} minH="100vh" background={pageBackground()}>
           <VotingTabs
             selectedTab={selectedTab}
             handleTabsChange={handleTabsChange}
