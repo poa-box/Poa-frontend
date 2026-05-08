@@ -74,7 +74,7 @@ function WelcomePageSkeleton() {
     <>
       <Navbar />
       <Box
-        minH={{ base: '100vh', md: 'calc(100vh - 80px)' }}
+        minH="100vh"
         display="flex"
         alignItems="center"
         justifyContent="center"
@@ -317,7 +317,7 @@ const UserprofileHub = () => {
     <>
       {seoHead}
       <Navbar />
-      <Box mt={-2} p={4} minH="100vh" background={pageBackground()}>
+      <Box p={4} minH="100vh" background={pageBackground()}>
         <Grid
           color="white"
           templateAreas={{

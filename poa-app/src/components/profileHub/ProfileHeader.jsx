@@ -243,19 +243,19 @@ export function ProfileHeader({
 
       {profileIncomplete && !nudgeDismissed && (
         <HStack
-          mx={{ base: 4, md: 5 }}
+          mx={{ base: 3, md: 5 }}
           mb={{ base: 3, md: 4 }}
-          px={4}
+          px={{ base: 3, md: 4 }}
           py={2}
           borderRadius="lg"
           bg="whiteAlpha.100"
           borderWidth="1px"
           borderColor="amethyst.300"
-          spacing={3}
+          spacing={{ base: 2, md: 3 }}
           position="relative"
           zIndex={2}
         >
-          <Text fontSize="sm" color="white" flex={1}>
+          <Text fontSize={{ base: "xs", md: "sm" }} color="white" flex={1} lineHeight="short">
             {!profileMetadata?.avatar && !profileMetadata?.bio
               ? 'Add a profile picture and bio so others can recognize you across the org.'
               : !profileMetadata?.avatar
@@ -266,10 +266,11 @@ export function ProfileHeader({
             size="xs"
             colorScheme="purple"
             onClick={onEditProfileClick}
+            flexShrink={0}
           >
             Add now
           </Button>
-          <CloseButton size="sm" onClick={dismissNudge} />
+          <CloseButton size="sm" onClick={dismissNudge} flexShrink={0} />
         </HStack>
       )}
     </Box>

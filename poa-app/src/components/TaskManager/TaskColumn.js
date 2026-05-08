@@ -138,6 +138,26 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
     canReviewTaskRef.current = canReviewTask;
   }, [canReviewTask]);
 
+  // Auto-open the AddTaskModal in draft mode when navigated here with
+  // ?openDrafts=1 (set by NavBar's "Open <project> drafts" button). Only the
+  // matching project's Open column responds; the flag is then stripped from
+  // the URL so refreshes don't re-trigger.
+  useEffect(() => {
+    if (title !== 'Open') return;
+    if (router.query.openDrafts !== '1') return;
+    if (!currentProjectId || !canCreateTask) return;
+    const queryProjectId = router.query.projectId
+      ? decodeURIComponent(router.query.projectId)
+      : null;
+    if (queryProjectId && queryProjectId !== currentProjectId) return;
+
+    setModalMode('draft');
+    setIsAddTaskModalOpen(true);
+
+    const { openDrafts: _drop, ...rest } = router.query;
+    router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
+  }, [router, title, currentProjectId, canCreateTask]);
+
   
   const handleCloseAddTaskModal = () => {
     setIsAddTaskModalOpen(false);

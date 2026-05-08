@@ -183,7 +183,7 @@ const EducationHub = () => {
             }}
             borderRadius="lg"
             mx="auto"
-            mt={{ base: 20, md: 6 }}
+            mt={{ base: 4, md: 6 }}
             maxWidth="800px"
             textAlign="center"
           >
