@@ -20,10 +20,14 @@ No Prettier. No formatting commands.
 
 ## Default workflow for agents
 
-When making frontend changes, **always use `yarn dev:e2e`** instead of `yarn dev`.
-The E2E harness gives you an auto-connected burner EOA on Test6 (Gnosis) so you
-can drive flows end-to-end without a wallet popup. Switch to `yarn dev:e2e-passkey`
-when testing the passkey/UserOp path.
+When making frontend changes, **default to `yarn dev:e2e-passkey`** — the passkey
+identity has full permissions on Test6 (Gnosis) and can open every permission-gated
+modal (Add Task, Edit Task, project / treasury actions, etc.) without a
+permission-denied toast. Use plain `yarn dev:e2e` (auto-connected burner EOA on
+Test6) only when you specifically need to test as an unvouched / minimal-permission
+user, or are exercising the direct-EOA tx path rather than the ERC-4337 UserOp
+path. Both modes auto-connect, so no wallet popup either way — never use plain
+`yarn dev` for agent work.
 
 Setup is one-time per laptop: `yarn e2e:setup` generates a stable burner EOA +
 virtual passkey at `~/.poa/e2e.env` (shared across every workspace) and prints
@@ -34,7 +38,7 @@ For browser-driven testing, use the Playwright MCP server (configured in
 `.mcp.json`). The `mcp__playwright__browser_*` tools (navigate, snapshot,
 console_messages, click, fill_form, etc.) drive the auto-connected E2E
 session — preferred over running a separate Playwright script. Pair it
-with `yarn dev:e2e` to exercise flows end-to-end.
+with `yarn dev:e2e-passkey` to exercise permission-gated flows end-to-end.
 
 When you need a visual artifact to share back, **record a gif of the
 flow rather than dropping individual screenshots into the repo root**.
