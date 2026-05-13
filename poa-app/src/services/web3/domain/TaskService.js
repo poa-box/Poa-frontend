@@ -580,6 +580,186 @@ export class TaskService {
     );
   }
 
+  // ============================================
+  // Project Budget Functions (TaskPerm.BUDGET)
+  // ============================================
+
+  /**
+   * Resize a project's participation-token cap.
+   * Permission: executor OR caller has TaskPerm.BUDGET on `projectId`.
+   * Contract reverts CapBelowCommitted if newCap < currently-spent.
+   */
+  async setProjectCap(contractAddress, projectId, newCapWei, options = {}) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+
+    const contract = this.factory.createWritable(contractAddress, TaskManagerABI);
+    const pid = parseProjectId(projectId);
+    const newCap = ethers.BigNumber.from(newCapWei);
+
+    const encoded = ethers.utils.defaultAbiCoder.encode(
+      ['bytes32', 'uint256'],
+      [pid, newCap]
+    );
+    const PROJECT_CAP_KEY = 6;
+
+    return this.txManager.execute(
+      contract,
+      'setConfig',
+      [PROJECT_CAP_KEY, encoded],
+      options
+    );
+  }
+
+  /**
+   * Resize a project's per-token bounty cap.
+   * Permission: executor OR caller has TaskPerm.BUDGET on `projectId`.
+   * Contract reverts CapBelowCommitted if newCap < currently-spent for that token.
+   */
+  async setBountyCap(contractAddress, projectId, tokenAddress, newCapWei, options = {}) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+    requireAddress(tokenAddress, 'Bounty token address');
+
+    const contract = this.factory.createWritable(contractAddress, TaskManagerABI);
+    const pid = parseProjectId(projectId);
+    const newCap = ethers.BigNumber.from(newCapWei);
+
+    const encoded = ethers.utils.defaultAbiCoder.encode(
+      ['bytes32', 'address', 'uint256'],
+      [pid, tokenAddress, newCap]
+    );
+    const BOUNTY_CAP_KEY = 4;
+
+    return this.txManager.execute(
+      contract,
+      'setConfig',
+      [BOUNTY_CAP_KEY, encoded],
+      options
+    );
+  }
+
+  // ============================================
+  // Folders & Organizer Hats (v4)
+  // ============================================
+
+  /**
+   * Publish a new folder-tree root, CAS-guarded against concurrent edits.
+   * Permission: executor OR any wearer of an organizerHatIds hat.
+   * Contract reverts FoldersRootStale(expected, actual) if another organizer
+   * already moved the root — callers MUST handle this and re-prompt.
+   *
+   * @param {string} contractAddress
+   * @param {string} expectedCurrentRoot bytes32 hex; pass HashZero for the
+   *                                     uninitialized state (no folders yet).
+   * @param {string} newRoot             bytes32 hex; HashZero clears the tree.
+   */
+  async setFolders(contractAddress, expectedCurrentRoot, newRoot, options = {}) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+
+    const contract = this.factory.createWritable(contractAddress, TaskManagerABI);
+
+    return this.txManager.execute(
+      contract,
+      'setFolders',
+      [expectedCurrentRoot, newRoot],
+      options
+    );
+  }
+
+  /**
+   * Add or remove a hat from the org's organizerHatIds array (executor-only).
+   * Use the governance-vote path in normal operation; this is the raw setter
+   * for direct executor calls.
+   */
+  async setOrganizerHatAllowed(contractAddress, hatId, allowed, options = {}) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+
+    const contract = this.factory.createWritable(contractAddress, TaskManagerABI);
+
+    const encoded = ethers.utils.defaultAbiCoder.encode(
+      ['uint256', 'bool'],
+      [ethers.BigNumber.from(hatId), Boolean(allowed)]
+    );
+    const ORGANIZER_HAT_ALLOWED_KEY = 7;
+
+    return this.txManager.execute(
+      contract,
+      'setConfig',
+      [ORGANIZER_HAT_ALLOWED_KEY, encoded],
+      options
+    );
+  }
+
+  /**
+   * Lens read for a project's PT budget. Returns `{ cap, spent, exists }`
+   * as BigNumber. The subgraph (#177) does NOT index `spent`, so the
+   * EditBudgetModal needs this to compute the `newCap < spent` warning
+   * that prevents users tripping `CapBelowCommitted`.
+   */
+  async readProjectBudget(contractAddress, projectId) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+
+    const contract = this.factory.createReadOnly(contractAddress, TaskManagerABI);
+    const pid = parseProjectId(projectId);
+    const PROJECT_LENS_KEY = 2;
+    const encodedPid = ethers.utils.defaultAbiCoder.encode(['bytes32'], [pid]);
+    const raw = await contract.getLensData(PROJECT_LENS_KEY, encodedPid);
+    const [cap, spent, exists] = ethers.utils.defaultAbiCoder.decode(
+      ['uint128', 'uint128', 'bool'],
+      raw
+    );
+    return { cap, spent, exists };
+  }
+
+  /**
+   * Lens read for a project's bounty-token budget. Returns `{ cap, spent }`
+   * for the given (project, token) pair.
+   */
+  async readBountyBudget(contractAddress, projectId, tokenAddress) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+    requireAddress(tokenAddress, 'Bounty token address');
+
+    const contract = this.factory.createReadOnly(contractAddress, TaskManagerABI);
+    const pid = parseProjectId(projectId);
+    const BOUNTY_BUDGET_LENS_KEY = 9;
+    const encoded = ethers.utils.defaultAbiCoder.encode(
+      ['bytes32', 'address'],
+      [pid, tokenAddress]
+    );
+    const raw = await contract.getLensData(BOUNTY_BUDGET_LENS_KEY, encoded);
+    const [cap, spent] = ethers.utils.defaultAbiCoder.decode(['uint128', 'uint128'], raw);
+    return { cap, spent };
+  }
+
+  /**
+   * Lens fallback: read the current foldersRoot from the contract.
+   * Use this when the subgraph hasn't indexed FoldersUpdated yet, or to
+   * re-fetch the latest root mid-edit for CAS rebase.
+   * Returns bytes32 hex (HashZero if uninitialized).
+   */
+  async readFoldersRoot(contractAddress) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+
+    const contract = this.factory.createReadOnly(contractAddress, TaskManagerABI);
+    const FOLDERS_ROOT_KEY = 10;
+    const raw = await contract.getLensData(FOLDERS_ROOT_KEY, '0x');
+    const [root] = ethers.utils.defaultAbiCoder.decode(['bytes32'], raw);
+    return root;
+  }
+
+  /**
+   * Lens fallback: read the current organizerHatIds array.
+   * Returns an array of decimal-string hat IDs.
+   */
+  async readOrganizerHatIds(contractAddress) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+
+    const contract = this.factory.createReadOnly(contractAddress, TaskManagerABI);
+    const ORGANIZER_HAT_IDS_KEY = 11;
+    const raw = await contract.getLensData(ORGANIZER_HAT_IDS_KEY, '0x');
+    const [ids] = ethers.utils.defaultAbiCoder.decode(['uint256[]'], raw);
+    return ids.map((id) => id.toString());
+  }
+
   /**
    * Create and immediately assign a task to a specific user
    * @param {string} contractAddress - TaskManager contract address

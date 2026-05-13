@@ -116,6 +116,8 @@ const REVERT_PATTERNS = {
   'CapBelowCommitted': 'Cap cannot be lower than committed amount.',
   'SpentUnderflow': 'Spent amount underflow.',
   'InvalidIndex': 'Invalid index.',
+  'NotOrganizer': 'You don\'t hold a folder-organizer hat. Ask an admin to grant your role the organizer permission.',
+  'FoldersRootStale': 'Another organizer published a folder update while you were editing. Your changes were not saved — pull the latest tree and try again.',
 
   // Token errors
   'Insufficient balance': 'Insufficient token balance for this operation.',

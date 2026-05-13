@@ -42,3 +42,6 @@ export { useGlobalAccount } from './useGlobalAccount';
 
 // Org Theme
 export { useOrgTheme } from './useOrgTheme';
+
+// TaskManager v4 (folders + organizer hats)
+export { useTaskManagerV4State } from './useTaskManagerV4State';

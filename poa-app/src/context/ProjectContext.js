@@ -64,6 +64,7 @@ export const ProjectProvider = ({ children }) => {
         [
             RefreshEvent.PROJECT_CREATED,
             RefreshEvent.PROJECT_DELETED,
+            RefreshEvent.PROJECT_BUDGET_UPDATED,
             RefreshEvent.TASK_CREATED,
             RefreshEvent.TASK_CLAIMED,
             RefreshEvent.TASK_SUBMITTED,
@@ -94,6 +95,7 @@ export const ProjectProvider = ({ children }) => {
                     // Use indexed metadata from subgraph as primary source
                     description: project.metadata?.description || '',
                     cap: project.cap,
+                    spent: project.spent || '0',
                     bountyCaps: project.bountyCaps || [],
                     rolePermissions: project.rolePermissions || [],
                     columns: [
