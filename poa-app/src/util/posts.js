@@ -66,14 +66,14 @@ export function getSortedPostsData() {
         if (!description) {
             const contentLines = matterResult.content.split('\n');
             // Find the first non-empty paragraph that's not a heading
-            const firstParagraph = contentLines.find(line => 
+            const firstParagraph = contentLines.find(line =>
                 line.trim().length > 0 && !line.startsWith('#')
             );
-            
+
             if (firstParagraph) {
                 // Limit to a reasonable length for a description
-                description = firstParagraph.length > 160 
-                    ? `${firstParagraph.substring(0, 160)}...` 
+                description = firstParagraph.length > 160
+                    ? `${firstParagraph.substring(0, 160)}...`
                     : firstParagraph;
             } else {
                 // Default description if nothing suitable was found
@@ -88,8 +88,11 @@ export function getSortedPostsData() {
             date = stats.mtime.toISOString();
         }
 
-        // Use the file name as title if no title in frontmatter
-        const title = matterResult.data.title || formatIdToTitle(id);
+        // Title precedence: frontmatter → first H1 in markdown → formatted filename.
+        const firstH1Match = matterResult.content.match(/^#\s+(.+)$/m);
+        const title =
+            matterResult.data.title ||
+            (firstH1Match ? cleanHeadingText(firstH1Match[1].trim()) : formatIdToTitle(id));
 
         // Add category if present or determine from filename
         const category = matterResult.data.category || determineCategory(id);
@@ -124,17 +127,37 @@ function formatIdToTitle(id) {
         .replace(/([A-Z])([A-Z])([a-z])/g, '$1 $2$3'); // Handle consecutive capitals
 }
 
-// Helper to determine category based on file name
+// Helper to determine category based on file name.
+// New docs use kebab-case (May 2026+); legacy docs keep their camelCase slugs.
 function determineCategory(id) {
     const categories = {
+        // Get Started
         'create': 'Get Started',
         'join': 'Get Started',
         'perpetualOrganization': 'Get Started',
+        'passkey-onboarding': 'Get Started',
+        'deployment-wizard': 'Get Started',
+        // Voting
         'hybridVoting': 'Voting',
         'contributionVoting': 'Voting',
         'directDemocracy': 'Voting',
+        // Roles & Organization
+        'roles-and-permissions': 'Roles & Organization',
+        'hats-and-roles': 'Roles & Organization',
+        'vouching-and-trust': 'Roles & Organization',
+        // Features
         'AlphaV1': 'Features',
-        'TheGraph': 'Features'
+        'TheGraph': 'Features',
+        'task-manager': 'Features',
+        'treasury-management': 'Features',
+        'learn-and-earn': 'Features',
+        'cashout': 'Features',
+        // Protocol & Infrastructure
+        'protocol': 'Protocol',
+        'gas-sponsor': 'Protocol',
+        'account-abstraction': 'Protocol',
+        'cross-chain-architecture': 'Protocol',
+        'white-label-hosting': 'Protocol',
     };
 
     return categories[id] || 'Other';
@@ -167,7 +190,9 @@ export async function getPostData(id) {
 
     // We'll add IDs to headings using a safer approach
     // Create a simple HTML parser
-    let contentHtml = processedContent;
+    // Strip the first <h1>...</h1> — the page wrapper renders the title separately,
+    // so leaving it in produces a duplicate H1 (bad for SEO and accessibility).
+    let contentHtml = processedContent.replace(/<h1[^>]*>[\s\S]*?<\/h1>/, '');
     
     // Add IDs to each heading using a safer string manipulation
     for (const heading of headings) {
@@ -192,8 +217,14 @@ export async function getPostData(id) {
         date = stats.mtime.toISOString();
     }
 
-    // Use the file name as title if no title in frontmatter
-    const title = matterResult.data.title || formatIdToTitle(id);
+    // Title precedence: frontmatter → first H1 in markdown → formatted filename.
+    // Pulling from the first H1 lets posts without frontmatter still get a
+    // human-authored title (e.g. "Contribution-based Voting" instead of
+    // "Contribution Voting" from the camelCase filename).
+    const firstH1 = headings.find((h) => h.level === 1);
+    const title =
+        matterResult.data.title ||
+        (firstH1 ? cleanHeadingText(firstH1.text) : formatIdToTitle(id));
 
     // Add category if present or determine from filename
     const category = matterResult.data.category || determineCategory(id);
@@ -203,14 +234,14 @@ export async function getPostData(id) {
     if (!description) {
         const contentLines = matterResult.content.split('\n');
         // Find the first non-empty paragraph that's not a heading
-        const firstParagraph = contentLines.find(line => 
+        const firstParagraph = contentLines.find(line =>
             line.trim().length > 0 && !line.startsWith('#')
         );
-        
+
         if (firstParagraph) {
             // Limit to a reasonable length for a description
-            description = firstParagraph.length > 160 
-                ? `${firstParagraph.substring(0, 160)}...` 
+            description = firstParagraph.length > 160
+                ? `${firstParagraph.substring(0, 160)}...`
                 : firstParagraph;
         } else {
             // Default description if nothing suitable was found

@@ -13,7 +13,7 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // redirect bare domain -> www
+    // poa.earth: bare -> www (and fold root -> /home/ for the white-label landing).
     if (url.hostname === 'poa.earth') {
       url.hostname = 'www.poa.earth';
       // If they hit the root, fold the white-label redirect into this hop.
@@ -21,8 +21,13 @@ export default {
       if (url.pathname === '/') url.pathname = '/home/';
       return Response.redirect(url.toString(), 301);
     }
-    if (url.hostname === 'poa.box') {
-      url.hostname = 'www.poa.box';
+    // poa.box: www -> apex. The apex domain is the canonical and matches every
+    // <link rel="canonical"> / og:url emitted by the static site. Collapsing
+    // www.poa.box hits into the apex avoids the "Page with redirect" /
+    // "Alternate page with proper canonical tag" splits in Google Search
+    // Console and keeps the brand URL consistent.
+    if (url.hostname === 'www.poa.box') {
+      url.hostname = 'poa.box';
       return Response.redirect(url.toString(), 301);
     }
 

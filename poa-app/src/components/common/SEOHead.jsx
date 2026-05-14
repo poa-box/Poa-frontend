@@ -11,17 +11,31 @@ export default function SEOHead({
   ogType = "website",
   noIndex = false,
   jsonLd,
+  keywords,
 }) {
-  const fullTitle = title.includes("Poa") ? title : `${title} | Poa`;
-  const canonicalUrl = `${SITE_URL}${path}`;
+  const fullTitle = title.includes("Poa") || title.includes("poa.box")
+    ? title
+    : `${title} | Poa`;
+  // next.config has `trailingSlash: true`, so the site canonical for any
+  // non-root, non-querystring path must end with `/`. Without this, the
+  // canonical URL itself 308-redirects to the slashed version, which Google
+  // Search Console reports as "Page with redirect". Normalize here so
+  // callers don't have to remember.
+  const normalizedPath =
+    path === "/" || path.includes("?") || path.includes("#") || path.endsWith("/")
+      ? path
+      : `${path}/`;
+  const canonicalUrl = `${SITE_URL}${normalizedPath}`;
   const truncatedDescription =
     description.length > 160 ? `${description.slice(0, 157)}...` : description;
+  const keywordsContent = Array.isArray(keywords) ? keywords.join(", ") : keywords;
 
   return (
     <Head>
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{fullTitle}</title>
       <meta name="description" content={truncatedDescription} />
+      {keywordsContent && <meta name="keywords" content={keywordsContent} />}
       <link rel="canonical" href={canonicalUrl} />
 
       {/* Open Graph */}
@@ -34,6 +48,8 @@ export default function SEOHead({
 
       {/* Twitter Card */}
       <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:site" content="@PoaPerpetual" />
+      <meta name="twitter:creator" content="@PoaPerpetual" />
       <meta name="twitter:title" content={fullTitle} />
       <meta name="twitter:description" content={truncatedDescription} />
       <meta name="twitter:image" content={ogImage} />

@@ -7,7 +7,7 @@ your domain on the next request.
 ## How it works
 
 Your Cloudflare Worker reverse-proxies `dao.kublockchain.com` to
-`https://www.poa.box`. The client-side app reads `window.location.hostname`,
+`https://poa.box`. The client-side app reads `window.location.hostname`,
 sees `dao.kublockchain.com`, and auto-loads the KUBI org as the default — no
 query params, no branding flash. Passkeys work across both domains because we
 register `dao.kublockchain.com` as a WebAuthn Related Origin on our side.
@@ -48,7 +48,7 @@ From the account home:
    contents, then paste:
 
    ```js
-   const UPSTREAM = 'https://www.poa.box';
+   const UPSTREAM = 'https://poa.box';
 
    export default {
      async fetch(request) {
