@@ -51,8 +51,18 @@ const posts = postFiles
   .filter(Boolean);
 
 // Build XML
+const OG_IMAGE = `${SITE_URL}/images/poa_og.webp`;
 const urlEntry = (loc, lastmod, changefreq, priority) =>
-  `<url>\n  <loc>${SITE_URL}${loc}</loc>\n  <lastmod>${lastmod}</lastmod>\n  <changefreq>${changefreq}</changefreq>\n  <priority>${priority}</priority>\n</url>`;
+  `<url>
+  <loc>${SITE_URL}${loc}</loc>
+  <lastmod>${lastmod}</lastmod>
+  <changefreq>${changefreq}</changefreq>
+  <priority>${priority}</priority>
+  <image:image>
+    <image:loc>${OG_IMAGE}</image:loc>
+    <image:title>Poa — Community-Owned Organization Builder</image:title>
+  </image:image>
+</url>`;
 
 const urls = [
   '<!-- Static pages -->',
@@ -68,6 +78,7 @@ const urls = [
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset
       xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+      xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
             http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">

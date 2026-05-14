@@ -81,6 +81,7 @@ const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen 
         {/* Word-by-word animated gradient headline */}
         <Heading
           as="h1"
+          aria-label="Build Organizations Owned by the People Who Run Them"
           fontSize={["4xl", "5xl", "6xl", "6xl"]}
           fontWeight="700"
           lineHeight="1.15"
@@ -101,16 +102,18 @@ const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen 
           }}
         >
           {HEADLINE_WORDS.map((word, i) => (
-            <MotionSpan
-              key={i}
-              custom={i}
-              initial="hidden"
-              animate="visible"
-              variants={wordVariants}
-              style={{ display: "inline-block", marginRight: "0.3em" }}
-            >
-              {word}
-            </MotionSpan>
+            <React.Fragment key={i}>
+              <MotionSpan
+                custom={i}
+                initial="hidden"
+                animate="visible"
+                variants={wordVariants}
+                style={{ display: "inline-block" }}
+              >
+                {word}
+              </MotionSpan>
+              {i < HEADLINE_WORDS.length - 1 ? " " : ""}
+            </React.Fragment>
           ))}
         </Heading>
 
@@ -122,15 +125,13 @@ const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen 
           <Text
             fontSize={["xl", "xl", "1.375rem"]}
             color="warmGray.700"
-            maxW="540px"
+            maxW="640px"
             mx="auto"
             mb={[10, 12]}
             lineHeight="1.7"
             fontWeight="500"
           >
-            One platform to manage projects, track participation, and handle finances.
-            <br />
-            Governed entirely by your community.
+            Poa is a no-code platform for community-owned organizations. Student clubs. Worker cooperatives. Open-source collectives. The people who run an organization also own it, vote on it, and hold its treasury. Governance power is earned by contributing, not bought with capital. We call this economic democracy.
           </Text>
         </MotionBox>
 

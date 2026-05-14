@@ -1,0 +1,13 @@
+{
+  "name": "Poa — Community-Owned Organization Builder",
+  "short_name": "Poa",
+  "description": "Poa (poa.box) is a no-code platform for community-owned, democratically governed organizations.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#7C3AED",
+  "icons": [
+    { "src": "/favicon.ico", "sizes": "any", "type": "image/x-icon" },
+    { "src": "/images/poa_logo.png", "type": "image/png", "sizes": "512x512" }
+  ]
+}

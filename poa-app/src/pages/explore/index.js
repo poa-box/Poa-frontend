@@ -238,9 +238,19 @@ const BrowserPage = () => {
   return (
     <>
     <SEOHead
-      title="Explore Organizations"
-      description="Discover community-owned organizations built with Poa. Browse DAOs with democratic governance and contribution-based voting."
+      title="Browse Community-Owned DAOs on Poa"
+      description="A live directory of every community-owned organization on poa.box. Student clubs, worker cooperatives, and open-source projects with transparent self-governance."
       path="/explore"
+      keywords={[
+        "community-owned organizations",
+        "DAO directory",
+        "browse DAOs",
+        "worker cooperative DAO",
+        "student organization DAO",
+        "open-source DAO",
+        "no-code DAO",
+        "poa.box",
+      ]}
     />
     <Box minH="100vh" overflowX="hidden">
       <Navbar
@@ -414,18 +424,29 @@ const BrowserPage = () => {
                 color="warmGray.900"
                 mb={[4, 6, 8]}
               >
-                Explore Organizations
+                Browse community-owned organizations on poa.box
               </Heading>
               <Text
                 fontSize={["lg", "xl"]}
                 color="warmGray.600"
+                maxW="640px"
+                mx="auto"
+                mb={[6, 8]}
+                lineHeight="1.7"
+                fontWeight="500"
+              >
+                Every organization on poa.box is community-owned. The members govern themselves. They write the rules together. They vote on the rules together. They hold the shared treasury together. Below is a live directory of every organization built with Poa. Student clubs. Worker cooperatives. Open-source collectives. Click any one of them to see how its members chose to govern, how many of them there are, and what they&apos;re voting on right now.
+              </Text>
+              <Text
+                fontSize={["sm", "md"]}
+                color="warmGray.500"
                 maxW="540px"
                 mx="auto"
                 mb={[8, 10]}
                 lineHeight="1.7"
                 fontWeight="500"
               >
-                Discover communities that share your interests and passions. Connect, contribute, and grow together.
+                Looking to start your own? You don&apos;t need any crypto knowledge or wallet to join an existing one. A passkey is enough.
               </Text>
 
               {/* Search Bar */}

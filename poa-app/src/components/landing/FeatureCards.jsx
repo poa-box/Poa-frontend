@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import {
   Box,
   Text,
@@ -25,38 +26,44 @@ const FEATURES = [
   {
     icon: HiUserGroup,
     title: "Community Governance",
+    href: "/docs/hybridVoting",
     description:
-      "Democratic voting, contribution-weighted influence, or a hybrid. Every governance model is custom, transparent, and community-owned.",
+      "Direct democracy, contribution-weighted voting, or a blend of the two. Every model is custom, transparent, and recorded openly. Every member can verify every vote.",
   },
   {
     icon: HiClipboardList,
     title: "Task & Project Management",
+    href: "/docs/task-manager",
     description:
-      "Create tasks, assign work, and track progress. Contributors earn influence for completed work.",
+      "Create tasks, assign work, and track progress in a shared workspace. Completed work mints participation tokens, so the people doing the work also gain a voice in governing it.",
   },
   {
     icon: HiShieldCheck,
     title: "Roles & Permissions",
+    href: "/docs/roles-and-permissions",
     description:
-      "Custom roles with granular permissions, vouching requirements, and trust-based progression.",
+      "Role-based membership tiers. Custom roles, granular permissions, vouching requirements, and trust-based progression. The community decides who gets which key.",
   },
   {
     icon: HiCurrencyDollar,
     title: "Treasury",
+    href: "/docs/treasury-management",
     description:
-      "Manage funds transparently. Every transaction visible, every spending decision governed by community vote.",
+      "A shared treasury that the community controls together. Every transaction visible. Every spend approved by community vote. No single admin holds the keys.",
   },
   {
     icon: HiSparkles,
     title: "Contribution-Based Rewards",
+    href: "/docs/contributionVoting",
     description:
-      "Earn voting power and a share of the treasury through actual contributions. The more you participate, the more you earn.",
+      "Earn participation tokens, voting power, and a share of the treasury by contributing. Governance that rewards work rather than capital, and resists capture by either.",
   },
   {
     icon: HiAcademicCap,
     title: "Learn & Earn",
+    href: "/docs/learn-and-earn",
     description:
-      "Build educational modules where members complete courses and earn recognition while growing their skills.",
+      "Build onboarding modules where members complete courses, earn recognition, and develop skills. Education becomes a real path into governance and reward.",
   },
 ];
 
@@ -116,7 +123,12 @@ const FeatureCards = () => {
                   _groupHover={{ color: "amethyst.500" }}
                 />
                 <Heading as="h3" fontSize="xl" fontWeight="700">
-                  {feature.title}
+                  <Link
+                    href={feature.href}
+                    style={{ color: "inherit", textDecoration: "none" }}
+                  >
+                    {feature.title}
+                  </Link>
                 </Heading>
                 <Text fontSize="lg" color="warmGray.600" lineHeight="1.7" fontWeight="500">
                   {feature.description}

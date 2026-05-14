@@ -125,7 +125,7 @@ export default function Post({ postData }) {
       "url": "https://poa.box",
       "logo": { "@type": "ImageObject", "url": "https://poa.box/images/poa_og.webp" },
     },
-    "mainEntityOfPage": { "@type": "WebPage", "@id": `https://poa.box/blog/${postData.id}` },
+    "mainEntityOfPage": { "@type": "WebPage", "@id": `https://poa.box/blog/${postData.id}/` },
   };
 
   const showSidebar = useBreakpointValue({ base: false, md: true });

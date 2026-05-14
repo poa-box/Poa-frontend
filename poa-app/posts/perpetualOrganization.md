@@ -36,6 +36,6 @@ The best part is that Perpetual Organizations are easily customizable. The commu
 
 ## Join the Movement!
 
-Perpetual Organizations represent a fresh and exciting way to come together. They are democratic, inclusive, and resilient—built on the belief that we achieve more when we work as one. With participation-based ownership, your contributions truly matter—you gain more influence and share in the success, creating even more incentive to contribute.
+Perpetual Organizations represent a fresh way to come together. They are democratic, inclusive, and resilient. Built on the belief that we achieve more when we work as one. With participation-based ownership, your contributions truly matter. You gain more influence and share in the success, which creates even more incentive to contribute.
 
 If you're passionate about making a difference and believe in the power of collective effort, consider becoming part of a Perpetual Organization today.

@@ -198,7 +198,7 @@ Path alias: `@/*` resolves to `poa-app/src/*` (`poa-app/jsconfig.json`). Use it.
 
 Yes, please. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, conventions, and PR process. For protocol-level discussions, ABI changes, or larger refactors, hop into [Discord](https://discord.gg/9SD6u4QjTt) before coding.
 
-If you ship something useful here, [join the Poa organization on-chain](https://www.poa.box/home/?org=Poa). You'll earn Participation Tokens and vote on the project that built the project. Poa runs on Poa.
+If you ship something useful here, [join the Poa organization on-chain](https://poa.box/home/?org=Poa). You'll earn Participation Tokens and vote on the project that built the project. Poa runs on Poa.
 
 ## License
 
