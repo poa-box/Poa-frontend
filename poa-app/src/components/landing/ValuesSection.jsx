@@ -147,16 +147,7 @@ const ValuesSection = () => {
                     lineHeight="1.8"
                     fontWeight="500"
                   >
-                    Organizations should serve the people who build them. Every contribution earns real ownership: more influence, and more upside. The value a community creates stays with the people who created it.
-                  </Text>
-                  <Text
-                    fontSize={["md", "lg"]}
-                    color="warmGray.500"
-                    maxW="540px"
-                    lineHeight="1.7"
-                    fontWeight="500"
-                  >
-                    Poa&apos;s contribution-weighted governance turns members into real owners. They write the rules. They vote on the rules. They hold the shared treasury that funds the rules. No one can override the community.
+                    Organizations should serve the people who build them. Every contribution earns real ownership: more influence and more upside. The value your community creates stays with the people who created it.
                   </Text>
                   <Link href="/about" style={{ textDecoration: "none" }}>
                     <Text

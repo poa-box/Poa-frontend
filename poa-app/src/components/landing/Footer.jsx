@@ -48,16 +48,13 @@ const Footer = () => (
         {/* Brand */}
         <VStack align={["center", "flex-start"]} spacing={3}>
           <HStack spacing={2}>
-            <Image src="/images/poa_logo.webp" alt="Poa logo. Community-owned organization builder." h="28px" />
+            <Image src="/images/poa_logo.webp" alt="Poa" h="28px" />
             <Text fontWeight="700" fontSize="lg" color="white">
               Poa
             </Text>
-            <Text fontSize="xs" color="warmGray.500" alignSelf="flex-end" pb={1}>
-              poa.box
-            </Text>
           </HStack>
-          <Text fontSize="sm" color="warmGray.400" maxW="240px" textAlign={["center", "left"]}>
-            Poa (poa.box) is a no-code platform for community-owned organizations. Worker-owned. Member-governed. Economic democracy in software.
+          <Text fontSize="sm" color="warmGray.400" maxW="220px" textAlign={["center", "left"]}>
+            Community-owned organization builder. Create democratic, worker-owned organizations with no code.
           </Text>
         </VStack>
 

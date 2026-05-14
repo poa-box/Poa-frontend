@@ -47,7 +47,7 @@ const WhatIsPoa = () => {
                 letterSpacing="-0.01em"
                 mb={[4, 5]}
               >
-                From idea to organization in minutes.
+                From idea to organization in minutes
               </Heading>
               <Text
                 fontSize={["xl", "2xl"]}
@@ -55,7 +55,7 @@ const WhatIsPoa = () => {
                 lineHeight="1.8"
                 fontWeight="500"
               >
-                Everything your community needs to get started, or to take what you&apos;ve already built to the next level. Pick how your group makes decisions: one member one vote, voting weighted by contribution, or a blend of both. Set up the roles you want. Launch. Poa handles the voting, the treasury, the task list, and the permissions, so your community can focus on what it actually came together to do.
+                Choose a governance model, deploy your organization, and start making decisions together. No code required. Poa handles voting, treasury, roles, and project management so your community can focus on what matters.
               </Text>
               <Link href="/create" style={{ textDecoration: "none" }}>
                 <Text

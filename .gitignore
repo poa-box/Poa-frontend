@@ -6,3 +6,6 @@ subgraph-pop/
 .playwright-mcp/
 /*.gif
 /poa-app/*.gif
+
+# Claude Code session state (per-workspace, not for source control)
+.claude/

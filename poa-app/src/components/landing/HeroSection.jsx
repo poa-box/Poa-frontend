@@ -125,13 +125,15 @@ const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen 
           <Text
             fontSize={["xl", "xl", "1.375rem"]}
             color="warmGray.700"
-            maxW="640px"
+            maxW="540px"
             mx="auto"
             mb={[10, 12]}
             lineHeight="1.7"
             fontWeight="500"
           >
-            Poa is a no-code platform for community-owned organizations. Student clubs. Worker cooperatives. Open-source collectives. The people who run an organization also own it, vote on it, and hold its treasury. Governance power is earned by contributing, not bought with capital. We call this economic democracy.
+            One platform to manage projects, track participation, and handle finances.
+            <br />
+            Governed entirely by your community.
           </Text>
         </MotionBox>
 
