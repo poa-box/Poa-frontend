@@ -13,7 +13,7 @@ import {
 import PulseLoader from "@/components/shared/PulseLoader";
 import { useRouter } from 'next/router';
 import { useQuery } from '@apollo/client';
-import { getClient } from '@/util/apolloClient';
+import { getClient, useSubgraphClient } from '@/util/apolloClient';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useOrgName } from '@/hooks/useOrgName';
@@ -89,15 +89,14 @@ const TreasuryPage = () => {
   // Responsive design
   const sectionHeadingSize = useBreakpointValue({ base: 'lg', md: 'xl' });
 
-  // Stable Apollo context reference — prevents queries from re-executing due to new object identity
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+  const client = useSubgraphClient(subgraphUrl);
 
   // Fetch treasury data from subgraph
   const { data: treasuryData, loading: treasuryLoading, refetch } = useQuery(FETCH_TREASURY_DATA, {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: apolloContext,
+    client,
   });
 
   // Fetch gas pool data
@@ -105,7 +104,7 @@ const TreasuryPage = () => {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: apolloContext,
+    client,
   });
 
   // Fetch paymaster hub address from infrastructure.

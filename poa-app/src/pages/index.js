@@ -16,17 +16,17 @@ const SignupModal = dynamic(() => import("@/components/account/SignupModal"), { 
 const SolidarityOnboardingModal = dynamic(() => import("@/components/passkey/SolidarityOnboardingModal"), { ssr: false });
 const SignInModal = dynamic(() => import("@/components/passkey/SignInModal"), { ssr: false });
 
-// Landing page — above fold (static imports)
+// Landing page sections — all part of the single scrollable page, so bundling
+// them into the page chunk is cheaper than seven separate HTTP requests with
+// duplicated Chakra/framer-motion imports.
 import Navbar from "@/components/landing/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
-
-// Landing page — below fold (code-split)
-const ValuesSection = dynamic(() => import("@/components/landing/ValuesSection"));
-const WhatIsPoa = dynamic(() => import("@/components/landing/WhatIsPoa"));
-const UseCaseShowcase = dynamic(() => import("@/components/landing/UseCaseShowcase"));
-const FeatureCards = dynamic(() => import("@/components/landing/FeatureCards"));
-const ClosingCTA = dynamic(() => import("@/components/landing/ClosingCTA"));
-const Footer = dynamic(() => import("@/components/landing/Footer"));
+import ValuesSection from "@/components/landing/ValuesSection";
+import WhatIsPoa from "@/components/landing/WhatIsPoa";
+import UseCaseShowcase from "@/components/landing/UseCaseShowcase";
+import FeatureCards from "@/components/landing/FeatureCards";
+import ClosingCTA from "@/components/landing/ClosingCTA";
+import Footer from "@/components/landing/Footer";
 
 export default function Home() {
   const router = useRouter();
@@ -205,19 +205,26 @@ export default function Home() {
         <Footer />
       </Box>
 
-      {/* Auth Modals */}
-      <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
-      <SolidarityOnboardingModal
-        isOpen={isOnboardingOpen}
-        onClose={onOnboardingClose}
-        onSuccess={() => router.push('/account')}
-      />
-      <SignInModal
-        isOpen={isSignInOpen}
-        onClose={onSignInClose}
-        onSuccess={() => router.push('/account')}
-        onCreateAccount={onOnboardingOpen}
-      />
+      {/* Auth Modals — mount only after first open so dynamic() chunks
+          stay deferred for visitors who never click sign-in. */}
+      {isSignupOpen && (
+        <SignupModal isOpen onClose={() => setIsSignupOpen(false)} />
+      )}
+      {isOnboardingOpen && (
+        <SolidarityOnboardingModal
+          isOpen
+          onClose={onOnboardingClose}
+          onSuccess={() => router.push('/account')}
+        />
+      )}
+      {isSignInOpen && (
+        <SignInModal
+          isOpen
+          onClose={onSignInClose}
+          onSuccess={() => router.push('/account')}
+          onCreateAccount={onOnboardingOpen}
+        />
+      )}
     </>
   );
 }

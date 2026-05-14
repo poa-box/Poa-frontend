@@ -1,8 +1,8 @@
 // apolloClient.js
-import { ApolloClient, InMemoryCache } from '@apollo/client';
+import { useMemo } from 'react';
+import { ApolloClient, InMemoryCache, from } from '@apollo/client';
 import { HttpLink } from '@apollo/client/link/http';
 import { RetryLink } from '@apollo/client/link/retry';
-import { from } from '@apollo/client';
 import { DEFAULT_SUBGRAPH_URL } from '../config/networks';
 
 // Increment this when subgraph schema changes significantly to clear stale cache
@@ -37,29 +37,16 @@ function createLink(endpoint) {
 }
 
 /**
- * Default client for the home chain (Arbitrum).
- * Used by ApolloProvider and queries that don't specify a client override.
- * Also used for org-scoped queries via context: { subgraphUrl }.
+ * Default client for the home chain (Arbitrum). Pinned to DEFAULT_SUBGRAPH_URL —
+ * org-scoped queries must use useSubgraphClient(subgraphUrl) instead of the
+ * old `context: { subgraphUrl }` plumbing, so each chain gets its own
+ * InMemoryCache and cross-chain pollution is impossible.
  */
 const defaultClient = new ApolloClient({
-  link: from([
-    retryLink,
-    new HttpLink({
-      uri: (operation) => operation.getContext().subgraphUrl || DEFAULT_SUBGRAPH_URL,
-    }),
-  ]),
+  link: createLink(DEFAULT_SUBGRAPH_URL),
   cache: new InMemoryCache(),
 });
 
-/**
- * Per-endpoint client cache.
- * Each subgraph endpoint gets its own ApolloClient with a separate InMemoryCache.
- * This prevents cache poisoning: the same query against Arbitrum and Gnosis
- * won't share cache entries because they use different client instances.
- *
- * Use getClient(subgraphUrl) for cross-chain queries instead of
- * context: { subgraphUrl } + fetchPolicy: 'no-cache'.
- */
 const clientCache = new Map();
 
 /**
@@ -81,6 +68,16 @@ export function getClient(subgraphUrl) {
     }));
   }
   return clientCache.get(subgraphUrl);
+}
+
+/**
+ * Memoized hook variant of getClient() for use with `useQuery({ client })`.
+ * Prefer this over `context: { subgraphUrl }` against the shared client —
+ * each chain gets its own InMemoryCache, eliminating cross-chain cache
+ * poisoning risk for any entity whose id isn't chain-scoped.
+ */
+export function useSubgraphClient(subgraphUrl) {
+  return useMemo(() => getClient(subgraphUrl), [subgraphUrl]);
 }
 
 // Clear stale cache when version changes (client-side only)

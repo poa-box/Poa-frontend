@@ -6,7 +6,7 @@
 
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
 import { useQuery } from '@apollo/client';
-import { getClient } from '@/util/apolloClient';
+import { getClient, useSubgraphClient } from '@/util/apolloClient';
 import { encodeFunctionData } from 'viem';
 import { useEthersSigner, useEthersProvider } from '@/components/ProviderConverter';
 import { useWalletClient } from 'wagmi';
@@ -87,12 +87,10 @@ export function useWeb3Services(options = {}) {
   const userContext = useUserContext();
   const hatIds = userContext?.userData?.hatIds || null;
 
-  // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache,
-  // so infrastructure addresses from one chain can't leak into another chain's queries.
-  const orgClient = useMemo(() => getClient(subgraphUrl), [subgraphUrl]);
-  // Context routing for org-scoped queries that use the default client (safe from
-  // cache poisoning because they have org-specific variables like orgId).
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+  // Per-chain client prevents cache poisoning: each endpoint has its own
+  // InMemoryCache, so infrastructure addresses from one chain can't leak into
+  // another chain's queries.
+  const orgClient = useSubgraphClient(subgraphUrl);
 
   // Fetch infrastructure addresses from subgraph — routed to org's chain.
   // Skip until subgraphUrl is resolved by POContext to avoid querying the default
@@ -191,7 +189,7 @@ export function useWeb3Services(options = {}) {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: apolloContext,
+    client: orgClient,
   });
   const orgPaymaster = pmConfig?.paymasterOrgConfigs?.[0];
   // Entity existence = registered. Only pass paymaster address when not paused.

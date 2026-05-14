@@ -6,6 +6,7 @@ import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { getTokenByAddress } from '../util/tokens';
 import { useUserActive } from '../hooks/useUserActive';
+import { useSubgraphClient } from '../util/apolloClient';
 
 const ProjectContext = createContext();
 
@@ -24,7 +25,7 @@ export const ProjectProvider = ({ children }) => {
     const [nextTaskId, setNextTaskId] = useState(0);
     const { orgId, subgraphUrl } = usePOContext();
 
-    const apolloContext = React.useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+    const client = useSubgraphClient(subgraphUrl);
     const isActive = useUserActive();
 
     // pollInterval keeps task data fresh. cache-and-network shows cached data instantly.
@@ -35,7 +36,7 @@ export const ProjectProvider = ({ children }) => {
         skip: !orgId,
         fetchPolicy: 'cache-and-network',
         pollInterval: isActive ? 40000 : 0,
-        context: apolloContext,
+        client,
     });
 
     // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference

@@ -8,6 +8,7 @@ import { usePOContext } from './POContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { useRefresh } from './RefreshContext';
 import { findUsernameAcrossChains } from '../util/crossChainUsername';
+import { useSubgraphClient } from '../util/apolloClient';
 
 const UserContext = createContext();
 
@@ -46,7 +47,7 @@ export const UserProvider = ({ children }) => {
 
     // Construct the org-specific user ID
     const orgUserID = orgId && account ? `${orgId}-${account}` : null;
-    const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+    const client = useSubgraphClient(subgraphUrl);
 
     const { data, error, loading, refetch } = useQuery(FETCH_USER_DATA_NEW, {
         variables: {
@@ -55,7 +56,7 @@ export const UserProvider = ({ children }) => {
         },
         skip: !orgUserID || !account,
         fetchPolicy: 'cache-first',
-        context: apolloContext,
+        client,
     });
 
     // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
@@ -67,7 +68,7 @@ export const UserProvider = ({ children }) => {
         variables: { tokenAddress: participationTokenAddress },
         skip: !participationTokenAddress,
         fetchPolicy: 'cache-first',
-        context: apolloContext,
+        client,
     });
 
     // Derive role booleans from query data (replaces separate useState + useEffect pattern).

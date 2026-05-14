@@ -14,6 +14,12 @@ import { motion } from "framer-motion";
 const MotionBox = chakra(motion.div);
 
 /* Concentric community rings — layers of governance and membership */
+// Round computed SVG coordinates to 2 decimals to keep server and client
+// renders byte-identical — Math.cos/sin can return values that differ at the
+// last LSB across environments, causing React hydration warnings on every
+// computed `cx`/`cy`.
+const r2 = (n) => Math.round(n * 100) / 100;
+
 const CommunityGraphic = () => (
   <svg viewBox="0 0 360 360" width="100%" height="100%" style={{ maxWidth: 360 }}>
     <defs>
@@ -44,29 +50,29 @@ const CommunityGraphic = () => (
     {/* People dots on outer ring */}
     {[0, 45, 90, 135, 180, 225, 270, 315].map((angle) => {
       const r = 155;
-      const x = 180 + r * Math.cos((angle * Math.PI) / 180);
-      const y = 180 + r * Math.sin((angle * Math.PI) / 180);
+      const x = r2(180 + r * Math.cos((angle * Math.PI) / 180));
+      const y = r2(180 + r * Math.sin((angle * Math.PI) / 180));
       return <circle key={`o-${angle}`} cx={x} cy={y} r="4" fill="#9055E8" opacity="0.4" />;
     })}
     {/* People dots on middle ring */}
     {[20, 80, 140, 200, 260, 320].map((angle) => {
       const r = 115;
-      const x = 180 + r * Math.cos((angle * Math.PI) / 180);
-      const y = 180 + r * Math.sin((angle * Math.PI) / 180);
+      const x = r2(180 + r * Math.cos((angle * Math.PI) / 180));
+      const y = r2(180 + r * Math.sin((angle * Math.PI) / 180));
       return <circle key={`m-${angle}`} cx={x} cy={y} r="5" fill="#E85D85" opacity="0.35" />;
     })}
     {/* People dots on inner ring */}
     {[0, 72, 144, 216, 288].map((angle) => {
       const r = 75;
-      const x = 180 + r * Math.cos((angle * Math.PI) / 180);
-      const y = 180 + r * Math.sin((angle * Math.PI) / 180);
+      const x = r2(180 + r * Math.cos((angle * Math.PI) / 180));
+      const y = r2(180 + r * Math.sin((angle * Math.PI) / 180));
       return <circle key={`i-${angle}`} cx={x} cy={y} r="6" fill="url(#valDotGrad)" opacity="0.45" />;
     })}
     {/* Connecting lines from inner dots to core */}
     {[0, 72, 144, 216, 288].map((angle) => {
       const r1 = 75;
-      const x1 = 180 + r1 * Math.cos((angle * Math.PI) / 180);
-      const y1 = 180 + r1 * Math.sin((angle * Math.PI) / 180);
+      const x1 = r2(180 + r1 * Math.cos((angle * Math.PI) / 180));
+      const y1 = r2(180 + r1 * Math.sin((angle * Math.PI) / 180));
       return (
         <line
           key={`l-${angle}`}
@@ -84,10 +90,10 @@ const CommunityGraphic = () => (
     {[20, 80, 140, 200, 260, 320].map((angle, i, arr) => {
       const r = 115;
       const nextAngle = arr[(i + 1) % arr.length];
-      const x1 = 180 + r * Math.cos((angle * Math.PI) / 180);
-      const y1 = 180 + r * Math.sin((angle * Math.PI) / 180);
-      const x2 = 180 + r * Math.cos((nextAngle * Math.PI) / 180);
-      const y2 = 180 + r * Math.sin((nextAngle * Math.PI) / 180);
+      const x1 = r2(180 + r * Math.cos((angle * Math.PI) / 180));
+      const y1 = r2(180 + r * Math.sin((angle * Math.PI) / 180));
+      const x2 = r2(180 + r * Math.cos((nextAngle * Math.PI) / 180));
+      const y2 = r2(180 + r * Math.sin((nextAngle * Math.PI) / 180));
       return (
         <line
           key={`c-${angle}`}

@@ -9,11 +9,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useAccount } from 'wagmi';
+import { gql } from '@apollo/client';
 import { useRefresh } from '@/context/RefreshContext';
 import { useAuth } from '@/context/AuthContext';
 import { getAllSubgraphUrls } from '@/config/networks';
+import { getClient } from '@/util/apolloClient';
 
-const ACCOUNT_QUERY = `
+const ACCOUNT_QUERY = gql`
   query FetchAccount($id: Bytes!) {
     account(id: $id) {
       id
@@ -78,13 +80,12 @@ export function useGlobalAccount() {
     try {
       const results = await Promise.allSettled(
         sources.map(async (source) => {
-          const res = await fetch(source.url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: ACCOUNT_QUERY, variables: { id } }),
+          const { data } = await getClient(source.url).query({
+            query: ACCOUNT_QUERY,
+            variables: { id },
+            fetchPolicy: 'cache-first',
           });
-          const json = await res.json();
-          return json?.data?.account || null;
+          return data?.account || null;
         })
       );
 
