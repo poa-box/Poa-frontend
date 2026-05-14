@@ -3,10 +3,10 @@
  * Query paymaster org configuration from the subgraph.
  */
 
-import { useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { usePOContext } from '../context/POContext';
 import { FETCH_PAYMASTER_ORG_CONFIG } from '../util/passkeyQueries';
+import { useSubgraphClient } from '../util/apolloClient';
 
 /**
  * Hook to get paymaster configuration for the current org.
@@ -15,14 +15,13 @@ import { FETCH_PAYMASTER_ORG_CONFIG } from '../util/passkeyQueries';
  */
 export function usePaymasterInfo() {
   const { orgId, subgraphUrl } = usePOContext();
-
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+  const client = useSubgraphClient(subgraphUrl);
 
   const { data, loading, error } = useQuery(FETCH_PAYMASTER_ORG_CONFIG, {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: apolloContext,
+    client,
   });
 
   const config = data?.paymasterOrgConfigs?.[0] || null;

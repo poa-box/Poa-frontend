@@ -13,6 +13,7 @@ import { useIPFScontext } from '@/context/ipfsContext';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { FETCH_DISTRIBUTION_PROPOSALS } from '@/util/queries';
 import { getClaimData } from '@/util/merkleDistribution';
+import { useSubgraphClient } from '@/util/apolloClient';
 import DistributionCard from './DistributionCard';
 
 /**
@@ -71,14 +72,14 @@ const CurrentDistributions = ({
   const { accountAddress } = useAuth();
   const { safeFetchFromIpfs } = useIPFScontext();
 
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+  const client = useSubgraphClient(subgraphUrl);
 
   // Fetch executed proposals to find merkle tree CIDs
   const { data: proposalData } = useQuery(FETCH_DISTRIBUTION_PROPOSALS, {
     variables: { hybridVotingId: hybridVotingId?.toLowerCase() },
     skip: !hybridVotingId || distributions.length === 0,
     fetchPolicy: 'no-cache',
-    context: apolloContext,
+    client,
   });
 
   const proposals = proposalData?.proposals || [];

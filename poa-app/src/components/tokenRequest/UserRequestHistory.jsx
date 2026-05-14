@@ -21,6 +21,7 @@ import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
 import { useAccount } from 'wagmi';
 import { FETCH_USER_TOKEN_REQUESTS } from '@/util/queries';
+import { useSubgraphClient } from '@/util/apolloClient';
 import { useWeb3 } from '@/hooks/useWeb3Services';
 import { usePOContext } from '@/context/POContext';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
@@ -48,7 +49,7 @@ const UserRequestHistory = () => {
 
   const [cancellingId, setCancellingId] = useState(null);
 
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+  const client = useSubgraphClient(subgraphUrl);
 
   // Query user's requests
   const { data, loading, error, refetch } = useQuery(FETCH_USER_TOKEN_REQUESTS, {
@@ -58,7 +59,7 @@ const UserRequestHistory = () => {
     },
     skip: !participationTokenAddress || !address,
     fetchPolicy: 'cache-first',
-    context: apolloContext,
+    client,
   });
 
   // Refetch immediately — executeWithNotification already waited for the

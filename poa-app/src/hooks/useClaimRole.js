@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useIPFScontext } from '../context/ipfsContext';
 import { usePOContext } from '../context/POContext';
 import { FETCH_USER_ROLE_APPLICATIONS } from '../util/queries';
+import { useSubgraphClient } from '../util/apolloClient';
 
 /**
  * Hook for claiming roles and managing vouches
@@ -23,7 +24,7 @@ export function useClaimRole(eligibilityModuleAddress) {
   const { addToIpfs, ipfsCidToBytes32 } = useIPFScontext();
   const { subgraphUrl } = usePOContext();
 
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+  const client = useSubgraphClient(subgraphUrl);
 
   const [claimingHatId, setClaimingHatId] = useState(null);
   const [vouchingFor, setVouchingFor] = useState(null);
@@ -40,7 +41,7 @@ export function useClaimRole(eligibilityModuleAddress) {
       },
       skip: !eligibilityModuleAddress || !userAddress,
       fetchPolicy: 'cache-first',
-      context: apolloContext,
+      client,
     }
   );
 
