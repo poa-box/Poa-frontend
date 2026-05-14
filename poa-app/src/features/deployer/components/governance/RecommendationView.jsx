@@ -34,27 +34,53 @@ import {
   PiArrowRight,
 } from 'react-icons/pi';
 import { getRecommendationExplanations } from '../../utils/recommendationExplanations';
+import { getTemplateDefaults } from '../../templates';
 
 /**
- * Merge variation settings with template defaults to get final config
+ * Merge variation settings with template defaults to get final config.
+ *
+ * Sources from the runtime template (templateDefinitions.js) rather than the
+ * rich template (definitions/*). The two used to diverge (e.g. rich showed
+ * "Worker-Owner / Coordinator" while the wizard actually loaded
+ * "Worker / Steward"), so the recommendation summary was making promises the
+ * downstream steps did not keep. Reading from getTemplateDefaults guarantees
+ * what the user sees here is what they get on Step 3 and Step 4.
  */
 function getMergedConfig(template, variation) {
-  const defaults = template?.defaults || {};
+  // Rich template, used only for display copy that lives there
+  const richDefaults = template?.defaults || {};
+  // Runtime template, the actual source of truth for roles/voting/features
+  const runtimeDefaults = template?.id ? (getTemplateDefaults(template.id) || {}) : {};
   const settings = variation?.settings || {};
+
+  const runtimeVoting = runtimeDefaults.voting || {};
+  const richVoting = richDefaults.voting || {};
 
   return {
     voting: {
-      democracyWeight: settings.democracyWeight ?? defaults.voting?.democracyWeight ?? 50,
-      participationWeight: settings.participationWeight ?? defaults.voting?.participationWeight ?? 50,
-      quorum: settings.quorum ?? 30,
+      democracyWeight:
+        settings.democracyWeight ??
+        runtimeVoting.democracyWeight ??
+        richVoting.democracyWeight ??
+        50,
+      participationWeight:
+        settings.participationWeight ??
+        runtimeVoting.participationWeight ??
+        richVoting.participationWeight ??
+        50,
+      quorum:
+        settings.quorum ??
+        runtimeVoting.hybridQuorum ??
+        runtimeVoting.ddQuorum ??
+        30,
     },
-    roles: defaults.roles || [],
+    roles: runtimeDefaults.roles || richDefaults.roles || [],
     permissions: {
-      ...defaults.permissions,
+      ...(runtimeDefaults.permissions || richDefaults.permissions),
       ...(settings.permissions || {}),
     },
     features: {
-      ...defaults.features,
+      ...(runtimeDefaults.features || richDefaults.features),
       ...(settings.features || {}),
     },
   };

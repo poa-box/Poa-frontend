@@ -1392,7 +1392,7 @@ export function ReviewStep({
                 <Text fontSize="sm" fontWeight="500">
                   {state.paymaster.operatorRoleIndex !== null
                     ? (state.roles[state.paymaster.operatorRoleIndex]?.name || 'Unknown')
-                    : 'None (top hat only)'}
+                    : 'Only the root admin can manage'}
                 </Text>
               </HStack>
               {state.paymaster.fundingAmountEth && parseFloat(state.paymaster.fundingAmountEth) > 0 && (

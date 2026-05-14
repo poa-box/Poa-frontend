@@ -155,7 +155,7 @@ export function PaymasterConfigSection() {
               size="sm"
               borderRadius="md"
             >
-              <option value="">None (top hat only)</option>
+              <option value="">Only the root admin can manage</option>
               {roles.map((role, idx) => (
                 <option key={idx} value={idx}>
                   {role.name}

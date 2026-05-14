@@ -8,9 +8,10 @@
  * instead of RoleCardSimple, granular permissions in GovernanceStep)
  */
 
-import React, { useState, useMemo, useCallback, startTransition } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, startTransition } from 'react';
 import {
   Box,
+  Button,
   Container,
   VStack,
   HStack,
@@ -18,11 +19,14 @@ import {
   Text,
   Icon,
   useColorModeValue,
+  useDisclosure,
   useToast,
   Flex,
   keyframes,
 } from '@chakra-ui/react';
-import { PiCheck, PiWarningCircle } from 'react-icons/pi';
+import { PiCheck, PiWarningCircle, PiUserCircle } from 'react-icons/pi';
+import SignInModal from '../../../components/passkey/SignInModal';
+import PasskeyOnboardingModal from '../../../components/passkey/PasskeyOnboardingModal';
 import { useQuery } from '@apollo/client';
 import { getClient } from '@/util/apolloClient';
 import { useDeployer, STEPS, STEP_NAMES } from '../context/DeployerContext';
@@ -53,7 +57,7 @@ const pulseAnimation = keyframes`
 // Minimal Progress Indicator Component
 // Memoized so wizard re-renders (state changes from heavy step components)
 // don't redraw the indicator and re-run validation selectors.
-const StepProgressIndicator = React.memo(function StepProgressIndicator({ steps, currentStep, onStepClick, selectors }) {
+const StepProgressIndicator = React.memo(function StepProgressIndicator({ steps, currentStep, maxStepReached, onStepClick, selectors }) {
   const activeBg = useColorModeValue('amethyst.500', 'amethyst.400');
   const completedValidBg = useColorModeValue('green.500', 'green.400');
   const completedInvalidBg = useColorModeValue('orange.500', 'orange.400');
@@ -92,16 +96,22 @@ const StepProgressIndicator = React.memo(function StepProgressIndicator({ steps,
       {/* Step indicators */}
       <HStack justify="space-between" position="relative" zIndex={2}>
         {steps.map((step, index) => {
-          const isCompleted = index < currentStep;
+          // A step is "completed" if it sits before the furthest point the user
+          // has reached. Using maxStepReached (rather than currentStep) keeps the
+          // checkmark visible after the user navigates backward, so progress
+          // earned remains visible.
+          const reached = typeof maxStepReached === 'number' ? maxStepReached : currentStep;
+          const isCompleted = index < currentStep || (index <= reached && index !== currentStep);
           const isActive = index === currentStep;
-          const isFuture = index > currentStep;
 
           // Check validation status for visited steps
           const validation = selectors?.getStepValidationStatus(index) || { isValid: true };
           const isVisitedButIncomplete = isCompleted && !validation.isValid;
 
-          // Allow clicking any step except the current one
-          const isClickable = !isActive;
+          // Only allow clicking on steps the user has already reached. Future
+          // unvisited steps render with a default cursor so the affordance
+          // matches reality (no link styling on something inert).
+          const isClickable = !isActive && index <= reached;
 
           const handleClick = () => {
             if (isClickable && onStepClick) {
@@ -231,6 +241,67 @@ const STEP_CONFIG = [
   },
 ];
 
+// Account gate notice shown on configuration steps when the user has not yet
+// signed in. Sets expectations early instead of springing the requirement at
+// deploy time. The user can keep configuring; the banner just makes the deal
+// honest from the first screen.
+function AccountGateNotice({ onSignIn, onCreate }) {
+  const bg = useColorModeValue('amethyst.50', 'rgba(144, 85, 232, 0.08)');
+  const borderColor = useColorModeValue('amethyst.200', 'amethyst.700');
+  const textColor = useColorModeValue('warmGray.800', 'warmGray.100');
+  const subColor = useColorModeValue('warmGray.600', 'warmGray.400');
+
+  return (
+    <Box
+      bg={bg}
+      borderRadius="xl"
+      p={{ base: 4, md: 5 }}
+      border="1px solid"
+      borderColor={borderColor}
+    >
+      <Flex
+        direction={{ base: 'column', md: 'row' }}
+        align={{ base: 'flex-start', md: 'center' }}
+        gap={4}
+      >
+        <HStack align="flex-start" spacing={3} flex={1}>
+          <Icon as={PiUserCircle} boxSize={6} color="amethyst.500" mt={1} />
+          <Box>
+            <Text fontWeight="600" fontSize="sm" color={textColor} mb={1}>
+              You'll sign in or create an account before deploy
+            </Text>
+            <Text fontSize="sm" color={subColor} lineHeight="tall">
+              Your organization belongs to you and your members. Setting up a free
+              account on Arbitrum takes about a minute and only happens once. Keep
+              configuring below; we'll prompt you when you're ready to launch.
+            </Text>
+          </Box>
+        </HStack>
+        <HStack spacing={2} flexShrink={0}>
+          <Button
+            size="sm"
+            variant="ghost"
+            color="warmGray.700"
+            _hover={{ color: 'warmGray.900', bg: 'amethyst.100' }}
+            onClick={onSignIn}
+          >
+            Sign in
+          </Button>
+          <Button
+            size="sm"
+            bg="amethyst.500"
+            color="white"
+            _hover={{ bg: 'amethyst.600' }}
+            onClick={onCreate}
+          >
+            Create account
+          </Button>
+        </HStack>
+      </Flex>
+    </Box>
+  );
+}
+
 export function DeployerWizard({
   onDeployStart,
   onDeploySuccess,
@@ -242,6 +313,21 @@ export function DeployerWizard({
   const [deploymentStatus, setDeploymentStatus] = useState('idle');
   const [deploymentResult, setDeploymentResult] = useState(null);
   const toast = useToast();
+
+  // Auth modals lifted to the wizard so the account gate can surface upfront
+  // (instead of only at the final review screen).
+  const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
+  const { isOpen: isCreateOpen, onOpen: onCreateOpen, onClose: onCreateClose } = useDisclosure();
+  const isWalletConnected = !!deployerAddress;
+  const showAccountGate = !isWalletConnected && state.currentStep < STEPS.LAUNCH;
+
+  // Track the furthest step the user has reached so completion checkmarks
+  // persist when they navigate backward. Without this, returning to Step 1
+  // would erase the visual trail of every step the user already finished.
+  const [maxStepReached, setMaxStepReached] = useState(state.currentStep);
+  useEffect(() => {
+    setMaxStepReached((prev) => Math.max(prev, state.currentStep));
+  }, [state.currentStep]);
 
   // Backwards compatibility - isDeploying derived from status
   const isDeploying = deploymentStatus === 'deploying';
@@ -440,6 +526,14 @@ export function DeployerWizard({
             {state.currentStep > STEPS.TEMPLATE && <ModeToggle />}
           </Flex>
 
+          {/* Account gate notice — surfaces auth requirement upfront */}
+          {showAccountGate && (
+            <AccountGateNotice
+              onSignIn={onSignInOpen}
+              onCreate={onCreateOpen}
+            />
+          )}
+
           {/* Minimal Step Progress Indicator */}
           <Box
             bg={cardBg}
@@ -453,6 +547,7 @@ export function DeployerWizard({
             <StepProgressIndicator
               steps={STEP_CONFIG}
               currentStep={state.currentStep}
+              maxStepReached={maxStepReached}
               onStepClick={handleStepClick}
               selectors={selectors}
             />
@@ -473,7 +568,7 @@ export function DeployerWizard({
               <ReviewStep
                 onDeploy={handleDeploy}
                 isDeploying={isDeploying}
-                isWalletConnected={!!deployerAddress}
+                isWalletConnected={isWalletConnected}
                 deploymentStatus={deploymentStatus}
                 onDeploySuccess={handleCelebrationContinue}
               />
@@ -482,6 +577,18 @@ export function DeployerWizard({
             )}
           </Box>        </VStack>
       </Container>
+
+      {/* Auth modals shared between the upfront account gate and ReviewStep */}
+      <PasskeyOnboardingModal
+        isOpen={isCreateOpen}
+        onClose={onCreateClose}
+        showWalletOption
+      />
+      <SignInModal
+        isOpen={isSignInOpen}
+        onClose={onSignInClose}
+        onCreateAccount={onCreateOpen}
+      />
     </Box>
   );
 }

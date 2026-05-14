@@ -274,21 +274,21 @@ function PowerBadges({ roleIndex, permissions, onToggle }) {
   const bundles = [
     {
       key: 'admin',
-      label: 'Admin',
+      label: 'Configure the role',
       icon: PiShieldCheck,
       color: 'purple',
       desc: 'Can approve rewards for work, create tasks and bounties, set up learning content, and run polls',
     },
     {
       key: 'member',
-      label: 'Member',
+      label: 'Vote and join',
       icon: PiUsers,
       color: 'blue',
       desc: 'Can join easily, earn and hold shares, access learning materials, and vote in polls',
     },
     {
       key: 'creator',
-      label: 'Creator',
+      label: 'Create tasks and proposals',
       icon: PiPencilSimple,
       color: 'green',
       desc: 'Can propose new ideas for the community to vote on',

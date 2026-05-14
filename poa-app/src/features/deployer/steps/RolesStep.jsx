@@ -208,7 +208,7 @@ export function RolesStep() {
           onNext={handleNext}
           nextDisabled={!validationResult.isValid || isValidating}
           isLoading={isValidating}
-          nextLabel={isValidating ? 'Validating...' : 'Continue to Permissions'}
+          nextLabel={isValidating ? 'Validating...' : 'Continue'}
         />
       </VStack>
     </Box>

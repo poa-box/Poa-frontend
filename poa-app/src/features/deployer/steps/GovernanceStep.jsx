@@ -449,7 +449,8 @@ function AdvancedGovernanceUI({ state, actions }) {
           <VStack align="start" spacing={0}>
             <Heading size="md">Voting Classes ({voting.classes.length})</Heading>
             <Text fontSize="sm" color="warmGray.500">
-              Define how votes are counted and weighted
+              A voting class is a group of voters whose ballots count together,
+              with a configurable share of the final outcome.
             </Text>
           </VStack>
           <Button
@@ -869,7 +870,7 @@ export function GovernanceStep() {
         <NavigationButtons
           onBack={handleBack}
           onNext={handleNext}
-          nextLabel="Settings"
+          nextLabel="Continue"
         />
       </VStack>
     </>
