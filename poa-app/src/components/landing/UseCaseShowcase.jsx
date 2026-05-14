@@ -170,9 +170,7 @@ const USE_CASES = [
     title: "Student Organizations",
     tagline: "Run by students. Owned by students.",
     description:
-      "Elect officers each year. Hold real votes in meetings. Let every member shape what the club does next. A Poa organization gives student clubs a membership roster that persists across school years, so when officers graduate, the club's history doesn't graduate with them. Use participation tokens to recognize the members who show up. Hand off the treasury and roles cleanly to the next cohort. Beats a shared Google Drive that grows stale and a private spreadsheet only the current treasurer can read.",
-    link: "/docs/perpetualOrganization",
-    linkLabel: "How perpetual organizations work →",
+      "Elect officers, plan meetups, organize projects, and give every member a real vote.",
     featured: false,
   },
   {
@@ -180,18 +178,14 @@ const USE_CASES = [
     title: "Worker Cooperatives",
     tagline: "Every worker is an owner.",
     description:
-      "Every worker is an owner, and every decision shows it. Poa handles transparent voting. Role-based access for committees and working groups. A shared treasury that distributes revenue by the rules the cooperative wrote down together. Hybrid voting lets you combine equal-vote democracy with contribution-weighted say on operational calls, so the people doing the work shape the work. The structure of a real business without the centralization of a boss.",
-    link: "/docs/hybridVoting",
-    linkLabel: "Read about hybrid voting →",
+      "Transparent decisions, share revenue, and governance that fits your cooperative.",
   },
   {
     icon: HiCode,
     title: "Open Source Projects",
     tagline: "Ship code. Earn influence.",
     description:
-      "Ship code, earn governance power. Poa weights influence by real contribution. Pull requests, reviews, documentation, anything the project counts as work. The people building the most shape what gets built next. Run grant rounds and roadmap votes from a shared treasury with every decision auditable by anyone. Use roles to separate maintainers, contributors, and stewards while keeping membership genuinely open. A transparent answer to the question every user eventually asks: who decides?",
-    link: "/docs/contributionVoting",
-    linkLabel: "How contribution-based voting works →",
+      "Governance weighted by contribution. The people who build the most shape what gets built next.",
   },
 ];
 
@@ -212,7 +206,7 @@ const UseCaseShowcase = () => {
               letterSpacing="-0.01em"
               mb={[3, 4]}
             >
-              Built for real communities. Student clubs. Worker co-ops. Open-source projects.
+              Made for how communities actually work
             </Heading>
             <Text
               fontSize={["xl", "2xl"]}
@@ -220,7 +214,7 @@ const UseCaseShowcase = () => {
               lineHeight="1.7"
               fontWeight="500"
             >
-              One platform. Three very different ways a community can govern itself. Each Poa organization picks its own voting rules, its own roles, and its own treasury policy. The community is sovereign over its own structure.
+              From campus clubs to worker cooperatives, Poa gives your community the tools to govern itself.
             </Text>
           </Box>
           <Box display={["none", "none", "block"]} flexShrink={0} mr={8}>
@@ -248,7 +242,7 @@ const UseCaseShowcase = () => {
                 transition={{ duration: 0.6, delay: index * 0.1 }}
                 h="100%"
               >
-                <Link href={useCase.link} style={{ textDecoration: "none" }}>
+                <Link href="/create" style={{ textDecoration: "none" }}>
                   <Box
                     p={[6, 7]}
                     borderRadius="xl"
@@ -291,22 +285,12 @@ const UseCaseShowcase = () => {
                         {useCase.tagline}
                       </Text>
                       <Text
-                        fontSize="md"
+                        fontSize="lg"
                         color="warmGray.600"
                         lineHeight="1.7"
                         fontWeight="500"
                       >
                         {useCase.description}
-                      </Text>
-                      <Text
-                        fontSize="sm"
-                        fontWeight="600"
-                        color="warmGray.500"
-                        _groupHover={{ color: "amethyst.500" }}
-                        transition="color 0.2s"
-                        mt={2}
-                      >
-                        {useCase.linkLabel}
                       </Text>
                     </VStack>
                   </Box>

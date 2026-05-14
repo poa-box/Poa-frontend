@@ -30,14 +30,14 @@ const ClosingCTA = () => {
               fontWeight="700"
               letterSpacing="-0.02em"
             >
-              Ready to start one of your own?
+              Ready to Build?
             </Heading>
             <Text
               fontSize={["lg", "xl"]}
               color="warmGray.600"
-              maxW="520px"
+              maxW="480px"
             >
-              Launch a community-owned organization on poa.box in minutes. Free, no code, and yours to govern.
+              Start your community-owned organization in minutes.
             </Text>
             <Link href="/create" style={{ textDecoration: "none" }}>
               <Button
