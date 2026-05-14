@@ -535,25 +535,31 @@ export function IdentityStep() {
 
     if (!isValid) {
       setValidationErrors(errors);
-      toast({
-        title: 'Step incomplete',
-        description: 'You can come back to finish this step later.',
-        status: 'info',
-        duration: 3000,
-        isClosable: true,
-      });
-      // Continue navigation even if validation fails
+      // Focus the first invalid field so the user sees what to fix
+      const firstField = Object.keys(errors)[0];
+      if (firstField) {
+        const el = document.querySelector(`[name="${firstField}"]`)
+          || document.querySelector(`[data-field="${firstField}"]`);
+        if (el && typeof el.focus === 'function') el.focus();
+      }
+      return;
     }
 
-    // Only attempt IPFS upload if we have required data
-    if (organization.name && organization.description) {
-      setIsUploading(true);
-      await uploadToIPFS();
-      setIsUploading(false);
-    }
+    setIsUploading(true);
+    const uploaded = await uploadToIPFS();
+    setIsUploading(false);
+    if (!uploaded) return;
 
     actions.nextStep();
   };
+
+  // Derive readiness so the Continue button reflects the form state in real time.
+  const isStepValid = !!(
+    organization.name &&
+    organization.name.trim() &&
+    organization.description &&
+    organization.description.trim().length >= 10
+  );
 
   const handleBack = () => {
     actions.prevStep();
@@ -596,6 +602,7 @@ export function IdentityStep() {
                     Name
                   </FormLabel>
                   <Input
+                    name="name"
                     size="lg"
                     placeholder="Sunrise Bakery Collective"
                     value={organization.name}
@@ -614,6 +621,7 @@ export function IdentityStep() {
                     About
                   </FormLabel>
                   <Textarea
+                    name="description"
                     placeholder="Tell people what you do and why this group exists..."
                     value={organization.description}
                     onChange={(e) => handleInputChange('description', e.target.value)}
@@ -749,6 +757,7 @@ export function IdentityStep() {
               onBack={handleBack}
               onNext={handleNext}
               isLoading={isUploading}
+              isNextDisabled={!isStepValid}
               nextLabel="Continue"
             />
           </VStack>

@@ -140,7 +140,7 @@ export function PermissionsStep() {
           onBack={handleBack}
           onNext={handleNext}
           isNextDisabled={!validationResult.isValid}
-          nextLabel="Continue to Voting"
+          nextLabel="Continue"
         />
       </VStack>
     </Box>

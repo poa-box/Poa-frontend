@@ -847,20 +847,21 @@ function DeployerPageContent() {
       />
 
       {/* Exit Confirmation Modal */}
-      <Modal isOpen={isExitModalOpen} onClose={handleExitCancel}>
+      <Modal isOpen={isExitModalOpen} onClose={handleExitCancel} initialFocusRef={undefined}>
         <ModalOverlay />
         <ModalContent>
-          <ModalHeader>Are you sure?</ModalHeader>
+          <ModalHeader>Leave without saving?</ModalHeader>
           <ModalCloseButton />
           <ModalBody>
-            All progress will be lost. Do you really want to stop creating your organization?
+            Your configuration will be discarded. The organization you've been
+            shaping won't be kept once you leave this screen.
           </ModalBody>
           <ModalFooter>
-            <Button colorScheme="red" mr={3} onClick={handleExitConfirm}>
-              Yes, Exit
+            <Button variant="ghost" mr={3} onClick={handleExitCancel} autoFocus>
+              Keep configuring
             </Button>
-            <Button variant="ghost" onClick={handleExitCancel}>
-              Cancel
+            <Button colorScheme="red" onClick={handleExitConfirm}>
+              Leave and discard
             </Button>
           </ModalFooter>
         </ModalContent>

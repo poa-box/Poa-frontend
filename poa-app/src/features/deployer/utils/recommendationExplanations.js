@@ -37,9 +37,9 @@ const explanations = {
   },
 
   'worker-coop': {
-    roles: 'Worker-Owners are the primary role — everyone is an equal owner. Coordinators handle day-to-day logistics but have no extra voting power.',
+    roles: 'Workers are the primary role, and everyone who works is an equal owner. Stewards handle day-to-day logistics but carry no extra voting power.',
     joining: 'Cooperative membership is intentional. New members join through the existing team rather than open signup.',
-    taskManagement: 'Both Worker-Owners and Coordinators can create and manage tasks — flat collaboration reflects cooperative principles.',
+    taskManagement: 'Both Workers and Stewards can create and manage tasks, reflecting flat, cooperative collaboration.',
     _variations: {
       default: {
         voting: 'Cooperatives prioritize democratic ownership — 80% democracy weight reflects the one-member-one-vote principle. 50% quorum ensures decisions have broad support.',
