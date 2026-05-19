@@ -34,6 +34,16 @@ virtual passkey at `~/.poa/e2e.env` (shared across every workspace) and prints
 two vouch URLs for a member to click. Once vouched, the agent can claim hats and
 exercise every member-tier flow.
 
+**Test6 is the sandbox org — fire real on-chain transactions there.** Both
+agent identities (burner EOA + passkey) are authorized on Test6 (Gnosis) for
+every permission-gated flow. When verifying a feature end-to-end (folder
+publish, project budget edit, task create, vote propose, etc.), don't stop at
+"the diff in memory matches expectations" — actually click Save / Submit /
+Publish and watch the tx land + the subgraph re-index. Test6 exists to be
+written to; using it is cheaper than asking the user to re-run a flow you
+declined to drive. Stop only for flows that affect mainnet orgs, multi-sig
+broadcasts, or anything that would burn real value.
+
 For browser-driven testing, use the Playwright MCP server (configured in
 `.mcp.json`). The `mcp__playwright__browser_*` tools (navigate, snapshot,
 console_messages, click, fill_form, etc.) drive the auto-connected E2E

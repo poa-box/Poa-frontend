@@ -52,7 +52,7 @@ import { useIPFScontext } from '@/context/ipfsContext';
 import { useWeb3 } from '@/hooks';
 import { usePOContext } from '@/context/POContext';
 import { useProjectContext } from '@/context/ProjectContext';
-import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
+import { ipfsCidToBytes32, parseProjectId } from '@/services/web3/utils/encoding';
 import { inputStyles } from '@/components/shared/glassStyles';
 
 import { validateFolderDoc, FOLDERS_SCHEMA_VERSION } from '@/lib/folders/schema';
@@ -92,7 +92,7 @@ const selectStyles = {
   },
 };
 
-function FolderRow({ folder, allFolders, projects, depth, onChange, onDelete }) {
+function FolderRow({ folder, allFolders, projectsByPid, depth, onChange, onDelete }) {
   const disallowed = useMemo(() => descendantsOf(allFolders, folder.id), [allFolders, folder.id]);
   const candidates = allFolders.filter((f) => !disallowed.has(f.id));
 
@@ -154,11 +154,12 @@ function FolderRow({ folder, allFolders, projects, depth, onChange, onDelete }) 
         </Tooltip>
       </HStack>
 
-      {/* Project assignments for this folder */}
+      {/* Project assignments for this folder — folder.projectIds is bytes32,
+          projectsByPid gives us the rich project record for display. */}
       {(folder.projectIds || []).length > 0 && (
         <Wrap mt={2} spacing={2}>
           {(folder.projectIds || []).map((pid) => {
-            const proj = projects.find((p) => p.id === pid);
+            const proj = projectsByPid.get(pid);
             return (
               <WrapItem key={pid}>
                 <Tag size="sm" colorScheme="blue" borderRadius="full" variant="subtle">
@@ -191,8 +192,21 @@ export default function FolderTreeEditor({
   const { addToIpfs } = useIPFScontext();
   const { task: taskService, executeWithNotification } = useWeb3();
   const { taskManagerContractAddress } = usePOContext();
-  const { projects = [] } = useProjectContext() || {};
+  // ProjectContext exposes the list as `projectsData`; alias it to a saner
+  // local name and build a bytes32-keyed view so we can interop with the
+  // canonical project-id form used by folder.projectIds (per spec).
+  const { projectsData: projects = [] } = useProjectContext() || {};
   const { emit } = useRefreshEmit();
+
+  // bytes32 id → project. The subgraph entity id is
+  // `{taskManager}-{bytes32}`; the spec wants raw bytes32 in folder
+  // assignments. Normalizing here lets the rest of the modal speak
+  // bytes32 throughout.
+  const projectsByPid = useMemo(() => {
+    const m = new Map();
+    for (const p of projects) m.set(parseProjectId(p.id), p);
+    return m;
+  }, [projects]);
 
   const { doc: loadedDoc, loading, error, loadedRoot } = useFolderDoc(foldersRoot);
 
@@ -205,7 +219,14 @@ export default function FolderTreeEditor({
 
   React.useEffect(() => {
     if (isOpen) {
-      setFolders((loadedDoc?.folders || []).map((f) => ({ ...f })));
+      // Normalize project ids to bytes32 on load. Any pre-fix folder docs
+      // pinned with composite ids get silently migrated on the next save.
+      setFolders(
+        (loadedDoc?.folders || []).map((f) => ({
+          ...f,
+          projectIds: (f.projectIds || []).map((pid) => parseProjectId(pid)),
+        }))
+      );
       setSavingError(null);
       setConflict(null);
       setSaving(false);
@@ -248,9 +269,16 @@ export default function FolderTreeEditor({
     return a !== b;
   }, [loadedDoc, folders]);
 
+  // Folder.projectIds and the unassigned check both operate on bytes32 ids.
+  // The subgraph hands us composite ids — normalize once and stay in
+  // bytes32 land from here down.
+  const allProjectPids = useMemo(
+    () => projects.map((p) => parseProjectId(p.id)),
+    [projects]
+  );
   const unassigned = useMemo(
-    () => unassignedProjectIds(folders, projects.map((p) => p.id)),
-    [folders, projects]
+    () => unassignedProjectIds(folders, allProjectPids),
+    [folders, allProjectPids]
   );
 
   const handleSave = async () => {
@@ -393,7 +421,7 @@ export default function FolderTreeEditor({
                     key={f.id}
                     folder={f}
                     allFolders={folders}
-                    projects={projects}
+                    projectsByPid={projectsByPid}
                     depth={0}
                     onChange={updateFolder}
                     onDelete={deleteFolder}
@@ -409,7 +437,10 @@ export default function FolderTreeEditor({
                 </Text>
                 <VStack spacing={2} align="stretch">
                   {projects.map((p) => {
-                    const currentFolder = folders.find((f) => (f.projectIds || []).includes(p.id));
+                    const pid = parseProjectId(p.id);
+                    const currentFolder = folders.find((f) =>
+                      (f.projectIds || []).includes(pid)
+                    );
                     return (
                       <HStack key={p.id} spacing={2}>
                         <Text fontSize="sm" flex="1" isTruncated color="whiteAlpha.900">
@@ -420,7 +451,7 @@ export default function FolderTreeEditor({
                           maxW="240px"
                           value={currentFolder?.id ?? ''}
                           onChange={(e) =>
-                            handleAssignProject(e.target.value === '' ? null : e.target.value, p.id)
+                            handleAssignProject(e.target.value === '' ? null : e.target.value, pid)
                           }
                           {...selectStyles}
                         >
