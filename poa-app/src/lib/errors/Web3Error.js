@@ -14,6 +14,7 @@ export const Web3ErrorCategory = {
   NETWORK_ERROR: 'NETWORK_ERROR',
   CONTRACT_REVERT: 'CONTRACT_REVERT',
   GAS_ESTIMATION_FAILED: 'GAS_ESTIMATION_FAILED',
+  WALLET_SIGNATURE: 'WALLET_SIGNATURE',
   NO_SIGNER: 'NO_SIGNER',
   INVALID_ADDRESS: 'INVALID_ADDRESS',
   INVALID_ABI: 'INVALID_ABI',
@@ -68,6 +69,51 @@ function hasInsufficientFunds(rootError) {
 
     if (node.error) queue.push(node.error);
     if (node.data && typeof node.data === 'object') queue.push(node.data);
+  }
+
+  return false;
+}
+
+/**
+ * Phrases from go-ethereum's strict RLP decoder that surface when the signed
+ * tx the wallet handed off has non-canonical big-int fields (typically the
+ * signature's R or S has a leading zero byte that wasn't stripped). Hits
+ * for ~1 in 256 signatures from buggy signers and is fully recoverable by
+ * re-signing — a different `S` rolls.
+ *
+ * Patterns are lowercased; matching is substring on the message text.
+ * Conservative: requires BOTH "non-canonical" AND the rlp/big.Int context
+ * so we don't mis-classify unrelated `-32602` errors.
+ */
+const NON_CANONICAL_SIGNATURE_PATTERNS = [
+  'rlp: non-canonical',                // go-ethereum verbatim
+  'non-canonical integer (leading zero', // looser variant if the prefix is trimmed
+];
+
+/**
+ * Walk an error envelope looking for the go-ethereum non-canonical-RLP signal.
+ * Same shape as `hasInsufficientFunds` — wallets nest these inconsistently.
+ */
+function hasNonCanonicalSignature(rootError) {
+  const seen = new Set();
+  const queue = [rootError];
+
+  while (queue.length > 0) {
+    const node = queue.shift();
+    if (!node || typeof node !== 'object' || seen.has(node)) continue;
+    seen.add(node);
+
+    const msg = typeof node.message === 'string' ? node.message.toLowerCase() : '';
+    if (msg) {
+      for (const pattern of NON_CANONICAL_SIGNATURE_PATTERNS) {
+        if (msg.includes(pattern)) return true;
+      }
+    }
+
+    if (node.error) queue.push(node.error);
+    if (node.data && typeof node.data === 'object') queue.push(node.data);
+    if (node.cause && typeof node.cause === 'object') queue.push(node.cause);
+    if (node.originalError && typeof node.originalError === 'object') queue.push(node.originalError);
   }
 
   return false;
@@ -160,6 +206,14 @@ export class TransactionError extends Web3Error {
       return Web3ErrorCategory.INSUFFICIENT_FUNDS;
     }
 
+    // Wallet produced a signature the network rejected for non-canonical RLP
+    // encoding (leading zero in R or S). Fully recoverable by re-signing.
+    // Check BEFORE the generic CONTRACT_REVERT path because the message often
+    // contains the substring "revert" inside the wallet's wrap layer.
+    if (hasNonCanonicalSignature(error)) {
+      return Web3ErrorCategory.WALLET_SIGNATURE;
+    }
+
     // Network errors
     if (
       error.code === 'NETWORK_ERROR' ||
@@ -205,6 +259,7 @@ export class TransactionError extends Web3Error {
       [Web3ErrorCategory.NETWORK_ERROR]: 'Network error. Please check your connection and try again.',
       [Web3ErrorCategory.GAS_ESTIMATION_FAILED]: 'Transaction would fail. Please check your inputs.',
       [Web3ErrorCategory.CONTRACT_REVERT]: 'Transaction rejected by the contract.',
+      [Web3ErrorCategory.WALLET_SIGNATURE]: 'Your wallet produced an invalid signature (rare encoding quirk). Click again to retry — a fresh signature usually succeeds.',
       [Web3ErrorCategory.UNKNOWN]: `Transaction failed: ${method}`,
     };
 

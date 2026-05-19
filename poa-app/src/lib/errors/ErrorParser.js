@@ -311,6 +311,19 @@ export function parseError(error, abi = null, context = {}) {
     );
   }
 
+  // Wallet produced a non-canonical-RLP signature. Wallet/node-side bug,
+  // not a contract failure — re-signing with a fresh nonce/S value almost
+  // always succeeds. Stable retry messaging avoids the user blaming the
+  // contract or their inputs.
+  if (category === Web3ErrorCategory.WALLET_SIGNATURE) {
+    return new ParsedError(
+      category,
+      'Your wallet produced an invalid signature (rare encoding quirk). Click again to retry — a fresh signature usually succeeds.',
+      'rlp: non-canonical integer in signed transaction',
+      error
+    );
+  }
+
   // Gas estimation failed - try to get revert reason
   if (category === Web3ErrorCategory.GAS_ESTIMATION_FAILED) {
     let reason = extractRevertReason(error);
