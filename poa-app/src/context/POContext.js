@@ -146,6 +146,8 @@ const initialState = {
     tokenLabel: DEFAULT_TOKEN_LABEL,
     roleNames: {},
     roleCanVoteMap: {},
+    organizerHatIds: [],
+    foldersRoot: null,
 };
 
 function poReducer(state, action) {
@@ -391,6 +393,12 @@ export const POProvider = ({ children }) => {
                     roleHatIds: org.roleHatIds || [],
                     metadataAdminHatId: adminHat && adminHat !== '0' ? adminHat : null,
                     creatorHatIds: org.taskManager?.creatorHatIds || [],
+                    // organizerHatIds is on TaskManager; foldersRoot is on
+                    // Organization (per subgraph-pop PR #177). Both fall back
+                    // to lens reads via useTaskManagerV4State until the PR
+                    // deploys — the optional chains are undefined-safe.
+                    organizerHatIds: org.taskManager?.organizerHatIds || [],
+                    foldersRoot: org.foldersRoot || null,
                     roleNames: roleNamesMap,
                     roleCanVoteMap: roleCanVoteMap,
                     quickJoinContractAddress: org.quickJoin?.id || '',
@@ -572,6 +580,8 @@ export const POProvider = ({ children }) => {
         roleHatIds: state.roleHatIds,
         topHatId: state.topHatId,
         creatorHatIds: state.creatorHatIds,
+        organizerHatIds: state.organizerHatIds,
+        foldersRoot: state.foldersRoot,
         educationHubEnabled: state.educationHubEnabled,
         hideTreasury: state.hideTreasury,
         useTokenSymbol: state.useTokenSymbol,

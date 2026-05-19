@@ -20,13 +20,17 @@ import {
   HStack,
   Image,
   Link,
+  Button,
 } from '@chakra-ui/react';
-import { InfoIcon, ExternalLinkIcon } from '@chakra-ui/icons';
+import { InfoIcon, ExternalLinkIcon, EditIcon } from '@chakra-ui/icons';
 import { FaProjectDiagram } from 'react-icons/fa';
 import { useDataBaseContext } from '@/context/dataBaseContext';
 import { usePOContext } from '@/context/POContext';
+import { useUserContext } from '@/context/UserContext';
 import { formatTokenAmount } from '@/util/formatToken';
 import { getTokenByAddress } from '@/util/tokens';
+import { userCanBudgetProject } from '@/util/permissions';
+import EditBudgetModal from './EditBudgetModal';
 
 const glassLayerStyle = {
   position: "absolute",
@@ -39,13 +43,18 @@ const glassLayerStyle = {
 
 const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const { isOpen: isBudgetOpen, onOpen: onBudgetOpen, onClose: onBudgetClose } = useDisclosure();
   const { selectedProject } = useDataBaseContext();
   const { tokenLabel = 'Shares' } = usePOContext() || {};
+  const { userData } = useUserContext() || {};
 
   // Use indexed description from subgraph (no IPFS fetching needed)
   const projectDescription = selectedProject?.description || '';
   // Format budget from wei (18 decimals) to human-readable, 0 means no budget
   const projectBudget = formatTokenAmount(selectedProject?.cap || '0');
+
+  const userHatIds = userData?.hatIds || [];
+  const canEditBudget = userCanBudgetProject(userHatIds, selectedProject?.rolePermissions);
 
   return (
     <>
@@ -108,7 +117,26 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
         <ModalOverlay />
         <ModalContent bg="transparent" textColor="white">
           <div style={glassLayerStyle} />
-          <ModalHeader borderTopRadius="md">{projectName}</ModalHeader>
+          <ModalHeader borderTopRadius="md">
+            <Flex align="center" justify="space-between">
+              <Text>{projectName}</Text>
+              {canEditBudget && (
+                <Button
+                  size="sm"
+                  leftIcon={<EditIcon />}
+                  variant="outline"
+                  colorScheme="purple"
+                  mr={8}
+                  onClick={() => {
+                    onClose();
+                    onBudgetOpen();
+                  }}
+                >
+                  Edit budget
+                </Button>
+              )}
+            </Flex>
+          </ModalHeader>
           <ModalCloseButton />
           <ModalBody pb={6}>
             <VStack align="start" spacing={4}>
@@ -176,6 +204,12 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
           </ModalBody>
         </ModalContent>
       </Modal>
+
+      <EditBudgetModal
+        isOpen={isBudgetOpen}
+        onClose={onBudgetClose}
+        project={selectedProject}
+      />
     </>
   );
 };

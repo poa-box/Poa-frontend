@@ -193,6 +193,11 @@ export const FETCH_ORG_FULL_DATA = gql`
       taskManager {
         id
         creatorHatIds
+        # organizerHatIds pending subgraph-pop #177 (lives on TaskManager).
+        # foldersRoot lives on Organization in subgraph PR #177 (not here);
+        # consumer code reads it from org.foldersRoot.
+        # Until #177 deploys, POContext falls back to lens reads via
+        # useTaskManagerV4State.
         projects(where: { deleted: false }, first: 100) {
           id
           tasks(first: 1000) {
@@ -376,6 +381,10 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
             canClaim
             canReview
             canAssign
+            # canBudget pending subgraph-pop #176. Until indexed,
+            # userCanBudgetProject() returns false everywhere and the
+            # "Edit budget" affordance stays hidden; BUDGET writes still
+            # work via setProjectRolePerm/setterDefinitions.
           }
           tasks(first: 1000, orderBy: taskId, orderDirection: desc) {
             id

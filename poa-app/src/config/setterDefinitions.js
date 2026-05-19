@@ -379,7 +379,9 @@ export const SETTER_TEMPLATES = [
           { value: 1, label: 'CREATE - Create new tasks' },
           { value: 2, label: 'CLAIM - Claim tasks' },
           { value: 4, label: 'REVIEW - Review completed tasks' },
-          { value: 8, label: 'ASSIGN - Assign tasks to others' }
+          { value: 8, label: 'ASSIGN - Assign tasks to others' },
+          { value: 16, label: 'SELF_REVIEW - Allow claimer to complete their own task' },
+          { value: 32, label: 'BUDGET - Edit project budgets (PT cap & bounty caps)' }
         ],
         helpText: 'Select which permissions to grant'
       }
@@ -395,10 +397,13 @@ export const SETTER_TEMPLATES = [
       const roleName = roleNames?.[values.role] || `Role ${values.role}`;
       const projectName = projectNames?.[values.project] || 'selected project';
       const permLabels = [];
-      if (values.permissions?.includes(1) || values.permissions?.includes('1')) permLabels.push('CREATE');
-      if (values.permissions?.includes(2) || values.permissions?.includes('2')) permLabels.push('CLAIM');
-      if (values.permissions?.includes(4) || values.permissions?.includes('4')) permLabels.push('REVIEW');
-      if (values.permissions?.includes(8) || values.permissions?.includes('8')) permLabels.push('ASSIGN');
+      const has = (v) => values.permissions?.includes(v) || values.permissions?.includes(String(v));
+      if (has(1)) permLabels.push('CREATE');
+      if (has(2)) permLabels.push('CLAIM');
+      if (has(4)) permLabels.push('REVIEW');
+      if (has(8)) permLabels.push('ASSIGN');
+      if (has(16)) permLabels.push('SELF_REVIEW');
+      if (has(32)) permLabels.push('BUDGET');
       return `Set "${roleName}" permissions for ${projectName}: ${permLabels.join(', ') || 'none'}`;
     }
   },
@@ -436,6 +441,42 @@ export const SETTER_TEMPLATES = [
       const roleName = roleNames?.[values.role] || `Role ${values.role}`;
       const action = values.allowed === 'Grant' ? 'Allow' : 'Revoke';
       return `${action} "${roleName}" to create tasks globally`;
+    }
+  },
+  {
+    id: 'allow-organizer-hat',
+    category: 'tasks',
+    name: 'Allow Role to Organize Folders',
+    description: 'Grant or revoke a role\'s permission to publish folder-tree updates via setFolders',
+    contract: 'taskManager',
+    functionName: 'setConfig',
+    inputs: [
+      {
+        name: 'role',
+        label: 'Role',
+        type: 'roleSelect',
+        helpText: 'Select which role to authorize as a folder organizer'
+      },
+      {
+        name: 'allowed',
+        label: 'Permission',
+        type: 'toggle',
+        options: ['Grant', 'Revoke'],
+        default: 'Grant'
+      }
+    ],
+    encode: (values) => {
+      const configKey = 7; // ConfigKey.ORGANIZER_HAT_ALLOWED
+      const encodedValue = utils.defaultAbiCoder.encode(
+        ['uint256', 'bool'],
+        [values.role, values.allowed === 'Grant']
+      );
+      return [configKey, encodedValue];
+    },
+    preview: (values, roleNames) => {
+      const roleName = roleNames?.[values.role] || `Role ${values.role}`;
+      const action = values.allowed === 'Grant' ? 'Allow' : 'Revoke';
+      return `${action} "${roleName}" to reorganize the folder tree`;
     }
   },
 

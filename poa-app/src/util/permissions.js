@@ -8,10 +8,12 @@
  * These match the TaskPerm.sol contract constants
  */
 export const TaskPermission = {
-    CREATE: 1,   // 1 << 0 - Can create tasks
-    CLAIM: 2,    // 1 << 1 - Can claim tasks / apply for tasks
-    REVIEW: 4,   // 1 << 2 - Can complete/review tasks
-    ASSIGN: 8,   // 1 << 3 - Can assign tasks / approve applications
+    CREATE: 1,        // 1 << 0 - Can create tasks
+    CLAIM: 2,         // 1 << 1 - Can claim tasks / apply for tasks
+    REVIEW: 4,        // 1 << 2 - Can complete/review tasks
+    ASSIGN: 8,        // 1 << 3 - Can assign tasks / approve applications
+    SELF_REVIEW: 16,  // 1 << 4 - Claimer may complete their own task
+    BUDGET: 32,       // 1 << 5 - Edit project PT cap and bounty caps
 };
 
 /**
@@ -34,6 +36,7 @@ export const PERMISSION_MESSAGES = {
     REQUIRE_CREATE: 'You must have create permissions for this project.',
     REQUIRE_REVIEW: 'You must have review permissions for this project.',
     REQUIRE_ASSIGN: 'You must have assign permissions for this project.',
+    REQUIRE_BUDGET: 'You must hold a role with the BUDGET permission to edit project budgets.',
     CANNOT_MOVE_COMPLETED: 'You cannot move tasks from the Completed column.',
     TASK_CLAIM_MEMBER: 'You must be a member to claim this task. Go to user page to join.',
     TASK_SUBMIT_MEMBER: 'You must be a member to submit tasks. Go to user page to join.',
@@ -69,7 +72,7 @@ function normalizeHatId(hatId) {
  * Check if a user has a specific permission for a project
  * @param {string[]} userHatIds - Array of hat IDs the user currently holds
  * @param {Array} projectRolePermissions - Array of ProjectRolePermission objects from the subgraph
- * @param {string} permissionType - The permission to check: 'canCreate', 'canClaim', 'canReview', 'canAssign'
+ * @param {string} permissionType - The permission to check: 'canCreate', 'canClaim', 'canReview', 'canAssign', 'canBudget'
  * @returns {boolean} - True if the user has the permission
  */
 export function userHasProjectPermission(userHatIds, projectRolePermissions, permissionType) {
@@ -119,4 +122,13 @@ export function userCanReviewTask(userHatIds, projectRolePermissions) {
  */
 export function userCanAssignTask(userHatIds, projectRolePermissions) {
     return userHasProjectPermission(userHatIds, projectRolePermissions, 'canAssign');
+}
+
+/**
+ * Check if a user can edit a project's budget (PT cap, bounty caps).
+ * Backed by `TaskPerm.BUDGET` (bit 5) — contract gate is strict, project
+ * managers do NOT get implicit access.
+ */
+export function userCanBudgetProject(userHatIds, projectRolePermissions) {
+    return userHasProjectPermission(userHatIds, projectRolePermissions, 'canBudget');
 }

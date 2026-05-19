@@ -30,6 +30,9 @@ export const RefreshEvent = {
   TASK_APPLICATION_SUBMITTED: 'task:application_submitted',
   TASK_APPLICATION_APPROVED: 'task:application_approved',
   TASK_ASSIGNED: 'task:assigned',
+  PROJECT_BUDGET_UPDATED: 'project:budget-updated',
+  FOLDERS_UPDATED: 'folders:updated',
+  ORGANIZER_HAT_UPDATED: 'organizer-hat:updated',
 
   // Education events
   MODULE_CREATED: 'module:created',
