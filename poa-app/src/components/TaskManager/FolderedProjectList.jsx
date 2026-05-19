@@ -20,7 +20,7 @@
  * keeps its existing useDrag wiring → TrashBin).
  */
 
-import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { Box, Flex, Text, Badge, Icon, IconButton, Collapse, VStack } from '@chakra-ui/react';
 import { ChevronDownIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { FaFolder, FaFolderOpen, FaInbox } from 'react-icons/fa';
@@ -230,34 +230,43 @@ export default function FolderedProjectList({
     return chain;
   }, [folders, selectedProject?.id]);
 
-  // Single `expanded` Set holds the user's manual toggles. Auto-expansion
-  // (search hits + selected ancestors) is unioned at read time so the
-  // user's collapse choices survive the next keystroke, but search and
-  // selection still surface relevant rows.
-  const [expanded, setExpanded] = useState(() => new Set());
+  // User-intent overrides keyed by folder id (`true` = explicitly opened,
+  // `false` = explicitly closed, absent = follow auto rule). The original
+  // implementation kept a single `expanded` Set and pushed auto-expand
+  // additions into it from a useEffect — but `filteredProjects` is a new
+  // array reference per search keystroke, so the effect would fire every
+  // keystroke and re-add ids the user had just collapsed. Deriving
+  // visibility instead of mutating state makes user collapses survive
+  // every render, no matter how often the auto-rule inputs churn.
+  const [overrides, setOverrides] = useState(() => new Map());
 
-  // When the search-or-selection-driven set changes, fold those ids in
-  // so a brand-new search hit opens its folder by default.
-  useEffect(() => {
-    if (foldersWithVisible.size === 0 && selectedAncestors.size === 0) return;
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      for (const id of foldersWithVisible) next.add(id);
-      for (const id of selectedAncestors) next.add(id);
-      return next;
-    });
-  }, [foldersWithVisible, selectedAncestors]);
+  const autoExpanded = useMemo(() => {
+    const out = new Set();
+    for (const id of foldersWithVisible) out.add(id);
+    for (const id of selectedAncestors) out.add(id);
+    if (searchTerm) out.add(UNSORTED_KEY); // surface unsorted hits on search
+    return out;
+  }, [foldersWithVisible, selectedAncestors, searchTerm]);
 
-  const onToggle = useCallback((id) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
+  const getIsExpanded = useCallback(
+    (id) => {
+      if (overrides.has(id)) return overrides.get(id);
+      return autoExpanded.has(id);
+    },
+    [overrides, autoExpanded]
+  );
 
-  const getIsExpanded = useCallback((id) => expanded.has(id), [expanded]);
+  const onToggle = useCallback(
+    (id) => {
+      setOverrides((prev) => {
+        const next = new Map(prev);
+        const currentlyExpanded = next.has(id) ? next.get(id) : autoExpanded.has(id);
+        next.set(id, !currentlyExpanded);
+        return next;
+      });
+    },
+    [autoExpanded]
+  );
 
   const isProjectSelected = useCallback(
     (projectId) => Boolean(selectedProject && selectedProject.id === projectId),
@@ -274,7 +283,7 @@ export default function FolderedProjectList({
       .filter((p) => p && visibleProjectIds.has(p.id));
   }, [folders, projects, projectsById, visibleProjectIds]);
 
-  const unsortedExpanded = expanded.has(UNSORTED_KEY) || (searchTerm && unsorted.length > 0);
+  const unsortedExpanded = getIsExpanded(UNSORTED_KEY);
 
   return (
     <VStack spacing={1} align="stretch" w="100%">

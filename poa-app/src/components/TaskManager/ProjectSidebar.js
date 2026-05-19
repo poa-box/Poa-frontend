@@ -5,18 +5,13 @@ import {
   Heading,
   Button,
   Input,
-  FormControl,
-  Spacer,
   Flex,
   Text,
-  Icon,
   Divider,
   InputGroup,
   InputRightElement,
-  useColorModeValue,
   Tooltip,
   IconButton,
-  Collapse,
   useToast,
 } from '@chakra-ui/react';
 import { useWeb3 } from '../../hooks';
@@ -52,7 +47,6 @@ const ProjectSidebar = ({
   onEditFolders,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [showProjects, setShowProjects] = useState(true);
   const { userData } = useUserContext();
   const { projectsData } = useProjectContext();
   const { task: taskService, executeWithNotification } = useWeb3();
@@ -138,12 +132,15 @@ const ProjectSidebar = ({
     );
   }, [canManageProjects, taskService, executeWithNotification, taskManagerContractAddress, toast]);
 
-  // Filter projects based on search term
-  const filteredProjects = searchTerm 
-    ? projects.filter(project => 
-        project.name.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : projects;
+  // Filter projects based on search term. Memoized so the array reference
+  // stays stable between unrelated re-renders — without this, the child
+  // FolderedProjectList sees a new `filteredProjects` prop on every parent
+  // render and re-runs its visible-set memo unnecessarily.
+  const filteredProjects = useMemo(() => {
+    if (!searchTerm) return projects;
+    const lower = searchTerm.toLowerCase();
+    return projects.filter((project) => project.name.toLowerCase().includes(lower));
+  }, [projects, searchTerm]);
 
   return (
     <Box
