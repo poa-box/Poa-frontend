@@ -230,9 +230,17 @@ const MainLayout = () => {
   // v4 folder state — sourced via subgraph (POContext) once #177 deploys,
   // backed by a lens read against the TaskManager today. The hook handles
   // both transparently.
-  const { foldersRoot, organizerHatIds } = useTaskManagerV4State();
-  const { doc: folderDoc } = useFolderDoc(foldersRoot);
+  const { foldersRoot, organizerHatIds, loading: v4Loading } = useTaskManagerV4State();
+  const { doc: folderDoc, loading: docLoading, loadedRoot } = useFolderDoc(foldersRoot);
   const folders = folderDoc?.folders || [];
+
+  // True once we've resolved BOTH the on-chain folders root and the
+  // matching IPFS doc. Without this, a hard refresh briefly renders the
+  // flat-list fallback (folders=[] during the lens+IPFS gap), then
+  // snaps into FolderedProjectList once folders populate. The sidebar
+  // uses this to show a transient loader instead of the wrong branch.
+  const foldersReady =
+    !v4Loading && !docLoading && (foldersRoot ? loadedRoot === foldersRoot : true);
 
   // Organizer-hat gate. Wearers of any hat in organizerHatIds (or the
   // executor) can call setFolders; we only show the inline edit affordance
@@ -571,6 +579,7 @@ const MainLayout = () => {
               onOpenCreateModal={onProjectModalOpen}
               onToggleSidebar={toggleSidebar}
               folders={folders}
+              foldersReady={foldersReady}
               userIsOrganizer={userIsOrganizer}
               onEditFolders={folderEditor.onOpen}
             />
