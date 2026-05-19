@@ -118,6 +118,39 @@ export function reparentFolder(folders, folderId, newParentId, newSortOrder) {
 }
 
 /**
+ * Walk from `folderId` up the parent chain, returning the set of ancestor
+ * ids (NOT including the folder itself). Used by the sidebar to auto-expand
+ * the path to a selected project's enclosing folder.
+ *
+ * Bounded by `folders.length` so a malformed cycle won't loop forever
+ * (validateFolderDoc catches cycles on save; this is defensive at read).
+ */
+export function ancestorsOf(folders, folderId) {
+  const byId = new Map(folders.map((f) => [f.id, f]));
+  const out = new Set();
+  let current = byId.get(folderId);
+  let safety = folders.length;
+  while (current && current.parentId != null && safety-- > 0) {
+    if (out.has(current.parentId)) break; // cycle guard
+    out.add(current.parentId);
+    current = byId.get(current.parentId);
+  }
+  return out;
+}
+
+/**
+ * Find the folder id (if any) that contains `projectId` in its `projectIds`
+ * list. Returns null if the project is unassigned or unknown.
+ */
+export function folderContainingProject(folders, projectId) {
+  if (!projectId) return null;
+  for (const f of folders) {
+    if ((f.projectIds || []).includes(projectId)) return f.id;
+  }
+  return null;
+}
+
+/**
  * Compute the descendants of `folderId` (including itself). Used to prevent
  * reparenting a folder under one of its own descendants.
  */

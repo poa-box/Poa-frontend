@@ -1,9 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import {
   SORT_STEP,
+  ancestorsOf,
   buildTree,
   computeSortOrder,
   descendantsOf,
+  folderContainingProject,
   generateFolderId,
   moveProject,
   reparentFolder,
@@ -165,5 +167,46 @@ describe('descendantsOf', () => {
   it('returns just the folder itself when it has no children', () => {
     const folders = [F('lonely')];
     expect(Array.from(descendantsOf(folders, 'lonely'))).toEqual(['lonely']);
+  });
+});
+
+describe('ancestorsOf', () => {
+  it('walks the parent chain up to the root, excluding the folder itself', () => {
+    const folders = [F('root'), F('a', 'root'), F('b', 'a'), F('c', 'b')];
+    expect(Array.from(ancestorsOf(folders, 'c')).sort()).toEqual(['a', 'b', 'root']);
+    expect(Array.from(ancestorsOf(folders, 'b')).sort()).toEqual(['a', 'root']);
+    expect(Array.from(ancestorsOf(folders, 'a'))).toEqual(['root']);
+    expect(Array.from(ancestorsOf(folders, 'root'))).toEqual([]);
+  });
+
+  it('returns an empty set for an unknown folder', () => {
+    const folders = [F('a')];
+    expect(Array.from(ancestorsOf(folders, 'ghost'))).toEqual([]);
+  });
+
+  it('terminates on cycles instead of looping forever', () => {
+    const folders = [F('a', 'b'), F('b', 'a')]; // mutually parented
+    expect(() => ancestorsOf(folders, 'a')).not.toThrow();
+    const result = Array.from(ancestorsOf(folders, 'a'));
+    // Cycle guard short-circuits; exact set depends on traversal but length <= 2.
+    expect(result.length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe('folderContainingProject', () => {
+  it('returns the folder id that owns the project', () => {
+    const folders = [F('a', null, 0, ['p1']), F('b', null, 0, ['p2', 'p3'])];
+    expect(folderContainingProject(folders, 'p1')).toBe('a');
+    expect(folderContainingProject(folders, 'p3')).toBe('b');
+  });
+
+  it('returns null when the project is unassigned', () => {
+    const folders = [F('a', null, 0, ['p1'])];
+    expect(folderContainingProject(folders, 'p2')).toBeNull();
+  });
+
+  it('returns null for missing input', () => {
+    expect(folderContainingProject([F('a')], null)).toBeNull();
+    expect(folderContainingProject([F('a')], undefined)).toBeNull();
   });
 });

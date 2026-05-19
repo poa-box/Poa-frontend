@@ -52,7 +52,6 @@ const Navbar = React.memo(() => {
   const navItems = useMemo(() => [
     { name: 'Dashboard', path: orgUrl(org, 'dashboard') },
     { name: 'Tasks', path: orgUrl(org, 'tasks') },
-    { name: 'Folders', path: orgUrl(org, 'folders') },
     { name: 'Voting', path: orgUrl(org, 'voting') },
     ...(!hideTreasury ? [{ name: 'Treasury', path: orgUrl(org, 'treasury') }] : []),
     ...(educationHubEnabled ? [{ name: 'Learn & Earn', path: orgUrl(org, 'learn') }] : []),
@@ -169,16 +168,6 @@ const Navbar = React.memo(() => {
             mx={"2%"}
           >
             Tasks
-          </Link>
-          <Link
-            as={NextLink}
-            href={orgUrl(org, 'folders')}
-            color="white"
-            fontWeight="extrabold"
-            fontSize="xl"
-            mx={"2%"}
-          >
-            Folders
           </Link>
           <Link
             as={NextLink}
