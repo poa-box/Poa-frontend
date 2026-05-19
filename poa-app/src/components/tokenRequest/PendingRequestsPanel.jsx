@@ -24,6 +24,7 @@ import { usePOContext } from '@/context/POContext';
 import { useIPFScontext } from '@/context/ipfsContext';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
 import { formatTokenAmount } from '@/util/formatToken';
+import { useSubgraphClient } from '@/util/apolloClient';
 import { useAccount } from 'wagmi';
 
 const PendingRequestsPanel = () => {
@@ -36,14 +37,14 @@ const PendingRequestsPanel = () => {
   const [loadingRequestId, setLoadingRequestId] = useState(null);
   const [metadataCache, setMetadataCache] = useState({});
 
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+  const client = useSubgraphClient(subgraphUrl);
 
   // Query pending requests
   const { data, loading, error, refetch } = useQuery(FETCH_PENDING_TOKEN_REQUESTS, {
     variables: { tokenAddress: participationTokenAddress },
     skip: !participationTokenAddress,
     fetchPolicy: 'cache-first',
-    context: apolloContext,
+    client,
   });
 
   // Refetch immediately — executeWithNotification already waited for the

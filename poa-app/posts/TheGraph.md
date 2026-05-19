@@ -1,25 +1,63 @@
-# Poa Upgrades to The Graph’s Decentralized Network: Empowering Perpetual Organizations with Fully Decentralized Data
+# The subgraph that powers Poa
 
-We are excited to announce a significant improvement to our platform: upgrading our subgraphs to The Graph's decentralized network. The Graph enables access to decentralized data through their network of Indexers, Delegators, and Curators, ensuring transparency and accessibility. 
+Every list view, every dashboard, every "what does this org look like right now" answer in Poa is a GraphQL query against a subgraph. The contracts emit events. The subgraph indexes them into queryable data. The frontend (and the [`pop` CLI](https://github.com/poa-box/poa-cli), and any tool you might build) reads from it. There is no separate backend server holding the data. The indexer is the only "API."
 
-This upgrade is a crucial step towards our mission of creating truly decentralized, employee-owned organizations. The public nature of subgraphs means that anyone can easily access data from any Perpetual Organization. We are proud to say that The Graph meets the high standard of decentralization Poa maintains, and what we do wouldn’t be possible without it. 
+This is what lets a community-owned organization stay verifiable. The data is not ours to gatekeep. It is emitted on-chain by contracts in [POP](https://github.com/poa-box/POP), indexed by an open-source subgraph in [subgraph-pop](https://github.com/poa-box/subgraph-pop), and queryable by anyone.
 
-Learn more about how The Graph remains decentralized and The Sunrise of Decentralized Data initiative [here](https://thegraph.com/docs/en/sunrise/).
+## What gets indexed
 
-## How Poa Utilizes The Graph
+About 25 contract types across the protocol. The full schema is in the subgraph repo. The high-level domains:
 
-Poa utilizes The Graph to track the data of deployed Perpetual Organizations automatically. By leveraging a subgraph template method, we efficiently index and query information related to voting mechanisms, role creation, task management, and fundraising activities for all Perpetual Organizations deployed using our factory contracts. This automation not only enhances the user experience but also makes it easy for Perpetual Organizations to take full control of their data whenever their team gets big enough by simplifying hosting their own frontend and using the public subgraph API.
+- **Organizations.** Every org deployed, with metadata, member count, description, logo CID.
+- **Roles.** Role grants, revokes, vouches, claims, and the full role hierarchy.
+- **Voting.** Voting classes, proposals, votes (hybrid voting, direct democracy).
+- **Tasks and projects.** Creation, claims, submissions, approvals, payouts.
+- **Education modules.** Creation, completions, payouts.
+- **Treasury.** Balances, payment events, Merkle distributions.
+- **Gas sponsorship.** Paymaster funds, sponsored UserOp counts.
+- **Passkey accounts.** Creation events, factory registry.
+- **Cross-chain coordination.** Identity bridging events, beacon upgrades.
 
-### Some Examples:
+## Where the queries go
 
-- **Voting Systems**: By indexing voting data, we provide real-time updates on election results, ensuring transparency and trust within the organization.
-- **Automated Task Management**: We track task assignments and completions, allowing for seamless automation of payouts and task tracking.
-- **Fundraising and Treasury Management**: Our subgraphs monitor NFT sales, donations, and treasury activities, giving organizations a clear view of their financial health.
+The subgraph is hosted on **The Graph Studio** at two deployment slugs:
 
-## The Path Forward
+- `poa-arb-v-1` for Arbitrum One (the identity home chain)
+- `poa-gnosis-v-1` for Gnosis (the default org-deployment chain)
 
-Upgrading to The Graph’s decentralized network marks a significant milestone in our journey to revolutionize organizational structures. By ensuring all aspects of a Perpetual Organization are easily queryable without compromising on decentralization, we empower employees to take control of their organizations with confidence. 
+The frontend automatically routes queries to the right slug based on the org's chain. For browse pages that need to look across every chain, it queries each subgraph separately and merges results client-side.
 
-This upgrade is not just about technology; it's about creating a fairer, more equitable future where everyone has a stake in their workplace.
+If you want to query directly, the endpoints are listed on the [protocol dashboard](/docs/protocol).
 
-Join us on this exciting journey as we continue to push the boundaries of what's possible with decentralized technologies. With The Graph, Poa is poised to redefine the way organizations operate, ensuring that they are truly owned by those who run them.
+## Why a subgraph instead of a backend
+
+Two reasons.
+
+First: no data lock-in. If we shut down tomorrow, every organization's data would still be readable. The smart contracts keep running. The indexer keeps doing its job. Anyone could spin up a new frontend against the same data. The platform can be replaced. The underlying rails cannot.
+
+Second: no private state. A traditional backend would have decisions, member rosters, and treasury logs in a database that only the platform can read. With a subgraph, every member can verify every claim the UI makes. The indexer's data matches what is on-chain. What is on-chain matches what the contracts say.
+
+## Querying it yourself
+
+You do not have to be inside the Poa app to read the data. The subgraph endpoints are public. A few things people do with this:
+
+- **Custom dashboards.** Build your own view of your org's activity. The `pop` CLI does exactly this.
+- **Notifications.** Poll the subgraph for new proposals or task submissions and pipe them into Discord, Slack, wherever.
+- **Audit and research.** Examine governance patterns across the whole Poa ecosystem.
+
+The full schema, queryable entity list, and event-to-entity mapping live in [subgraph-pop](https://github.com/poa-box/subgraph-pop). New deployments happen automatically on merges to that repo's main branch.
+
+## Quirks worth knowing
+
+A few things to keep in mind if you are building against the subgraph:
+
+- **Composite IDs.** Subgraph entity IDs are `{contractAddress}-{numericId}`. Contracts expect just the numeric portion. The frontend's `services/web3/utils/encoding.js` has `parseTaskId`, `parseProjectId`, `parseModuleId` helpers for this round-trip. Wrong format produces silent contract reverts.
+- **18-decimal wei.** Token amounts come back as raw 18-decimal wei strings, including for an org's Participation Token. Format with the helpers in `util/formatToken.js`.
+- **Indexing latency.** The subgraph trails the chain by a few seconds. The frontend uses optimistic-update grace periods (15s in UserContext, 65s in TaskBoardContext) to mask this in the UI.
+- **IPFS content references.** Some entities point at IPFS content (proposal bodies, education module content, org logos) via CID stored on-chain as `bytes32`. The frontend resolves CIDs through Pinata.
+
+## Related reading
+
+- [Protocol dashboard](/docs/protocol). The rendered front for everything the subgraph indexes
+- [Cross-chain architecture](/docs/cross-chain-architecture). Why there are two subgraph deployments
+- [Treasury management](/docs/treasury-management). Uses Merkle distributions, indexed by the treasury domain

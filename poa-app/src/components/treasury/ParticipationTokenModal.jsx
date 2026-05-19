@@ -36,6 +36,7 @@ import {
 import { usePOContext } from '@/context/POContext';
 import { formatTokenAmount } from '@/util/formatToken';
 import { FETCH_ALL_TOKEN_REQUESTS } from '@/util/queries';
+import { useSubgraphClient } from '@/util/apolloClient';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -115,13 +116,13 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
   const { leaderboardData, subgraphUrl, tokenLabel = 'Shares' } = usePOContext();
   const tokenLabelLower = tokenLabel.toLowerCase();
 
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+  const client = useSubgraphClient(subgraphUrl);
 
   // Fetch token requests
   const { data: requestsData, loading: requestsLoading } = useQuery(FETCH_ALL_TOKEN_REQUESTS, {
     variables: { tokenAddress: tokenAddress?.toLowerCase() },
     skip: !tokenAddress || !isOpen,
-    context: apolloContext,
+    client,
   });
 
   // Get approved token requests

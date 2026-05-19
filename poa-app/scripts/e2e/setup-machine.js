@@ -104,10 +104,12 @@ function deriveVirtualCredential(seedHex) {
 
 // The hardcoded API key in config/networks.js is domain-locked at the gateway.
 // The same Origin the production app sends is required from a Node script too.
+// Apex `poa.box` is the canonical hostname (Cloudflare Worker now redirects
+// www → apex), so the production Origin header is `https://poa.box`.
 const SUBGRAPH_HEADERS = {
   'Content-Type': 'application/json',
-  'Origin': 'https://www.poa.box',
-  'Referer': 'https://www.poa.box/',
+  'Origin': 'https://poa.box',
+  'Referer': 'https://poa.box/',
 };
 
 async function gqlPost(url, query) {
@@ -220,7 +222,7 @@ async function main() {
     env.POA_E2E_ORG_NAME = await prompt('Org name to vouch into', { defaultValue: env.POA_E2E_ORG_NAME || 'Test6' });
   }
   if (!env.POA_E2E_BASE_URL || reconfigure) {
-    env.POA_E2E_BASE_URL = await prompt('App URL where you will vouch from your member account', { defaultValue: env.POA_E2E_BASE_URL || 'https://www.poa.box' });
+    env.POA_E2E_BASE_URL = await prompt('App URL where you will vouch from your member account', { defaultValue: env.POA_E2E_BASE_URL || 'https://poa.box' });
   }
 
   const orgName = env.POA_E2E_ORG_NAME;

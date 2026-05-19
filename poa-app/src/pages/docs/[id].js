@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { getPostData, getAllPostIds } from '../../util/posts';
+import { getPostData, getAllPostIds, getRelatedPosts } from '../../util/posts';
 import SEOHead from '@/components/common/SEOHead';
 import { 
   Box, 
@@ -25,24 +25,49 @@ import {
   DrawerContent,
   DrawerCloseButton,
   IconButton,
-  Tag
+  Tag,
+  SimpleGrid,
 } from '@chakra-ui/react';
 import Layout from '../../components/Layout';
 import SideBar from '../../components/docs/SideBar';
-import { FaHome, FaChevronRight, FaBars, FaArrowLeft, FaArrowRight, FaBook } from 'react-icons/fa';
+import { FaHome, FaChevronRight, FaBars, FaArrowLeft, FaArrowRight, FaBook, FaUser } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
 
 // Motion components
 const MotionBox = motion(Box);
-const MotionText = motion(Text);
+// Markdown content is dropped here via dangerouslySetInnerHTML and can include
+// block-level tags (h2, ul, p, etc.) — render into a div, not a <p>.
+const MotionContent = motion(Box);
 
-export default function Post({ postData, navigationData }) {
+export default function Post({ postData, navigationData, relatedPosts }) {
   const router = useRouter();
   const [isClient, setIsClient] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
   const showSidebar = useBreakpointValue({ base: false, md: true });
+
+  // TechArticle JSON-LD for /docs/* pages. Mirrors the Article schema on /blog/[id]
+  // but uses TechArticle since these pages are technical documentation, not editorial.
+  const techArticleLD = {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    "headline": postData.title || postData.id,
+    "description": postData.description,
+    "datePublished": postData.date,
+    "dateModified": postData.date,
+    "author": { "@type": "Organization", "name": "Poa Team", "url": "https://poa.box" },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Poa",
+      "url": "https://poa.box",
+      "logo": { "@type": "ImageObject", "url": "https://poa.box/images/poa_og.webp" },
+    },
+    "mainEntityOfPage": { "@type": "WebPage", "@id": `https://poa.box/docs/${postData.id}/` },
+  };
+
+  const isoDate = postData.date ? new Date(postData.date).toISOString() : null;
+  const humanDate = postData.date ? new Date(postData.date).toLocaleDateString() : null;
   
   // Design tokens
   const contentBg = useColorModeValue('white', 'gray.800');
@@ -94,6 +119,8 @@ export default function Post({ postData, navigationData }) {
       title={`${postData.title} - Poa Docs`}
       description={postData.description}
       path={`/docs/${postData.id}`}
+      ogType="article"
+      jsonLd={techArticleLD}
     />
     <Layout>
       <Box>
@@ -176,40 +203,46 @@ export default function Post({ postData, navigationData }) {
                   transition={{ duration: 0.5 }}
                   mb={6}
                 >
-                  <Flex 
+                  <Flex
                     direction="row"
                     alignItems="center"
                     justifyContent="flex-start"
                     flexWrap="wrap"
                     gap={3}
                   >
-                    <Tag 
-                      size="md" 
-                      colorScheme={categoryColor} 
+                    <Tag
+                      size="md"
+                      colorScheme={categoryColor}
                       borderRadius="full"
                     >
                       {currentCategory}
                     </Tag>
-                    
-                    {postData.date && (
-                      <Text 
-                        color={breadcrumbColor} 
+
+                    {isoDate && (
+                      <Text
+                        as="time"
+                        dateTime={isoDate}
+                        color={breadcrumbColor}
                         fontSize="sm"
                       >
-                        Last updated: {new Date(postData.date).toLocaleDateString()}
+                        Last updated {humanDate}
                       </Text>
                     )}
+
+                    <HStack spacing={1} color={breadcrumbColor} fontSize="sm">
+                      <Icon as={FaUser} boxSize="0.7em" />
+                      <Text>By Poa Team</Text>
+                    </HStack>
                   </Flex>
-                  
-                  <Heading 
-                    as="h1" 
-                    size={{ base: "xl", md: "2xl" }} 
+
+                  <Heading
+                    as="h1"
+                    size={{ base: "xl", md: "2xl" }}
                     color={headingColor}
                     fontWeight="bold"
                     lineHeight="1.2"
                     mb={3}
                     mt={3}
-                    display="none"
                   >
                     {postData.title || postData.id}
                   </Heading>
@@ -230,7 +263,7 @@ export default function Post({ postData, navigationData }) {
                   boxShadow="md"
                   mb={8}
                 >
-                  <MotionText
+                  <MotionContent
                     className="markdown-content article-content"
                     color={textColor}
                     fontSize={{ base: "md", md: "lg" }}
@@ -238,7 +271,45 @@ export default function Post({ postData, navigationData }) {
                     dangerouslySetInnerHTML={{ __html: postData.contentHtml }}
                   />
                 </MotionBox>
-                
+
+                {/* Related Reading — strengthens internal linking for SEO topic clusters */}
+                {relatedPosts && relatedPosts.length > 0 && (
+                  <Box mb={8}>
+                    <Heading as="h2" size="md" mb={4} color={textColor}>
+                      Related reading
+                    </Heading>
+                    <SimpleGrid columns={{ base: 1, md: 2, lg: 3 }} spacing={4}>
+                      {relatedPosts.map((rp) => (
+                        <Link key={rp.id} href={`/docs/${rp.id}`} passHref>
+                          <Box
+                            as="a"
+                            display="block"
+                            p={4}
+                            borderWidth="1px"
+                            borderColor={contentBorder}
+                            borderRadius="lg"
+                            bg={contentBg}
+                            transition="border-color 0.2s, box-shadow 0.2s"
+                            _hover={{ borderColor: `${categoryColor}.300`, boxShadow: 'sm' }}
+                          >
+                            <Tag size="sm" colorScheme={getCategoryColor(rp.category)} borderRadius="full" mb={2}>
+                              {rp.category}
+                            </Tag>
+                            <Heading as="h3" size="sm" mb={1} color={textColor} noOfLines={2}>
+                              {rp.title}
+                            </Heading>
+                            {rp.description && (
+                              <Text fontSize="sm" color={breadcrumbColor} noOfLines={2}>
+                                {rp.description}
+                              </Text>
+                            )}
+                          </Box>
+                        </Link>
+                      ))}
+                    </SimpleGrid>
+                  </Box>
+                )}
+
                 {/* Next/Previous Navigation */}
                 <Flex 
                   justifyContent="space-between" 
@@ -317,20 +388,31 @@ export async function getStaticPaths() {
 
 export async function getStaticProps({ params }) {
   const postData = await getPostData(params.id);
-  
+
   // Get navigation data
   const allPostIds = getAllPostIds().map(path => path.params.id);
   const currentIndex = allPostIds.indexOf(params.id);
-  
+
   const navigationData = {
     prev: currentIndex > 0 ? { id: allPostIds[currentIndex - 1] } : null,
-    next: currentIndex < allPostIds.length - 1 ? { id: allPostIds[currentIndex + 1] } : null
+    next: currentIndex < allPostIds.length - 1 ? { id: allPostIds[currentIndex + 1] } : null,
   };
-  
+
+  // Related posts — same category first, then fall back to others. Strips
+  // any fields Next.js can't serialize and excludes the current post.
+  const relatedPosts = getRelatedPosts(params.id, 3)
+    .map((p) => ({
+      id: p.id,
+      title: p.title || p.id,
+      description: p.description || null,
+      category: p.category || 'Documentation',
+    }));
+
   return {
     props: {
       postData,
-      navigationData
+      navigationData,
+      relatedPosts,
     },
   };
 }

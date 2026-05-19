@@ -1,12 +1,20 @@
 //profileHubContext
 
-import React, { createContext, useContext, useMemo, useState, useEffect } from 'react';
+import React, { createContext, useContext, useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { NETWORKS } from '../config/networks';
 
 const ProfileHubContext = createContext();
 
+// Calling this hook lazily triggers the cross-chain org fetch — the provider
+// itself does nothing until a consumer subscribes. Keeps the marketing landing
+// (the dominant entry path) from fanning out FetchAllOrgs to every mainnet
+// subgraph on every visit.
 export const useprofileHubContext = () => {
-    return useContext(ProfileHubContext);
+    const ctx = useContext(ProfileHubContext);
+    useEffect(() => {
+        ctx?.ensureLoaded?.();
+    }, [ctx]);
+    return ctx;
 };
 
 /**
@@ -57,28 +65,28 @@ async function fetchOrgsFromSource(endpoint, networkConfig) {
 
 export const ProfileHubProvider = ({ children }) => {
     const [allOrgs, setAllOrgs] = useState([]);
+    // Default to loading=true so consumers see a skeleton from frame 1 (no
+    // empty-state flash). The actual network fetch is deferred until a
+    // consumer subscribes via useprofileHubContext() — pages that never read
+    // the org list (every non-/explore route) avoid the cross-chain fan-out
+    // entirely.
     const [loading, setLoading] = useState(true);
+    const startedRef = useRef(false);
 
-    useEffect(() => {
-        let cancelled = false;
-
-        async function fetchAll() {
+    const ensureLoaded = useCallback(() => {
+        if (startedRef.current) return;
+        startedRef.current = true;
+        (async () => {
             const entries = Object.values(NETWORKS).filter(n => !n.isTestnet);
             const results = await Promise.all(
                 entries.map(net => fetchOrgsFromSource(net.subgraphUrl, net))
             );
-            if (!cancelled) {
-                // Flatten, sort by deployedAt ascending (oldest first)
-                const merged = results.flat().sort((a, b) =>
-                    Number(a.deployedAt || 0) - Number(b.deployedAt || 0)
-                );
-                setAllOrgs(merged);
-                setLoading(false);
-            }
-        }
-
-        fetchAll();
-        return () => { cancelled = true; };
+            const merged = results.flat().sort((a, b) =>
+                Number(a.deployedAt || 0) - Number(b.deployedAt || 0)
+            );
+            setAllOrgs(merged);
+            setLoading(false);
+        })();
     }, []);
 
     const perpetualOrganizations = useMemo(() => {
@@ -103,7 +111,8 @@ export const ProfileHubProvider = ({ children }) => {
     const contextValue = useMemo(() => ({
         perpetualOrganizations,
         isLoading: loading,
-    }), [perpetualOrganizations, loading]);
+        ensureLoaded,
+    }), [perpetualOrganizations, loading, ensureLoaded]);
 
     return (
         <ProfileHubContext.Provider value={contextValue}>

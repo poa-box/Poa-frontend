@@ -74,7 +74,7 @@ const Footer = () => (
         <FooterLinkGroup
           title="Community"
           links={[
-            { label: "Discord", href: "https://discord.gg/kKDKgetdNx", external: true },
+            { label: "Discord", href: "https://discord.gg/9SD6u4QjTt", external: true },
             { label: "Twitter", href: "https://twitter.com/PoaPerpetual", external: true },
           ]}
         />
@@ -96,10 +96,10 @@ const Footer = () => (
         direction={["column", "row"]}
       >
         <Text fontSize="xs" color="warmGray.500">
-          &copy; {new Date().getFullYear()} Poa. All rights reserved.
+          &copy; {new Date().getFullYear()} Poa &middot; poa.box. All rights reserved.
         </Text>
         <HStack spacing={4}>
-          <Link href="https://discord.gg/kKDKgetdNx" target="_blank" rel="noopener noreferrer">
+          <Link href="https://discord.gg/9SD6u4QjTt" target="_blank" rel="noopener noreferrer">
             <Icon
               as={FaDiscord}
               boxSize={4}

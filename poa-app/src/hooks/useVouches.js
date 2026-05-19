@@ -9,6 +9,7 @@ import { useAccount } from 'wagmi';
 import { FETCH_VOUCHES_FOR_ORG } from '../util/queries';
 import { useRefreshSubscription } from '../context/RefreshContext';
 import { usePOContext } from '../context/POContext';
+import { useSubgraphClient } from '../util/apolloClient';
 
 /**
  * Normalize a hat ID to a string for consistent comparison
@@ -42,14 +43,14 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
   const { subgraphUrl } = usePOContext();
   const normalizedUserAddress = normalizeAddress(userAddress);
 
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+  const client = useSubgraphClient(subgraphUrl);
 
   // Fetch vouches from subgraph
   const { data, loading, error, refetch } = useQuery(FETCH_VOUCHES_FOR_ORG, {
     variables: { eligibilityModuleId: eligibilityModuleAddress },
     skip: !eligibilityModuleAddress,
     fetchPolicy: 'cache-first',
-    context: apolloContext,
+    client,
   });
 
   // Refetch immediately — executeWithNotification already waited for the

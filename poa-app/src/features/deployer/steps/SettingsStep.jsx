@@ -208,7 +208,7 @@ export function SettingsStep() {
         <NavigationButtons
           onBack={handleBack}
           onNext={handleNext}
-          nextLabel="Review & Launch"
+          nextLabel="Continue"
         />
       </VStack>
     </>

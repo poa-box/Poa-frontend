@@ -3,6 +3,7 @@ import { useQuery } from '@apollo/client';
 import { FETCH_VOTING_DATA_NEW } from '../util/queries';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
+import { useSubgraphClient } from '../util/apolloClient';
 
 const VotingContext = createContext();
 
@@ -220,13 +221,13 @@ export const VotingProvider = ({ children }) => {
     const [state, dispatch] = useReducer(votingReducer, initialVotingState);
 
     const { orgId, subgraphUrl } = usePOContext();
-    const apolloContext = React.useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+    const client = useSubgraphClient(subgraphUrl);
 
     const { data, loading, refetch } = useQuery(FETCH_VOTING_DATA_NEW, {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-first',
-        context: apolloContext,
+        client,
     });
 
     // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference

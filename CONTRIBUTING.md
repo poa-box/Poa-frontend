@@ -10,7 +10,7 @@ The path in mirrors the rest of the Poa org:
 
 1. **Pick up an issue.** Browse [open issues](https://github.com/poa-box/Poa-frontend/issues) and pick one that matches your interest. If you don't see anything obvious, search across the four active repos, since frontend work often involves contract or subgraph changes too.
 2. **Open a PR.** Discussion is welcome, but a working diff is the fastest way to be taken seriously. Small, focused PRs get merged quickly; large refactors should be flagged in Discord first.
-3. **Optional: join the Poa organization on-chain.** [Apply here](https://www.poa.box/home/?org=Poa). Members earn Participation Tokens for shipped work, vote on direction, and share treasury access. Poa runs on Poa, so you can govern the project that built the project.
+3. **Optional: join the Poa organization on-chain.** [Apply here](https://poa.box/home/?org=Poa). Members earn Participation Tokens for shipped work, vote on direction, and share treasury access. Poa runs on Poa, so you can govern the project that built the project.
 
 For protocol-level discussion, ABI changes, security questions, or any change that crosses repo boundaries, [Discord](https://discord.gg/9SD6u4QjTt) first is the right move.
 

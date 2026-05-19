@@ -51,7 +51,10 @@ const PerpetualOrgDashboard = () => {
   const { startTour, isActive: isTourActive } = useTour();
   const router = useRouter();
   const userDAO = useOrgName();
-  const [imageURL, setImageURL] = useState({});
+  // null until the IPFS fetch resolves — anything else (notably {}) renders
+  // an `<img src="[object Object]">` that the browser resolves as a relative
+  // path and 404s before the real src lands.
+  const [imageURL, setImageURL] = useState(null);
   const [imageFetched, setImageFetched] = useState(false);
   const [isVouchingExpanded, setIsVouchingExpanded] = useState(false);
   const { fetchImageFromIpfs } = useIPFScontext();
@@ -205,7 +208,9 @@ const PerpetualOrgDashboard = () => {
                   p={{ base: 3, md: 4 }}
                 >
                   <Box pl={{ base: "0", md: "12px" }} mb={{ base: 3, sm: 0 }} alignSelf={{ base: "center", sm: "flex-start" }}>
-                    <Image mb="0" src={imageURL} alt="Organization Logo" width={logoWidth} />
+                    {imageURL && (
+                      <Image mb="0" src={imageURL} alt="Organization Logo" width={logoWidth} />
+                    )}
                   </Box>
                   <VStack ml={{ base: 0, sm: 2 }} align="flex-start" pr={{ base: 2, md: "10px" }} spacing={2} w="100%">
                     <Box>

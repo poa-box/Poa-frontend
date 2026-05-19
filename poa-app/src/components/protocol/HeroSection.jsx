@@ -1,4 +1,5 @@
 import React from 'react';
+import Link from 'next/link';
 import { Box, Container, Heading, Text, SimpleGrid, VStack, HStack, Icon } from '@chakra-ui/react';
 import { motion } from 'framer-motion';
 import { HiGlobeAlt, HiUserGroup, HiCube, HiLink, HiLightningBolt } from 'react-icons/hi';
@@ -35,11 +36,22 @@ const HeroSection = ({ aggregated, isLoading }) => (
         <Text fontSize="sm" fontWeight="600" color="amethyst.300" letterSpacing="0.1em" textTransform="uppercase" mb={3}>
           Protocol Dashboard
         </Text>
-        <Heading fontSize={{ base: '3xl', md: '5xl' }} fontWeight="800" color="white" mb={4} letterSpacing="-0.02em">
-          POA Protocol
+        <Heading as="h1" fontSize={{ base: '3xl', md: '5xl' }} fontWeight="800" color="white" mb={4} letterSpacing="-0.02em">
+          Poa Protocol. Live transparency.
         </Heading>
-        <Text fontSize={{ base: 'md', md: 'lg' }} color="whiteAlpha.700" maxW="600px" mx="auto" mb={10}>
-          Real-time transparency into the worker and community-owned infrastructure powering decentralized organizations.
+        <Text fontSize={{ base: 'md', md: 'lg' }} color="whiteAlpha.700" maxW="720px" mx="auto" mb={6} lineHeight="1.7">
+          Poa Protocol is the open-source infrastructure that powers every community-owned organization on poa.box. The dashboard below shows real-time state across every supported chain: deployed organizations, solidarity-fund balance, gas sponsorship metrics, and protocol upgrade history. Everything on this page is verifiable on-chain. There is no central admin, and there is no opaque approval process.
+        </Text>
+        <Text fontSize={{ base: 'sm', md: 'md' }} color="whiteAlpha.600" maxW="640px" mx="auto" mb={10} lineHeight="1.7">
+          New here? See the{' '}
+          <Link href="/docs/AlphaV1" style={{ color: '#C4B5FD', textDecoration: 'underline' }}>
+            AlphaV1 release notes
+          </Link>{' '}
+          for what the protocol can do, or the{' '}
+          <Link href="/docs/TheGraph" style={{ color: '#C4B5FD', textDecoration: 'underline' }}>
+            subgraph overview
+          </Link>{' '}
+          for how this dashboard reads on-chain state.
         </Text>
 
         <HStack spacing={4} justify="center" flexWrap="wrap">

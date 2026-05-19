@@ -9,6 +9,7 @@ import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
 import { useIPFScontext } from './ipfsContext';
 import { useIdentityContext } from './IdentityContext';
 import { getSubgraphUrl, getAllSubgraphUrls } from '../config/networks';
+import { useSubgraphClient } from '../util/apolloClient';
 import { getDefaultOrgForHost, getVisitUrlForOrg } from '../config/hostDefaultOrg';
 import { useOrgName } from '@/hooks/useOrgName';
 
@@ -277,13 +278,13 @@ export const POProvider = ({ children }) => {
 
     // Step 2: Fetch full org data using bytes ID, routed to the correct chain's subgraph
     const subgraphUrl = getSubgraphUrl(state.orgChainId);
-    const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+    const client = useSubgraphClient(subgraphUrl);
 
     const { data: orgData, loading: orgDataLoading, error: orgDataError, refetch: refetchOrgData } = useQuery(FETCH_ORG_FULL_DATA, {
         variables: { orgId: state.orgId },
         skip: !state.orgId,
         fetchPolicy: 'cache-first',
-        context: apolloContext,
+        client,
     });
 
     // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
@@ -357,10 +358,16 @@ export const POProvider = ({ children }) => {
             if (org.metadata) {
                 poDescription = org.metadata.description || 'No description provided';
                 if (org.metadata.links && org.metadata.links.length > 0) {
-                    poLinks = org.metadata.links.map(link => ({
-                        name: link.name,
-                        url: link.url,
-                    }));
+                    // Older IPFS metadata occasionally has `url` as an object
+                    // instead of a string; rendering it produced "[object
+                    // Object]" hrefs that 404'd. Coerce to string and drop
+                    // empty entries.
+                    poLinks = org.metadata.links
+                        .map(link => ({
+                            name: typeof link.name === 'string' ? link.name : String(link?.name ?? ''),
+                            url: typeof link.url === 'string' ? link.url : '',
+                        }))
+                        .filter(l => l.url && l.name);
                 }
             } else if (org.metadataHash) {
                 poDescription = 'Organization description loading from IPFS...';

@@ -9,6 +9,7 @@ import { FETCH_ORG_STRUCTURE_DATA } from '../util/queries';
 import { useIPFScontext } from '../context/ipfsContext';
 import { usePOContext } from '../context/POContext';
 import { formatTokenAmount } from '../util/formatToken';
+import { useSubgraphClient } from '../util/apolloClient';
 
 /**
  * Permission type mapping for display
@@ -297,14 +298,14 @@ export function useOrgStructure() {
   });
   const [metadataLoading, setMetadataLoading] = useState(true);
 
-  const apolloContext = useMemo(() => ({ subgraphUrl }), [subgraphUrl]);
+  const client = useSubgraphClient(subgraphUrl);
 
   // Fetch org structure data from subgraph
   const { data, loading: queryLoading, error } = useQuery(FETCH_ORG_STRUCTURE_DATA, {
     variables: { orgId },
     skip: !orgId,
     fetchPolicy: 'cache-first',
-    context: apolloContext,
+    client,
   });
 
   const org = data?.organization;

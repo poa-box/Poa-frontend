@@ -7,9 +7,11 @@ export default function Document() {
     <Html lang="en">
       <Head>
         <link rel="icon" href="/favicon.ico" />
-        <meta name="theme-color" content="#000000" />
-        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#000000" />
-        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
+        <link rel="apple-touch-icon" href="/images/poa_logo.png" />
+        <link rel="manifest" href="/manifest.json" />
+        <meta name="theme-color" content="#7C3AED" />
+        <meta name="application-name" content="Poa" />
+        <meta name="apple-mobile-web-app-title" content="Poa" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link

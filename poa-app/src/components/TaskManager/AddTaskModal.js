@@ -30,7 +30,7 @@ import {
   Image,
   Link,
 } from '@chakra-ui/react';
-import { InfoIcon, CloseIcon } from '@chakra-ui/icons';
+import { InfoIcon, CloseIcon, ExternalLinkIcon } from '@chakra-ui/icons';
 import { getBountyTokenOptions, BOUNTY_TOKENS } from '../../util/tokens';
 import { useUserContext } from '../../context/UserContext';
 import { usePOContext } from '../../context/POContext';
@@ -592,6 +592,26 @@ const AddTaskModal = ({
                     ))}
                   </Select>
                 </HStack>
+                {(() => {
+                  const selected = tokenOptions.find(t => t.address === bountyToken);
+                  if (!selected?.projectUrl) return null;
+                  return (
+                    <Link
+                      href={selected.projectUrl}
+                      isExternal
+                      fontSize="xs"
+                      color="orange.400"
+                      mt={1}
+                      display="inline-flex"
+                      alignItems="center"
+                      gap={1}
+                      _hover={{ color: 'orange.300', textDecoration: 'underline' }}
+                    >
+                      {new URL(selected.projectUrl).hostname}
+                      <ExternalLinkIcon boxSize={3} />
+                    </Link>
+                  );
+                })()}
               </FormControl>
               <FormControl id="bounty-amount">
                 <FormLabel color="gray.400" fontSize="xs">

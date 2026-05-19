@@ -81,6 +81,7 @@ const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen 
         {/* Word-by-word animated gradient headline */}
         <Heading
           as="h1"
+          aria-label="Build Organizations Owned by the People Who Run Them"
           fontSize={["4xl", "5xl", "6xl", "6xl"]}
           fontWeight="700"
           lineHeight="1.15"
@@ -101,16 +102,18 @@ const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen 
           }}
         >
           {HEADLINE_WORDS.map((word, i) => (
-            <MotionSpan
-              key={i}
-              custom={i}
-              initial="hidden"
-              animate="visible"
-              variants={wordVariants}
-              style={{ display: "inline-block", marginRight: "0.3em" }}
-            >
-              {word}
-            </MotionSpan>
+            <React.Fragment key={i}>
+              <MotionSpan
+                custom={i}
+                initial="hidden"
+                animate="visible"
+                variants={wordVariants}
+                style={{ display: "inline-block" }}
+              >
+                {word}
+              </MotionSpan>
+              {i < HEADLINE_WORDS.length - 1 ? " " : ""}
+            </React.Fragment>
           ))}
         </Heading>
 

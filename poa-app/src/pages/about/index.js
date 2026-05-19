@@ -82,9 +82,37 @@ const AboutPage = () => {
   return (
     <>
       <SEOHead
-        title="About Poa - Community-Owned Organization Builder"
-        description="Learn how Poa enables communities to build democratic, decentralized organizations where voting power is earned through contribution."
+        title="About Poa. The Mission Behind a Community-Owned Organization Builder"
+        description="Why Poa exists. Every community deserves infrastructure it owns. The story behind poa.box, a no-code platform where voting power is earned by contributing, not bought with capital."
         path="/about"
+        keywords={[
+          "about poa",
+          "community-owned organization mission",
+          "no-code DAO mission",
+          "earned governance",
+          "decentralized infrastructure",
+          "worker-owned platform",
+          "poa.box",
+        ]}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "AboutPage",
+          "name": "About Poa",
+          "description":
+            "Poa is a no-code DAO platform for community-owned organizations. Voting power is earned through contribution, not purchased with capital.",
+          "url": "https://poa.box/about/",
+          "mainEntity": {
+            "@type": "Organization",
+            "name": "Poa",
+            "alternateName": ["poa.box", "poa box", "Poa.box"],
+            "url": "https://poa.box",
+            "logo": "https://poa.box/images/poa_og.webp",
+            "sameAs": [
+              "https://twitter.com/PoaPerpetual",
+              "https://discord.gg/9SD6u4QjTt",
+            ],
+          },
+        }}
       />
 
       <Box minH="100vh" overflowX="hidden" bg="white">
@@ -142,13 +170,16 @@ const AboutPage = () => {
               <Text
                 fontSize={["lg", "xl", "2xl"]}
                 color="warmGray.300"
-                maxW="620px"
+                maxW="640px"
                 lineHeight="1.7"
                 fontWeight="500"
               >
-                Poa makes it possible to create, manage, and govern organizations where
-                every contributor has a real stake. No investors, no middlemen, just
-                people building together.
+                Poa is a no-code platform for people who don&apos;t think of themselves
+                as crypto users. Student officers. Worker-cooperative members. Open-source
+                maintainers. Every contributor holds a real stake in the community they
+                help build. No investors. No middlemen. No admins. Just people building
+                together, with the accountability and the durability of a real
+                infrastructure underneath, and none of the crypto overhead on top of it.
               </Text>
             </MotionBox>
           </Container>

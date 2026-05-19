@@ -1,8 +1,23 @@
-import { create } from 'ipfs-http-client';
 import { createContext, useContext, useMemo, useCallback, useRef } from 'react';
 import { IPFSError, IPFSErrorCode, IPFSOperation } from '@/lib/errors';
 import { hybridFetchBytes } from '@/lib/ipfs/hybridFetch';
 import { bytes32ToIpfsCid, ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
+
+// Lazy-loaded singleton — keeps ipfs-http-client (~600 KB) out of the root
+// bundle. Only resolved on the first non-binary upload. Binary uploads use
+// direct fetch + FormData and never touch this client.
+let ipfsClientPromise = null;
+function getIpfsClient() {
+  if (!ipfsClientPromise) {
+    ipfsClientPromise = import('ipfs-http-client').then(({ create }) => create({
+      host: 'api.thegraph.com',
+      port: 443,
+      protocol: 'https',
+      apiPath: '/ipfs/api/v0',
+    }));
+  }
+  return ipfsClientPromise;
+}
 
 const IPFScontext = createContext();
 
@@ -98,17 +113,6 @@ async function withRetry(fn, maxRetries = 3, baseDelay = 1000) {
 }
 
 export const IPFSprovider = ({ children }) => {
-    // Use The Graph's IPFS endpoint for all operations (add and fetch)
-    // This is more reliable than Infura and doesn't require authentication
-    const ipfsClient = useMemo(() => {
-        return create({
-            host: 'api.thegraph.com',
-            port: 443,
-            protocol: 'https',
-            apiPath: '/ipfs/api/v0',
-        });
-    }, []);
-
     // Per-session caches keyed by CID. IPFS content is immutable by CID, so
     // these are safe to hold for the lifetime of the page — a re-mounted
     // component (org switch, navigation between Home and Dashboard, etc.)
@@ -164,6 +168,7 @@ export const IPFSprovider = ({ children }) => {
             } else {
                 addedData = await withRetry(async () => {
                     console.log("[IPFS] Attempting add to api.thegraph.com/ipfs...");
+                    const ipfsClient = await getIpfsClient();
                     const result = await ipfsClient.add(content);
                     console.log("[IPFS] Add successful!");
                     console.log("[IPFS] Result:", JSON.stringify(result, null, 2));
@@ -192,7 +197,7 @@ export const IPFSprovider = ({ children }) => {
             // Wrap in IPFSError for consistent error handling
             throw IPFSError.addFailed(error);
         }
-    }, [ipfsClient]);
+    }, []);
 
     /**
      * Fetch JSON content from IPFS

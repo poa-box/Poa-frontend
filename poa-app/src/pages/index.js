@@ -16,17 +16,17 @@ const SignupModal = dynamic(() => import("@/components/account/SignupModal"), { 
 const SolidarityOnboardingModal = dynamic(() => import("@/components/passkey/SolidarityOnboardingModal"), { ssr: false });
 const SignInModal = dynamic(() => import("@/components/passkey/SignInModal"), { ssr: false });
 
-// Landing page — above fold (static imports)
+// Landing page sections — all part of the single scrollable page, so bundling
+// them into the page chunk is cheaper than seven separate HTTP requests with
+// duplicated Chakra/framer-motion imports.
 import Navbar from "@/components/landing/Navbar";
 import HeroSection from "@/components/landing/HeroSection";
-
-// Landing page — below fold (code-split)
-const ValuesSection = dynamic(() => import("@/components/landing/ValuesSection"));
-const WhatIsPoa = dynamic(() => import("@/components/landing/WhatIsPoa"));
-const UseCaseShowcase = dynamic(() => import("@/components/landing/UseCaseShowcase"));
-const FeatureCards = dynamic(() => import("@/components/landing/FeatureCards"));
-const ClosingCTA = dynamic(() => import("@/components/landing/ClosingCTA"));
-const Footer = dynamic(() => import("@/components/landing/Footer"));
+import ValuesSection from "@/components/landing/ValuesSection";
+import WhatIsPoa from "@/components/landing/WhatIsPoa";
+import UseCaseShowcase from "@/components/landing/UseCaseShowcase";
+import FeatureCards from "@/components/landing/FeatureCards";
+import ClosingCTA from "@/components/landing/ClosingCTA";
+import Footer from "@/components/landing/Footer";
 
 export default function Home() {
   const router = useRouter();
@@ -89,15 +89,62 @@ export default function Home() {
     return <Box minH="100vh" bg="white" />;
   }
 
-  const jsonLD = {
+  const webSite = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Poa",
+    "alternateName": ["poa.box", "poa box", "Poa.box"],
+    "url": "https://poa.box",
+    "description":
+      "Poa (poa.box) is a no-code platform for community-owned organizations. Economic democracy in software.",
+  };
+
+  const organizationLD = {
     "@context": "https://schema.org",
     "@type": "Organization",
     "name": "Poa",
+    "alternateName": ["poa.box", "poa box", "Poa.box"],
     "url": "https://poa.box",
     "logo": "https://poa.box/images/poa_og.webp",
-    "sameAs": ["https://twitter.com/PoaPerpetual"],
+    "sameAs": [
+      "https://twitter.com/PoaPerpetual",
+      "https://discord.gg/9SD6u4QjTt",
+      "https://github.com/poa-box",
+    ],
+    "knowsAbout": [
+      "Economic democracy",
+      "Worker cooperatives",
+      "Community-owned organizations",
+      "Contribution-based voting",
+      "Hybrid voting",
+      "Direct democracy",
+      "Open-source project governance",
+      "Decentralized governance",
+      "DAO governance",
+      "On-chain voting",
+      "Decentralized treasury management",
+    ],
     "description":
-      "Poa is a no-code DAO builder for creating community-owned, democratically governed organizations. Voting power is earned through contribution, not purchased with capital.",
+      "Poa (poa.box) is a no-code builder for community-owned organizations. Members write the rules, vote on the rules, and hold the treasury. Governance power is earned by contributing, not bought with capital.",
+  };
+
+  const softwareLD = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "Poa",
+    "alternateName": ["poa.box", "Poa Perpetual Organization Architect"],
+    "applicationCategory": "BusinessApplication",
+    "applicationSubCategory": "Community-owned organization platform",
+    "operatingSystem": "Web",
+    "url": "https://poa.box",
+    "description":
+      "No-code platform to launch and govern community-owned organizations. Voting, treasury, tasks, and roles in one product. Governance power earned by contributing, not bought with capital.",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD",
+    },
+    "creator": { "@type": "Organization", "name": "Poa" },
   };
 
   const breadcrumb = {
@@ -105,17 +152,32 @@ export default function Home() {
     "@type": "BreadcrumbList",
     "itemListElement": [
       { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://poa.box" },
-      { "@type": "ListItem", "position": 2, "name": "Docs", "item": "https://poa.box/docs" },
+      { "@type": "ListItem", "position": 2, "name": "Docs", "item": "https://poa.box/docs/" },
     ],
   };
 
   return (
     <>
       <SEOHead
-        title="Poa — Community-Owned Organization Builder"
-        description="Manage projects, track participation, and govern collectively — no code required. Build community-owned organizations with Poa."
+        title="Poa: Community-Owned Organization Builder (No-Code, poa.box)"
+        description="Launch a community-owned organization on poa.box. Members write the rules, vote on the rules, and hold the treasury. Governance power earned by contributing, not bought with capital."
         path="/"
-        jsonLd={[jsonLD, breadcrumb]}
+        keywords={[
+          "community-owned organization",
+          "no-code DAO",
+          "DAO platform",
+          "DAO builder",
+          "decentralized governance",
+          "contribution-based voting",
+          "hybrid voting",
+          "worker cooperative software",
+          "student organization governance",
+          "open-source project governance",
+          "decentralized treasury",
+          "on-chain voting",
+          "poa.box",
+        ]}
+        jsonLd={[webSite, organizationLD, softwareLD, breadcrumb]}
       />
 
       <Box minH="100vh" overflowX="hidden" bg="white">
@@ -143,19 +205,26 @@ export default function Home() {
         <Footer />
       </Box>
 
-      {/* Auth Modals */}
-      <SignupModal isOpen={isSignupOpen} onClose={() => setIsSignupOpen(false)} />
-      <SolidarityOnboardingModal
-        isOpen={isOnboardingOpen}
-        onClose={onOnboardingClose}
-        onSuccess={() => router.push('/account')}
-      />
-      <SignInModal
-        isOpen={isSignInOpen}
-        onClose={onSignInClose}
-        onSuccess={() => router.push('/account')}
-        onCreateAccount={onOnboardingOpen}
-      />
+      {/* Auth Modals — mount only after first open so dynamic() chunks
+          stay deferred for visitors who never click sign-in. */}
+      {isSignupOpen && (
+        <SignupModal isOpen onClose={() => setIsSignupOpen(false)} />
+      )}
+      {isOnboardingOpen && (
+        <SolidarityOnboardingModal
+          isOpen
+          onClose={onOnboardingClose}
+          onSuccess={() => router.push('/account')}
+        />
+      )}
+      {isSignInOpen && (
+        <SignInModal
+          isOpen
+          onClose={onSignInClose}
+          onSuccess={() => router.push('/account')}
+          onCreateAccount={onOnboardingOpen}
+        />
+      )}
     </>
   );
 }

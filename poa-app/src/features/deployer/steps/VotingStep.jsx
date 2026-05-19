@@ -521,7 +521,7 @@ export function VotingStep() {
           onBack={handleBack}
           onNext={handleNext}
           isNextDisabled={!validationResult.isValid}
-          nextLabel="Review & Deploy"
+          nextLabel="Continue"
         />
       </VStack>
 
