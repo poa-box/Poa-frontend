@@ -23,6 +23,7 @@ import Link from 'next/link';
 import { useProjectContext } from '@/context/ProjectContext';
 import { useOrgName } from '@/hooks/useOrgName';
 import { buildTree, unassignedProjectIds } from '@/lib/folders/tree';
+import { parseProjectId } from '@/services/web3/utils/encoding';
 
 function FolderRow({ node, depth, projectsById, userDAO, expandedIds, toggle }) {
   const isOpen = expandedIds.has(node.id);
@@ -113,20 +114,23 @@ function FolderRow({ node, depth, projectsById, userDAO, expandedIds, toggle }) 
 }
 
 export default function FolderTreeView({ doc }) {
-  const { projects = [] } = useProjectContext() || {};
+  // ProjectContext exports `projectsData` not `projects`; alias.
+  // Map projects by their canonical bytes32 id so they resolve when looked
+  // up via folder.projectIds (which the spec mandates is bytes32).
+  const { projectsData: projects = [] } = useProjectContext() || {};
   const userDAO = useOrgName();
 
   const projectsById = useMemo(() => {
     const m = new Map();
-    for (const p of projects) m.set(p.id, p);
+    for (const p of projects) m.set(parseProjectId(p.id), p);
     return m;
   }, [projects]);
 
-  const allProjectIds = useMemo(() => projects.map((p) => p.id), [projects]);
+  const allProjectPids = useMemo(() => projects.map((p) => parseProjectId(p.id)), [projects]);
   const tree = useMemo(() => buildTree(doc?.folders || []), [doc]);
   const unassigned = useMemo(
-    () => unassignedProjectIds(doc?.folders || [], allProjectIds),
-    [doc, allProjectIds]
+    () => unassignedProjectIds(doc?.folders || [], allProjectPids),
+    [doc, allProjectPids]
   );
 
   const [expandedIds, setExpandedIds] = useState(() => new Set());
