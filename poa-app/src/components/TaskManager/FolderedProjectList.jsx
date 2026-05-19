@@ -20,7 +20,7 @@
  * keeps its existing useDrag wiring → TrashBin).
  */
 
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
 import { Box, Flex, Text, Badge, Icon, IconButton, Collapse, VStack } from '@chakra-ui/react';
 import { ChevronDownIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { FaFolder, FaFolderOpen } from 'react-icons/fa';
@@ -29,10 +29,40 @@ import DraggableProject from './DraggableProject';
 import {
   ancestorsOf,
   buildTree,
-  folderContainingProject,
   unassignedProjectIds,
 } from '@/lib/folders/tree';
 import { parseProjectId } from '@/services/web3/utils/encoding';
+import { usePOContext } from '@/context/POContext';
+
+const STORAGE_PREFIX = 'poa.folderState:';
+
+function loadOverrides(orgId) {
+  if (!orgId || typeof window === 'undefined') return new Map();
+  try {
+    const raw = window.localStorage.getItem(STORAGE_PREFIX + orgId);
+    if (!raw) return new Map();
+    const obj = JSON.parse(raw);
+    if (!obj || typeof obj !== 'object') return new Map();
+    return new Map(
+      Object.entries(obj).filter(([, v]) => typeof v === 'boolean')
+    );
+  } catch {
+    return new Map();
+  }
+}
+
+function saveOverrides(orgId, overrides) {
+  if (!orgId || typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(
+      STORAGE_PREFIX + orgId,
+      JSON.stringify(Object.fromEntries(overrides))
+    );
+  } catch {
+    // localStorage full / disabled / private mode — fail silently, state
+    // still works in-memory for this session.
+  }
+}
 
 /**
  * Subset of projects that fall under `folderProjectIds`, in the order
@@ -236,37 +266,44 @@ export default function FolderedProjectList({
     return out;
   }, [normalizedFolders, visiblePids]);
 
-  // Ancestor chain of the selected project's folder — auto-expand so the
-  // user lands on a visible row.
-  const selectedAncestors = useMemo(() => {
-    if (!selectedProject?.id) return new Set();
-    const selectedPid = parseProjectId(selectedProject.id);
-    const folderId = folderContainingProject(normalizedFolders, selectedPid);
-    if (!folderId) return new Set();
-    const chain = ancestorsOf(normalizedFolders, folderId);
-    chain.add(folderId);
-    return chain;
-  }, [normalizedFolders, selectedProject?.id]);
-
   // User-intent overrides keyed by folder id (`true` = explicitly opened,
-  // `false` = explicitly closed, absent = follow auto rule). The original
-  // implementation kept a single `expanded` Set and pushed auto-expand
-  // additions into it from a useEffect — but `filteredProjects` is a new
-  // array reference per search keystroke, so the effect would fire every
-  // keystroke and re-add ids the user had just collapsed. Deriving
-  // visibility instead of mutating state makes user collapses survive
-  // every render, no matter how often the auto-rule inputs churn.
-  const [overrides, setOverrides] = useState(() => new Map());
+  // `false` = explicitly closed, absent = follow auto rule). Persisted to
+  // localStorage per-org so the layout users curate survives refresh and
+  // navigation. Default state for a never-touched folder is CLOSED.
+  const { orgId } = usePOContext() || {};
+  const [overrides, setOverrides] = useState(() => loadOverrides(orgId));
 
+  // If orgId resolves AFTER first render (rare under foldersReady gating,
+  // but possible if the parent ever calls us with a partial context),
+  // re-hydrate from storage so the org's saved state is honored.
+  useEffect(() => {
+    if (!orgId) return;
+    const loaded = loadOverrides(orgId);
+    if (loaded.size > 0) setOverrides(loaded);
+  }, [orgId]);
+
+  // Write-through to localStorage on every change so refresh restores the
+  // exact same expanded/collapsed shape.
+  useEffect(() => {
+    if (!orgId) return;
+    saveOverrides(orgId, overrides);
+  }, [orgId, overrides]);
+
+  // Auto-expansion is intentionally minimal: at rest, NO folders open
+  // automatically — users explicitly opted out of the previous
+  // "auto-open the selected project's folder" behaviour. The one
+  // exception is active search: if the user typed something, folders
+  // containing matches expand so the search results are findable. Once
+  // the search clears, folders return to the user's persisted shape.
   const autoExpanded = useMemo(() => {
-    const out = new Set();
-    for (const id of foldersWithVisible) out.add(id);
-    for (const id of selectedAncestors) out.add(id);
-    return out;
-  }, [foldersWithVisible, selectedAncestors]);
+    if (!searchTerm) return new Set();
+    return foldersWithVisible;
+  }, [searchTerm, foldersWithVisible]);
 
   const getIsExpanded = useCallback(
     (id) => {
+      // Explicit user override always wins, even during search — if you
+      // collapse a folder while typing, it stays collapsed.
       if (overrides.has(id)) return overrides.get(id);
       return autoExpanded.has(id);
     },

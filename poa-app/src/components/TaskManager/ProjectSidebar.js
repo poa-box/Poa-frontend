@@ -18,6 +18,7 @@ import { useWeb3 } from '../../hooks';
 import { useDataBaseContext } from '@/context/dataBaseContext';
 import DraggableProject from './DraggableProject';
 import FolderedProjectList from './FolderedProjectList';
+import PulseLoader from '@/components/shared/PulseLoader';
 import TrashBin from './TrashBin';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
@@ -43,6 +44,7 @@ const ProjectSidebar = ({
   onOpenCreateModal,
   onToggleSidebar,
   folders = [],
+  foldersReady = true,
   userIsOrganizer = false,
   onEditFolders,
 }) => {
@@ -251,13 +253,19 @@ const ProjectSidebar = ({
       
       <Divider borderColor="whiteAlpha.200" />
       
-      {/* Projects list with improved spacing.
-          - No folders configured → render the flat list exactly as before
-            (zero regression for orgs that haven't published a folder tree).
-          - Folders present → group projects under their folder sections.
-            Existing DraggableProject component is reused unchanged. */}
+      {/* Projects list.
+          - Until `foldersReady`, hold the layout with a small loader so we
+            don't render the flat-list fallback and then snap into the
+            folded view once the IPFS doc arrives.
+          - No folders configured → flat list (matches pre-v4 sidebar).
+          - Folders present → grouped via FolderedProjectList (existing
+            DraggableProject component reused unchanged). */}
       <Box flexGrow={1} overflowY="auto" p={3}>
-        {filteredProjects.length === 0 ? (
+        {!foldersReady ? (
+          <VStack spacing={3} width="100%" align="center" pt={6}>
+            <PulseLoader size="sm" color="purple.400" />
+          </VStack>
+        ) : filteredProjects.length === 0 ? (
           <VStack spacing={3} width="100%" align="center">
             <Text color="whiteAlpha.600" fontSize="sm" pt={4}>
               {searchTerm ? 'No projects match your search' : 'No projects available'}
