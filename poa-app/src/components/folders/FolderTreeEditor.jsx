@@ -13,6 +13,11 @@
 
 import React, { useMemo, useState } from 'react';
 import {
+  Accordion,
+  AccordionButton,
+  AccordionIcon,
+  AccordionItem,
+  AccordionPanel,
   Box,
   Flex,
   VStack,
@@ -48,6 +53,7 @@ import { useWeb3 } from '@/hooks';
 import { usePOContext } from '@/context/POContext';
 import { useProjectContext } from '@/context/ProjectContext';
 import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
+import { inputStyles } from '@/components/shared/glassStyles';
 
 import { validateFolderDoc, FOLDERS_SCHEMA_VERSION } from '@/lib/folders/schema';
 import {
@@ -60,14 +66,48 @@ import {
 import { parseFoldersRootStale } from '@/lib/folders/cas';
 import { useRefreshEmit, RefreshEvent } from '@/context/RefreshContext';
 import FolderTreeView from './FolderTreeView';
+import OrganizerHatAdminPanel from './OrganizerHatAdminPanel';
 import { useFolderDoc } from './useFolderDoc';
+
+// Dark glass shell — matches AddTaskModal so the editor doesn't look like
+// a stray light Chakra modal grafted into the sidebar context.
+const modalGlassStyle = {
+  position: 'absolute',
+  height: '100%',
+  width: '100%',
+  zIndex: -1,
+  borderRadius: 'inherit',
+  backgroundColor: 'rgba(15, 10, 25, 0.97)',
+  boxShadow: 'inset 0 0 15px rgba(148, 115, 220, 0.15)',
+  border: '1px solid rgba(148, 115, 220, 0.3)',
+};
+
+const selectStyles = {
+  ...inputStyles,
+  sx: {
+    '& option': {
+      bg: 'gray.800',
+      color: 'white',
+    },
+  },
+};
 
 function FolderRow({ folder, allFolders, projects, depth, onChange, onDelete }) {
   const disallowed = useMemo(() => descendantsOf(allFolders, folder.id), [allFolders, folder.id]);
   const candidates = allFolders.filter((f) => !disallowed.has(f.id));
 
   return (
-    <Box pl={depth * 4} py={2} borderBottom="1px solid" borderColor="whiteAlpha.100">
+    <Box
+      pl={depth * 4 + 3}
+      py={2.5}
+      borderBottom="1px solid"
+      borderColor="whiteAlpha.100"
+      borderLeft="3px solid"
+      borderLeftColor="purple.400"
+      borderRadius="md"
+      bg="whiteAlpha.50"
+      mb={1.5}
+    >
       <HStack align="flex-start" spacing={2}>
         <Input
           size="sm"
@@ -77,6 +117,7 @@ function FolderRow({ folder, allFolders, projects, depth, onChange, onDelete }) 
             onChange({ ...folder, name: e.target.value })
           }
           maxW="240px"
+          {...inputStyles}
         />
         <Select
           size="sm"
@@ -91,6 +132,7 @@ function FolderRow({ folder, allFolders, projects, depth, onChange, onDelete }) 
             const newSort = computeSortOrder(newSiblings, newSiblings.length);
             onChange({ ...folder, parentId: next, sortOrder: newSort });
           }}
+          {...selectStyles}
         >
           <option value="">(top level)</option>
           {candidates.map((c) => (
@@ -113,31 +155,38 @@ function FolderRow({ folder, allFolders, projects, depth, onChange, onDelete }) 
       </HStack>
 
       {/* Project assignments for this folder */}
-      <Wrap mt={2} spacing={2}>
-        {(folder.projectIds || []).map((pid) => {
-          const proj = projects.find((p) => p.id === pid);
-          return (
-            <WrapItem key={pid}>
-              <Tag size="sm" colorScheme="blue" borderRadius="full">
-                <TagLabel>{proj?.name || pid.slice(0, 10) + '…'}</TagLabel>
-                <TagCloseButton
-                  onClick={() =>
-                    onChange({
-                      ...folder,
-                      projectIds: (folder.projectIds || []).filter((p) => p !== pid),
-                    })
-                  }
-                />
-              </Tag>
-            </WrapItem>
-          );
-        })}
-      </Wrap>
+      {(folder.projectIds || []).length > 0 && (
+        <Wrap mt={2} spacing={2}>
+          {(folder.projectIds || []).map((pid) => {
+            const proj = projects.find((p) => p.id === pid);
+            return (
+              <WrapItem key={pid}>
+                <Tag size="sm" colorScheme="blue" borderRadius="full" variant="subtle">
+                  <TagLabel>{proj?.name || pid.slice(0, 10) + '…'}</TagLabel>
+                  <TagCloseButton
+                    onClick={() =>
+                      onChange({
+                        ...folder,
+                        projectIds: (folder.projectIds || []).filter((p) => p !== pid),
+                      })
+                    }
+                  />
+                </Tag>
+              </WrapItem>
+            );
+          })}
+        </Wrap>
+      )}
     </Box>
   );
 }
 
-export default function FolderTreeEditor({ isOpen, onClose, foldersRoot }) {
+export default function FolderTreeEditor({
+  isOpen,
+  onClose,
+  foldersRoot,
+  organizerHatIds = [],
+}) {
   const toast = useToast();
   const { addToIpfs } = useIPFScontext();
   const { task: taskService, executeWithNotification } = useWeb3();
@@ -288,29 +337,30 @@ export default function FolderTreeEditor({ isOpen, onClose, foldersRoot }) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="2xl" scrollBehavior="inside">
-      <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Edit folder tree</ModalHeader>
-        <ModalCloseButton />
+      <ModalOverlay bg="blackAlpha.800" />
+      <ModalContent bg="transparent" textColor="white">
+        <div style={modalGlassStyle} />
+        <ModalHeader color="white">Edit folder tree</ModalHeader>
+        <ModalCloseButton color="whiteAlpha.700" />
         <ModalBody>
-          {loading && <Text color="gray.500">Loading current tree...</Text>}
+          {loading && <Text color="whiteAlpha.700">Loading current tree...</Text>}
           {error && (
-            <Alert status="error" mb={3} borderRadius="md">
-              <AlertIcon />
+            <Alert status="error" mb={3} borderRadius="md" bg="red.900" color="white">
+              <AlertIcon color="red.200" />
               {error.message}
             </Alert>
           )}
 
           {savingError && (
-            <Alert status="error" mb={3} borderRadius="md">
-              <AlertIcon />
+            <Alert status="error" mb={3} borderRadius="md" bg="red.900" color="white">
+              <AlertIcon color="red.200" />
               {savingError.message || String(savingError)}
             </Alert>
           )}
 
           <VStack align="stretch" spacing={2}>
             <HStack justify="space-between">
-              <Text fontSize="sm" color="gray.500">
+              <Text fontSize="sm" color="whiteAlpha.700">
                 {folders.length} folder{folders.length === 1 ? '' : 's'} · {unassigned.length} unassigned project{unassigned.length === 1 ? '' : 's'}
               </Text>
               <Button size="sm" leftIcon={<AddIcon />} colorScheme="purple" onClick={() => addFolder(null)}>
@@ -318,60 +368,102 @@ export default function FolderTreeEditor({ isOpen, onClose, foldersRoot }) {
               </Button>
             </HStack>
 
-            <Divider />
+            <Divider borderColor="whiteAlpha.200" />
 
-            {folders
-              .slice()
-              .sort((a, b) => a.sortOrder - b.sortOrder)
-              .map((f) => (
-                <FolderRow
-                  key={f.id}
-                  folder={f}
-                  allFolders={folders}
-                  projects={projects}
-                  depth={0}
-                  onChange={updateFolder}
-                  onDelete={deleteFolder}
-                />
-              ))}
+            {folders.length === 0 ? (
+              <Box
+                py={6}
+                px={4}
+                borderRadius="md"
+                bg="whiteAlpha.50"
+                border="1px dashed"
+                borderColor="whiteAlpha.200"
+                textAlign="center"
+              >
+                <Text color="whiteAlpha.700" fontSize="sm">
+                  No folders yet. Click <b>New folder</b> to start organizing projects.
+                </Text>
+              </Box>
+            ) : (
+              folders
+                .slice()
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map((f) => (
+                  <FolderRow
+                    key={f.id}
+                    folder={f}
+                    allFolders={folders}
+                    projects={projects}
+                    depth={0}
+                    onChange={updateFolder}
+                    onDelete={deleteFolder}
+                  />
+                ))
+            )}
 
-            {projects.length > 0 && (
+            {projects.length > 0 && folders.length > 0 && (
               <>
-                <Divider mt={4} />
-                <Text fontWeight="600" fontSize="sm" mt={2}>
+                <Divider mt={4} borderColor="whiteAlpha.200" />
+                <Text fontWeight="600" fontSize="sm" mt={2} color="white">
                   Assign projects to folders
                 </Text>
-                {projects.map((p) => {
-                  const currentFolder = folders.find((f) => (f.projectIds || []).includes(p.id));
-                  return (
-                    <HStack key={p.id} spacing={2}>
-                      <Text fontSize="sm" flex="1" isTruncated>
-                        {p.name}
-                      </Text>
-                      <Select
-                        size="sm"
-                        maxW="240px"
-                        value={currentFolder?.id ?? ''}
-                        onChange={(e) =>
-                          handleAssignProject(e.target.value === '' ? null : e.target.value, p.id)
-                        }
-                      >
-                        <option value="">(unassigned)</option>
-                        {folders.map((f) => (
-                          <option key={f.id} value={f.id}>
-                            {f.name || f.id.slice(0, 10)}
-                          </option>
-                        ))}
-                      </Select>
-                    </HStack>
-                  );
-                })}
+                <VStack spacing={2} align="stretch">
+                  {projects.map((p) => {
+                    const currentFolder = folders.find((f) => (f.projectIds || []).includes(p.id));
+                    return (
+                      <HStack key={p.id} spacing={2}>
+                        <Text fontSize="sm" flex="1" isTruncated color="whiteAlpha.900">
+                          {p.name}
+                        </Text>
+                        <Select
+                          size="sm"
+                          maxW="240px"
+                          value={currentFolder?.id ?? ''}
+                          onChange={(e) =>
+                            handleAssignProject(e.target.value === '' ? null : e.target.value, p.id)
+                          }
+                          {...selectStyles}
+                        >
+                          <option value="">(unassigned)</option>
+                          {folders.map((f) => (
+                            <option key={f.id} value={f.id}>
+                              {f.name || f.id.slice(0, 10)}
+                            </option>
+                          ))}
+                        </Select>
+                      </HStack>
+                    );
+                  })}
+                </VStack>
               </>
             )}
+
+            {/* Organizer-hat admin lives in an accordion footer so it
+                doesn't dominate the editor but is reachable when needed
+                (e.g. an org admin opens the editor to grant a new hat). */}
+            <Accordion allowToggle mt={4}>
+              <AccordionItem border="1px solid" borderColor="whiteAlpha.150" borderRadius="md">
+                <AccordionButton _hover={{ bg: 'whiteAlpha.50' }}>
+                  <Box flex="1" textAlign="left">
+                    <Text fontSize="sm" fontWeight="600" color="white">
+                      Manage organizer hats
+                    </Text>
+                    <Text fontSize="xs" color="whiteAlpha.600">
+                      Who can publish folder updates ({organizerHatIds.length}{' '}
+                      hat{organizerHatIds.length === 1 ? '' : 's'} configured)
+                    </Text>
+                  </Box>
+                  <AccordionIcon color="whiteAlpha.700" />
+                </AccordionButton>
+                <AccordionPanel pb={4}>
+                  <OrganizerHatAdminPanel organizerHatIds={organizerHatIds} />
+                </AccordionPanel>
+              </AccordionItem>
+            </Accordion>
           </VStack>
         </ModalBody>
         <ModalFooter>
-          <Button variant="ghost" mr={3} onClick={onClose} isDisabled={saving}>
+          <Button variant="ghost" color="whiteAlpha.800" mr={3} onClick={onClose} isDisabled={saving}>
             Cancel
           </Button>
           <Button
@@ -387,25 +479,32 @@ export default function FolderTreeEditor({ isOpen, onClose, foldersRoot }) {
 
         {/* Conflict modal: another organizer published while you were editing */}
         <Modal isOpen={!!conflict} onClose={() => setConflict(null)} size="2xl">
-          <ModalOverlay />
-          <ModalContent>
-            <ModalHeader>Folder tree out of date</ModalHeader>
-            <ModalCloseButton />
+          <ModalOverlay bg="blackAlpha.800" />
+          <ModalContent bg="transparent" textColor="white">
+            <div style={modalGlassStyle} />
+            <ModalHeader color="white">Folder tree out of date</ModalHeader>
+            <ModalCloseButton color="whiteAlpha.700" />
             <ModalBody>
-              <Alert status="warning" mb={3} borderRadius="md">
-                <AlertIcon />
+              <Alert status="warning" mb={3} borderRadius="md" bg="orange.900" color="white">
+                <AlertIcon color="orange.200" />
                 Another organizer published a new folder tree while you were editing.
                 Your changes were NOT saved.
               </Alert>
-              <Text fontSize="sm" color="gray.600" mb={2}>
+              <Text fontSize="sm" color="whiteAlpha.700" mb={2}>
                 Current on-chain tree:
               </Text>
-              <Box border="1px solid" borderColor="gray.200" borderRadius="md" p={2}>
+              <Box
+                border="1px solid"
+                borderColor="whiteAlpha.150"
+                borderRadius="md"
+                p={2}
+                bg="whiteAlpha.50"
+              >
                 <ConflictView actualRoot={conflict?.actualRoot} />
               </Box>
             </ModalBody>
             <ModalFooter>
-              <Button variant="ghost" mr={3} onClick={() => setConflict(null)}>
+              <Button variant="ghost" color="whiteAlpha.800" mr={3} onClick={() => setConflict(null)}>
                 Keep my edits open
               </Button>
               <Button colorScheme="purple" onClick={handleDiscardAndReload}>

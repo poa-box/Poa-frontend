@@ -1,14 +1,17 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { Flex, Box, Heading, useMediaQuery, Select, Text, Button, VStack, HStack, IconButton, useDisclosure, Input, FormControl, FormLabel, Tooltip, Badge } from '@chakra-ui/react';
 import { AddIcon, InfoIcon, ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon } from '@chakra-ui/icons';
 import ProjectSidebar from './ProjectSidebar';
 import TaskBoard from './TaskBoard';
 import CreateProjectModal from './CreateProjectModal';
+import FolderTreeEditor from '../folders/FolderTreeEditor';
+import { useFolderDoc } from '../folders/useFolderDoc';
 import { TaskBoardProvider } from '../../context/TaskBoardContext';
 import { useDataBaseContext} from '../../context/dataBaseContext';
 import { useIPFScontext } from '../../context/ipfsContext';
+import { useUserContext } from '../../context/UserContext';
 import { useAuth } from '../../context/AuthContext';
-import { useWeb3, useOrgTheme } from '../../hooks';
+import { useWeb3, useOrgTheme, useTaskManagerV4State } from '../../hooks';
 import { usePOContext } from '@/context/POContext';
 import { useOrgName } from '@/hooks/useOrgName';
 import { useRouter } from 'next/router';
@@ -218,10 +221,30 @@ const MainLayout = () => {
   const { accountAddress: account } = useAuth();
   const { task: taskService, executeWithNotification } = useWeb3();
   const { taskManagerContractAddress, roleHatIds, roleNames, creatorHatIds } = usePOContext();
+  const { userData } = useUserContext() || {};
   const { addToIpfs } = useIPFScontext();
   const router = useRouter();
   const userDAO = useOrgName();
   const { onBackground, onBackgroundMuted } = useOrgTheme();
+
+  // v4 folder state — sourced via subgraph (POContext) once #177 deploys,
+  // backed by a lens read against the TaskManager today. The hook handles
+  // both transparently.
+  const { foldersRoot, organizerHatIds } = useTaskManagerV4State();
+  const { doc: folderDoc } = useFolderDoc(foldersRoot);
+  const folders = folderDoc?.folders || [];
+
+  // Organizer-hat gate. Wearers of any hat in organizerHatIds (or the
+  // executor) can call setFolders; we only show the inline edit affordance
+  // to them. The contract is the actual security boundary.
+  const userIsOrganizer = useMemo(() => {
+    const userHatIds = userData?.hatIds || [];
+    if (!userHatIds.length || !organizerHatIds.length) return false;
+    const userSet = new Set(userHatIds.map((h) => String(h)));
+    return organizerHatIds.some((id) => userSet.has(String(id)));
+  }, [userData, organizerHatIds]);
+
+  const folderEditor = useDisclosure();
 
   // Use useMediaQuery for more stable breakpoint detection
   // Returns [isMatch] where isMatch is false by default on SSR to prevent flash
@@ -547,6 +570,9 @@ const MainLayout = () => {
               onSelectProject={handleSelectProject}
               onOpenCreateModal={onProjectModalOpen}
               onToggleSidebar={toggleSidebar}
+              folders={folders}
+              userIsOrganizer={userIsOrganizer}
+              onEditFolders={folderEditor.onOpen}
             />
           </Box>
         )}
@@ -655,6 +681,16 @@ const MainLayout = () => {
         creatorHatIds={creatorHatIds || []}
         defaultName={tourDefaultProjectName}
         defaultDescription={tourDefaultProjectDesc}
+      />
+
+      {/* Folder editor — opened from the sidebar header when the
+          connected wallet wears an organizer hat. Mounted here so the
+          modal survives sidebar collapse / mobile-mode swaps. */}
+      <FolderTreeEditor
+        isOpen={folderEditor.isOpen}
+        onClose={folderEditor.onClose}
+        foldersRoot={foldersRoot}
+        organizerHatIds={organizerHatIds}
       />
     </DndProvider>
   );

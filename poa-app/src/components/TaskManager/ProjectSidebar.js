@@ -5,28 +5,24 @@ import {
   Heading,
   Button,
   Input,
-  FormControl,
-  Spacer,
   Flex,
   Text,
-  Icon,
   Divider,
   InputGroup,
   InputRightElement,
-  useColorModeValue,
   Tooltip,
   IconButton,
-  Collapse,
   useToast,
 } from '@chakra-ui/react';
 import { useWeb3 } from '../../hooks';
 import { useDataBaseContext } from '@/context/dataBaseContext';
 import DraggableProject from './DraggableProject';
+import FolderedProjectList from './FolderedProjectList';
 import TrashBin from './TrashBin';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
-import { AddIcon, SearchIcon, ChevronLeftIcon } from '@chakra-ui/icons';
+import { AddIcon, SearchIcon, ChevronLeftIcon, EditIcon } from '@chakra-ui/icons';
 import { PERMISSION_MESSAGES, ROLE_INDICES } from '../../util/permissions';
 
 const glassLayerStyle = {
@@ -40,9 +36,17 @@ const glassLayerStyle = {
   boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
 };
 
-const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCreateModal, onToggleSidebar }) => {
+const ProjectSidebar = ({
+  projects,
+  selectedProject,
+  onSelectProject,
+  onOpenCreateModal,
+  onToggleSidebar,
+  folders = [],
+  userIsOrganizer = false,
+  onEditFolders,
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [showProjects, setShowProjects] = useState(true);
   const { userData } = useUserContext();
   const { projectsData } = useProjectContext();
   const { task: taskService, executeWithNotification } = useWeb3();
@@ -128,12 +132,15 @@ const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCrea
     );
   }, [canManageProjects, taskService, executeWithNotification, taskManagerContractAddress, toast]);
 
-  // Filter projects based on search term
-  const filteredProjects = searchTerm 
-    ? projects.filter(project => 
-        project.name.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-    : projects;
+  // Filter projects based on search term. Memoized so the array reference
+  // stays stable between unrelated re-renders — without this, the child
+  // FolderedProjectList sees a new `filteredProjects` prop on every parent
+  // render and re-runs its visible-set memo unnecessarily.
+  const filteredProjects = useMemo(() => {
+    if (!searchTerm) return projects;
+    const lower = searchTerm.toLowerCase();
+    return projects.filter((project) => project.name.toLowerCase().includes(lower));
+  }, [projects, searchTerm]);
 
   return (
     <Box
@@ -178,10 +185,10 @@ const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCrea
           justify="space-between"
           mb={2}
         >
-          <Heading 
-            textAlign="left" 
+          <Heading
+            textAlign="left"
             fontSize="22px"
-            color="white" 
+            color="white"
             letterSpacing="wider"
             fontWeight="bold"
             textTransform="uppercase"
@@ -191,16 +198,35 @@ const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCrea
             Projects
           </Heading>
 
-          {/* Collapse sidebar button */}
-          <IconButton
-            aria-label="Collapse sidebar"
-            icon={<ChevronLeftIcon />}
-            size="sm"
-            variant="ghost"
-            colorScheme="blue"
-            onClick={onToggleSidebar}
-            title="Collapse sidebar"
-          />
+          <Flex align="center" gap={1}>
+            {userIsOrganizer && onEditFolders && (
+              <Tooltip
+                label={folders.length > 0 ? 'Edit folders' : 'Create folders to organize projects'}
+                placement="bottom"
+                hasArrow
+              >
+                <IconButton
+                  aria-label="Edit folders"
+                  icon={<EditIcon />}
+                  size="sm"
+                  variant="ghost"
+                  colorScheme="purple"
+                  onClick={onEditFolders}
+                />
+              </Tooltip>
+            )}
+
+            {/* Collapse sidebar button */}
+            <IconButton
+              aria-label="Collapse sidebar"
+              icon={<ChevronLeftIcon />}
+              size="sm"
+              variant="ghost"
+              colorScheme="blue"
+              onClick={onToggleSidebar}
+              title="Collapse sidebar"
+            />
+          </Flex>
         </Flex>
         
         {/* Search input */}
@@ -225,11 +251,31 @@ const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCrea
       
       <Divider borderColor="whiteAlpha.200" />
       
-      {/* Projects list with improved spacing */}
+      {/* Projects list with improved spacing.
+          - No folders configured → render the flat list exactly as before
+            (zero regression for orgs that haven't published a folder tree).
+          - Folders present → group projects under their folder sections.
+            Existing DraggableProject component is reused unchanged. */}
       <Box flexGrow={1} overflowY="auto" p={3}>
-        <VStack spacing={3} width="100%" align="center">
-          {filteredProjects.length > 0 ? (
-            filteredProjects.map((project) => {
+        {filteredProjects.length === 0 ? (
+          <VStack spacing={3} width="100%" align="center">
+            <Text color="whiteAlpha.600" fontSize="sm" pt={4}>
+              {searchTerm ? 'No projects match your search' : 'No projects available'}
+            </Text>
+          </VStack>
+        ) : folders.length > 0 ? (
+          <FolderedProjectList
+            folders={folders}
+            projects={projects}
+            filteredProjects={filteredProjects}
+            selectedProject={selectedProject}
+            onSelectProject={onSelectProject}
+            onDeleteProject={onDeleteProject}
+            searchTerm={searchTerm}
+          />
+        ) : (
+          <VStack spacing={3} width="100%" align="center">
+            {filteredProjects.map((project) => {
               const isSelected = selectedProject && project.id === selectedProject.id;
               return (
                 <DraggableProject
@@ -240,17 +286,9 @@ const ProjectSidebar = ({ projects, selectedProject, onSelectProject, onOpenCrea
                   onDeleteProject={onDeleteProject}
                 />
               );
-            })
-          ) : searchTerm ? (
-            <Text color="whiteAlpha.600" fontSize="sm" pt={4}>
-              No projects match your search
-            </Text>
-          ) : (
-            <Text color="whiteAlpha.600" fontSize="sm" pt={4}>
-              No projects available
-            </Text>
-          )}
-        </VStack>
+            })}
+          </VStack>
+        )}
       </Box>
       
       <Divider borderColor="whiteAlpha.200" mt={2} />
