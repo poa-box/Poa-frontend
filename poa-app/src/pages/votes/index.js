@@ -131,7 +131,7 @@ const VotingHistoryPage = () => {
 
   // Handlers
   const handleBackClick = useCallback(() => {
-    router.push(`/voting?org=${userDAO}`);
+    router.push(`/voting?org=${encodeURIComponent(userDAO)}`);
   }, [router, userDAO]);
 
   const handleTabChange = useCallback((index) => {

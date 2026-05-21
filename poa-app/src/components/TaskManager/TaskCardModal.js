@@ -631,7 +631,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
 
   const copyLinkToClipboard = () => {
     const encodedProjectId = encodeURIComponent(task.projectId);
-    const link = `${window.location.origin}/tasks/?task=${task.id}&projectId=${encodedProjectId}&org=${userDAO}`;
+    const link = `${window.location.origin}/tasks/?task=${task.id}&projectId=${encodedProjectId}&org=${encodeURIComponent(userDAO)}`;
 
     navigator.clipboard.writeText(link).then(() => {
       toast({

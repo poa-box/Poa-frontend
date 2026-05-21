@@ -60,7 +60,7 @@ const PerpetualOrgDashboard = () => {
   const { fetchImageFromIpfs } = useIPFScontext();
 
   const inviteLink = typeof window !== 'undefined' && userDAO
-    ? `${window.location.origin}/join?org=${userDAO}`
+    ? `${window.location.origin}/join?org=${encodeURIComponent(userDAO)}`
     : '';
   const { hasCopied, onCopy } = useClipboard(inviteLink);
 
@@ -391,7 +391,7 @@ const PerpetualOrgDashboard = () => {
                         overflow="hidden"
                         bg="black"
                       >
-                        <Link2 href={`/tasks/?task=${task.id}&projectId=${encodeURIComponent(decodeURIComponent(task.projectId))}&org=${userDAO}`}>
+                        <Link2 href={`/tasks/?task=${task.id}&projectId=${encodeURIComponent(decodeURIComponent(task.projectId))}&org=${encodeURIComponent(userDAO)}`}>
                           <VStack textColor="white" align="stretch" spacing={3}>
                             <Text mt="-2" fontSize={textSize} lineHeight="99%" fontWeight="extrabold">
                               {task.isIndexing ? 'Indexing...' : task.title}
@@ -444,7 +444,7 @@ const PerpetualOrgDashboard = () => {
             </GridItem>
 
             <GridItem area={'leaderboard'}>
-              <Link2 href={`/leaderboard?org=${userDAO}`}>
+              <Link2 href={`/leaderboard?org=${encodeURIComponent(userDAO)}`}>
                 <Box
                   h="100%"
                   w="100%"
@@ -604,7 +604,7 @@ const PerpetualOrgDashboard = () => {
                             h="auto"
                             p={4}
                             borderRadius="xl"
-                            onClick={() => router.push(`/learn/?org=${userDAO}`)}
+                            onClick={() => router.push(`/learn/?org=${encodeURIComponent(userDAO)}`)}
                             bg="black"
                             _hover={{ transform: "translateY(-2px)", boxShadow: "0 8px 25px rgba(0,0,0,0.3)" }}
                             transition="transform 0.2s, box-shadow 0.2s, background 0.2s, border-color 0.2s"
@@ -617,7 +617,7 @@ const PerpetualOrgDashboard = () => {
                               </Text>
                               <HStack mt={6} justifyContent="space-between">
                             {/* <Text mt={2}>{module.description}</Text> */}
-                            <Link2 href={`/learn/?org=${userDAO}`}>
+                            <Link2 href={`/learn/?org=${encodeURIComponent(userDAO)}`}>
 
                               <Button colorScheme="teal" size={{ base: "xs", md: "sm" }}>
                                 {module.isIndexing ? 'Coming Soon' : 'Start Module'}

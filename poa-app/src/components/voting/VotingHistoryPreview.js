@@ -33,7 +33,7 @@ const VotingHistoryPreview = ({
   };
 
   const handleViewAllClick = () => {
-    router.push(`/votes?org=${userDAO}`);
+    router.push(`/votes?org=${encodeURIComponent(userDAO)}`);
   };
 
   return (

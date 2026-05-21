@@ -214,7 +214,7 @@ const User = () => {
   useEffect(() => {
     // Don't redirect members when they're here to vouch for someone
     if (hasMemberRole && !vouchAddress) {
-      router.push(`/profile/?org=${userDAO}`);
+      router.push(`/profile/?org=${encodeURIComponent(userDAO)}`);
     }
   }, [hasMemberRole, address, vouchAddress]);
 
@@ -235,7 +235,7 @@ const User = () => {
       username,
     });
 
-    router.push(`/profile/?org=${userDAO}`);
+    router.push(`/profile/?org=${encodeURIComponent(userDAO)}`);
   }, [vouchFirstHook.phase]);
 
   // Sync pendingVouchApplication to sessionStorage
@@ -326,7 +326,7 @@ const User = () => {
         hatIds: vouchedHatId ? [vouchedHatId] : (roleHatIds?.[0] ? [roleHatIds[0]] : []),
         username: crossChainUsername || graphUsername || '',
       });
-      router.push(`/profile/?org=${userDAO}`);
+      router.push(`/profile/?org=${encodeURIComponent(userDAO)}`);
     }
     setLoading(false);
   }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, accountAddress, address, roleHatIds, crossChainUsername, graphUsername]);
@@ -423,7 +423,7 @@ const User = () => {
         hatIds: vouchedHatId ? [vouchedHatId] : (roleHatIds?.[0] ? [roleHatIds[0]] : []),
         username: newUsername.trim(),
       });
-      router.push(`/profile/?org=${userDAO}`);
+      router.push(`/profile/?org=${encodeURIComponent(userDAO)}`);
     }
     setLoading(false);
   }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, roleHatIds, address]);
@@ -476,7 +476,7 @@ const User = () => {
 
       // Generate vouch link for the user to share with existing members
       const userAddr = accountAddress || address;
-      const vouchLink = `${window.location.origin}/join?org=${userDAO}&vouch=${userAddr}&hatId=${selectedHatId}`;
+      const vouchLink = `${window.location.origin}/join?org=${encodeURIComponent(userDAO)}&vouch=${userAddr}&hatId=${selectedHatId}`;
 
       // Copy to clipboard
       try {
@@ -1463,7 +1463,7 @@ const User = () => {
                 hatIds: roleHatIds?.[0] ? [roleHatIds[0]] : [],
                 username: '',
               });
-              router.push(`/dashboard/?org=${userDAO}`);
+              router.push(`/dashboard/?org=${encodeURIComponent(userDAO)}`);
             }
             // For vouch-gated orgs: stay on page so user can apply for a role
           }}
@@ -1474,7 +1474,7 @@ const User = () => {
           onClose={onSignInClose}
           onSuccess={() => {
             if (!hasVouchGatedRoles) {
-              router.push(`/dashboard/?org=${userDAO}`);
+              router.push(`/dashboard/?org=${encodeURIComponent(userDAO)}`);
             }
             // For vouch-gated orgs: stay on page, re-render shows appropriate branch
           }}

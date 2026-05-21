@@ -144,7 +144,7 @@ function RecommendedTasksCompact({ tasks, userDAO }) {
           displayTasks.map((task) => (
             <Link2
               key={task.id}
-              href={`/tasks/?task=${task.id}&projectId=${encodeURIComponent(decodeURIComponent(task.projectId))}&org=${userDAO}`}
+              href={`/tasks/?task=${task.id}&projectId=${encodeURIComponent(decodeURIComponent(task.projectId))}&org=${encodeURIComponent(userDAO)}`}
             >
               <Box
                 bg="black"
@@ -417,7 +417,7 @@ const UserprofileHub = () => {
                   claimedTasks.slice(0, 3).map((task) => (
                     <Link2
                       key={task.id}
-                      href={`/tasks/?task=${task.id}&projectId=${encodeURIComponent(decodeURIComponent(task.projectId))}&org=${userDAO}`}
+                      href={`/tasks/?task=${task.id}&projectId=${encodeURIComponent(decodeURIComponent(task.projectId))}&org=${encodeURIComponent(userDAO)}`}
                     >
                       <Box
                         bg="black"
@@ -448,7 +448,7 @@ const UserprofileHub = () => {
                   userProposals.slice(0, 3).map((proposal) => (
                     <Link2
                       key={proposal.id}
-                      href={`/voting/?poll=${proposal.id}&org=${userDAO}`}
+                      href={`/voting/?poll=${proposal.id}&org=${encodeURIComponent(userDAO)}`}
                     >
                       <Box
                         bg="black"
@@ -482,7 +482,7 @@ const UserprofileHub = () => {
                   ongoingPolls.slice(0, 3).map((poll) => (
                     <Link2
                       key={poll.id}
-                      href={`/voting/?poll=${poll.id}&org=${userDAO}`}
+                      href={`/voting/?poll=${poll.id}&org=${encodeURIComponent(userDAO)}`}
                     >
                       <Box
                         bg="black"

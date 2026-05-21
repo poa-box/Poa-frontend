@@ -62,7 +62,7 @@ export default function OrganizerHatAdminPanel({ organizerHatIds = [] }) {
             require a governance vote (executor-only on-chain).
           </Text>
         </Box>
-        <Link href={`/votes?org=${userDAO}`} legacyBehavior passHref>
+        <Link href={`/votes?org=${encodeURIComponent(userDAO)}`} legacyBehavior passHref>
           <Button as="a" size="sm" colorScheme="purple" leftIcon={<AddIcon />}>
             Propose change
           </Button>
@@ -86,7 +86,7 @@ export default function OrganizerHatAdminPanel({ organizerHatIds = [] }) {
         </HStack>
       )}
 
-      <Link href={`/votes?org=${userDAO}`} legacyBehavior passHref>
+      <Link href={`/votes?org=${encodeURIComponent(userDAO)}`} legacyBehavior passHref>
         <Text
           as="a"
           fontSize="xs"

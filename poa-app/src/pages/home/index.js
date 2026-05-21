@@ -265,7 +265,7 @@ const Home = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.2 }}
             >
-              <Link href={`/join/?org=${userDAO}`} passHref legacyBehavior>
+              <Link href={`/join/?org=${encodeURIComponent(userDAO)}`} passHref legacyBehavior>
                 <Button
                   as="a"
                   size="lg"
@@ -306,28 +306,28 @@ const Home = () => {
                     icon: FiGrid,
                     label: "Dashboard",
                     description: "View org activity and stats",
-                    path: `/dashboard/?org=${userDAO}`,
+                    path: `/dashboard/?org=${encodeURIComponent(userDAO)}`,
                     color: "purple.300",
                   },
                   {
                     icon: FiCheckSquare,
                     label: "Tasks",
                     description: "Browse and claim tasks",
-                    path: `/tasks/?org=${userDAO}`,
+                    path: `/tasks/?org=${encodeURIComponent(userDAO)}`,
                     color: "blue.300",
                   },
                   {
                     icon: FiBarChart2,
                     label: "Voting",
                     description: "Vote on active proposals",
-                    path: `/voting/?org=${userDAO}`,
+                    path: `/voting/?org=${encodeURIComponent(userDAO)}`,
                     color: "green.300",
                   },
                   {
                     icon: FiUser,
                     label: "Profile Hub",
                     description: "Manage your profile and roles",
-                    path: `/profile/?org=${userDAO}`,
+                    path: `/profile/?org=${encodeURIComponent(userDAO)}`,
                     color: "coral.300",
                   },
                 ].map((item) => (

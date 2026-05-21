@@ -83,7 +83,7 @@ function FolderRow({ node, depth, projectsById, userDAO, expandedIds, toggle }) 
               >
                 <Icon as={FaProjectDiagram} color="blue.300" mr={2} boxSize={3} />
                 {project ? (
-                  <Link href={`/tasks?projectId=${encodeURIComponent(pid)}&org=${userDAO}`} legacyBehavior passHref>
+                  <Link href={`/tasks?projectId=${encodeURIComponent(pid)}&org=${encodeURIComponent(userDAO)}`} legacyBehavior passHref>
                     <ChakraLink color="white" fontSize="sm" _hover={{ color: 'purple.200' }}>
                       {project.name}
                     </ChakraLink>
@@ -201,7 +201,7 @@ export default function FolderTreeView({ doc }) {
                   <Flex key={pid} align="center" py={1} pl={8} pr={2} _hover={{ bg: 'whiteAlpha.50' }}>
                     <Icon as={FaProjectDiagram} color="gray.400" mr={2} boxSize={3} />
                     {project ? (
-                      <Link href={`/tasks?projectId=${encodeURIComponent(pid)}&org=${userDAO}`} legacyBehavior passHref>
+                      <Link href={`/tasks?projectId=${encodeURIComponent(pid)}&org=${encodeURIComponent(userDAO)}`} legacyBehavior passHref>
                         <ChakraLink color="white" fontSize="sm" _hover={{ color: 'purple.200' }}>
                           {project.name}
                         </ChakraLink>

@@ -75,7 +75,7 @@ const TreasuryPage = () => {
   const { isActive: isTourActive } = useTour();
   useEffect(() => {
     if (hideTreasury && !poContextLoading && !isTourActive) {
-      router.replace(`/dashboard/?org=${userDAO}`);
+      router.replace(`/dashboard/?org=${encodeURIComponent(userDAO)}`);
     }
   }, [hideTreasury, poContextLoading, isTourActive, router, userDAO]);
 
