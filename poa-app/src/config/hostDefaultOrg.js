@@ -27,5 +27,5 @@ const ORG_WHITE_LABEL_URL = {
 
 export function getVisitUrlForOrg(orgId) {
   if (orgId && ORG_WHITE_LABEL_URL[orgId]) return ORG_WHITE_LABEL_URL[orgId];
-  return `/home?org=${orgId}`;
+  return `/home?org=${encodeURIComponent(orgId)}`;
 }

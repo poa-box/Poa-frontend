@@ -56,7 +56,7 @@ const CompletedPollModal = ({ onOpen, isOpen, onClose, selectedPoll, voteType, s
   const handleModalClose = () => {
     onClose();
     if (!skipRedirect) {
-      router.push(`/voting/?org=${userDAO}`);
+      router.push(`/voting/?org=${encodeURIComponent(userDAO)}`);
     }
   };
 

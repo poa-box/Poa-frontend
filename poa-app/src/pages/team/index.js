@@ -153,7 +153,7 @@ const OrgStructurePage = () => {
                 <AlertIcon />
                 Failed to load organization data
               </Alert>
-              <Link href={`/dashboard?org=${userDAO}`} passHref>
+              <Link href={`/dashboard?org=${encodeURIComponent(userDAO)}`} passHref>
                 <Button leftIcon={<FiArrowLeft />} variant="ghost" color="warmGray.600" _hover={{ color: 'coral.500' }}>
                   Back to Dashboard
                 </Button>
@@ -181,7 +181,7 @@ const OrgStructurePage = () => {
 
           {/* Page Header */}
           <Box>
-            <Link href={`/dashboard?org=${userDAO}`} passHref>
+            <Link href={`/dashboard?org=${encodeURIComponent(userDAO)}`} passHref>
               <Button
                 leftIcon={<FiArrowLeft />}
                 variant="ghost"

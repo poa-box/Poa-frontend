@@ -32,7 +32,7 @@ const LoginButton = () => {
 
 
     return (
-        <NextLink href={`/${route}/?org=${userDAO}`} passHref>
+        <NextLink href={`/${route}/?org=${encodeURIComponent(userDAO)}`} passHref>
             <Button
                 bgGradient="linear(to-r, teal.300, green.300)"
                 color="white"

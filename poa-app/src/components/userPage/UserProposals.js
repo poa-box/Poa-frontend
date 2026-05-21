@@ -57,7 +57,7 @@ const UserProposals = ({ userProposals }) => {
                     mb="-3"
                 >
                     <div style={glassLayerStyle} />
-                    <Link2  href={`/voting/?poll=${proposal.id}&org=${userDAO}`}>
+                    <Link2  href={`/voting/?poll=${proposal.id}&org=${encodeURIComponent(userDAO)}`}>
                         <VStack textColor="white" spacing={2}>
                             <Heading ml={4} fontWeight="extrabold" mt={2} size="sm">
                                 {proposal.title}

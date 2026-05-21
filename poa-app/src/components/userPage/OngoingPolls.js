@@ -63,7 +63,7 @@ const OngoingPolls = ({ OngoingPolls }) => {
                         overflow="hidden"
                         bg="black"
                     >
-                        <Link2 href={`/voting/?poll=${poll.id}&org=${userDAO}`}>
+                        <Link2 href={`/voting/?poll=${poll.id}&org=${encodeURIComponent(userDAO)}`}>
                             <VStack textColor="white" align="stretch" spacing={3}>
                                 <Text mt="-2" fontSize="md" lineHeight="99%" fontWeight="extrabold" noOfLines={2}>
                                     {poll.title}

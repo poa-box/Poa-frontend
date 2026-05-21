@@ -58,7 +58,7 @@ export function usePollNavigation({
   const handlePollClick = useCallback((poll, isCompleted = false) => {
     setSelectedPoll(poll);
     setIsPollCompleted(isCompleted);
-    routerRef.current.push(`/voting?poll=${poll.id}&org=${userDAORef.current}`);
+    routerRef.current.push(`/voting?poll=${poll.id}&org=${encodeURIComponent(userDAORef.current)}`);
 
     if (isCompleted) {
       onCompletedModalOpen();

@@ -303,7 +303,7 @@ const MainLayout = () => {
      // Decode first to handle any prior encoding, then encode properly
      const safeProjectId = encodeURIComponent(decodeURIComponent(projectId));
 
-    router.push(`/tasks?projectId=${safeProjectId}&org=${userDAO}`);
+    router.push(`/tasks?projectId=${safeProjectId}&org=${encodeURIComponent(userDAO)}`);
     const selected = projects.find((project) => project.id === projectId);
     setSelectedProject(selected);
   };

@@ -60,7 +60,7 @@ const EducationHub = () => {
   const { isActive: isTourActive } = useTour();
   useEffect(() => {
     if (!poContextLoading && !educationHubEnabled && userDAO && !isTourActive) {
-      router.replace(`/dashboard/?org=${userDAO}`);
+      router.replace(`/dashboard/?org=${encodeURIComponent(userDAO)}`);
     }
   }, [poContextLoading, educationHubEnabled, userDAO, isTourActive, router]);
 

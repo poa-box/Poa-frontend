@@ -101,7 +101,7 @@ const PollModal = ({
 
   const handleModalClose = () => {
     onClose();
-    router.push(`/voting/?org=${userDAO}`);
+    router.push(`/voting/?org=${encodeURIComponent(userDAO)}`);
   };
 
   const handleWeightChange = (optionIndex, newValue) => {
