@@ -138,9 +138,14 @@ const VotingPage = () => {
       hatIds: proposalData.hatIds || [],
     };
 
-    // Setter and election proposals use HybridVoting (main governance) which triggers Executor
-    // Executor has onlyExecutor permission on all contracts, so it can call any setter
-    const isExecutionProposal = proposalData.type === 'setter' || proposalData.type === 'election';
+    // Setter, election, and createRole proposals use HybridVoting (main
+    // governance) which triggers Executor. Executor is the superAdmin of
+    // EligibilityModule + ToggleModule and `onlyExecutor` on every other
+    // contract, so the winning batch can call any of these atomically.
+    const isExecutionProposal =
+      proposalData.type === 'setter'
+      || proposalData.type === 'election'
+      || proposalData.type === 'createRole';
 
     const result = await executeWithNotification(
       () => isExecutionProposal
@@ -309,6 +314,7 @@ const VotingPage = () => {
             roleNames={roleNames}
             votingClasses={votingClasses}
             leaderboardData={leaderboardData}
+            ongoingProposals={hybridVotingOngoing}
           />
 
           <PollModal

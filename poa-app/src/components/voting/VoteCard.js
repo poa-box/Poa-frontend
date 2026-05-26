@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Text, Button, HStack, VStack, Flex, useBreakpointValue } from "@chakra-ui/react";
+import { Badge, Box, Text, Button, HStack, VStack, Flex, useBreakpointValue } from "@chakra-ui/react";
 import { TimeIcon } from "@chakra-ui/icons";
 import CountDown from "@/templateComponents/studentOrgDAO/voting/countDown";
 
@@ -83,6 +83,16 @@ const VoteCard = ({
       <VStack spacing={2} align="stretch" w="100%" justify="space-between">
         {/* Title */}
         <Box>
+          {/* Type badge — detect createRole via the auto-title sentinel,
+              which is the cleanest signal we have without a typed proposal
+              field on the subgraph yet. */}
+          {proposal.title?.startsWith('Create role: ') && (
+            <Flex justify="center" mb={1}>
+              <Badge colorScheme="purple" fontSize="2xs" textTransform="uppercase">
+                New Role
+              </Badge>
+            </Flex>
+          )}
           <Text
             fontSize={titleFontSize}
             fontWeight="extrabold"

@@ -47,6 +47,29 @@ export class HatsService {
   }
 
   /**
+   * Predict the hatId the next child of `parentHatId` will be assigned.
+   * Used at proposal-submit time so a create-role batch can pre-compute the
+   * new hatId for downstream calls (`configureVouching`, `setCreatorHatAllowed`,
+   * `setProjectRolePerm`) in the same Executor batch.
+   *
+   * Race: another `Hats.createHat` under the same parent landing between
+   * submit and execution will shift the actual id by one. Callers should
+   * warn the user when a concurrent createRole proposal targets the same
+   * parent.
+   *
+   * @param {string} hatsProtocolAddress
+   * @param {string|BigInt} parentHatId
+   * @returns {Promise<BigNumber>} ethers BigNumber for the next hatId
+   */
+  async getNextId(hatsProtocolAddress, parentHatId) {
+    requireAddress(hatsProtocolAddress, 'Hats protocol address');
+    if (parentHatId === undefined || parentHatId === null || parentHatId === '') {
+      throw new Error('Parent hat ID is required');
+    }
+    return this._getContract(hatsProtocolAddress).getNextId(parentHatId);
+  }
+
+  /**
    * Bulk-check `isWearerOfHat` for a set of addresses against the same hat.
    * Throws if any individual call fails — partial results are not returned,
    * because building a tx batch off partial truth defeats the purpose.

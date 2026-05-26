@@ -33,6 +33,7 @@ import { usePOContext } from "@/context/POContext";
 import { getNetworkByChainId } from "../../config/networks";
 import SetterActionSelector from "./SetterActionSelector";
 import ElectionConfigurator from "./ElectionConfigurator";
+import RoleConfigurator, { parseAutoTitle as parseRoleAutoTitle } from "./RoleConfigurator";
 import { inputStyles } from '@/components/shared/glassStyles';
 
 const glassLayerStyle = {
@@ -77,6 +78,7 @@ const CreateVoteModal = ({
   projectNames = {},
   votingClasses = [],
   leaderboardData = [],
+  ongoingProposals = [],
 }) => {
   const { allRoles } = useRoleNames();
   const { orgChainId } = usePOContext();
@@ -84,6 +86,33 @@ const CreateVoteModal = ({
   const nativeCurrencySymbol = orgNetwork?.nativeCurrency?.symbol || 'ETH';
   const { currentStepDef, isActive: isTourActive } = useTour();
   const isTourStep = isTourActive && currentStepDef?.id === 'create-vote-preview';
+
+  // Build a list of currently-active createRole proposals, keyed by parent
+  // hatId. We parse the auto-title sentinel "Create role: <name> (under <parent>)"
+  // and resolve the parent NAME back to its hatId via allRoles. This is what
+  // gates concurrent role creation under the same parent (which would race
+  // on Hats.getNextId — see useProposalForm createRole branch).
+  //
+  // Limitation: a user who manually re-typed the title loses the warning.
+  // Acceptable for v1; the contracts-side fix (Executor helper that captures
+  // the new hatId atomically) would remove the race entirely.
+  const activeCreateRoleProposals = React.useMemo(() => {
+    const out = [];
+    for (const p of (ongoingProposals || [])) {
+      const parsed = parseRoleAutoTitle(p.title);
+      if (!parsed) continue;
+      const parentRole = allRoles.find(r => r.name === parsed.parentName);
+      if (!parentRole) continue;
+      out.push({
+        proposalId: p.proposalId ?? p.id,
+        name: parsed.name,
+        parentName: parsed.parentName,
+        parentHatId: String(parentRole.hatId),
+        title: p.title,
+      });
+    }
+    return out;
+  }, [ongoingProposals, allRoles]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="xl" isCentered {...(isTourStep && { zIndex: 10001 })}>
@@ -189,6 +218,7 @@ const CreateVoteModal = ({
                   >
                     <option value="normal">Standard Poll</option>
                     <option value="election">Election (assign role to winner)</option>
+                    <option value="createRole">Create a new role</option>
                     <option value="transferFunds">Transfer Funds</option>
                     <option value="setter">Change Contract Settings</option>
                   </Select>
@@ -241,6 +271,17 @@ const CreateVoteModal = ({
                     onChange={handleSetterChange}
                     allRoles={allRoles}
                     leaderboardData={leaderboardData}
+                  />
+                )}
+
+                {proposal.type === "createRole" && (
+                  <RoleConfigurator
+                    proposal={proposal}
+                    onChange={handleSetterChange}
+                    allRoles={allRoles}
+                    allProjects={allProjects}
+                    leaderboardData={leaderboardData}
+                    activeCreateRoleProposals={activeCreateRoleProposals}
                   />
                 )}
 
