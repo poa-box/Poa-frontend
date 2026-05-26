@@ -31,6 +31,7 @@ import { formatTokenAmount } from '@/util/formatToken';
 import { getTokenByAddress } from '@/util/tokens';
 import { userCanBudgetProject } from '@/util/permissions';
 import EditBudgetModal from './EditBudgetModal';
+import ViewSwitcher from './ViewSwitcher';
 
 const glassLayerStyle = {
   position: "absolute",
@@ -109,6 +110,7 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
               />
             </Tooltip>
           </Flex>
+          <ViewSwitcher isMobile={false} />
         </Flex>
       </Box>
 

@@ -8,6 +8,7 @@ import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import { usePOContext } from '../../context/POContext';
 import { useOrgName } from '../../hooks/useOrgName';
+import { getDifficultyColor } from '../../util/taskUtils';
 
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const poContext = usePOContext();
@@ -93,18 +94,6 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
     },
     borderLeft: difficulty ? `3px solid ${getDifficultyColor(difficulty)}` : undefined,
   };
-
-  // Helper for difficulty colors
-  function getDifficultyColor(diff) {
-    if (!diff) return '#CBD5E0';
-    const colorMap = {
-      easy: '#68D391', // green.300
-      medium: '#F6E05E', // yellow.300
-      hard: '#F6AD55', // orange.300
-      veryhard: '#FC8181' // red.300
-    };
-    return colorMap[diff.toLowerCase().replace(" ", "")] || '#CBD5E0';
-  }
 
   // Badge styles with consistent design
   const badgeStyle = {
