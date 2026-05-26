@@ -45,6 +45,8 @@ const groupKeyFor = (groupId, task) => {
   if (groupId === 'difficulty') return DIFF_KEY(task.difficulty) || 'unspecified';
   if (groupId === 'assignee')
     return task.claimerUsername || task.claimedBy || 'Unassigned';
+  if (groupId === 'project')
+    return task.projectName || task.projectId || 'No project';
   return null;
 };
 
@@ -55,6 +57,7 @@ const groupLabelFor = (groupId, key) => {
     return key.charAt(0).toUpperCase() + key.slice(1);
   }
   if (groupId === 'assignee') return key;
+  if (groupId === 'project') return key;
   return key;
 };
 
@@ -82,8 +85,9 @@ const useLocalState = (key, defaultValue) => {
   return [value, setAndStore];
 };
 
-const ListView = ({ projectName }) => {
-  const tasks = useFlatTasks();
+const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) => {
+  const ownTasks = useFlatTasks();
+  const tasks = tasksOverride ?? ownTasks;
   const isMobile = useBreakpointValue({ base: true, md: false });
   const [hideCompleted, setHideCompleted] = useState(false);
   const [sortId, setSortId] = useLocalState(SORT_KEY, 'created_desc');
@@ -233,7 +237,7 @@ const ListView = ({ projectName }) => {
                   </Text>
                 </Heading>
                 {g.tasks.map((t) => (
-                  <TaskRow key={t.id} task={t} isMobile={!!isMobile} />
+                  <TaskRow key={t.id} task={t} isMobile={!!isMobile} showProject={showProject} />
                 ))}
               </Box>
             ))}
@@ -241,7 +245,7 @@ const ListView = ({ projectName }) => {
         ) : (
           <Box>
             {sortedTasks.map((t) => (
-              <TaskRow key={t.id} task={t} isMobile={!!isMobile} />
+              <TaskRow key={t.id} task={t} isMobile={!!isMobile} showProject={showProject} />
             ))}
           </Box>
         )}

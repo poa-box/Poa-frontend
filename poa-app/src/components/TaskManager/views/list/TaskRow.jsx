@@ -19,7 +19,7 @@ const STATUS_BADGE_SCHEME = {
   completed: 'gray',
 };
 
-const TaskRow = ({ task, isMobile = false }) => {
+const TaskRow = ({ task, isMobile = false, showProject = false }) => {
   const router = useRouter();
   const userDAO = useOrgName();
   const poContext = usePOContext();
@@ -43,6 +43,7 @@ const TaskRow = ({ task, isMobile = false }) => {
     applicants,
     columnId,
     columnTitle,
+    projectName,
   } = task;
 
   const openTask = () => {
@@ -138,6 +139,11 @@ const TaskRow = ({ task, isMobile = false }) => {
               {statusLabel}
             </Badge>
           </Flex>
+          {showProject && projectName && (
+            <Text fontSize="0.7rem" color="purple.600" fontWeight="600" noOfLines={1}>
+              {projectName}
+            </Text>
+          )}
           {description && (
             <Text fontSize="0.75rem" color="#4A5568" noOfLines={1} lineHeight="1.4">
               {description}
@@ -186,15 +192,29 @@ const TaskRow = ({ task, isMobile = false }) => {
         <Flex align="center" gap={3}>
           {/* Title + optional excerpt */}
           <Box flex="1" minW={0}>
-            <Text
-              fontWeight="700"
-              fontSize="0.9rem"
-              color="#2D3748"
-              noOfLines={1}
-              lineHeight="tight"
-            >
-              {name || id}
-            </Text>
+            <Flex align="baseline" gap={2}>
+              <Text
+                fontWeight="700"
+                fontSize="0.9rem"
+                color="#2D3748"
+                noOfLines={1}
+                lineHeight="tight"
+              >
+                {name || id}
+              </Text>
+              {showProject && projectName && (
+                <Text
+                  fontSize="0.65rem"
+                  color="purple.600"
+                  fontWeight="600"
+                  noOfLines={1}
+                  flexShrink={0}
+                  title={projectName}
+                >
+                  · {projectName}
+                </Text>
+              )}
+            </Flex>
             {description && (
               <Text fontSize="0.7rem" color="#4A5568" noOfLines={1} mt={0.5}>
                 {description}
