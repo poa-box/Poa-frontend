@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
 import { useRouter } from 'next/router';
 
 export const VIEW_MODES = ['board', 'list', 'gantt'];
@@ -7,11 +7,13 @@ const DEFAULT_MODE = 'board';
 
 const isValid = (m) => VIEW_MODES.includes(m);
 
-// URL `?view=` is the source of truth; localStorage is a fallback for direct
-// navigations to /tasks without a query param. On mobile we collapse gantt
-// down to list — the caller decides whether the current viewport supports
-// each mode (see ViewSwitcher).
-export function useViewMode({ allowGantt = true } = {}) {
+const TaskViewModeContext = createContext(null);
+
+// View mode lives ABOVE TaskBoardProvider (which is keyed on selectedProject.id
+// and therefore unmounts/remounts on every project switch). Without this
+// hoisting, viewMode resets to DEFAULT_MODE on every nav and the localStorage
+// effect snaps it back a frame later — that's the board→list flash.
+export function TaskViewModeProvider({ children }) {
   const router = useRouter();
   const urlMode = router.query.view;
 
@@ -26,7 +28,6 @@ export function useViewMode({ allowGantt = true } = {}) {
   }, []);
 
   const rawMode = (isValid(urlMode) && urlMode) || storedMode || DEFAULT_MODE;
-  const viewMode = !allowGantt && rawMode === 'gantt' ? 'list' : rawMode;
 
   const setViewMode = useCallback(
     (next) => {
@@ -45,5 +46,24 @@ export function useViewMode({ allowGantt = true } = {}) {
     [router],
   );
 
-  return { viewMode, setViewMode };
+  return (
+    <TaskViewModeContext.Provider value={{ rawMode, setViewMode }}>
+      {children}
+    </TaskViewModeContext.Provider>
+  );
+}
+
+// URL `?view=` is the source of truth; localStorage is a fallback for direct
+// navigations to /tasks without a query param. On mobile we collapse gantt
+// down to list — the caller decides whether the current viewport supports
+// each mode (see ViewSwitcher).
+export function useViewMode({ allowGantt = true } = {}) {
+  const ctx = useContext(TaskViewModeContext);
+  if (!ctx) {
+    // Defensive: callers outside the provider get a no-op so we don't crash.
+    // In practice every consumer is rendered inside <TaskViewModeProvider>.
+    return { viewMode: DEFAULT_MODE, setViewMode: () => {} };
+  }
+  const viewMode = !allowGantt && ctx.rawMode === 'gantt' ? 'list' : ctx.rawMode;
+  return { viewMode, setViewMode: ctx.setViewMode };
 }

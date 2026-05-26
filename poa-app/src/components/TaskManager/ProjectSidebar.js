@@ -24,7 +24,9 @@ import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
 import { AddIcon, SearchIcon, ChevronLeftIcon, EditIcon } from '@chakra-ui/icons';
+import { HiOutlineSquare3Stack3D } from 'react-icons/hi2';
 import { PERMISSION_MESSAGES, ROLE_INDICES } from '../../util/permissions';
+import { ALL_PROJECTS_ID, isAllTasksId, countAllTasks } from './views/allTasks';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -252,7 +254,83 @@ const ProjectSidebar = ({
       </Flex>
       
       <Divider borderColor="whiteAlpha.200" />
-      
+
+      {/* All Tasks — cross-project read-only entry. Distinct from the project
+          rows below: gradient accent, stacked icon, count subtitle. Lives
+          above the project list so it's reachable without scrolling. */}
+      {(() => {
+        const isAllSelected = isAllTasksId(selectedProject?.id);
+        const taskCount = countAllTasks(projects);
+        const projectCount = projects.length;
+        return (
+          <Box px={3} pt={3} pb={1}>
+            <Box
+              as="button"
+              type="button"
+              onClick={() => onSelectProject(ALL_PROJECTS_ID)}
+              w="100%"
+              textAlign="left"
+              px={3}
+              py={2.5}
+              borderRadius="lg"
+              cursor="pointer"
+              transition="transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease"
+              bgGradient={
+                isAllSelected
+                  ? 'linear(135deg, rgba(128, 90, 213, 0.55) 0%, rgba(45, 134, 255, 0.45) 100%)'
+                  : 'linear(135deg, rgba(128, 90, 213, 0.22) 0%, rgba(45, 134, 255, 0.18) 100%)'
+              }
+              border="1px solid"
+              borderColor={isAllSelected ? 'purple.300' : 'whiteAlpha.200'}
+              boxShadow={isAllSelected ? '0 4px 14px rgba(128, 90, 213, 0.35)' : 'none'}
+              _hover={{
+                borderColor: 'purple.300',
+                transform: 'translateY(-1px)',
+                boxShadow: '0 4px 12px rgba(128, 90, 213, 0.3)',
+              }}
+              _focusVisible={{
+                outline: '2px solid',
+                outlineColor: 'purple.300',
+                outlineOffset: '2px',
+              }}
+            >
+              <Flex align="center" gap={2.5}>
+                <Flex
+                  align="center"
+                  justify="center"
+                  w="32px"
+                  h="32px"
+                  borderRadius="md"
+                  bg="whiteAlpha.200"
+                  flexShrink={0}
+                >
+                  <Box as={HiOutlineSquare3Stack3D} color="white" boxSize="18px" />
+                </Flex>
+                <Box minW={0} flex="1">
+                  <Text
+                    color="white"
+                    fontWeight="semibold"
+                    fontSize="sm"
+                    lineHeight="1.2"
+                    noOfLines={1}
+                  >
+                    All Tasks
+                  </Text>
+                  <Text color="whiteAlpha.700" fontSize="xs" mt={0.5} noOfLines={1}>
+                    {taskCount} task{taskCount === 1 ? '' : 's'}
+                    {projectCount > 0 && (
+                      <> · {projectCount} project{projectCount === 1 ? '' : 's'}</>
+                    )}
+                  </Text>
+                </Box>
+              </Flex>
+            </Box>
+          </Box>
+        );
+      })()}
+
+      <Divider borderColor="whiteAlpha.150" mt={1} />
+
       {/* Projects list.
           - Until `foldersReady`, hold the layout with a small loader so we
             don't render the flat-list fallback and then snap into the

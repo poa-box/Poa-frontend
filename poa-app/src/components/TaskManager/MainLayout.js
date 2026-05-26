@@ -3,6 +3,9 @@ import { Flex, Box, Heading, useMediaQuery, Select, Text, Button, VStack, HStack
 import { AddIcon, InfoIcon, ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon } from '@chakra-ui/icons';
 import ProjectSidebar from './ProjectSidebar';
 import TaskBoard from './TaskBoard';
+import { TaskViewModeProvider } from './views/useViewMode';
+import { AllTasksProvider } from './AllTasksProvider';
+import { ALL_PROJECTS_ID, isAllTasksId, countAllTasks } from './views/allTasks';
 import CreateProjectModal from './CreateProjectModal';
 import FolderTreeEditor from '../folders/FolderTreeEditor';
 import { useFolderDoc } from '../folders/useFolderDoc';
@@ -229,6 +232,7 @@ const MainLayout = () => {
     projects,
     selectedProject,
     setSelectedProject,
+    setSelectedProjectId,
     handleUpdateColumns,
   } = useDataBaseContext();
 
@@ -314,8 +318,17 @@ const MainLayout = () => {
   const [sidebarVisible, setSidebarVisible] = useState(true);
 
   const handleSelectProject = (projectId) => {
-     // Decode first to handle any prior encoding, then encode properly
-     const safeProjectId = encodeURIComponent(decodeURIComponent(projectId));
+    // The All-Tasks sentinel is a fixed token, not a real id — skip the
+    // decode/encode roundtrip and look it up via the synthetic-project branch
+    // in DataBaseContext.setSelectedProjectId.
+    if (isAllTasksId(projectId)) {
+      router.push(`/tasks?projectId=${ALL_PROJECTS_ID}&org=${encodeURIComponent(userDAO)}`);
+      setSelectedProjectId(ALL_PROJECTS_ID);
+      return;
+    }
+
+    // Decode first to handle any prior encoding, then encode properly
+    const safeProjectId = encodeURIComponent(decodeURIComponent(projectId));
 
     router.push(`/tasks?projectId=${safeProjectId}&org=${encodeURIComponent(userDAO)}`);
     const selected = projects.find((project) => project.id === projectId);
@@ -576,6 +589,7 @@ const MainLayout = () => {
 
   return (
     <DndProvider backend={HTML5Backend}>
+     <TaskViewModeProvider>
       <Flex
         height={{ base: 'calc(100vh - 60px)', md: 'calc(100vh - 80px)' }}
         direction={{ base: "column", md: "row" }}
@@ -622,22 +636,34 @@ const MainLayout = () => {
           
           {selectedProject ? (
             <Box flex="1" width="100%" overflow={isMobile ? "visible" : "auto"}>
-              <TaskBoardProvider
-                key={selectedProject.id}
-                projectId={selectedProject.id}
-                initialColumns={selectedProject.columns}
-                onUpdateColumns={handleUpdateColumns}
-                account={account}
-              >
-                <TaskBoard
-                  projectName={selectedProject.name}
-                  hideTitleBar={isMobile}
-                  sidebarVisible={sidebarVisible}
-                  toggleSidebar={toggleSidebar}
-                  isDesktop={!isMobile}
+              {isAllTasksId(selectedProject.id) ? (
+                <AllTasksProvider projects={projects}>
+                  <TaskBoard
+                    projectName="All Tasks"
+                    hideTitleBar={isMobile}
+                    sidebarVisible={sidebarVisible}
+                    toggleSidebar={toggleSidebar}
+                    isDesktop={!isMobile}
+                  />
+                </AllTasksProvider>
+              ) : (
+                <TaskBoardProvider
+                  key={selectedProject.id}
+                  projectId={selectedProject.id}
+                  initialColumns={selectedProject.columns}
+                  onUpdateColumns={handleUpdateColumns}
+                  account={account}
                 >
-                </TaskBoard>
-              </TaskBoardProvider>
+                  <TaskBoard
+                    projectName={selectedProject.name}
+                    hideTitleBar={isMobile}
+                    sidebarVisible={sidebarVisible}
+                    toggleSidebar={toggleSidebar}
+                    isDesktop={!isMobile}
+                  >
+                  </TaskBoard>
+                </TaskBoardProvider>
+              )}
             </Box>
           ) : projects.length > 0 ? (
             <Box flex="1" width="100%">
@@ -715,6 +741,7 @@ const MainLayout = () => {
         foldersRoot={foldersRoot}
         organizerHatIds={organizerHatIds}
       />
+     </TaskViewModeProvider>
     </DndProvider>
   );
 };

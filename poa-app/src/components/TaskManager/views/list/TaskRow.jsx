@@ -34,6 +34,7 @@ const TaskRow = ({ task, isMobile = false }) => {
     claimedBy,
     claimerUsername,
     projectId,
+    projectName,
     Payout,
     bountyToken,
     bountyPayout,
@@ -184,17 +185,33 @@ const TaskRow = ({ task, isMobile = false }) => {
         </Flex>
       ) : (
         <Flex align="center" gap={3}>
-          {/* Title + optional excerpt */}
+          {/* Title + optional excerpt + project chip (only in cross-project view) */}
           <Box flex="1" minW={0}>
-            <Text
-              fontWeight="700"
-              fontSize="0.9rem"
-              color="#2D3748"
-              noOfLines={1}
-              lineHeight="tight"
-            >
-              {name || id}
-            </Text>
+            <Flex align="center" gap={2}>
+              <Text
+                fontWeight="700"
+                fontSize="0.9rem"
+                color="#2D3748"
+                noOfLines={1}
+                lineHeight="tight"
+              >
+                {name || id}
+              </Text>
+              {projectName && (
+                <Badge
+                  variant="subtle"
+                  colorScheme="purple"
+                  fontSize="0.6rem"
+                  textTransform="none"
+                  borderRadius="full"
+                  px={2}
+                  flexShrink={0}
+                  display={{ base: 'none', md: 'inline-flex' }}
+                >
+                  {projectName}
+                </Badge>
+              )}
+            </Flex>
             {description && (
               <Text fontSize="0.7rem" color="#4A5568" noOfLines={1} mt={0.5}>
                 {description}

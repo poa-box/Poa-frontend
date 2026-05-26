@@ -1,5 +1,16 @@
 import { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useProjectContext } from './ProjectContext';
+import { ALL_PROJECTS_ID } from '../components/TaskManager/views/allTasks';
+
+// Synthetic "All Tasks" project used when the sidebar's cross-project entry is
+// active. Identifies itself via ALL_PROJECTS_ID so MainLayout can branch on it,
+// and exposes empty columns since the real columns are synthesized inside the
+// AllTasksProvider (TaskBoardProvider's lifecycle stays out of this path).
+const ALL_TASKS_PROJECT = Object.freeze({
+  id: ALL_PROJECTS_ID,
+  name: 'All Tasks',
+  columns: [],
+});
 
 const DataBaseContext = createContext();
 
@@ -18,8 +29,14 @@ export const DataBaseProvider = ({ children }) => {
             // Only set selectedProject if:
             // 1. No project is currently selected, OR
             // 2. The currently selected project is no longer in the list
-            // This preserves the user's selection when data is refreshed
+            // This preserves the user's selection when data is refreshed.
+            // The ALL_TASKS sentinel is also preserved across refreshes — it has
+            // no backing project, so projectsData.find would return undefined
+            // and we'd accidentally fall back to the first project.
             setSelectedProject(prev => {
+                if (prev?.id === ALL_PROJECTS_ID) {
+                    return ALL_TASKS_PROJECT;
+                }
                 // If we have a selection and it still exists in the new data, update it with fresh data
                 if (prev && prev.id) {
                     const updatedProject = projectsData.find(p => p.id === prev.id);
@@ -44,6 +61,10 @@ export const DataBaseProvider = ({ children }) => {
     const [selectedProject,setSelectedProject] = useState('')
 
     const setSelectedProjectId = useCallback((projectId) => {
+      if (projectId === ALL_PROJECTS_ID) {
+        setSelectedProject(ALL_TASKS_PROJECT);
+        return;
+      }
       const project = projectsRef.current.find(project => project.id === projectId);
       setSelectedProject(project);
     }, []);
