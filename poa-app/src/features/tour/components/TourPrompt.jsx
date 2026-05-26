@@ -28,9 +28,9 @@ export default function TourPrompt() {
     >
       <ModalOverlay bg="rgba(0, 0, 0, 0.6)" />
       <ModalContent
-        bg="white"
+        bg="rgba(24, 24, 27, 0.97)"
         borderRadius="2xl"
-        boxShadow="0 25px 50px -12px rgba(0, 0, 0, 0.25)"
+        boxShadow="0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.06)"
         mx={4}
         overflow="hidden"
       >
@@ -44,45 +44,47 @@ export default function TourPrompt() {
               w="80px"
               h="80px"
               borderRadius="2xl"
-              bg="amethyst.50"
+              bgGradient="linear(to-br, amethyst.400, amethyst.600)"
               display="flex"
               alignItems="center"
               justifyContent="center"
             >
-              <Icon as={PiMapTrifold} boxSize={10} color="amethyst.500" />
+              <Icon as={PiMapTrifold} boxSize={10} color="white" />
             </Box>
 
             {/* Title */}
             <VStack spacing={2}>
               <HStack spacing={2}>
-                <Icon as={PiSparkle} color="amethyst.400" boxSize={5} />
-                <Heading size="lg" color="warmGray.800">
+                <Icon as={PiSparkle} color="amethyst.300" boxSize={5} />
+                <Heading size="lg" color="white">
                   Welcome to {orgName}!
                 </Heading>
-                <Icon as={PiSparkle} color="amethyst.400" boxSize={5} />
+                <Icon as={PiSparkle} color="amethyst.300" boxSize={5} />
               </HStack>
-              <Text color="warmGray.600" fontSize="md" maxW="340px">
+              <Text color="whiteAlpha.700" fontSize="md" maxW="340px">
                 Get a quick walkthrough of this organization and see how everything works.
               </Text>
             </VStack>
 
             {/* What you'll learn */}
             <Box
-              bg="warmGray.50"
+              bg="whiteAlpha.50"
+              border="1px solid"
+              borderColor="whiteAlpha.100"
               borderRadius="xl"
               p={4}
               w="100%"
             >
               <VStack spacing={2} align="start">
                 <HStack spacing={2}>
-                  <Icon as={PiRocketLaunch} color="amethyst.500" boxSize={4} />
-                  <Text fontSize="sm" color="warmGray.700">
+                  <Icon as={PiRocketLaunch} color="amethyst.300" boxSize={4} />
+                  <Text fontSize="sm" color="whiteAlpha.800">
                     Explore the dashboard, task board, voting, and roles
                   </Text>
                 </HStack>
                 <HStack spacing={2}>
-                  <Icon as={PiRocketLaunch} color="amethyst.500" boxSize={4} />
-                  <Text fontSize="sm" color="warmGray.700">
+                  <Icon as={PiRocketLaunch} color="amethyst.300" boxSize={4} />
+                  <Text fontSize="sm" color="whiteAlpha.800">
                     Learn how tasks, governance, and permissions work
                   </Text>
                 </HStack>
@@ -96,7 +98,7 @@ export default function TourPrompt() {
                 w="100%"
                 bg="amethyst.500"
                 color="white"
-                _hover={{ bg: 'amethyst.600', transform: 'translateY(-2px)' }}
+                _hover={{ bg: 'amethyst.400', transform: 'translateY(-2px)' }}
                 transition="all 0.2s"
                 onClick={() => startTour(orgName)}
               >
@@ -105,8 +107,8 @@ export default function TourPrompt() {
               <Button
                 size="md"
                 variant="ghost"
-                color="warmGray.500"
-                _hover={{ color: 'warmGray.700' }}
+                color="whiteAlpha.500"
+                _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
                 onClick={dismissPrompt}
               >
                 Maybe Later

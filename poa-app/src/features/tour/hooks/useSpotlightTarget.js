@@ -32,14 +32,13 @@ export default function useSpotlightTarget(selector, isActive) {
       setRect(r);
       setElement(el);
 
-      // Then scroll to center the element
-      const targetCenter = r.top + r.height / 2 + window.scrollY;
-      const scrollTarget = targetCenter - window.innerHeight / 2;
-      const needsScroll = Math.abs(scrollTarget - window.scrollY) > 30;
-
-      if (needsScroll) {
-        window.scrollTo({ top: Math.max(0, scrollTarget), behavior: 'smooth' });
-        // Re-measure after scroll settles
+      // scrollIntoView walks up every ancestor's overflow container, so a target
+      // inside a scrollable parent (e.g. ProjectSidebar) gets brought into view
+      // even when window scroll alone can't reach it.
+      const vh = window.innerHeight;
+      const inView = r.top >= 0 && r.bottom <= vh;
+      if (!inView) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         setTimeout(() => {
           if (!cancelled) setRect(el.getBoundingClientRect());
         }, 350);

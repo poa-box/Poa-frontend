@@ -60,14 +60,25 @@ const VotingTabs = ({
   // Mobile-only educational drawer
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { currentStepDef, isActive: isTourActive } = useTour();
+  const isMobile = useBreakpointValue({ base: true, md: false });
+  const tourOpenedRef = React.useRef(false);
 
-  // Tour step targeting deep educational content forces the drawer open on mobile
-  // so the spotlight can land on the right element.
+  // On mobile, the deep educational content is hidden inside this drawer, so the
+  // tour needs to open it to expose the spotlight target. On desktop the same
+  // content auto-expands in the in-page LearnMoreDropdown — opening the drawer
+  // there just duplicates the section visually and steals focus.
+  // Also auto-close when the tour advances past the step (but only if the tour
+  // opened it; otherwise leave a user-opened drawer alone).
   useEffect(() => {
-    if (isTourActive && currentStepDef?.id === "voting-hybrid-detail" && !isOpen) {
+    const tourWantsDrawer = isTourActive && currentStepDef?.id === "voting-hybrid-detail";
+    if (tourWantsDrawer && isMobile && !isOpen) {
+      tourOpenedRef.current = true;
       onOpen();
+    } else if (!tourWantsDrawer && tourOpenedRef.current) {
+      tourOpenedRef.current = false;
+      onClose();
     }
-  }, [isTourActive, currentStepDef?.id, isOpen, onOpen]);
+  }, [isTourActive, currentStepDef?.id, isMobile, isOpen, onOpen, onClose]);
 
   return (
     <Tabs
@@ -85,7 +96,6 @@ const VotingTabs = ({
           onInfoClick={onOpen}
         />
       <TabList
-        data-tour="voting-tabs"
         alignItems="center"
         justifyContent="center"
         borderRadius="3xl"

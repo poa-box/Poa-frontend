@@ -89,7 +89,6 @@ const CreateVoteModal = ({
     <Modal isOpen={isOpen} onClose={onClose} size="xl" isCentered {...(isTourStep && { zIndex: 10001 })}>
       <ModalOverlay bg={isTourStep ? "transparent" : "blackAlpha.800"} />
       <ModalContent
-        data-tour="create-vote-modal"
         bg="transparent"
         borderRadius="xl"
         position="relative"
@@ -394,14 +393,22 @@ const CreateVoteModal = ({
             >
               Cancel
             </Button>
-            <Button
-              colorScheme="purple"
-              onClick={handlePollCreated}
-              isLoading={loadingSubmit}
-              loadingText="Creating..."
+            <Tooltip
+              label="Demo only — finish the tour to create a real proposal"
+              isDisabled={!isTourStep}
+              hasArrow
+              placement="top"
             >
-              Create Vote
-            </Button>
+              <Button
+                colorScheme="purple"
+                onClick={handlePollCreated}
+                isLoading={loadingSubmit}
+                loadingText="Creating..."
+                isDisabled={isTourStep}
+              >
+                {isTourStep ? 'Demo only' : 'Create Vote'}
+              </Button>
+            </Tooltip>
           </HStack>
         </ModalFooter>
       </ModalContent>

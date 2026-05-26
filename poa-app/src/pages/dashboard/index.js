@@ -144,7 +144,6 @@ const PerpetualOrgDashboard = () => {
       ) : (
         <Box p={{ base: 2, md: 4 }} minH="100vh" background={pageBackground()}>
             <Grid
-              data-tour="dashboard-grid"
               color="whitesmoke"
               templateAreas={{
                 base: educationHubEnabled ? `
