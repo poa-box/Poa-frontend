@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   Box,
   VStack,
@@ -23,6 +23,11 @@ import useTargetElevation from '../hooks/useTargetElevation';
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
+`;
+
+const pulse = keyframes`
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
 `;
 
 const PAD = 8;
@@ -67,7 +72,9 @@ function Spotlight({ rect, isActionStep }) {
 
 // --- Tooltip positioning ---
 
-function getTooltipStyle(rect, placement, isMobile) {
+const ESTIMATED_TOOLTIP_H = 230;
+
+function getTooltipStyle(rect, placement, isMobile, measuredHeight) {
   if (isMobile) {
     return { position: 'fixed', bottom: 0, left: 0, right: 0 };
   }
@@ -80,7 +87,7 @@ function getTooltipStyle(rect, placement, isMobile) {
 
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const TH = 230; // estimated tooltip height
+  const TH = measuredHeight ?? ESTIMATED_TOOLTIP_H;
   let top, left, actual = placement;
 
   switch (placement) {
@@ -146,22 +153,20 @@ function Arrow({ placement }) {
   return <Box style={{ ...base, ...config[placement] }} />;
 }
 
-// --- Step dots ---
+// --- Progress bar ---
 
-function Dots({ current, total }) {
+function ProgressBar({ current, total }) {
+  const pct = total > 0 ? ((current + 1) / total) * 100 : 0;
   return (
-    <HStack spacing={1}>
-      {Array.from({ length: total }).map((_, i) => (
-        <Box
-          key={i}
-          w={i === current ? '16px' : '6px'}
-          h="6px"
-          borderRadius="full"
-          bg={i === current ? 'amethyst.400' : i < current ? 'amethyst.700' : 'whiteAlpha.200'}
-          transition="all 0.2s"
-        />
-      ))}
-    </HStack>
+    <Box flex="1" maxW="120px" h="4px" bg="whiteAlpha.200" borderRadius="full" overflow="hidden">
+      <Box
+        h="100%"
+        w={`${pct}%`}
+        bgGradient="linear(to-r, amethyst.400, amethyst.500)"
+        borderRadius="full"
+        transition="width 0.3s ease"
+      />
+    </Box>
   );
 }
 
@@ -178,17 +183,50 @@ export default function TourOverlay() {
   const { targetRect, targetElement } = useSpotlightTarget(selector, isActive);
   useTargetElevation(targetElement, !!currentStepDef?.forceInteraction);
 
-  // Block desktop scroll (wheel) while tour is active, unless noOverlay step.
-  // Programmatic window.scrollTo still works for step transitions.
   const noOverlay = !!currentStepDef?.noOverlay;
+
+  // Keyboard navigation while the tour is active. Skip when:
+  // - an input/textarea is focused (typing should not advance the tour)
+  // - any non-tour modal is open (e.g. CreateProject modal — Esc should close
+  //   the modal, not kill the tour). Chakra modals expose aria-modal="true";
+  //   the tour tooltip uses role="dialog" without aria-modal so it is excluded.
   useEffect(() => {
-    if (!isActive || noOverlay) return;
-    const prevent = (e) => e.preventDefault();
-    window.addEventListener('wheel', prevent, { passive: false });
-    return () => {
-      window.removeEventListener('wheel', prevent);
+    if (!isActive) return;
+    const handler = (e) => {
+      const tag = document.activeElement?.tagName;
+      const isContentEditable = document.activeElement?.isContentEditable;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || isContentEditable) return;
+      if (document.querySelector('[aria-modal="true"]')) return;
+      if (e.key === 'Escape') { e.preventDefault(); skipTour(); }
+      else if (e.key === 'Enter' || e.key === 'ArrowRight') { e.preventDefault(); nextStep(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); prevStep(); }
     };
-  }, [isActive, noOverlay]);
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isActive, nextStep, prevStep, skipTour]);
+
+  // Re-measure tooltip after first paint of each step so collision-aware
+  // positioning uses the real height rather than the 230px estimate.
+  const tooltipRef = useRef(null);
+  const [measuredHeight, setMeasuredHeight] = useState(null);
+  useLayoutEffect(() => {
+    setMeasuredHeight(null); // reset for the new step
+  }, [currentStep]);
+  useLayoutEffect(() => {
+    if (!tooltipRef.current) return;
+    const h = tooltipRef.current.getBoundingClientRect().height;
+    if (h > 0 && h !== measuredHeight) setMeasuredHeight(h);
+  });
+
+  // Move focus to the tooltip when the step changes so screen readers
+  // announce the new content and keyboard Enter (handled above) acts on
+  // the right context. Skip on mobile where the tooltip slides up from
+  // the bottom and stealing focus would dismiss the on-screen keyboard.
+  useEffect(() => {
+    if (!isActive || isMobile) return;
+    const t = setTimeout(() => tooltipRef.current?.focus?.(), 50);
+    return () => clearTimeout(t);
+  }, [currentStep, isActive, isMobile]);
 
   if (!isActive || !currentStepDef) return null;
 
@@ -196,7 +234,7 @@ export default function TourOverlay() {
   const isLast = currentStep === totalSteps - 1;
   const isFirst = currentStep === 0;
   const StepIcon = currentStepDef.icon;
-  const rawStyle = getTooltipStyle(targetRect, currentStepDef.placement, isMobile);
+  const rawStyle = getTooltipStyle(targetRect, currentStepDef.placement, isMobile, measuredHeight);
   const { _actual, ...style } = rawStyle;
   const arrowPlacement = _actual || (targetRect ? currentStepDef.placement : null);
 
@@ -210,7 +248,18 @@ export default function TourOverlay() {
       {!noOverlay && <Spotlight rect={targetRect} isActionStep={isAction} />}
 
       {/* Tooltip */}
-      <Box key={currentStep} {...style} zIndex={10000} pointerEvents="auto" animation={`${fadeIn} 0.25s ease`}>
+      <Box
+        ref={tooltipRef}
+        key={currentStep}
+        {...style}
+        zIndex={10000}
+        pointerEvents="auto"
+        animation={`${fadeIn} 0.25s ease`}
+        role="dialog"
+        aria-label={`Tour step ${currentStep + 1} of ${totalSteps}: ${currentStepDef.title}`}
+        tabIndex={-1}
+        outline="none"
+      >
         <Box position="relative">
           <Arrow placement={arrowPlacement} />
           <TooltipCard
@@ -341,7 +390,7 @@ function TooltipCard({ step, stepIndex, totalSteps, StepIcon, isFirst, isLast, i
 
       {/* Footer */}
       <HStack px={4} pb={3} justify="space-between" align="center">
-        <Dots current={stepIndex} total={totalSteps} />
+        <ProgressBar current={stepIndex} total={totalSteps} />
         <HStack spacing={1}>
           {!isFirst && (
             <Button size="xs" variant="ghost" color="whiteAlpha.500" _hover={{ color: 'white', bg: 'whiteAlpha.100' }} onClick={onPrev} fontWeight="500">
@@ -353,9 +402,17 @@ function TooltipCard({ step, stepIndex, totalSteps, StepIcon, isFirst, isLast, i
               Finish
             </Button>
           ) : isAction ? (
-            <Text fontSize="11px" color="amethyst.400" fontWeight="600" pr={1}>
-              {step.ctaText}
-            </Text>
+            <HStack spacing={2}>
+              <HStack spacing={1.5} pr={1}>
+                <Box w="6px" h="6px" borderRadius="full" bg="amethyst.400" animation={`${pulse} 1.4s ease-in-out infinite`} />
+                <Text fontSize="11px" color="amethyst.400" fontWeight="600">
+                  {step.ctaText}
+                </Text>
+              </HStack>
+              <Button size="xs" variant="ghost" color="whiteAlpha.500" _hover={{ color: 'white', bg: 'whiteAlpha.100' }} onClick={onNext} fontWeight="500">
+                Skip step
+              </Button>
+            </HStack>
           ) : (
             <Button size="xs" bg="amethyst.500" color="white" _hover={{ bg: 'amethyst.400' }} onClick={onNext} fontWeight="600" px={3}>
               Next

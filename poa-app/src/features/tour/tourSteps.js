@@ -72,7 +72,8 @@ export const TOUR_STEPS = [
     description: 'Every card shows the task name, description, difficulty (color-coded: green for easy, yellow for medium, orange for hard), estimated hours, and the token reward.',
     icon: PiKanban,
     action: null,
-    target: '[data-tour="task-card"]',
+    // Match either a real card (orgs with projects) or the demo card (fresh orgs)
+    target: '[data-tour="task-card"], [data-tour="example-task-card"]',
     placement: 'left',
     forceInteraction: false,
   },
@@ -89,12 +90,54 @@ export const TOUR_STEPS = [
     skip: (ctx) => ctx.hasProjects,
   },
 
+  // --- Org Structure (before project creation so admins understand role hats) ---
+  {
+    id: 'org-structure',
+    page: '/team',
+    title: 'Roles & Permissions',
+    description: 'This is the blueprint for your organization. It shows every role, what each role is allowed to do, and which members hold which positions. New members can claim or apply for roles from here.',
+    icon: PiTreeStructure,
+    action: null,
+    target: '[data-tour="org-roles"]',
+    placement: 'bottom',
+    forceInteraction: false,
+  },
+
+  // --- Setup actions (admin with no projects yet) ---
+  {
+    id: 'create-project',
+    page: '/tasks',
+    title: 'Create Your First Project',
+    description: 'Projects group related tasks. Click below to open the setup modal — we\'ve pre-filled a starter name and description so you can ship your first project in one click.',
+    icon: PiFolderPlus,
+    action: 'create-project',
+    ctaText: 'Click "Create Project"',
+    target: '[data-tour="create-project-btn"]',
+    mobileTarget: '[data-tour="create-project-mobile-btn"]',
+    placement: 'right',
+    forceInteraction: true,
+    skip: (ctx) => ctx.hasProjects || !ctx.hasExecRole,
+  },
+  {
+    id: 'create-task',
+    page: '/tasks',
+    title: 'Add Your First Task',
+    description: 'Click the + button on the Open column to create a task. Give it a name, description, and difficulty level. Once published, any member with the right permissions can claim it.',
+    icon: PiCheckSquare,
+    action: 'create-task',
+    ctaText: 'Click the + button',
+    target: '[data-tour="add-task-btn"]',
+    placement: 'bottom',
+    forceInteraction: true,
+    skip: (ctx) => ctx.hasProjects || !ctx.hasExecRole,
+  },
+
   // --- Voting ---
   {
     id: 'voting-overview',
     page: '/voting',
     title: 'Governance & Voting',
-    description: 'Your organization supports two voting modes. Use the Hybrid and Democracy tabs below to switch between them. Hybrid handles official, binding governance. Democracy is for informal, one-person-one-vote polls.',
+    description: 'This is where your org\'s governance lives. Two voting modes are available: Hybrid for official, binding decisions, and Democracy for informal one-person-one-vote polls.',
     icon: PiScales,
     action: null,
     target: '[data-tour="voting-header"]',
@@ -164,48 +207,6 @@ export const TOUR_STEPS = [
     placement: 'bottom',
     forceInteraction: false,
     skip: (ctx) => !ctx.educationHubEnabled,
-  },
-
-  // --- Org Structure ---
-  {
-    id: 'org-structure',
-    page: '/team',
-    title: 'Roles & Permissions',
-    description: 'This is the blueprint for your organization. It shows every role, what each role is allowed to do, and which members hold which positions. New members can claim or apply for roles from here.',
-    icon: PiTreeStructure,
-    action: null,
-    target: '[data-tour="org-roles"]',
-    placement: 'bottom',
-    forceInteraction: false,
-  },
-
-  // --- Ending: Admin with no projects ---
-  {
-    id: 'create-project',
-    page: '/tasks',
-    title: 'Create Your First Project',
-    description: 'Projects are containers for related tasks. Click the button below to set up your first one.',
-    icon: PiFolderPlus,
-    action: 'create-project',
-    ctaText: 'Click "Create Project"',
-    target: '[data-tour="create-project-btn"]',
-    mobileTarget: '[data-tour="create-project-mobile-btn"]',
-    placement: 'right',
-    forceInteraction: true,
-    skip: (ctx) => ctx.hasProjects || !ctx.hasExecRole,
-  },
-  {
-    id: 'create-task',
-    page: '/tasks',
-    title: 'Add Your First Task',
-    description: 'Click the + button on the Open column to create a task. Give it a name, description, and difficulty level. Once published, any member with the right permissions can claim it.',
-    icon: PiCheckSquare,
-    action: 'create-task',
-    ctaText: 'Click the + button',
-    target: '[data-tour="add-task-btn"]',
-    placement: 'bottom',
-    forceInteraction: true,
-    skip: (ctx) => ctx.hasProjects || !ctx.hasExecRole,
   },
 
   // --- Ending: Member with existing projects ---

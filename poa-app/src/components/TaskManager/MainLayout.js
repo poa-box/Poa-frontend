@@ -50,7 +50,7 @@ function ExampleTaskCard({ title, desc, difficulty, payout, hours, assignee }) {
 
   return (
     <Box
-      data-tour="task-card"
+      data-tour="example-task-card"
       bg="ghostwhite"
       borderRadius="md"
       boxShadow="sm"
@@ -60,8 +60,22 @@ function ExampleTaskCard({ title, desc, difficulty, payout, hours, assignee }) {
       cursor="default"
       _hover={{ boxShadow: 'md' }}
       transition="box-shadow 0.2s ease"
+      position="relative"
     >
-      <Text fontWeight="700" fontSize="0.85rem" color="#2D3748" mb={1.5} noOfLines={2} lineHeight="tight" letterSpacing="tight">
+      <Badge
+        position="absolute"
+        top="6px"
+        right="6px"
+        colorScheme="purple"
+        variant="subtle"
+        fontSize="0.6rem"
+        px={1.5}
+        py={0}
+        borderRadius="sm"
+      >
+        Example
+      </Badge>
+      <Text fontWeight="700" fontSize="0.85rem" color="#2D3748" mb={1.5} pr={12} noOfLines={2} lineHeight="tight" letterSpacing="tight">
         {title}
       </Text>
       <Text fontSize="0.75rem" color="#4A5568" mb={2} noOfLines={2} lineHeight="1.4">
@@ -283,7 +297,7 @@ const MainLayout = () => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isProjectModalOpen, onOpen: onProjectModalOpen, onClose: onProjectModalClose } = useDisclosure();
   const [showHelp, setShowHelp] = useState(true);
-  const { pendingAction, isActive: isTourActive, currentStepDef } = useTour();
+  const { pendingAction, isActive: isTourActive, currentStepDef, nextStep: tourNextStep } = useTour();
   const currentStepId = currentStepDef?.id;
   const [tourDefaultProjectName, setTourDefaultProjectName] = useState('');
   const [tourDefaultProjectDesc, setTourDefaultProjectDesc] = useState('');
@@ -646,7 +660,7 @@ const MainLayout = () => {
               <ExampleTaskBoard />
               <ExampleTaskModal
                 isOpen={isTourActive && pendingAction === null && currentStepId === 'task-detail'}
-                onClose={() => {}}
+                onClose={tourNextStep}
               />
             </Box>
           ) : (

@@ -85,7 +85,6 @@ const VotingTabs = ({
           onInfoClick={onOpen}
         />
       <TabList
-        data-tour="voting-tabs"
         alignItems="center"
         justifyContent="center"
         borderRadius="3xl"
