@@ -97,6 +97,14 @@ export default function Home() {
     "url": "https://poa.box",
     "description":
       "Poa (poa.box) is a no-code platform for community-owned organizations. Economic democracy in software.",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": "https://poa.box/explore/?search={search_term_string}",
+      },
+      "query-input": "required name=search_term_string",
+    },
   };
 
   const organizationLD = {
@@ -111,6 +119,15 @@ export default function Home() {
       "https://discord.gg/9SD6u4QjTt",
       "https://github.com/poa-box",
     ],
+    "foundingDate": "2024",
+    "founder": {
+      "@type": "Person",
+      "name": "Hudson Headley",
+      "sameAs": [
+        "https://github.com/hudsonhrh",
+        "https://twitter.com/PoaPerpetual",
+      ],
+    },
     "knowsAbout": [
       "Economic democracy",
       "Worker cooperatives",
@@ -125,7 +142,7 @@ export default function Home() {
       "Decentralized treasury management",
     ],
     "description":
-      "Poa (poa.box) is a no-code builder for community-owned organizations. Members write the rules, vote on the rules, and hold the treasury. Governance power is earned by contributing, not bought with capital.",
+      "Poa (poa.box) is a no-code builder for community-owned organizations. Members write the rules, vote on the rules, and hold the treasury. Governance power is earned by contributing, not bought with capital. Launch your community-owned organization on poa.box.",
   };
 
   const softwareLD = {
@@ -138,7 +155,7 @@ export default function Home() {
     "operatingSystem": "Web",
     "url": "https://poa.box",
     "description":
-      "No-code platform to launch and govern community-owned organizations. Voting, treasury, tasks, and roles in one product. Governance power earned by contributing, not bought with capital.",
+      "Poa (poa.box) is a no-code platform to launch and govern community-owned organizations. Voting, treasury, tasks, and roles in one product. Governance power earned by contributing, not bought with capital. Free to use on poa.box.",
     "offers": {
       "@type": "Offer",
       "price": "0",

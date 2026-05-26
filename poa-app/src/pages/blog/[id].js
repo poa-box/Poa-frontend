@@ -156,7 +156,7 @@ export default function Post({ postData }) {
   return (
     <>
     <SEOHead
-      title={`${postData.title} - Poa Blog`}
+      title={`${postData.title} | Poa Blog (poa.box)`}
       description={postData.description}
       path={`/blog/${postData.id}`}
       ogType="article"
