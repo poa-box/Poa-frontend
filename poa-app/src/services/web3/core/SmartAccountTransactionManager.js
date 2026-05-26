@@ -17,10 +17,15 @@ import { ENTRY_POINT_ADDRESS } from '../../../config/passkey';
 import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
 
 /**
- * ERC-4337 error code mappings
+ * ERC-4337 error code mappings.
+ * AA21 is about prefund/gas (the account didn't pay the bundler), not account
+ * existence — AA20 is the "account not deployed" code. Keep AA21 framed as a gas
+ * issue so users don't get told to "create their account" when their account is
+ * already there and the real problem is funding.
  */
 const AA_ERROR_MESSAGES = {
-  AA21: 'Account does not exist. You may need to create your account first.',
+  AA20: 'Account not deployed. Try signing in again.',
+  AA21: 'Gas sponsorship is unavailable for this transaction and your account has no funds to pay for gas.',
   AA25: 'Signature validation failed. Please try signing again.',
   AA31: 'Gas sponsor rejected the transaction. The organization may have run out of gas budget.',
   AA33: 'Gas sponsor rejected the transaction. The organization may have run out of gas budget.',
