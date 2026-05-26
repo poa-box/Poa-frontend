@@ -187,8 +187,14 @@ export function useClaimRole(eligibilityModuleAddress) {
       const ipfsResult = await addToIpfs(JSON.stringify(applicationData));
       const applicationHash = ipfsCidToBytes32(ipfsResult.path);
 
+      // paymasterHatIds = [the hat being applied for]. Same pattern as claimVouchedHat
+      // above — first-time applicants have no hats on this org, so without this the
+      // paymaster is skipped (effectiveHatIds.length === 0) and the UserOp falls back
+      // to self-funded, failing with AA21 on a brand-new smart account.
       const result = await executeWithNotification(
-        () => eligibility.applyForRole(eligibilityModuleAddress, hatId, applicationHash),
+        () => eligibility.applyForRole(eligibilityModuleAddress, hatId, applicationHash, {
+          paymasterHatIds: [hatId],
+        }),
         {
           pendingMessage: 'Submitting application...',
           successMessage: 'Application submitted!',

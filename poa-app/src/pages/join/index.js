@@ -98,6 +98,14 @@ const User = () => {
     return (roles || []).filter(r => r.isQuickJoinEligible);
   }, [roles]);
   const hasQuickJoinRoles = quickJoinEligibleRoles.length > 0;
+  // Hats the quick-join tx will mint, in BigInt form. Used to seed paymasterHatIds
+  // on first-time joins so the org's gas budget for these hats sponsors the UserOp
+  // — without this the smart account has no funds and the tx fails with AA21.
+  const quickJoinPaymasterHatIds = useMemo(() => {
+    return quickJoinEligibleRoles
+      .map(r => { try { return BigInt(r.hatId); } catch { return null; } })
+      .filter(Boolean);
+  }, [quickJoinEligibleRoles]);
   // Org has both a quick-join path AND a vouch-gated path (e.g. Decentral Park:
   // Neighbor via quickJoin + Delegate via apply/vouch). Surface both in the UI.
   const hasBothPaths = hasQuickJoinRoles && hasVouchGatedRoles;
@@ -321,10 +329,17 @@ const User = () => {
       // Vouched flow: claim specific hat(s) via claimHatsWithUser
       const claimHatIds = [BigInt(vouchedHatId)];
       console.log('[Join] Vouched flow: claiming hat', vouchedHatId);
-      joinFn = () => organization.claimHatsWithUser(quickJoinContractAddress, claimHatIds);
+      joinFn = () => organization.claimHatsWithUser(quickJoinContractAddress, claimHatIds, {
+        paymasterHatIds: claimHatIds,
+      });
     } else {
-      // Standard flow: quickJoinWithUser (mints memberHatIds)
-      joinFn = () => organization.quickJoinWithUser(quickJoinContractAddress);
+      // Standard flow: quickJoinWithUser (mints memberHatIds).
+      // paymasterHatIds = the memberHatIds we're about to claim — required because
+      // the user has no hats on this org yet so useWeb3Services passes hatIds=[],
+      // which would skip the paymaster entirely. See SmartAccountTransactionManager.
+      joinFn = () => organization.quickJoinWithUser(quickJoinContractAddress, {
+        paymasterHatIds: quickJoinPaymasterHatIds,
+      });
     }
 
     const result = await executeWithNotification(
@@ -347,7 +362,7 @@ const User = () => {
       router.push(`/profile/?org=${encodeURIComponent(userDAO)}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, accountAddress, address, roleHatIds, crossChainUsername, graphUsername]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, accountAddress, address, roleHatIds, crossChainUsername, graphUsername, quickJoinPaymasterHatIds]);
 
   const handleJoinNewUser = useCallback(async () => {
     if (!organization) return;
@@ -393,10 +408,16 @@ const User = () => {
         // Vouched passkey: registerAndClaimHatsWithPasskey (register + claim specific hat)
         const claimHatIds = [BigInt(vouchedHatId)];
         console.log('[Join] Vouched passkey: register + claim hat', vouchedHatId);
-        joinFn = () => organization.registerAndClaimHatsNewUser(quickJoinContractAddress, newUsername, credential, claimHatIds);
+        joinFn = () => organization.registerAndClaimHatsNewUser(quickJoinContractAddress, newUsername, credential, claimHatIds, {
+          paymasterHatIds: claimHatIds,
+        });
       } else {
-        // Standard passkey: registerAndQuickJoinWithPasskey (register + mint memberHatIds)
-        joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential);
+        // Standard passkey: registerAndQuickJoinWithPasskey (register + mint memberHatIds).
+        // paymasterHatIds seeds the paymaster with the hats we're about to be granted;
+        // without it the brand-new smart account has no funds and the UserOp hits AA21.
+        joinFn = () => organization.registerAndJoinNewUser(quickJoinContractAddress, newUsername, credential, {
+          paymasterHatIds: quickJoinPaymasterHatIds,
+        });
       }
     } else {
       // EOA path
@@ -417,10 +438,16 @@ const User = () => {
         // Vouched EOA: registerAndClaimHats (register + claim specific hat)
         const claimHatIds = [BigInt(vouchedHatId)];
         console.log('[Join] Vouched EOA: register + claim hat', vouchedHatId);
-        joinFn = () => organization.registerAndClaimHatsEOA(quickJoinContractAddress, newUsername, claimHatIds, signer);
+        joinFn = () => organization.registerAndClaimHatsEOA(quickJoinContractAddress, newUsername, claimHatIds, signer, {
+          paymasterHatIds: claimHatIds,
+        });
       } else {
-        // Standard EOA: registerAndQuickJoin (register + mint memberHatIds)
-        joinFn = () => organization.registerAndJoinEOA(quickJoinContractAddress, newUsername, signer);
+        // Standard EOA: registerAndQuickJoin (register + mint memberHatIds).
+        // Same paymaster bootstrap as the passkey path — EIP-7702 EOAs go through the
+        // same SmartAccountTransactionManager paymaster-or-self-fund logic.
+        joinFn = () => organization.registerAndJoinEOA(quickJoinContractAddress, newUsername, signer, {
+          paymasterHatIds: quickJoinPaymasterHatIds,
+        });
       }
     }
 
@@ -444,7 +471,7 @@ const User = () => {
       router.push(`/profile/?org=${encodeURIComponent(userDAO)}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, roleHatIds, address]);
+  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, roleHatIds, address, quickJoinPaymasterHatIds]);
 
   const handleApplyAndJoin = useCallback(async () => {
     if (!selectedHatId) {
