@@ -14,6 +14,7 @@ export const GROUP_OPTIONS = [
   { id: 'status', label: 'By status' },
   { id: 'difficulty', label: 'By difficulty' },
   { id: 'assignee', label: 'By assignee' },
+  { id: 'project', label: 'By project' },
 ];
 
 const ListControls = ({ sortId, onSortChange, groupId, onGroupChange }) => (

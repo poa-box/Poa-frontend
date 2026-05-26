@@ -24,6 +24,7 @@ import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
 import { AddIcon, SearchIcon, ChevronLeftIcon, EditIcon } from '@chakra-ui/icons';
+import { FiLayers } from 'react-icons/fi';
 import { PERMISSION_MESSAGES, ROLE_INDICES } from '../../util/permissions';
 
 const glassLayerStyle = {
@@ -47,7 +48,21 @@ const ProjectSidebar = ({
   foldersReady = true,
   userIsOrganizer = false,
   onEditFolders,
+  onSelectAllTasks,
+  allTasksSelected = false,
 }) => {
+  // Aggregate count is cheap — sidebar already imports ProjectContext.
+  // Used to surface a "N tasks" hint on the All Tasks card so it doesn't
+  // feel hollow next to project entries that show their own counts.
+  const aggregatedTaskCount = useMemo(() => {
+    let n = 0;
+    for (const p of projects || []) {
+      if (!p || !Array.isArray(p.columns)) continue;
+      for (const c of p.columns) n += (c.tasks?.length || 0);
+    }
+    return n;
+  }, [projects]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const { userData } = useUserContext();
   const { projectsData } = useProjectContext();
@@ -252,7 +267,89 @@ const ProjectSidebar = ({
       </Flex>
       
       <Divider borderColor="whiteAlpha.200" />
-      
+
+      {/* "All Tasks" cross-project shortcut. Sits above the per-project
+          list with its own visual treatment so it reads as a system view,
+          not just another project. Clicking it pushes ?projectId=__all__
+          which MainLayout reads to swap in <AllTasksView /> in place of
+          the per-project TaskBoardProvider. */}
+      {onSelectAllTasks && (
+        <Box px={3} pt={3} pb={1}>
+          <Flex
+            role="button"
+            tabIndex={0}
+            aria-pressed={allTasksSelected}
+            onClick={onSelectAllTasks}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onSelectAllTasks();
+              }
+            }}
+            align="center"
+            gap={3}
+            p={2.5}
+            borderRadius="md"
+            cursor="pointer"
+            bg={
+              allTasksSelected
+                ? 'linear-gradient(135deg, rgba(159,122,234,0.35) 0%, rgba(66,153,225,0.25) 100%)'
+                : 'linear-gradient(135deg, rgba(159,122,234,0.12) 0%, rgba(66,153,225,0.08) 100%)'
+            }
+            border="1px solid"
+            borderColor={allTasksSelected ? 'purple.300' : 'whiteAlpha.200'}
+            boxShadow={allTasksSelected ? '0 0 0 1px rgba(159,122,234,0.5)' : 'none'}
+            transition="background 0.15s ease, border-color 0.15s ease, transform 0.15s ease"
+            _hover={{
+              borderColor: 'purple.300',
+              transform: 'translateY(-1px)',
+            }}
+            _focusVisible={{
+              outline: 'none',
+              boxShadow: '0 0 0 2px rgba(159,122,234,0.7)',
+            }}
+          >
+            <Flex
+              w="32px"
+              h="32px"
+              align="center"
+              justify="center"
+              borderRadius="md"
+              bg="rgba(159,122,234,0.25)"
+              color="purple.100"
+              flexShrink={0}
+            >
+              <FiLayers size={16} />
+            </Flex>
+            <Box minW={0} flex="1">
+              <Text fontSize="sm" fontWeight="700" color="white" noOfLines={1}>
+                All Tasks
+              </Text>
+              <Text fontSize="2xs" color="whiteAlpha.700" noOfLines={1}>
+                {aggregatedTaskCount} task{aggregatedTaskCount === 1 ? '' : 's'} · every project
+              </Text>
+            </Box>
+          </Flex>
+        </Box>
+      )}
+
+      {/* Section divider — labels the per-project list so the All Tasks
+          card above reads as a distinct surface, not the first project. */}
+      {onSelectAllTasks && (
+        <Flex align="center" gap={2} px={4} pt={2} pb={1}>
+          <Text
+            fontSize="2xs"
+            color="whiteAlpha.500"
+            fontWeight="700"
+            letterSpacing="widest"
+            textTransform="uppercase"
+          >
+            Projects
+          </Text>
+          <Box flex="1" h="1px" bg="whiteAlpha.100" />
+        </Flex>
+      )}
+
       {/* Projects list.
           - Until `foldersReady`, hold the layout with a small loader so we
             don't render the flat-list fallback and then snap into the

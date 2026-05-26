@@ -7,6 +7,12 @@ import CreateProjectModal from './CreateProjectModal';
 import FolderTreeEditor from '../folders/FolderTreeEditor';
 import { useFolderDoc } from '../folders/useFolderDoc';
 import { TaskBoardProvider } from '../../context/TaskBoardContext';
+import AllTasksView from './views/AllTasksView';
+
+// Sentinel projectId used in the URL when the user has selected the
+// "All Tasks" sidebar entry. Kept short + URL-safe; matched as a literal
+// in handleSelectProject + the render branch below.
+const ALL_TASKS_ID = '__all__';
 import { useDataBaseContext} from '../../context/dataBaseContext';
 import { useIPFScontext } from '../../context/ipfsContext';
 import { useUserContext } from '../../context/UserContext';
@@ -316,11 +322,27 @@ const MainLayout = () => {
   const handleSelectProject = (projectId) => {
      // Decode first to handle any prior encoding, then encode properly
      const safeProjectId = encodeURIComponent(decodeURIComponent(projectId));
+     // Preserve the active view= so switching projects from a list/gantt
+     // view doesn't flash the user back through Board.
+     const viewParam = router.query.view ? `&view=${encodeURIComponent(router.query.view)}` : '';
 
-    router.push(`/tasks?projectId=${safeProjectId}&org=${encodeURIComponent(userDAO)}`);
+    router.push(`/tasks?projectId=${safeProjectId}&org=${encodeURIComponent(userDAO)}${viewParam}`);
     const selected = projects.find((project) => project.id === projectId);
     setSelectedProject(selected);
   };
+
+  // Pushes the URL into "All Tasks" mode. The render branch below reads
+  // router.query.projectId — not local state — so the URL is the single
+  // source of truth and back/forward navigation works out of the box.
+  // Gantt is the natural cross-project view; if the user is on Board (which
+  // doesn't compose across projects), drop them to List on entry.
+  const handleSelectAllTasks = () => {
+    const currentView = router.query.view;
+    const view = currentView === 'gantt' ? 'gantt' : 'list';
+    router.push(`/tasks?projectId=${ALL_TASKS_ID}&org=${encodeURIComponent(userDAO)}&view=${view}`);
+  };
+
+  const allTasksMode = router.query.projectId === ALL_TASKS_ID;
 
   // Create project using the new service
   const handleCreateProject = useCallback(async (projectData) => {
@@ -443,7 +465,7 @@ const MainLayout = () => {
                 height="32px"
               >
                 <Text color="white" fontWeight="medium" fontSize="sm" flex={1} noOfLines={1}>
-                  {selectedProject?.name || "Select a project"}
+                  {allTasksMode ? 'All Tasks' : selectedProject?.name || 'Select a project'}
                 </Text>
                 <ChevronDownIcon color="white" ml={1} boxSize="16px" />
               </Flex>
@@ -526,6 +548,47 @@ const MainLayout = () => {
                   Select Project
                 </Heading>
                 <VStack spacing={1}>
+                  {/* Mobile All-Tasks shortcut — sits at the top of the
+                      project picker so the cross-project view is reachable
+                      from mobile too, without dedicating chrome above the
+                      project carousel. */}
+                  <Box
+                    w="100%"
+                    p={2}
+                    bg={allTasksMode
+                      ? 'linear-gradient(135deg, rgba(159,122,234,0.35) 0%, rgba(66,153,225,0.25) 100%)'
+                      : 'linear-gradient(135deg, rgba(159,122,234,0.18) 0%, rgba(66,153,225,0.12) 100%)'}
+                    borderRadius="md"
+                    cursor="pointer"
+                    border="1px solid"
+                    borderColor={allTasksMode ? 'purple.300' : 'whiteAlpha.200'}
+                    onClick={() => {
+                      handleSelectAllTasks();
+                      onClose();
+                    }}
+                    _hover={{ borderColor: 'purple.300' }}
+                  >
+                    <Text color="white" fontSize="xs" fontWeight="700">
+                      All Tasks
+                    </Text>
+                    <Text color="whiteAlpha.700" fontSize="2xs">
+                      Every project, one view
+                    </Text>
+                  </Box>
+                  {projects.length > 0 && (
+                    <Flex align="center" gap={2} w="100%" px={1} pt={1}>
+                      <Text
+                        fontSize="2xs"
+                        color="whiteAlpha.500"
+                        fontWeight="700"
+                        letterSpacing="widest"
+                        textTransform="uppercase"
+                      >
+                        Projects
+                      </Text>
+                      <Box flex="1" h="1px" bg="whiteAlpha.100" />
+                    </Flex>
+                  )}
                   {projects.map(project => (
                     <Box
                       key={project.id}
@@ -588,7 +651,7 @@ const MainLayout = () => {
           <Box position="relative">
             <ProjectSidebar
               projects={projects}
-              selectedProject={selectedProject}
+              selectedProject={allTasksMode ? null : selectedProject}
               onSelectProject={handleSelectProject}
               onOpenCreateModal={onProjectModalOpen}
               onToggleSidebar={toggleSidebar}
@@ -596,6 +659,8 @@ const MainLayout = () => {
               foldersReady={foldersReady}
               userIsOrganizer={userIsOrganizer}
               onEditFolders={folderEditor.onOpen}
+              onSelectAllTasks={handleSelectAllTasks}
+              allTasksSelected={allTasksMode}
             />
           </Box>
         )}
@@ -620,7 +685,15 @@ const MainLayout = () => {
             </Box>
           )}
           
-          {selectedProject ? (
+          {allTasksMode ? (
+            <Box flex="1" width="100%" overflow={isMobile ? 'visible' : 'auto'}>
+              <AllTasksView
+                isDesktop={!isMobile}
+                sidebarVisible={sidebarVisible}
+                toggleSidebar={toggleSidebar}
+              />
+            </Box>
+          ) : selectedProject ? (
             <Box flex="1" width="100%" overflow={isMobile ? "visible" : "auto"}>
               <TaskBoardProvider
                 key={selectedProject.id}

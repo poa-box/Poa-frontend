@@ -9,9 +9,9 @@ const MODES = [
   { id: 'gantt', label: 'Gantt' },
 ];
 
-const ViewSwitcher = ({ isMobile = false, size = 'sm' }) => {
+const ViewSwitcher = ({ isMobile = false, size = 'sm', allowBoard = true }) => {
   const allowGantt = !isMobile;
-  const { viewMode, setViewMode } = useViewMode({ allowGantt });
+  const { viewMode, setViewMode } = useViewMode({ allowGantt, allowBoard });
   const router = useRouter();
   const toast = useToast();
   const fallbackToastShown = useRef(false);
@@ -33,7 +33,11 @@ const ViewSwitcher = ({ isMobile = false, size = 'sm' }) => {
     }
   }, [isMobile, router.query.view, setViewMode, toast]);
 
-  const visibleModes = allowGantt ? MODES : MODES.filter((m) => m.id !== 'gantt');
+  const visibleModes = MODES.filter((m) => {
+    if (m.id === 'gantt' && !allowGantt) return false;
+    if (m.id === 'board' && !allowBoard) return false;
+    return true;
+  });
 
   return (
     <HStack

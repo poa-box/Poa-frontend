@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useRouter } from 'next/router';
 
 export const VIEW_MODES = ['board', 'list', 'gantt'];
@@ -7,26 +7,30 @@ const DEFAULT_MODE = 'board';
 
 const isValid = (m) => VIEW_MODES.includes(m);
 
+const readStoredMode = () => {
+  if (typeof window === 'undefined') return DEFAULT_MODE;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (raw && isValid(raw)) return raw;
+  } catch {}
+  return DEFAULT_MODE;
+};
+
 // URL `?view=` is the source of truth; localStorage is a fallback for direct
-// navigations to /tasks without a query param. On mobile we collapse gantt
-// down to list — the caller decides whether the current viewport supports
-// each mode (see ViewSwitcher).
-export function useViewMode({ allowGantt = true } = {}) {
+// navigations to /tasks without a query param. We read localStorage *inside*
+// the useState initializer so the first render already returns the stored
+// mode — without this, switching projects (which strips `?view=` from the
+// URL) renders the Board for one tick before useEffect catches up.
+export function useViewMode({ allowGantt = true, allowBoard = true } = {}) {
   const router = useRouter();
   const urlMode = router.query.view;
 
-  const [storedMode, setStoredMode] = useState(DEFAULT_MODE);
+  const [storedMode, setStoredMode] = useState(readStoredMode);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw && isValid(raw)) setStoredMode(raw);
-    } catch {}
-  }, []);
-
-  const rawMode = (isValid(urlMode) && urlMode) || storedMode || DEFAULT_MODE;
-  const viewMode = !allowGantt && rawMode === 'gantt' ? 'list' : rawMode;
+  let rawMode = (isValid(urlMode) && urlMode) || storedMode || DEFAULT_MODE;
+  if (!allowGantt && rawMode === 'gantt') rawMode = 'list';
+  if (!allowBoard && rawMode === 'board') rawMode = 'list';
+  const viewMode = rawMode;
 
   const setViewMode = useCallback(
     (next) => {

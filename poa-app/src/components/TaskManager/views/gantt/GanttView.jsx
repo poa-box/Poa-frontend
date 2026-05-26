@@ -35,8 +35,9 @@ const HEADER_HEIGHT = 48;
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-const GanttView = ({ projectName }) => {
-  const tasks = useFlatTasks();
+const GanttView = ({ projectName, tasks: tasksOverride }) => {
+  const ownTasks = useFlatTasks();
+  const tasks = tasksOverride ?? ownTasks;
   const { selectedProject, projects } = useDataBaseContext();
   const [zoom, setZoom] = useState('30d');
   const [collapsed, setCollapsed] = useState(() => new Set());
@@ -101,7 +102,12 @@ const GanttView = ({ projectName }) => {
     });
     return keys.map((k) => ({
       id: k,
-      title: k === '_none' ? 'No project' : (projectMap.get(k) || k),
+      title:
+        k === '_none'
+          ? 'No project'
+          : projectMap.get(k) ||
+            buckets.get(k).find((t) => t.projectName)?.projectName ||
+            k,
       tasks: buckets.get(k),
     }));
   }, [tasks, projectMap]);
