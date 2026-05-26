@@ -257,12 +257,15 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     isClosingRef.current = true;
     onClose();
 
-    const { projectId } = router.query;
+    const { projectId, view } = router.query;
     const safeProjectId = projectId ? encodeURIComponent(decodeURIComponent(projectId)) : '';
 
     // Wait for URL to update before returning - this prevents new modal instances from opening
     await router.push(
-      { pathname: `/tasks/`, query: { projectId: safeProjectId, org: userDAO } },
+      {
+        pathname: `/tasks/`,
+        query: { projectId: safeProjectId, org: userDAO, ...(view ? { view } : {}) },
+      },
       undefined,
       { shallow: true }
     );
@@ -624,9 +627,16 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
 
   const handleCloseEditTaskModal = () => {
     setIsEditTaskModalOpen(false);
-    const { projectId } = router.query;
+    const { projectId, view } = router.query;
     const safeProjectId = projectId ? encodeURIComponent(decodeURIComponent(projectId)) : '';
-    router.push({ pathname: `/tasks/`, query: { projectId: safeProjectId, org: userDAO } }, undefined, { shallow: true });
+    router.push(
+      {
+        pathname: `/tasks/`,
+        query: { projectId: safeProjectId, org: userDAO, ...(view ? { view } : {}) },
+      },
+      undefined,
+      { shallow: true },
+    );
   };
 
   const copyLinkToClipboard = () => {

@@ -1,0 +1,253 @@
+import { useState, useEffect, useMemo } from 'react';
+import { Box, Flex, Center, Checkbox, Heading, Text, useBreakpointValue } from '@chakra-ui/react';
+import PulseLoader from '@/components/shared/PulseLoader';
+import EmptyState from '@/components/voting/EmptyState';
+import { COLUMN_TITLES } from '@/util/taskUtils';
+import { useFlatTasks } from '../useFlatTasks';
+import TaskRow from './TaskRow';
+import ListControls from './ListControls';
+
+// Apply the dark glass directly to the container (matching the Board's
+// `taskBoardStyles.glassLayerStyle` pattern). The older inner-layer
+// `position:absolute; zIndex:-1` approach lets the page background bleed
+// through the corners when the parent has no own background.
+const glassContainerStyle = {
+  backgroundColor: 'rgba(0, 0, 0, 0.82)',
+};
+
+const HIDE_COMPLETED_KEY = 'poa.tasks.list.hideCompleted';
+const SORT_KEY = 'poa.tasks.list.sort';
+const GROUP_KEY = 'poa.tasks.list.group';
+
+const COLUMN_ORDER = { open: 0, inProgress: 1, inReview: 2, completed: 3 };
+const DIFF_ORDER = { veryhard: 0, hard: 1, medium: 2, easy: 3, '': 4 };
+const DIFF_KEY = (d) => (d ? String(d).toLowerCase().replace(' ', '') : '');
+
+const toNumber = (v, fallback = 0) => {
+  if (v == null || v === '') return fallback;
+  const n = typeof v === 'number' ? v : parseFloat(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const SORTERS = {
+  created_desc: (a, b) => toNumber(b.createdAt) - toNumber(a.createdAt),
+  created_asc: (a, b) => toNumber(a.createdAt) - toNumber(b.createdAt),
+  difficulty_desc: (a, b) =>
+    (DIFF_ORDER[DIFF_KEY(a.difficulty)] ?? 4) - (DIFF_ORDER[DIFF_KEY(b.difficulty)] ?? 4),
+  payout_desc: (a, b) => toNumber(b.Payout) - toNumber(a.Payout),
+  hours_desc: (a, b) => toNumber(b.estHours) - toNumber(a.estHours),
+  status: (a, b) =>
+    (COLUMN_ORDER[a.columnId] ?? 99) - (COLUMN_ORDER[b.columnId] ?? 99),
+};
+
+const groupKeyFor = (groupId, task) => {
+  if (groupId === 'status') return task.columnId || 'other';
+  if (groupId === 'difficulty') return DIFF_KEY(task.difficulty) || 'unspecified';
+  if (groupId === 'assignee')
+    return task.claimerUsername || task.claimedBy || 'Unassigned';
+  return null;
+};
+
+const groupLabelFor = (groupId, key) => {
+  if (groupId === 'status') return COLUMN_TITLES[key] || key;
+  if (groupId === 'difficulty') {
+    if (key === 'unspecified') return 'No difficulty';
+    return key.charAt(0).toUpperCase() + key.slice(1);
+  }
+  if (groupId === 'assignee') return key;
+  return key;
+};
+
+const groupOrder = (groupId) => {
+  if (groupId === 'status') return COLUMN_ORDER;
+  if (groupId === 'difficulty') return DIFF_ORDER;
+  return null;
+};
+
+const useLocalState = (key, defaultValue) => {
+  const [value, setValue] = useState(defaultValue);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(key);
+      if (raw != null) setValue(raw);
+    } catch {}
+  }, [key]);
+  const setAndStore = (next) => {
+    setValue(next);
+    try {
+      if (typeof window !== 'undefined') window.localStorage.setItem(key, next);
+    } catch {}
+  };
+  return [value, setAndStore];
+};
+
+const ListView = ({ projectName }) => {
+  const tasks = useFlatTasks();
+  const isMobile = useBreakpointValue({ base: true, md: false });
+  const [hideCompleted, setHideCompleted] = useState(false);
+  const [sortId, setSortId] = useLocalState(SORT_KEY, 'created_desc');
+  const [groupId, setGroupId] = useLocalState(GROUP_KEY, 'none');
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const raw = window.localStorage.getItem(HIDE_COMPLETED_KEY);
+      if (raw === 'true' || raw === 'false') setHideCompleted(raw === 'true');
+    } catch {}
+  }, []);
+
+  const onToggleHideCompleted = (e) => {
+    const next = e.target.checked;
+    setHideCompleted(next);
+    try {
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(HIDE_COMPLETED_KEY, String(next));
+      }
+    } catch {}
+  };
+
+  const visibleTasks = useMemo(
+    () => (hideCompleted ? tasks.filter((t) => t.columnId !== 'completed') : tasks),
+    [tasks, hideCompleted],
+  );
+
+  const sortedTasks = useMemo(() => {
+    const sorter = SORTERS[sortId] || SORTERS.created_desc;
+    return [...visibleTasks].sort(sorter);
+  }, [visibleTasks, sortId]);
+
+  const groupedView = useMemo(() => {
+    if (groupId === 'none') return null;
+    const buckets = new Map();
+    for (const t of sortedTasks) {
+      const k = groupKeyFor(groupId, t);
+      if (!buckets.has(k)) buckets.set(k, []);
+      buckets.get(k).push(t);
+    }
+    const order = groupOrder(groupId);
+    const keys = [...buckets.keys()].sort((a, b) => {
+      if (order) {
+        const ai = order[a] ?? 99;
+        const bi = order[b] ?? 99;
+        if (ai !== bi) return ai - bi;
+      }
+      return String(a).localeCompare(String(b));
+    });
+    return keys.map((k) => ({ key: k, label: groupLabelFor(groupId, k), tasks: buckets.get(k) }));
+  }, [groupId, sortedTasks]);
+
+  const isLoading = tasks.length === 0 && projectName == null;
+
+  return (
+    <Box
+      w="100%"
+      h="100%"
+      px={{ base: 2, md: 3 }}
+      pt={{ base: 1, md: 2 }}
+      pb={{ base: 3, md: 3 }}
+      overflow="auto"
+      sx={{
+        '&::-webkit-scrollbar': { width: '6px' },
+        '&::-webkit-scrollbar-thumb': {
+          background: 'rgba(255,255,255,0.18)',
+          borderRadius: '3px',
+        },
+      }}
+    >
+      <Box
+        sx={glassContainerStyle}
+        borderRadius="xl"
+        boxShadow="lg"
+        p={{ base: 3, md: 4 }}
+        minH="200px"
+      >
+        {/* Toolbar */}
+        <Flex
+          align={{ base: 'stretch', md: 'center' }}
+          justify="space-between"
+          direction={{ base: 'column', md: 'row' }}
+          mb={4}
+          gap={3}
+          pb={3}
+          borderBottom="1px solid"
+          borderColor="whiteAlpha.150"
+        >
+          <ListControls
+            sortId={sortId}
+            onSortChange={setSortId}
+            groupId={groupId}
+            onGroupChange={setGroupId}
+          />
+          <Flex align="center" gap={3} px={1}>
+            <Text fontSize="sm" color="whiteAlpha.700">
+              {sortedTasks.length} task{sortedTasks.length !== 1 ? 's' : ''}
+              {hideCompleted && tasks.length !== sortedTasks.length
+                ? ` (${tasks.length - sortedTasks.length} hidden)`
+                : ''}
+            </Text>
+            <Checkbox
+              size="sm"
+              isChecked={hideCompleted}
+              onChange={onToggleHideCompleted}
+              colorScheme="purple"
+              color="whiteAlpha.800"
+            >
+              Hide completed
+            </Checkbox>
+          </Flex>
+        </Flex>
+
+        {isLoading ? (
+          <Center py={10}>
+            <PulseLoader size="lg" color="purple.300" />
+          </Center>
+        ) : sortedTasks.length === 0 ? (
+          <Box maxW="540px" mx="auto" my={6}>
+            <EmptyState
+              text={
+                tasks.length === 0
+                  ? 'No tasks yet — create one from the Board to get started.'
+                  : 'All tasks are completed. Toggle off "Hide completed" to see them.'
+              }
+            />
+          </Box>
+        ) : groupedView ? (
+          <Box>
+            {groupedView.map((g) => (
+              <Box key={g.key} mb={4}>
+                <Heading
+                  size="sm"
+                  color="white"
+                  mb={2}
+                  pb={1}
+                  borderBottom="1px solid"
+                  borderColor="whiteAlpha.200"
+                  display="flex"
+                  alignItems="baseline"
+                  gap={2}
+                >
+                  {g.label}
+                  <Text as="span" fontSize="xs" color="whiteAlpha.500" fontWeight="400">
+                    {g.tasks.length}
+                  </Text>
+                </Heading>
+                {g.tasks.map((t) => (
+                  <TaskRow key={t.id} task={t} isMobile={!!isMobile} />
+                ))}
+              </Box>
+            ))}
+          </Box>
+        ) : (
+          <Box>
+            {sortedTasks.map((t) => (
+              <TaskRow key={t.id} task={t} isMobile={!!isMobile} />
+            ))}
+          </Box>
+        )}
+      </Box>
+    </Box>
+  );
+};
+
+export default ListView;
