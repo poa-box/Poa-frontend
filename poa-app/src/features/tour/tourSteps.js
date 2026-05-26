@@ -103,12 +103,14 @@ export const TOUR_STEPS = [
     forceInteraction: false,
   },
 
-  // --- Setup actions (admin with no projects yet) ---
+  // --- Setup actions ---
+  // create-project shows for any exec; the title/copy stays neutral so admins
+  // re-running the tour aren't told to set up their "first" project.
   {
     id: 'create-project',
     page: '/tasks',
-    title: 'Create Your First Project',
-    description: 'Projects group related tasks. Click below to open the setup modal — we\'ve pre-filled a starter name and description so you can ship your first project in one click.',
+    title: 'Create a Project',
+    description: 'Projects group related tasks. Click below to open the setup modal — we\'ve pre-filled a starter name and description so a fresh project is one click away.',
     icon: PiFolderPlus,
     action: 'create-project',
     ctaText: 'Click "Create Project"',
@@ -116,12 +118,16 @@ export const TOUR_STEPS = [
     mobileTarget: '[data-tour="create-project-mobile-btn"]',
     placement: 'right',
     forceInteraction: true,
-    skip: (ctx) => ctx.hasProjects || !ctx.hasExecRole,
+    skip: (ctx) => !ctx.hasExecRole,
   },
+  // create-task requires a project to exist (otherwise the add-task-btn isn't
+  // mounted). With current-step pinning in TourContext, the user lands here
+  // either by successfully creating a project (auto-advance) or by being in
+  // the tour with prior projects.
   {
     id: 'create-task',
     page: '/tasks',
-    title: 'Add Your First Task',
+    title: 'Add a Task',
     description: 'Click the + button on the Open column to create a task. Give it a name, description, and difficulty level. Once published, any member with the right permissions can claim it.',
     icon: PiCheckSquare,
     action: 'create-task',
@@ -129,7 +135,7 @@ export const TOUR_STEPS = [
     target: '[data-tour="add-task-btn"]',
     placement: 'bottom',
     forceInteraction: true,
-    skip: (ctx) => ctx.hasProjects || !ctx.hasExecRole,
+    skip: (ctx) => !ctx.hasExecRole || !ctx.hasProjects,
   },
 
   // --- Voting ---

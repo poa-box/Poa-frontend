@@ -78,11 +78,18 @@ export function TourProvider({ children }) {
     educationHubEnabled: !!educationHubEnabled,
   }), [isAuthenticated, hasMemberRole, hasExecRole, projects, hideTreasury, educationHubEnabled]);
 
-  // Reactively compute effective steps from tourCtx (not frozen)
-  const effectiveSteps = useMemo(() =>
-    TOUR_STEPS.filter(step => !step.skip || !step.skip(tourCtx)),
-    [tourCtx]
-  );
+  // Reactively compute effective steps from tourCtx, but pin the user's current
+  // step so a mid-tour skip-rule flip (e.g. hasProjects becoming true after the
+  // user creates one) can't make the active step disappear. Without this guard,
+  // safeIndex below clamps to the last index and auto-advance trips a premature
+  // COMPLETE_TOUR.
+  const effectiveSteps = useMemo(() => {
+    const currentId = state.currentStepId;
+    return TOUR_STEPS.filter(step => {
+      if (currentId && step.id === currentId) return true;
+      return !step.skip || !step.skip(tourCtx);
+    });
+  }, [tourCtx, state.currentStepId]);
 
   // Resolve current step index from ID
   const currentStepIndex = state.isActive
