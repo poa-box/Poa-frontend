@@ -372,11 +372,19 @@ export function useOrgStructure() {
 
   // Transform roles data, then annotate with isQuickJoinEligible. Kept as two
   // passes so transformRolesData stays pure.
+  //
+  // A hat is treated as quick-join-eligible only if it's in memberHatIds AND
+  // the EligibilityModule does not require vouching for it. If both flags are
+  // set on the same hat (Test6's Member is configured this way), the join
+  // would surface a "Join" CTA, but quickJoinWithUser would revert during
+  // isEligible because the user has no vouches yet. Vouching wins, since it's
+  // the more restrictive gate.
   const roles = useMemo(() => {
     const base = transformRolesData(org?.roles, roleHatIds, {}, org?.users);
     return base.map((role) => ({
       ...role,
-      isQuickJoinEligible: memberHatIdSet.has(normalizeHatId(role.hatId)),
+      isQuickJoinEligible:
+        memberHatIdSet.has(normalizeHatId(role.hatId)) && !role.vouchingEnabled,
     }));
   }, [org?.roles, roleHatIds, org?.users, memberHatIdSet]);
 
