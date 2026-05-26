@@ -14,7 +14,9 @@ import { useNotification } from './NotificationContext';
 import { useWeb3Services } from '../hooks/useWeb3Services';
 import { calculatePayout } from '../util/taskUtils';
 
-const TaskBoardContext = createContext();
+// Exported so the cross-project AllTasksProvider can render against the same
+// context (consumers of useTaskBoard work in either provider unchanged).
+export const TaskBoardContext = createContext();
 
 export const useTaskBoard = () => {
   return useContext(TaskBoardContext);

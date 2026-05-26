@@ -13,7 +13,7 @@ import { getDifficultyColor } from '../../util/taskUtils';
 const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
   const poContext = usePOContext();
   const tokenLabel = poContext?.tokenLabel || 'Shares';
-  const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
+  const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, projectName, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
 
   const router = useRouter();
   const userDAO = useOrgName();
@@ -115,6 +115,34 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
         onClick={openTask}
         role="group"
       >
+        {/* Project chip — only rendered in the All Tasks view where each task
+            carries a populated projectName. Hidden in single-project boards
+            where every card would otherwise show the same redundant label. */}
+        {projectName && (
+          <Box
+            display="inline-block"
+            px={1.5}
+            py={0.5}
+            mb={1.5}
+            borderRadius="md"
+            bg="purple.50"
+            border="1px solid"
+            borderColor="purple.200"
+            maxW="100%"
+          >
+            <Text
+              fontSize="2xs"
+              color="purple.700"
+              fontWeight="semibold"
+              textTransform="uppercase"
+              letterSpacing="0.04em"
+              noOfLines={1}
+            >
+              {projectName}
+            </Text>
+          </Box>
+        )}
+
         {/* Task title with better typography */}
         <Text
           fontWeight="700"

@@ -32,7 +32,7 @@ const glassLayerStyle = {
 const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile = false, isEmpty = false, hideTitleInMobile = false }, ref) => {
   const router = useRouter();
   const userDAO = useOrgName();
-  const { moveTask, addTask, addTaskBatch, editTask } = useTaskBoard();
+  const { moveTask, addTask, addTaskBatch, editTask, isAllTasks } = useTaskBoard();
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('quick');
   const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
@@ -422,7 +422,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
       {(!isMobile || (isMobile && !hideTitleInMobile)) && (
         <Heading size="md" mb={3} mt={0} ml={3} alignItems="center" color='white'>
           {title}
-          {title === 'Open' && (
+          {title === 'Open' && !isAllTasks && (
             <IconButton
               data-tour="add-task-btn"
               ml={8}
