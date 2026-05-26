@@ -92,6 +92,21 @@ const User = () => {
     return roles.some(r => r.vouchingEnabled);
   }, [roles]);
 
+  // Roles claimable via QuickJoin.quickJoinWithUser() — no vouching required.
+  // Source: QuickJoin.memberHatIds() read in useOrgStructure.
+  const quickJoinEligibleRoles = useMemo(() => {
+    return (roles || []).filter(r => r.isQuickJoinEligible);
+  }, [roles]);
+  const hasQuickJoinRoles = quickJoinEligibleRoles.length > 0;
+  // Org has both a quick-join path AND a vouch-gated path (e.g. Decentral Park:
+  // Neighbor via quickJoin + Delegate via apply/vouch). Surface both in the UI.
+  const hasBothPaths = hasQuickJoinRoles && hasVouchGatedRoles;
+  // Collapsible "Apply for an advanced role instead" disclosure on mixed orgs.
+  const [showApplyPath, setShowApplyPath] = useState(false);
+  const quickJoinPrimaryRoleName = quickJoinEligibleRoles.length === 1
+    ? quickJoinEligibleRoles[0].name
+    : 'a member';
+
   // Cross-chain username: check if user already has a username on any chain
   const [crossChainUsername, setCrossChainUsername] = useState(null);
   useEffect(() => {
@@ -212,7 +227,10 @@ const User = () => {
   }, [userDAO]);
 
   useEffect(() => {
-    // Don't redirect members when they're here to vouch for someone
+    // Don't redirect members when they're here to vouch for someone.
+    // TODO: existing members who want to upgrade to a vouch-gated role (e.g. a Neighbor
+    // applying for Delegate) get redirected away from /join — there's no upgrade path
+    // in the current UI. Tracked separately from the mixed-org bug fix.
     if (hasMemberRole && !vouchAddress) {
       router.push(`/profile/?org=${encodeURIComponent(userDAO)}`);
     }
@@ -1085,6 +1103,133 @@ const User = () => {
                             Complete Join
                           </Button>
                         </VStack>
+                      ) : hasQuickJoinRoles ? (
+                        /* ── Branch 3-mixed: org has BOTH a quick-join role and a vouch-gated role ──
+                           Primary CTA = quick-join (no vouches needed); collapsible disclosure reveals
+                           the apply form for the vouch-gated role(s). */
+                        <VStack spacing={formSpacing} align="stretch">
+                          <ConnectedAccountBadge />
+
+                          <Box textAlign="center">
+                            <Box display="inline-block" mb={4}>
+                              <Icon as={FaUserPlus} color={accentColor} boxSize={{ base: 10, md: 12 }} />
+                            </Box>
+                            <Heading size={{ base: "md", md: "lg" }} mb={{ base: 2, md: 4 }} color={textColor}>
+                              Join {userDAO}
+                            </Heading>
+                            <Text color={subtextColor} mb={{ base: 4, md: 6 }} fontSize={{ base: "sm", md: "md" }}>
+                              Join directly as {quickJoinPrimaryRoleName}, or apply for an advanced role.
+                            </Text>
+                          </Box>
+
+                          {dispaly && graphUsername ? (
+                            <VStack spacing={{ base: 4, md: 6 }}>
+                              <Button
+                                size={isMobile ? "md" : "lg"}
+                                colorScheme="teal"
+                                width="100%"
+                                height={buttonHeight}
+                                fontSize={{ base: "md", md: "lg" }}
+                                isLoading={loading}
+                                loadingText="Joining..."
+                                onClick={handleJoinWithUser}
+                                leftIcon={<FaUser />}
+                                _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
+                              >
+                                Join as {quickJoinPrimaryRoleName}
+                              </Button>
+                              <Text textAlign="center" fontSize={{ base: "xs", md: "sm" }} color={hintColor}>
+                                Using your existing username: <b>{graphUsername}</b>
+                              </Text>
+                            </VStack>
+                          ) : (
+                            <VStack spacing={{ base: 4, md: 6 }}>
+                              <InputGroup size={isMobile ? "md" : "lg"}>
+                                <Input
+                                  placeholder="Choose a username"
+                                  value={newUsername}
+                                  onChange={(e) => setNewUsername(e.target.value)}
+                                  bg={inputBg}
+                                  borderColor={inputBorderColor}
+                                  _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
+                                  ref={usernameInputRef}
+                                />
+                                <InputRightElement width="4.5rem">
+                                  <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
+                                </InputRightElement>
+                              </InputGroup>
+                              <Button
+                                colorScheme="teal"
+                                size={isMobile ? "md" : "lg"}
+                                width="100%"
+                                height={buttonHeight}
+                                fontSize={{ base: "md", md: "lg" }}
+                                isLoading={loading}
+                                loadingText="Joining..."
+                                onClick={handleJoinNewUser}
+                                isDisabled={!newUsername.trim()}
+                                leftIcon={<FaUser />}
+                                _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
+                                animation={newUsername ? `${pulse} 2s infinite` : undefined}
+                              >
+                                Join as {quickJoinPrimaryRoleName}
+                              </Button>
+                            </VStack>
+                          )}
+
+                          {!showApplyPath ? (
+                            <Button
+                              variant="link"
+                              colorScheme="teal"
+                              size="sm"
+                              alignSelf="center"
+                              onClick={() => setShowApplyPath(true)}
+                              rightIcon={<FaChevronRight />}
+                            >
+                              Apply for an advanced role instead
+                            </Button>
+                          ) : (
+                            <VStack spacing={formSpacing} align="stretch" pt={2}>
+                              <HStack width="100%" align="center">
+                                <Divider />
+                                <Text fontSize="xs" color={hintColor} whiteSpace="nowrap" px={2}>
+                                  or apply for an advanced role
+                                </Text>
+                                <Divider />
+                              </HStack>
+
+                              <RoleApplicationForm
+                                roles={rolesWithVouching}
+                                selectedHatId={selectedHatId}
+                                onSelectRole={setSelectedHatId}
+                                notes={applicationNotes}
+                                onNotesChange={(e) => setApplicationNotes(e.target.value)}
+                              />
+
+                              <Button
+                                colorScheme="teal"
+                                variant="outline"
+                                size={isMobile ? "md" : "lg"}
+                                width="100%"
+                                height={buttonHeight}
+                                fontSize={{ base: "md", md: "lg" }}
+                                isLoading={loading || isApplying}
+                                loadingText="Submitting Application..."
+                                onClick={handleApplyAndJoin}
+                                isDisabled={
+                                  !selectedHatId ||
+                                  !applicationNotes.trim() ||
+                                  (!graphUsername && !newUsername.trim()) ||
+                                  !eligibilityModuleAddress
+                                }
+                                leftIcon={<FaPaperPlane />}
+                                _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
+                              >
+                                Apply & Get Vouch Link
+                              </Button>
+                            </VStack>
+                          )}
+                        </VStack>
                       ) : (
                         /* ── Branch 3c: No application yet → apply-to-join form ── */
                         <VStack spacing={formSpacing} align="stretch">
@@ -1309,6 +1454,142 @@ const User = () => {
                       </Text>
                     </VStack>
 
+                  /* ── Branch 5-mixed: Not authenticated, org has BOTH quick-join + vouch-gated roles.
+                       Primary CTA = Create Account / Sign In / Connect Wallet (same as Branch 6 — after
+                       creating an account the user lands in the authenticated mixed-org branch where they
+                       can quick-join). Collapsible link reveals the apply-for-advanced-role form. */
+                  ) : !isAuthenticated && hasBothPaths ? (
+                    <VStack spacing={{ base: 5, md: 7 }} align="stretch">
+                      <VStack spacing={{ base: 2, md: 3 }}>
+                        <Heading size={{ base: "md", md: "lg" }} textAlign="center" color={textColor}>
+                          Join {userDAO}
+                        </Heading>
+                        <Text textAlign="center" color={subtextColor} maxW="md" fontSize={{ base: "sm", md: "md" }}>
+                          Create an account or sign in to join directly as {quickJoinPrimaryRoleName}.
+                        </Text>
+                      </VStack>
+
+                      <VStack spacing={3} width="100%">
+                        <Button
+                          onClick={onCreateOpen}
+                          width="100%"
+                          size="lg"
+                          height={buttonHeight}
+                          fontSize={{ base: "md", md: "lg" }}
+                          colorScheme="green"
+                          leftIcon={<FaFingerprint />}
+                          _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
+                        >
+                          Create Account
+                        </Button>
+                        <Text fontSize="xs" color={hintColor} textAlign="center">
+                          No wallet or ETH needed. Gas fees are sponsored.
+                        </Text>
+                      </VStack>
+
+                      <Button
+                        variant="outline"
+                        colorScheme="teal"
+                        size="sm"
+                        onClick={onSignInOpen}
+                        leftIcon={<FaUser />}
+                        alignSelf="center"
+                      >
+                        Already have an account? Sign In
+                      </Button>
+
+                      <HStack width="100%" align="center">
+                        <Divider />
+                        <Text fontSize="xs" color="gray.400" whiteSpace="nowrap" px={2}>
+                          or connect a wallet
+                        </Text>
+                        <Divider />
+                      </HStack>
+
+                      <Flex justify="center" p={2}>
+                        <ConnectButton
+                          showBalance={false}
+                          chainStatus={isMobile ? "none" : "icon"}
+                          accountStatus={isMobile ? "avatar" : "address"}
+                          label="Connect Wallet"
+                        />
+                      </Flex>
+
+                      {!showApplyPath ? (
+                        <Button
+                          variant="link"
+                          colorScheme="teal"
+                          size="sm"
+                          alignSelf="center"
+                          onClick={() => setShowApplyPath(true)}
+                          rightIcon={<FaChevronRight />}
+                        >
+                          Apply for an advanced role instead
+                        </Button>
+                      ) : (
+                        <VStack spacing={formSpacing} align="stretch" pt={2}>
+                          <HStack width="100%" align="center">
+                            <Divider />
+                            <Text fontSize="xs" color={hintColor} whiteSpace="nowrap" px={2}>
+                              or apply for an advanced role
+                            </Text>
+                            <Divider />
+                          </HStack>
+
+                          <Text fontSize="xs" color={subtextColor} textAlign="center">
+                            Create your passkey account, then share a link with existing members to vouch for you.
+                          </Text>
+
+                          <InputGroup size={isMobile ? "md" : "lg"}>
+                            <Input
+                              placeholder="Choose a username"
+                              value={newUsername}
+                              onChange={(e) => setNewUsername(e.target.value)}
+                              bg={inputBg}
+                              borderColor={inputBorderColor}
+                              _focus={{ borderColor: "teal.400", boxShadow: "0 0 0 1px teal.400" }}
+                              ref={usernameInputRef}
+                            />
+                            <InputRightElement width="4.5rem">
+                              <Icon as={FaUser} color={newUsername ? "green.500" : "gray.300"} />
+                            </InputRightElement>
+                          </InputGroup>
+
+                          <RoleApplicationForm
+                            roles={rolesWithVouching}
+                            selectedHatId={selectedHatId}
+                            onSelectRole={setSelectedHatId}
+                            notes={applicationNotes}
+                            onNotesChange={(e) => setApplicationNotes(e.target.value)}
+                          />
+
+                          {vouchFirstHook.error && (
+                            <Alert status="error" borderRadius="md">
+                              <AlertIcon />
+                              <Text fontSize="sm">{vouchFirstHook.error.message}</Text>
+                            </Alert>
+                          )}
+
+                          <Button
+                            colorScheme="teal"
+                            variant="outline"
+                            size={isMobile ? "md" : "lg"}
+                            width="100%"
+                            height={buttonHeight}
+                            fontSize={{ base: "md", md: "lg" }}
+                            isLoading={vouchFirstHook.phase === VouchFirstPhase.CREATING_CREDENTIAL}
+                            loadingText="Creating Passkey..."
+                            onClick={() => vouchFirstHook.createCredentialAndLink(newUsername.trim(), selectedHatId)}
+                            isDisabled={!newUsername.trim() || !selectedHatId}
+                            leftIcon={<FaPaperPlane />}
+                            _hover={{ transform: "translateY(-2px)", boxShadow: "lg" }}
+                          >
+                            Create Account & Get Vouch Link
+                          </Button>
+                        </VStack>
+                      )}
+                    </VStack>
+
                   ) : !isAuthenticated && hasVouchGatedRoles ? (
                     <VStack spacing={formSpacing} align="stretch">
                       <Box textAlign="center">
@@ -1346,9 +1627,10 @@ const User = () => {
                         </InputRightElement>
                       </InputGroup>
 
-                      {/* Role selection + application form */}
+                      {/* Role selection + application form — only vouch-gated roles belong here.
+                          Quick-join roles get a separate primary CTA when hasBothPaths is true. */}
                       <RoleApplicationForm
-                        roles={roles}
+                        roles={rolesWithVouching}
                         selectedHatId={selectedHatId}
                         onSelectRole={setSelectedHatId}
                         notes={applicationNotes}

@@ -626,6 +626,7 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
 
       quickJoin {
         id
+        memberHatIds
       }
 
       taskManager {

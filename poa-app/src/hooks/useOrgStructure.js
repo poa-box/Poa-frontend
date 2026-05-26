@@ -363,10 +363,22 @@ export function useOrgStructure() {
     fetchMetadata();
   }, [org?.metadataHash, org?.metadata, safeFetchFromIpfs, safeFetchImageFromIpfs]);
 
-  // Transform roles data
+  // Hats anyone can claim via quickJoinWithUser without vouching. Sourced
+  // from the subgraph's QuickJoinContract.memberHatIds (see subgraph-pop #179).
+  const memberHatIdSet = useMemo(() => {
+    const ids = org?.quickJoin?.memberHatIds || [];
+    return new Set(ids.map((id) => normalizeHatId(id.toString())));
+  }, [org?.quickJoin?.memberHatIds]);
+
+  // Transform roles data, then annotate with isQuickJoinEligible. Kept as two
+  // passes so transformRolesData stays pure.
   const roles = useMemo(() => {
-    return transformRolesData(org?.roles, roleHatIds, {}, org?.users);
-  }, [org?.roles, roleHatIds, org?.users]);
+    const base = transformRolesData(org?.roles, roleHatIds, {}, org?.users);
+    return base.map((role) => ({
+      ...role,
+      isQuickJoinEligible: memberHatIdSet.has(normalizeHatId(role.hatId)),
+    }));
+  }, [org?.roles, roleHatIds, org?.users, memberHatIdSet]);
 
   // Build permissions matrix
   const permissionsMatrix = useMemo(() => {
