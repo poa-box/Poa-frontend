@@ -113,6 +113,50 @@ relevant doc pages) and from the navigation.
 | Lighthouse SEO audit | Target 100/100 on every public page after every change |
 | `site:poa.box` query | Manual check every 2 weeks — confirm new pages get indexed within ~14 days |
 
+## Brand-entity disambiguation (off-repo follow-ups)
+
+The most stubborn SEO problem we have is that Google parses the dot in `poa.box`
+as a separator and treats the brand query as a typo for "P.O. Box" — so a search
+for `poa.box` ranks USPS, LegalZoom, Capital One, and an air-respirator product
+above our site at result #6. The in-repo changes (apex/www flip, trailing-slash
+canonicals, full schema set, brand string in titles + descriptions, `founder`,
+`foundingDate`, `SearchAction`) have done what they can: they reinforce the
+entity signal on every page Google crawls. They cannot, by themselves, close
+the authority gap vs. USPS.
+
+The decisive levers are off-repo. Each item below makes the literal string
+`poa.box` appear in contexts Google trusts, which is the only way to teach
+Google that `poa.box` is a brand entity, not a typo.
+
+1. **Twitter/X bio for `@PoaPerpetual`** must contain the literal string
+   `poa.box` and link to `https://poa.box/`. Google indexes Twitter profiles
+   and uses `sameAs` cross-references for Knowledge Panel construction —
+   the `Organization` schema already declares the link in the other direction.
+
+2. **GitHub `poa-box` org profile README and per-repo READMEs** (`POP`,
+   `subgraph-pop`, `poa-cli`) should open with a literal-brand sentence —
+   e.g. "poa.box is a no-code platform for community-owned organizations…".
+   First sentence carries the most weight for Google's snippet generation
+   and entity resolution.
+
+3. **Wikidata entry** for `poa.box` as an organization / software product.
+   Anyone can submit. A Wikidata record creates a structured entity signal
+   Google weights heavily for Knowledge Panel eligibility — this is the
+   single highest-leverage off-repo action available.
+
+4. **Three or four inbound links** from non-PO-Box contexts: a tweet, a
+   Reddit post in `r/cooperatives` or `r/web3`, a GitHub README in an
+   unrelated project, a blog post. Each link tells Google "the string
+   `poa.box` is used to refer to this site, not the postal product." The
+   exact venues matter less than that they come from contexts where the
+   surrounding text is about co-ops, DAOs, or governance.
+
+Track progress by re-running the rank check 2-4 weeks after each batch:
+incognito Google search for `poa.box`, note the position. If position
+moves from ~#6 toward #1, the off-repo work is doing what it should. If
+it doesn't move, the next batch needs more authority-bearing inbound
+links rather than more low-trust mentions.
+
 ## Infrastructure follow-ups (Hudson)
 
 Carried forward from the earlier audit — not blocking, but compounds value:
