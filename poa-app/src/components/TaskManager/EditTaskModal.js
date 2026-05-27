@@ -64,7 +64,20 @@ const selectStyles = {
 // `allowDelete` defaults to true to preserve the pre-claim path. For post-claim editing
 // (TaskManager v5 EDIT_FULL) the parent should pass `false` because `cancelTask` reverts
 // `BadStatus` once a task leaves UNCLAIMED.
-const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task, allowDelete = true }) => {
+//
+// `metadataOnly` defaults to false. When true the modal hides + disables the bounty
+// section because the underlying call (TaskManager v5 `updateTaskMetadata`) only writes
+// title + metadataHash. EDIT_META-only callers are routed here from TaskCardModal so
+// they can't even attempt a payout/bounty edit that the contract would revert.
+const EditTaskModal = ({
+  isOpen,
+  onClose,
+  onEditTask,
+  onDeleteTask,
+  task,
+  allowDelete = true,
+  metadataOnly = false,
+}) => {
   const { orgChainId, tokenLabel } = usePOContext();
   const tokenOptions = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
@@ -205,7 +218,9 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task, allowD
               </SimpleGrid>
             </Box>
 
-            {/* Token Bounty Section */}
+            {/* Token Bounty Section — hidden entirely in metadata-only mode so the editor
+                isn't confused into thinking they can change a payout they can't write. */}
+            {!metadataOnly && (
             <Box>
               <FormControl>
                 <HStack justify="space-between" mb={hasBounty ? 3 : 0}>
@@ -313,6 +328,22 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task, allowD
                 </Box>
               )}
             </Box>
+            )}
+            {metadataOnly && (
+              <Box
+                px={4}
+                py={3}
+                bg="whiteAlpha.50"
+                borderRadius="lg"
+                border="1px dashed"
+                borderColor="whiteAlpha.200"
+              >
+                <Text fontSize="xs" color="gray.400">
+                  Editing metadata only. Payout and bounty are locked — this hat has EDIT_META
+                  permission but not EDIT_FULL.
+                </Text>
+              </Box>
+            )}
           </VStack>
         </ModalBody>
 

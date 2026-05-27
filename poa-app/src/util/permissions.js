@@ -99,31 +99,100 @@ export function userHasProjectPermission(userHatIds, projectRolePermissions, per
 }
 
 /**
- * Check if a user can create tasks in a project
+ * Compute whether the user has a permission considering BOTH per-project and global grants.
+ * Mirrors the contract's `_permMask` semantics in TaskManager.sol:
+ *
+ *   for each hat the user wears:
+ *     mask = rolePermProj[pid][hat]              // try the per-project override
+ *     if mask == 0: mask = rolePermGlobal[hat]   // fall back to global
+ *     accumulate mask
+ *
+ * The frontend version: for each hat the user wears, look up the matching per-project
+ * entry. If one exists AND has a non-zero mask, the bit is read from there (project
+ * mask shadows global, per contract). Otherwise the global entry's bit is read.
+ *
+ * Returns true if ANY of the user's hats grants the requested permission via this
+ * effective-mask resolution.
+ *
+ * @param {string[]} userHatIds - Hat IDs the user currently holds
+ * @param {Array} projectRolePermissions - ProjectRolePermission entries for the project
+ * @param {Array} globalRolePermissions - GlobalRolePermission entries from the org's TaskManager
+ * @param {string} permissionType - 'canCreate' | 'canClaim' | 'canReview' | 'canAssign' | 'canSelfReview' | 'canBudget' | 'canEditMeta' | 'canEditFull'
  */
-export function userCanCreateTask(userHatIds, projectRolePermissions) {
-    return userHasProjectPermission(userHatIds, projectRolePermissions, 'canCreate');
+export function userHasEffectiveTaskPermission(
+    userHatIds,
+    projectRolePermissions,
+    globalRolePermissions,
+    permissionType,
+) {
+    if (!userHatIds || !userHatIds.length) return false;
+
+    const normalizedUserHats = userHatIds.map(normalizeHatId);
+
+    // Index project entries by hat for O(1) lookup. mask=0 entries are treated as "absent"
+    // here because the contract's _permMask falls back to global when the project mask is 0.
+    const projectByHat = new Map();
+    (projectRolePermissions || []).forEach((p) => {
+        if (p && Number(p.mask || 0) > 0) {
+            projectByHat.set(normalizeHatId(p.hatId), p);
+        }
+    });
+
+    const globalByHat = new Map();
+    (globalRolePermissions || []).forEach((p) => {
+        if (p) globalByHat.set(normalizeHatId(p.hatId), p);
+    });
+
+    for (const userHat of normalizedUserHats) {
+        const projectEntry = projectByHat.get(userHat);
+        if (projectEntry) {
+            // Project mask exists and is non-zero — it REPLACES the global mask per
+            // _permMask semantics. Do NOT fall back to global even if this bit is unset.
+            if (projectEntry[permissionType]) return true;
+            continue;
+        }
+        const globalEntry = globalByHat.get(userHat);
+        if (globalEntry && globalEntry[permissionType]) return true;
+    }
+    return false;
 }
 
 /**
- * Check if a user can claim tasks in a project
+ * Check if a user can create tasks in a project.
+ * `globalRolePermissions` is optional but recommended — without it, hats granted CREATE
+ * via setConfig(ROLE_PERM, ...) are invisible to the frontend.
  */
-export function userCanClaimTask(userHatIds, projectRolePermissions) {
-    return userHasProjectPermission(userHatIds, projectRolePermissions, 'canClaim');
+export function userCanCreateTask(userHatIds, projectRolePermissions, globalRolePermissions = []) {
+    return userHasEffectiveTaskPermission(
+        userHatIds, projectRolePermissions, globalRolePermissions, 'canCreate',
+    );
 }
 
 /**
- * Check if a user can review tasks in a project
+ * Check if a user can claim tasks in a project.
  */
-export function userCanReviewTask(userHatIds, projectRolePermissions) {
-    return userHasProjectPermission(userHatIds, projectRolePermissions, 'canReview');
+export function userCanClaimTask(userHatIds, projectRolePermissions, globalRolePermissions = []) {
+    return userHasEffectiveTaskPermission(
+        userHatIds, projectRolePermissions, globalRolePermissions, 'canClaim',
+    );
 }
 
 /**
- * Check if a user can assign tasks in a project
+ * Check if a user can review tasks in a project.
  */
-export function userCanAssignTask(userHatIds, projectRolePermissions) {
-    return userHasProjectPermission(userHatIds, projectRolePermissions, 'canAssign');
+export function userCanReviewTask(userHatIds, projectRolePermissions, globalRolePermissions = []) {
+    return userHasEffectiveTaskPermission(
+        userHatIds, projectRolePermissions, globalRolePermissions, 'canReview',
+    );
+}
+
+/**
+ * Check if a user can assign tasks in a project.
+ */
+export function userCanAssignTask(userHatIds, projectRolePermissions, globalRolePermissions = []) {
+    return userHasEffectiveTaskPermission(
+        userHatIds, projectRolePermissions, globalRolePermissions, 'canAssign',
+    );
 }
 
 /**
@@ -131,8 +200,10 @@ export function userCanAssignTask(userHatIds, projectRolePermissions) {
  * Backed by `TaskPerm.BUDGET` (bit 5) — contract gate is strict, project
  * managers do NOT get implicit access.
  */
-export function userCanBudgetProject(userHatIds, projectRolePermissions) {
-    return userHasProjectPermission(userHatIds, projectRolePermissions, 'canBudget');
+export function userCanBudgetProject(userHatIds, projectRolePermissions, globalRolePermissions = []) {
+    return userHasEffectiveTaskPermission(
+        userHatIds, projectRolePermissions, globalRolePermissions, 'canBudget',
+    );
 }
 
 /**
@@ -140,10 +211,11 @@ export function userCanBudgetProject(userHatIds, projectRolePermissions) {
  * Backed by `TaskPerm.EDIT_META` (bit 6). EDIT_FULL is a strict superset so callers with
  * EDIT_FULL also satisfy this gate.
  */
-export function userCanEditTaskMetadata(userHatIds, projectRolePermissions) {
-    return (
-        userHasProjectPermission(userHatIds, projectRolePermissions, 'canEditMeta')
-        || userHasProjectPermission(userHatIds, projectRolePermissions, 'canEditFull')
+export function userCanEditTaskMetadata(userHatIds, projectRolePermissions, globalRolePermissions = []) {
+    return userHasEffectiveTaskPermission(
+        userHatIds, projectRolePermissions, globalRolePermissions, 'canEditMeta',
+    ) || userHasEffectiveTaskPermission(
+        userHatIds, projectRolePermissions, globalRolePermissions, 'canEditFull',
     );
 }
 
@@ -152,6 +224,8 @@ export function userCanEditTaskMetadata(userHatIds, projectRolePermissions) {
  * Backed by `TaskPerm.EDIT_FULL` (bit 7). Holders can also edit metadata-only via
  * `updateTaskMetadata`.
  */
-export function userCanEditTaskFull(userHatIds, projectRolePermissions) {
-    return userHasProjectPermission(userHatIds, projectRolePermissions, 'canEditFull');
+export function userCanEditTaskFull(userHatIds, projectRolePermissions, globalRolePermissions = []) {
+    return userHasEffectiveTaskPermission(
+        userHatIds, projectRolePermissions, globalRolePermissions, 'canEditFull',
+    );
 }

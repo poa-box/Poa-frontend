@@ -225,6 +225,40 @@ function buildPermissionsMatrix(hatPermissions, roles) {
  * @param {Array} hatPermissions - Hat permissions from subgraph
  * @returns {Array} Array of { key, label, contractType, permissionRole }
  */
+// Stable order for the permissions matrix — groups governance first, then tasks, with a
+// stable inner ordering per group so re-renders don't shuffle columns when synthesized
+// entries arrive in different orders.
+const CONTRACT_TYPE_ORDER = [
+  'QuickJoin',
+  'ParticipationToken',
+  'HybridVoting',
+  'DirectDemocracyVoting',
+  'Executor',
+  'EducationHub',
+  'ToggleModule',
+  'TaskManager',
+];
+
+const PERMISSION_ROLE_ORDER = [
+  // governance roles
+  'Voter', 'Creator', 'Approver', 'Member',
+  // TaskManager TaskPerm bits (low bit first → high bit last)
+  'Create', 'Claim', 'Review', 'Assign', 'SelfReview', 'Budget', 'EditMeta', 'EditFull',
+];
+
+function compareColumns(a, b) {
+  const ai = CONTRACT_TYPE_ORDER.indexOf(a.contractType);
+  const bi = CONTRACT_TYPE_ORDER.indexOf(b.contractType);
+  const aRank = ai === -1 ? CONTRACT_TYPE_ORDER.length : ai;
+  const bRank = bi === -1 ? CONTRACT_TYPE_ORDER.length : bi;
+  if (aRank !== bRank) return aRank - bRank;
+  const ar = PERMISSION_ROLE_ORDER.indexOf(a.permissionRole);
+  const br = PERMISSION_ROLE_ORDER.indexOf(b.permissionRole);
+  const aPermRank = ar === -1 ? PERMISSION_ROLE_ORDER.length : ar;
+  const bPermRank = br === -1 ? PERMISSION_ROLE_ORDER.length : br;
+  return aPermRank - bPermRank;
+}
+
 function getPermissionColumns(hatPermissions) {
   if (!hatPermissions || !Array.isArray(hatPermissions)) return [];
 
@@ -244,6 +278,7 @@ function getPermissionColumns(hatPermissions) {
     }
   });
 
+  columns.sort(compareColumns);
   return columns;
 }
 

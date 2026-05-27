@@ -637,6 +637,73 @@ export const TaskBoardProvider = ({
   ]);
 
   /**
+   * Edit only a task's metadata (title + description + difficulty + estHours) via the
+   * TaskManager v5 `updateTaskMetadata(uint256,bytes,bytes32)` selector. Used when the
+   * caller has TaskPerm.EDIT_META but not EDIT_FULL — payout and bounty are preserved
+   * on-chain regardless of what the modal sends.
+   */
+  const editTaskMetadata = useCallback(async (updatedTask, destColumnId, destTaskIndex, projectName) => {
+    if (!isReady || !taskService) {
+      addNotification('Web3 not ready. Please connect your wallet.', 'error');
+      return;
+    }
+
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
+    optimisticLockRef.current = Date.now();
+
+    // Optimistic update — only metadata changes locally; payout/bounty are not part of this path.
+    const newTaskColumns = taskColumnsRef.current.map(col => {
+      if (col.id !== destColumnId) return col;
+      return {
+        ...col,
+        tasks: col.tasks.map((t, i) => i === destTaskIndex ? { ...t, ...updatedTask } : t),
+      };
+    });
+    setTaskColumns(newTaskColumns);
+
+    const notifId = addNotification('Updating task metadata...', 'loading');
+
+    try {
+      const result = await taskService.editTaskMetadata(taskManagerContractAddress, updatedTask.id, {
+        name: updatedTask.name,
+        description: updatedTask.description,
+        location: 'Open',
+        difficulty: updatedTask.difficulty,
+        estHours: updatedTask.estHours,
+      });
+
+      if (result.success) {
+        updateNotification(notifId, 'Task metadata updated successfully!', 'success');
+        emit(RefreshEvent.TASK_UPDATED, { taskId: updatedTask.id });
+
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
+        }
+        scheduleLockClear();
+      } else {
+        throw new Error(result.error?.userMessage || 'Failed to update task metadata');
+      }
+    } catch (error) {
+      console.error('Error editing task metadata:', error);
+      updateNotification(notifId, error.message || 'Error updating task metadata', 'error');
+      optimisticLockRef.current = null;
+      setTaskColumns(previousTaskColumns);
+    }
+  }, [
+    taskService,
+    taskManagerContractAddress,
+    isReady,
+    addNotification,
+    updateNotification,
+    emit,
+    onUpdateColumns,
+    scheduleLockClear,
+    selectedProject?.id,
+  ]);
+
+  /**
    * Delete a task
    */
   const deleteTask = useCallback(async (taskId, columnId) => {
@@ -987,12 +1054,13 @@ export const TaskBoardProvider = ({
     addTask,
     addTaskBatch,
     editTask,
+    editTaskMetadata,
     deleteTask,
     applyForTask,
     approveApplication,
     assignTask,
     rejectTask,
-  }), [taskColumns, moveTask, addTask, addTaskBatch, editTask, deleteTask, applyForTask, approveApplication, assignTask, rejectTask]);
+  }), [taskColumns, moveTask, addTask, addTaskBatch, editTask, editTaskMetadata, deleteTask, applyForTask, approveApplication, assignTask, rejectTask]);
 
   return (
     <TaskBoardContext.Provider value={value}>

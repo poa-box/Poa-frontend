@@ -361,6 +361,21 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
       taskManager {
         id
         creatorHatIds
+        # Org-wide TaskPerm grants set via setConfig(ROLE_PERM, ...) — required for
+        # _permMask fallback. A hat with no project-specific mask falls back to its
+        # global mask (e.g. Test6's Executive EDIT_FULL governance grant).
+        globalRolePermissions {
+          hatId
+          mask
+          canCreate
+          canClaim
+          canReview
+          canAssign
+          canSelfReview
+          canBudget
+          canEditMeta
+          canEditFull
+        }
         projects(where: { deleted: false }, first: 50) {
           id
           title

@@ -35,7 +35,12 @@ import { useRouter } from 'next/router';
 import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { useProjectContext } from '@/context/ProjectContext';
-import { userCanReviewTask, userCanAssignTask, userCanEditTaskFull } from '../../util/permissions';
+import {
+  userCanReviewTask,
+  userCanAssignTask,
+  userCanEditTaskFull,
+  userCanEditTaskMetadata,
+} from '../../util/permissions';
 import { useOrgName } from '@/hooks/useOrgName';
 import UsernameLink from '@/components/common/UsernameLink';
 import { usePOContext } from '@/context/POContext';
@@ -77,7 +82,7 @@ const SectionHeader = ({ children }) => (
   </Text>
 );
 
-const TaskCardModal = ({ task, columnId, onEditTask }) => {
+const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
   const [submission, setSubmission] = useState('');
   const [assignAddress, setAssignAddress] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
@@ -111,32 +116,50 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
     return projectsData?.find(p => p.id === task?.projectId);
   }, [projectsData, task?.projectId]);
   const projectRolePermissions = currentProject?.rolePermissions || [];
+  // Org-wide ROLE_PERM grants — mirrors the contract's _permMask global fallback so hats
+  // granted EDIT_FULL via setConfig(ROLE_PERM, ...) (e.g. Test6 governance proposal) are
+  // visible to the frontend even when no per-project mask exists.
+  const globalRolePermissions = currentProject?.globalRolePermissions || [];
 
   const canReviewTask = useMemo(() => {
-    const hasPermission = userCanReviewTask(userHatIds, projectRolePermissions);
+    const hasPermission = userCanReviewTask(userHatIds, projectRolePermissions, globalRolePermissions);
     if (hasPermission) return true;
     if (!projectRolePermissions?.length && hasExecRole) return true;
     return false;
-  }, [userHatIds, projectRolePermissions, hasExecRole]);
+  }, [userHatIds, projectRolePermissions, globalRolePermissions, hasExecRole]);
 
   // Project-level assign permission (for approving applications)
   // Contract's approveApplication requires ASSIGN permission or project manager
   const canAssign = useMemo(() => {
-    const hasPermission = userCanAssignTask(userHatIds, projectRolePermissions);
+    const hasPermission = userCanAssignTask(userHatIds, projectRolePermissions, globalRolePermissions);
     if (hasPermission) return true;
     if (!projectRolePermissions?.length && hasExecRole) return true;
     return false;
-  }, [userHatIds, projectRolePermissions, hasExecRole]);
+  }, [userHatIds, projectRolePermissions, globalRolePermissions, hasExecRole]);
 
-  // TaskManager v5: post-claim editing. EDIT_FULL allows editing payout + bounty + metadata
-  // on CLAIMED / SUBMITTED tasks (terminal states stay locked). PM/executive still bypass via
-  // hasExecRole as the contract's `_isPM` check.
+  // TaskManager v5: post-claim editing.
+  // - EDIT_FULL allows editing payout + bounty + metadata on CLAIMED / SUBMITTED tasks
+  // - EDIT_META allows editing only title + metadata (routes through updateTaskMetadata)
+  // Terminal states (COMPLETED / CANCELLED) stay locked. PM/executive bypass via hasExecRole
+  // mirrors the contract's `_isPM` bypass.
   const canEditTaskFull = useMemo(() => {
-    const hasPermission = userCanEditTaskFull(userHatIds, projectRolePermissions);
+    const hasPermission = userCanEditTaskFull(userHatIds, projectRolePermissions, globalRolePermissions);
     if (hasPermission) return true;
     if (!projectRolePermissions?.length && hasExecRole) return true;
     return false;
-  }, [userHatIds, projectRolePermissions, hasExecRole]);
+  }, [userHatIds, projectRolePermissions, globalRolePermissions, hasExecRole]);
+
+  // True if the user has EDIT_META or EDIT_FULL (EDIT_FULL is a strict superset).
+  const canEditTaskMetadata = useMemo(() => {
+    const hasPermission = userCanEditTaskMetadata(userHatIds, projectRolePermissions, globalRolePermissions);
+    if (hasPermission) return true;
+    if (!projectRolePermissions?.length && hasExecRole) return true;
+    return false;
+  }, [userHatIds, projectRolePermissions, globalRolePermissions, hasExecRole]);
+
+  // True if the user has EDIT_META but NOT EDIT_FULL — used to route the modal through
+  // updateTaskMetadata (which only takes title + metadataHash) instead of the full updateTask.
+  const isMetadataOnlyEditor = canEditTaskMetadata && !canEditTaskFull && !hasExecRole;
 
   // Check if current user has already applied for this task
   const userApplication = useMemo(() => {
@@ -618,14 +641,16 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
 
   const [isEditTaskModalOpen, setIsEditTaskModalOpen] = useState(false);
 
-  // Edit gating: pre-claim (`open` column) uses the existing hasExecRole bypass — CREATE-perm
-  // hats already pass via that path. Post-claim (`inProgress` / `inReview`) requires EDIT_FULL
-  // (or PM/executor); EDIT_META-only routing through updateTaskMetadata is a follow-up.
+  // Edit gating:
+  // - Pre-claim (`open` column): existing hasExecRole bypass (CREATE-perm hats already pass).
+  // - Post-claim (`inProgress` / `inReview`): EDIT_META or EDIT_FULL grants edit access.
+  //   EDIT_META-only callers go through updateTaskMetadata (no payout/bounty changes).
+  // - Terminal (`completed`): never editable.
   const isPostClaimColumn = columnId === 'inProgress' || columnId === 'inReview';
   const canShowEditButton = (
     columnId === 'open' && hasExecRole
   ) || (
-    isPostClaimColumn && (hasExecRole || canEditTaskFull)
+    isPostClaimColumn && (hasExecRole || canEditTaskMetadata)
   );
 
   const handleOpenEditTaskModal = () => {
@@ -635,7 +660,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
       toast({
         title: 'Permission Required',
         description: isPostClaimColumn
-          ? 'You need EDIT_FULL permission (or executive role) to edit a task after it has been claimed.'
+          ? 'You need EDIT_META or EDIT_FULL permission (or executive role) to edit a task after it has been claimed.'
           : 'You must be an executive to edit a task.',
         status: 'warning',
         duration: 4000,
@@ -1093,7 +1118,11 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
         <EditTaskModal
           isOpen={isEditTaskModalOpen}
           onClose={handleCloseEditTaskModal}
-          onEditTask={onEditTask}
+          // For EDIT_META-only editors the modal routes through onEditTaskMetadata which
+          // calls TaskManager.updateTaskMetadata (title + metadataHash only); the full
+          // onEditTask path is used otherwise.
+          onEditTask={isMetadataOnlyEditor ? onEditTaskMetadata : onEditTask}
+          metadataOnly={isMetadataOnlyEditor}
           task={task}
           onDeleteTask={(taskId) => deleteTask(taskId, columnId)}
           allowDelete={columnId === 'open'}

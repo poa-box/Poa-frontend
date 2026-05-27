@@ -10,7 +10,7 @@ import { usePOContext } from '../../context/POContext';
 import { useOrgName } from '../../hooks/useOrgName';
 import { getDifficultyColor } from '../../util/taskUtils';
 
-const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
+const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) => {
   const poContext = usePOContext();
   const tokenLabel = poContext?.tokenLabel || 'Shares';
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
@@ -247,6 +247,7 @@ const TaskCard = ({ task, columnId, onEditTask, isMobile }) => {
         task={task}
         columnId={columnId}
         onEditTask={onEditTask}
+        onEditTaskMetadata={onEditTaskMetadata}
       />
     </>
   );
