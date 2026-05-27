@@ -128,6 +128,7 @@ const initialState = {
     educationHubAddress: '',
     executorContractAddress: '',
     eligibilityModuleAddress: '',
+    eligibilityModuleAdminHat: null,
     participationTokenAddress: '',
     paymentManagerAddress: '',
 
@@ -353,6 +354,19 @@ export const POProvider = ({ children }) => {
             const eduHubId = org.educationHub?.id || '';
             const adminHat = org.metadataAdminHatId;
 
+            // The subgraph keeps `eligibilityModuleAdminHat` in
+            // org.roleHatIds (it's still a real hat in the tree), but it's a
+            // system hat — wearer is the EligibilityModule contract itself —
+            // and we don't want it appearing in role pickers, the team-page
+            // role tree, or the leaderboard. Strip it here so every downstream
+            // consumer of roleHatIds gets the user-facing list. The companion
+            // structural fix (don't add system hats to roleHatIds + mark
+            // Role.isUserRole=false) lives on the subgraph side.
+            const eligibilityAdminHatId = org.eligibilityModule?.eligibilityModuleAdminHat || null;
+            const userFacingRoleHatIds = eligibilityAdminHatId
+                ? (org.roleHatIds || []).filter(h => String(h) !== String(eligibilityAdminHatId))
+                : (org.roleHatIds || []);
+
             let poDescription = 'No description provided or IPFS content still being indexed';
             let poLinks = [];
             if (org.metadata) {
@@ -390,8 +404,9 @@ export const POProvider = ({ children }) => {
                     poMembers: org.users?.length || 0,
                     ptTokenBalance: formatTokenAmount(org.participationToken?.totalSupply || '0'),
                     topHatId: org.topHatId,
-                    roleHatIds: org.roleHatIds || [],
+                    roleHatIds: userFacingRoleHatIds,
                     metadataAdminHatId: adminHat && adminHat !== '0' ? adminHat : null,
+                    eligibilityModuleAdminHat: eligibilityAdminHatId,
                     creatorHatIds: org.taskManager?.creatorHatIds || [],
                     // organizerHatIds is on TaskManager; foldersRoot is on
                     // Organization (per subgraph-pop PR #177). Both fall back
@@ -419,7 +434,7 @@ export const POProvider = ({ children }) => {
                     activeTaskAmount: activeTasks,
                     completedTaskAmount: completedTasks,
                     educationModules: transformEducationModules(modules),
-                    leaderboardData: transformLeaderboardData(org.users, org.roleHatIds),
+                    leaderboardData: transformLeaderboardData(org.users, userFacingRoleHatIds),
                     rules: {
                         HybridVoting: org.hybridVoting ? {
                             id: org.hybridVoting.id,
@@ -563,6 +578,7 @@ export const POProvider = ({ children }) => {
         educationHubAddress: state.educationHubAddress,
         executorContractAddress: state.executorContractAddress,
         eligibilityModuleAddress: state.eligibilityModuleAddress,
+        eligibilityModuleAdminHat: state.eligibilityModuleAdminHat,
         participationTokenAddress: state.participationTokenAddress,
         paymentManagerAddress: state.paymentManagerAddress,
 
