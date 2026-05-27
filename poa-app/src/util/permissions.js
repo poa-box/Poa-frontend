@@ -14,6 +14,8 @@ export const TaskPermission = {
     ASSIGN: 8,        // 1 << 3 - Can assign tasks / approve applications
     SELF_REVIEW: 16,  // 1 << 4 - Claimer may complete their own task
     BUDGET: 32,       // 1 << 5 - Edit project PT cap and bounty caps
+    EDIT_META: 64,    // 1 << 6 - Edit title/metadataHash on CLAIMED/SUBMITTED tasks
+    EDIT_FULL: 128,   // 1 << 7 - Edit everything (payout + bounty + meta) on CLAIMED/SUBMITTED tasks; strict superset of EDIT_META
 };
 
 /**
@@ -131,4 +133,25 @@ export function userCanAssignTask(userHatIds, projectRolePermissions) {
  */
 export function userCanBudgetProject(userHatIds, projectRolePermissions) {
     return userHasProjectPermission(userHatIds, projectRolePermissions, 'canBudget');
+}
+
+/**
+ * Check if a user can edit a CLAIMED / SUBMITTED task's metadata (title + metadataHash only).
+ * Backed by `TaskPerm.EDIT_META` (bit 6). EDIT_FULL is a strict superset so callers with
+ * EDIT_FULL also satisfy this gate.
+ */
+export function userCanEditTaskMetadata(userHatIds, projectRolePermissions) {
+    return (
+        userHasProjectPermission(userHatIds, projectRolePermissions, 'canEditMeta')
+        || userHasProjectPermission(userHatIds, projectRolePermissions, 'canEditFull')
+    );
+}
+
+/**
+ * Check if a user can edit a CLAIMED / SUBMITTED task's payout, bounty, AND metadata.
+ * Backed by `TaskPerm.EDIT_FULL` (bit 7). Holders can also edit metadata-only via
+ * `updateTaskMetadata`.
+ */
+export function userCanEditTaskFull(userHatIds, projectRolePermissions) {
+    return userHasProjectPermission(userHatIds, projectRolePermissions, 'canEditFull');
 }

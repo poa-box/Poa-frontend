@@ -19,6 +19,16 @@ const PERMISSION_LABELS = {
   Creator: 'Create Proposals',
   Member: 'Member Access',
   Approver: 'Approver',
+  // TaskManager TaskPerm bits — surfaced via useOrgStructure's taskManagerHatPermissions
+  // synthesis (TaskManager v4 added BUDGET, v5 added EDIT_META + EDIT_FULL).
+  Create: 'Create Tasks',
+  Claim: 'Claim Tasks',
+  Review: 'Review Tasks',
+  Assign: 'Assign Tasks',
+  SelfReview: 'Self-Review',
+  Budget: 'Edit Budgets',
+  EditMeta: 'Edit Task Metadata',
+  EditFull: 'Edit Tasks (Full)',
 };
 
 const CONTRACT_TYPE_LABELS = {
@@ -29,6 +39,7 @@ const CONTRACT_TYPE_LABELS = {
   EducationHub: 'Education',
   Executor: 'Executor',
   ToggleModule: 'Toggle',
+  TaskManager: 'Tasks',
 };
 
 /**
@@ -388,15 +399,55 @@ export function useOrgStructure() {
     }));
   }, [org?.roles, roleHatIds, org?.users, memberHatIdSet]);
 
+  // TaskManager v4/v5 — flatten the org's `taskManager.globalRolePermissions` entries into
+  // HatPermission-shaped rows so they flow through the existing PermissionsMatrix without a
+  // parallel data path. Each non-zero TaskPerm bit emits one synthetic entry per hat.
+  const taskManagerHatPermissions = useMemo(() => {
+    const grants = org?.taskManager?.globalRolePermissions;
+    if (!grants || !grants.length) return [];
+
+    const entries = [];
+    const BITS = [
+      ['canCreate', 'Create'],
+      ['canClaim', 'Claim'],
+      ['canReview', 'Review'],
+      ['canAssign', 'Assign'],
+      ['canSelfReview', 'SelfReview'],
+      ['canBudget', 'Budget'],
+      ['canEditMeta', 'EditMeta'],
+      ['canEditFull', 'EditFull'],
+    ];
+
+    grants.forEach((g) => {
+      BITS.forEach(([flag, role]) => {
+        if (g[flag]) {
+          entries.push({
+            hatId: g.hatId,
+            permissionRole: role,
+            contractType: 'TaskManager',
+            allowed: true,
+          });
+        }
+      });
+    });
+
+    return entries;
+  }, [org?.taskManager?.globalRolePermissions]);
+
+  const mergedHatPermissions = useMemo(() => {
+    const base = org?.hatPermissions || [];
+    return [...base, ...taskManagerHatPermissions];
+  }, [org?.hatPermissions, taskManagerHatPermissions]);
+
   // Build permissions matrix
   const permissionsMatrix = useMemo(() => {
-    return buildPermissionsMatrix(org?.hatPermissions, roles);
-  }, [org?.hatPermissions, roles]);
+    return buildPermissionsMatrix(mergedHatPermissions, roles);
+  }, [mergedHatPermissions, roles]);
 
   // Get permission columns
   const permissionColumns = useMemo(() => {
-    return getPermissionColumns(org?.hatPermissions);
-  }, [org?.hatPermissions]);
+    return getPermissionColumns(mergedHatPermissions);
+  }, [mergedHatPermissions]);
 
   // Group members by role
   const membersByRole = useMemo(() => {

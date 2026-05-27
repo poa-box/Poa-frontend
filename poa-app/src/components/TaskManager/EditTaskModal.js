@@ -61,7 +61,10 @@ const selectStyles = {
   },
 };
 
-const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
+// `allowDelete` defaults to true to preserve the pre-claim path. For post-claim editing
+// (TaskManager v5 EDIT_FULL) the parent should pass `false` because `cancelTask` reverts
+// `BadStatus` once a task leaves UNCLAIMED.
+const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task, allowDelete = true }) => {
   const { orgChainId, tokenLabel } = usePOContext();
   const tokenOptions = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
@@ -314,15 +317,17 @@ const EditTaskModal = ({ isOpen, onClose, onEditTask, onDeleteTask, task }) => {
         </ModalBody>
 
         <ModalFooter borderTop="1px solid" borderColor="whiteAlpha.200" pt={4}>
-          <HStack spacing={3} w="100%" justify="space-between">
-            <Button
-              colorScheme="red"
-              variant="outline"
-              size="sm"
-              onClick={() => onDeleteTask(task.id)}
-            >
-              Delete Task
-            </Button>
+          <HStack spacing={3} w="100%" justify={allowDelete ? 'space-between' : 'flex-end'}>
+            {allowDelete && (
+              <Button
+                colorScheme="red"
+                variant="outline"
+                size="sm"
+                onClick={() => onDeleteTask(task.id)}
+              >
+                Delete Task
+              </Button>
+            )}
             <HStack spacing={3}>
               <Button
                 variant="ghost"

@@ -35,7 +35,7 @@ import { useRouter } from 'next/router';
 import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { useProjectContext } from '@/context/ProjectContext';
-import { userCanReviewTask, userCanAssignTask } from '../../util/permissions';
+import { userCanReviewTask, userCanAssignTask, userCanEditTaskFull } from '../../util/permissions';
 import { useOrgName } from '@/hooks/useOrgName';
 import UsernameLink from '@/components/common/UsernameLink';
 import { usePOContext } from '@/context/POContext';
@@ -123,6 +123,16 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
   // Contract's approveApplication requires ASSIGN permission or project manager
   const canAssign = useMemo(() => {
     const hasPermission = userCanAssignTask(userHatIds, projectRolePermissions);
+    if (hasPermission) return true;
+    if (!projectRolePermissions?.length && hasExecRole) return true;
+    return false;
+  }, [userHatIds, projectRolePermissions, hasExecRole]);
+
+  // TaskManager v5: post-claim editing. EDIT_FULL allows editing payout + bounty + metadata
+  // on CLAIMED / SUBMITTED tasks (terminal states stay locked). PM/executive still bypass via
+  // hasExecRole as the contract's `_isPM` check.
+  const canEditTaskFull = useMemo(() => {
+    const hasPermission = userCanEditTaskFull(userHatIds, projectRolePermissions);
     if (hasPermission) return true;
     if (!projectRolePermissions?.length && hasExecRole) return true;
     return false;
@@ -608,21 +618,31 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
 
   const [isEditTaskModalOpen, setIsEditTaskModalOpen] = useState(false);
 
+  // Edit gating: pre-claim (`open` column) uses the existing hasExecRole bypass — CREATE-perm
+  // hats already pass via that path. Post-claim (`inProgress` / `inReview`) requires EDIT_FULL
+  // (or PM/executor); EDIT_META-only routing through updateTaskMetadata is a follow-up.
+  const isPostClaimColumn = columnId === 'inProgress' || columnId === 'inReview';
+  const canShowEditButton = (
+    columnId === 'open' && hasExecRole
+  ) || (
+    isPostClaimColumn && (hasExecRole || canEditTaskFull)
+  );
+
   const handleOpenEditTaskModal = () => {
-    
-    if (hasExecRole) {
+    if (canShowEditButton) {
       setIsEditTaskModalOpen(true);
     } else {
       toast({
         title: 'Permission Required',
-        description: 'You must be an executive to edit a task.',
+        description: isPostClaimColumn
+          ? 'You need EDIT_FULL permission (or executive role) to edit a task after it has been claimed.'
+          : 'You must be an executive to edit a task.',
         status: 'warning',
         duration: 4000,
         isClosable: true,
         position: 'top',
       });
     }
-    
   };
 
   const handleCloseEditTaskModal = () => {
@@ -1035,7 +1055,7 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
                     {showAssignSection ? 'Cancel Assign' : 'Assign'}
                   </Button>
                 )}
-                {!task.isIndexing && columnId === 'open' && (
+                {!task.isIndexing && canShowEditButton && (
                   <Button
                     variant="ghost"
                     onClick={handleOpenEditTaskModal}
@@ -1069,13 +1089,14 @@ const TaskCardModal = ({ task, columnId, onEditTask }) => {
           </ModalFooter>
         </ModalContent>
       </Modal>
-      {columnId === 'open' && !task.isIndexing && (
+      {canShowEditButton && !task.isIndexing && (
         <EditTaskModal
           isOpen={isEditTaskModalOpen}
           onClose={handleCloseEditTaskModal}
           onEditTask={onEditTask}
           task={task}
           onDeleteTask={(taskId) => deleteTask(taskId, columnId)}
+          allowDelete={columnId === 'open'}
         />
       )}
 
