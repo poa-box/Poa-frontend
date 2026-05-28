@@ -10,7 +10,7 @@ import TaskCardModal from '../TaskCardModal';
 // targets whichever task the URL currently points at.
 const TaskModalMount = () => {
   const router = useRouter();
-  const { taskColumns, editTask } = useTaskBoard();
+  const { taskColumns, editTask, editTaskMetadata } = useTaskBoard();
   const toast = useToast();
   const taskParam = router.query.task;
 
@@ -44,12 +44,28 @@ const TaskModalMount = () => {
     });
   };
 
+  const handleEditTaskMetadata = async (updatedTask) => {
+    await editTaskMetadata(
+      { ...updatedTask, difficulty: updatedTask.difficulty, estHours: updatedTask.estHours },
+      match.columnId,
+      match.index,
+    );
+    toast({
+      title: 'Task metadata updated.',
+      description: 'Title and description were updated; payout and bounty are unchanged.',
+      status: 'success',
+      duration: 3000,
+      isClosable: true,
+    });
+  };
+
   return (
     <TaskCardModal
       key={match.task.id}
       task={match.task}
       columnId={match.columnId}
       onEditTask={handleEditTask}
+      onEditTaskMetadata={handleEditTaskMetadata}
     />
   );
 };

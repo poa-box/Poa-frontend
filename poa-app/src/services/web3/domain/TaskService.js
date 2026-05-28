@@ -477,6 +477,56 @@ export class TaskService {
   }
 
   /**
+   * Edit only a CLAIMED / SUBMITTED task's title + metadata hash (TaskManager v5).
+   * Used by holders of TaskPerm.EDIT_META who cannot edit payout / bounty.
+   * The contract reverts BadStatus on COMPLETED / CANCELLED tasks and Unauthorized if
+   * the caller lacks EDIT_META / EDIT_FULL (or PM / executor) on the task's project.
+   *
+   * @param {string} contractAddress - TaskManager contract address
+   * @param {string|number} taskId - Task ID
+   * @param {Object} metadata - { name, description, location, difficulty, estHours }
+   * @param {Object} [options={}] - Transaction options
+   * @returns {Promise<TransactionResult>}
+   */
+  async editTaskMetadata(contractAddress, taskId, metadata, options = {}) {
+    requireAddress(contractAddress, 'TaskManager contract address');
+    requireString(metadata.name, 'Task name');
+
+    const {
+      name,
+      description = '',
+      location = '',
+      difficulty = 'medium',
+      estHours = 0,
+    } = metadata;
+
+    let metadataHash = ethers.constants.HashZero;
+    if (this.ipfs) {
+      const ipfsData = {
+        name,
+        description,
+        location,
+        difficulty,
+        estHours,
+        submission: '',
+      };
+      const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(ipfsData));
+      metadataHash = ipfsCidToBytes32(ipfsResult.path);
+    }
+
+    const contract = this.factory.createWritable(contractAddress, TaskManagerABI);
+    const parsedTaskId = parseTaskId(taskId);
+    const titleBytes = stringToBytes(name);
+
+    return this.txManager.execute(
+      contract,
+      'updateTaskMetadata',
+      [parsedTaskId, titleBytes, metadataHash],
+      options
+    );
+  }
+
+  /**
    * Cancel/delete a task
    * @param {string} contractAddress - TaskManager contract address
    * @param {string|number} taskId - Task ID

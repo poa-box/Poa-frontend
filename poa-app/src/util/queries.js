@@ -362,6 +362,21 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
       taskManager {
         id
         creatorHatIds
+        # Org-wide TaskPerm grants set via setConfig(ROLE_PERM, ...) — required for
+        # _permMask fallback. A hat with no project-specific mask falls back to its
+        # global mask (e.g. Test6's Executive EDIT_FULL governance grant).
+        globalRolePermissions {
+          hatId
+          mask
+          canCreate
+          canClaim
+          canReview
+          canAssign
+          canSelfReview
+          canBudget
+          canEditMeta
+          canEditFull
+        }
         projects(where: { deleted: false }, first: 50) {
           id
           title
@@ -382,10 +397,9 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
             canClaim
             canReview
             canAssign
-            # canBudget pending subgraph-pop #176. Until indexed,
-            # userCanBudgetProject() returns false everywhere and the
-            # "Edit budget" affordance stays hidden; BUDGET writes still
-            # work via setProjectRolePerm/setterDefinitions.
+            canBudget
+            canEditMeta
+            canEditFull
           }
           tasks(first: 1000, orderBy: taskId, orderDirection: desc) {
             id
@@ -605,6 +619,25 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
         permissionRole
         contractType
         allowed
+      }
+
+      # TaskManager v4/v5 — org-wide TaskPerm grants set via setConfig(ROLE_PERM, ...).
+      # Surfaced on the org structure page so the role/permission matrix shows which
+      # hats hold CREATE / CLAIM / REVIEW / ASSIGN / BUDGET / EDIT_META / EDIT_FULL globally.
+      taskManager {
+        id
+        globalRolePermissions {
+          hatId
+          mask
+          canCreate
+          canClaim
+          canReview
+          canAssign
+          canSelfReview
+          canBudget
+          canEditMeta
+          canEditFull
+        }
       }
 
       users(first: 200) {

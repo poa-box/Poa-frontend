@@ -32,6 +32,14 @@ import {
   FiThumbsUp,
   FiPlusSquare,
   FiChevronDown,
+  FiClipboard,
+  FiTarget,
+  FiEye,
+  FiUserCheck,
+  FiRotateCw,
+  FiEdit2,
+  FiEdit3,
+  FiBriefcase,
 } from 'react-icons/fi';
 
 /**
@@ -48,6 +56,15 @@ const PERMISSION_ICONS = {
   DirectDemocracyVoting_Creator: FiPlusSquare,
   DirectDemocracyVoting_Voter: FiThumbsUp,
   Executor_Voter: FiThumbsUp,
+  // TaskManager TaskPerm bits (v4 added Budget, v5 added EditMeta + EditFull)
+  TaskManager_Create: FiClipboard,
+  TaskManager_Claim: FiTarget,
+  TaskManager_Review: FiEye,
+  TaskManager_Assign: FiUserCheck,
+  TaskManager_SelfReview: FiRotateCw,
+  TaskManager_Budget: FiBriefcase,
+  TaskManager_EditMeta: FiEdit3,
+  TaskManager_EditFull: FiEdit2,
 };
 
 /**
@@ -64,6 +81,14 @@ const SHORT_LABELS = {
   DirectDemocracyVoting_Creator: 'Poll Create',
   DirectDemocracyVoting_Voter: 'Poll Vote',
   Executor_Voter: 'Execute',
+  TaskManager_Create: 'Task Create',
+  TaskManager_Claim: 'Task Claim',
+  TaskManager_Review: 'Task Review',
+  TaskManager_Assign: 'Task Assign',
+  TaskManager_SelfReview: 'Self-Review',
+  TaskManager_Budget: 'Task Budget',
+  TaskManager_EditMeta: 'Edit Meta',
+  TaskManager_EditFull: 'Edit Full',
 };
 
 /**
@@ -80,6 +105,14 @@ const FULL_DESCRIPTIONS = {
   DirectDemocracyVoting_Creator: 'Start a non-binding community poll — one member, one vote — for sentiment decisions.',
   DirectDemocracyVoting_Voter: 'Vote in non-binding community polls. One member, one vote, regardless of shares held.',
   Executor_Voter: 'Trigger on-chain execution of proposals that have passed voting (treasury transfers, role changes, etc.).',
+  TaskManager_Create: 'Create new tasks under any project (org-wide). Per-project grants set via project setup override this global grant.',
+  TaskManager_Claim: 'Claim or apply for tasks (org-wide).',
+  TaskManager_Review: 'Approve or reject submitted tasks; required to call completeTask / rejectTask.',
+  TaskManager_Assign: 'Force-assign tasks to a member or approve task applications.',
+  TaskManager_SelfReview: 'Allow the claimer to complete their own task (bypasses the standard "no self-review" rule).',
+  TaskManager_Budget: 'Edit a project\'s PT cap and bounty token caps via setConfig — granted via TaskManager v4.',
+  TaskManager_EditMeta: 'Edit a task\'s title and metadata after it has been claimed or submitted (v5). Cannot change payout or bounty.',
+  TaskManager_EditFull: 'Edit everything on a task — payout, bounty, metadata — even after it has been claimed or submitted (v5). Strict superset of Edit Meta.',
 };
 
 function PermissionCell({ allowed }) {

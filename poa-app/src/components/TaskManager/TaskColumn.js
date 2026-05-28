@@ -32,7 +32,7 @@ const glassLayerStyle = {
 const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile = false, isEmpty = false, hideTitleInMobile = false }, ref) => {
   const router = useRouter();
   const userDAO = useOrgName();
-  const { moveTask, addTask, addTaskBatch, editTask } = useTaskBoard();
+  const { moveTask, addTask, addTaskBatch, editTask, editTaskMetadata } = useTaskBoard();
   const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState('quick');
   const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
@@ -209,16 +209,35 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
   const handleEditTask = async (updatedTask, taskIndex) => {
     updatedTask = {
       ...updatedTask,
-      difficulty: updatedTask.difficulty, 
-      estHours: updatedTask.estHours, 
+      difficulty: updatedTask.difficulty,
+      estHours: updatedTask.estHours,
     };
-    
+
     await editTask(updatedTask, columnId, taskIndex, projectName);
 
     toast ({
       title: "Task edited.",
       description: "Your task was successfully edited.",
       status: "success",
+      duration: 3000,
+      isClosable: true,
+    });
+  };
+
+  // Metadata-only edit path (TaskManager v5 `updateTaskMetadata`). Used when the editor
+  // has TaskPerm.EDIT_META but not EDIT_FULL — payout / bounty are left untouched.
+  const handleEditTaskMetadata = async (updatedTask, taskIndex) => {
+    await editTaskMetadata(
+      { ...updatedTask, difficulty: updatedTask.difficulty, estHours: updatedTask.estHours },
+      columnId,
+      taskIndex,
+      projectName,
+    );
+
+    toast({
+      title: 'Task metadata updated.',
+      description: 'Title and description were updated; payout and bounty are unchanged.',
+      status: 'success',
       duration: 3000,
       isClosable: true,
     });
@@ -472,6 +491,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
               task={task}
               columnId={columnId}
               onEditTask={(updatedTask) => handleEditTask(updatedTask, index)}
+              onEditTaskMetadata={(updatedTask) => handleEditTaskMetadata(updatedTask, index)}
               isMobile={isMobile}
             />
           ))

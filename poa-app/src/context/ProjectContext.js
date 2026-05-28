@@ -84,6 +84,10 @@ export const ProjectProvider = ({ children }) => {
     useEffect(() => {
         if (data?.organization?.taskManager) {
             const projects = data.organization.taskManager.projects || [];
+            // Org-wide ROLE_PERM grants — shared across every project under this TaskManager.
+            // Attach to each transformed project so consumers can mirror the contract's
+            // _permMask fallback: project mask wins if non-zero, else fall back to global.
+            const globalRolePermissions = data.organization.taskManager.globalRolePermissions || [];
 
             // Transform projects for kanban board
             const transformedProjects = projects.map(project => {
@@ -99,6 +103,7 @@ export const ProjectProvider = ({ children }) => {
                     spent: project.spent || '0',
                     bountyCaps: project.bountyCaps || [],
                     rolePermissions: project.rolePermissions || [],
+                    globalRolePermissions,
                     columns: [
                         { id: 'open', title: 'Open', tasks: [] },
                         { id: 'inProgress', title: 'In Progress', tasks: [] },
