@@ -1,14 +1,7 @@
-/**
- * TaskBoardMobile
- *
- * Mobile view for the Task Board. Phase 2: a fixed bottom ColumnTabBar
- * is the primary nav across the four columns, replacing the older
- * top-of-screen "column title + count + progress" stack. Swipe
- * (`useSwipeNavigation`) remains as a power-user shortcut alongside tap.
- *
- * The FAB sits above the tab bar with safe-area-aware offset so it
- * never overlaps the iPhone home indicator nor the bar itself.
- */
+// Mobile Task Board: one column at a time, navigated by the fixed
+// ColumnTabBar (primary) or horizontal swipe (shortcut). The board
+// itself reserves space for the bar so the column never paints behind
+// it; the FAB clears the bar + iOS home indicator on top of that.
 
 import { useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Box, VStack, IconButton } from '@chakra-ui/react';
@@ -24,15 +17,9 @@ import { userCanCreateTask, ROLE_INDICES } from '@/util/permissions';
 
 const normalizeHatId = (id) => String(id).trim();
 
-// Vertical reserve consumed by the fixed ColumnTabBar (its 56px height
-// plus the iOS safe-area inset it absorbs). The board's outermost Box
-// shrinks its height by this amount so the column never renders behind
-// the tab bar.
-const TAB_BAR_RESERVE = `calc(${TAB_BAR_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px))`;
-
-// FAB sits ~16px above the bar, again accounting for the inset so it
-// clears both the bar and the home indicator.
-const FAB_BOTTOM = `calc(${TAB_BAR_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px) + 16px)`;
+const SAFE_INSET = 'env(safe-area-inset-bottom, 0px)';
+const TAB_BAR_RESERVE = `calc(${TAB_BAR_HEIGHT_PX}px + ${SAFE_INSET})`;
+const FAB_BOTTOM = `calc(${TAB_BAR_RESERVE} + 16px)`;
 
 const TaskBoardMobile = forwardRef(({
   taskColumns,
@@ -90,10 +77,7 @@ const TaskBoardMobile = forwardRef(({
   const columnId = currentColumn?.id || '';
 
   const handleAddTask = () => {
-    const columnRef = taskColumnsRef.current[activeIndex];
-    if (columnRef && columnRef.handleOpenAddTaskModal) {
-      columnRef.handleOpenAddTaskModal();
-    }
+    taskColumnsRef.current[activeIndex]?.handleOpenAddTaskModal?.();
   };
 
   const showFab = columnTitle === 'Open' && canCreateTask;
@@ -113,10 +97,8 @@ const TaskBoardMobile = forwardRef(({
         w="100%"
         h="100%"
       >
-        {/* Column content — title now lives in the bottom ColumnTabBar.
-            The outermost Box's height is the viewport minus the tab bar
-            reserve, so the column always stops above the bar (and the
-            iOS home indicator). */}
+        {/* Title moved into ColumnTabBar; outermost Box's height is
+            capped above the bar so this column never paints behind it. */}
         <Box
           px={2}
           pt={1}
@@ -151,7 +133,6 @@ const TaskBoardMobile = forwardRef(({
         </Box>
       </VStack>
 
-      {/* Add Task FAB — sits above the tab bar; only on Open column */}
       {showFab && (
         <IconButton
           icon={<AddIcon color="white" boxSize="1.25em" />}
@@ -170,9 +151,8 @@ const TaskBoardMobile = forwardRef(({
         />
       )}
 
-      {/* Fixed bottom tab bar — column navigation primary affordance */}
       <ColumnTabBar
-        taskColumns={taskColumns || []}
+        taskColumns={taskColumns}
         activeIndex={activeIndex}
         onSelect={setActiveIndex}
       />

@@ -1,17 +1,5 @@
-/**
- * ProjectSwitcherDrawer
- *
- * Bottom-sheet drawer for picking a project on mobile. Replaces the
- * custom `position="fixed"` overlay previously embedded in
- * `MainLayout.renderMobileProjectSelector` with the established
- * Chakra Drawer pattern used elsewhere in the app
- * (see `voting/VotingTabs.js:239-252`).
- *
- * Layout: All Tasks gradient card pinned at top, project list in the
- * middle (each row shows project name + small task-count badge), and a
- * sticky "+ Create project" footer. A search input appears when there
- * are more than 8 projects.
- */
+// Bottom-sheet project picker for mobile. Mirrors the existing Drawer
+// pattern at voting/VotingTabs.js (placement=bottom, dark glass bg).
 
 import { useMemo, useState } from 'react';
 import {
@@ -46,9 +34,9 @@ const SEARCH_THRESHOLD = 8;
 const ProjectSwitcherDrawer = ({
   isOpen,
   onClose,
-  projects = [],
+  projects,
   selectedProjectId,
-  allTasksMode = false,
+  allTasksMode,
   onSelectProject,
   onSelectAllTasks,
   onCreateProject,
@@ -66,17 +54,17 @@ const ProjectSwitcherDrawer = ({
   const showSearch = projects.length > SEARCH_THRESHOLD;
 
   const handleSelectProject = (projectId) => {
-    onSelectProject?.(projectId);
+    onSelectProject(projectId);
     onClose();
   };
 
   const handleSelectAllTasks = () => {
-    onSelectAllTasks?.();
+    onSelectAllTasks();
     onClose();
   };
 
   const handleCreateProject = () => {
-    onCreateProject?.();
+    onCreateProject();
     onClose();
   };
 

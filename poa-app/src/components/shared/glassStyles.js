@@ -49,27 +49,15 @@ export const lightCardStyle = {
 };
 
 /**
- * Dark inner card — used on dark glass surfaces (mobile task board, mobile list view).
- * A true dark surface rather than a low-opacity tint over the column glass, so
- * the card reads as a distinct elevated element instead of a near-invisible
- * glass-on-glass smear.
+ * Dark inner card — used on dark glass surfaces (mobile task board /
+ * list view). A true dark surface rather than glass-on-glass at low
+ * opacity, which would smear into the column.
  */
 export const darkCardStyle = {
   bg: 'rgba(20, 20, 28, 0.85)',
   border: '1px solid rgba(255, 255, 255, 0.12)',
   borderRadius: '12px',
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)',
-};
-
-/**
- * Dark elevated card — slightly brighter surface for cards that need to pop
- * off the column (e.g., a card with active actions or a selected state).
- */
-export const darkCardElevatedStyle = {
-  bg: 'rgba(28, 28, 38, 0.9)',
-  border: '1px solid rgba(255, 255, 255, 0.16)',
-  borderRadius: '12px',
-  boxShadow: '0 6px 18px rgba(0, 0, 0, 0.45)',
 };
 
 export const inputStyles = {

@@ -1,17 +1,5 @@
-/**
- * MobileTopBar
- *
- * Compact (44px) sticky header for the mobile Task Manager. Replaces the
- * legacy `renderMobileProjectSelector` block in MainLayout which consumed
- * 60-100px of vertical real estate.
- *
- * Left section: a tap target showing the active context (project name with
- * chevron, or an "All Tasks" gradient pill). Tapping triggers the
- * ProjectSwitcherDrawer (caller passes `onOpen`).
- *
- * Right section: the existing ViewSwitcher inline, so the segmented control
- * no longer floats on its own dedicated row.
- */
+// Sticky 44px header for the mobile Task Manager: tap-target on the
+// left opens the project drawer; ViewSwitcher sits inline on the right.
 
 import { Box, Flex, HStack, Text, Icon } from '@chakra-ui/react';
 import { ChevronDownIcon } from '@chakra-ui/icons';
@@ -19,12 +7,7 @@ import { FiLayers } from 'react-icons/fi';
 import ViewSwitcher from './ViewSwitcher';
 import { mobileNavGlassStyle } from './styles/taskBoardStyles';
 
-const MobileTopBar = ({
-  variant = 'project',
-  projectName,
-  onOpen,
-  allowBoard = true,
-}) => {
+const MobileTopBar = ({ variant, projectName, onOpen, allowBoard }) => {
   const isAllTasks = variant === 'allTasks';
 
   return (

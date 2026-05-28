@@ -102,8 +102,7 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) =>
     } catch {}
   }, []);
 
-  const onToggleHideCompleted = (e) => {
-    const next = e.target.checked;
+  const persistHideCompleted = (next) => {
     setHideCompleted(next);
     try {
       if (typeof window !== 'undefined') {
@@ -199,9 +198,7 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) =>
                 aria-label={hideCompleted ? 'Show completed tasks' : 'Hide completed tasks'}
                 aria-pressed={hideCompleted}
                 icon={<CheckIcon boxSize={3} />}
-                onClick={() =>
-                  onToggleHideCompleted({ target: { checked: !hideCompleted } })
-                }
+                onClick={() => persistHideCompleted(!hideCompleted)}
                 borderColor="whiteAlpha.300"
                 color={hideCompleted ? 'white' : 'whiteAlpha.700'}
                 flexShrink={0}
@@ -218,7 +215,7 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) =>
               <Checkbox
                 size="sm"
                 isChecked={hideCompleted}
-                onChange={onToggleHideCompleted}
+                onChange={(e) => persistHideCompleted(e.target.checked)}
                 colorScheme="purple"
                 color="whiteAlpha.800"
               >

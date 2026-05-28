@@ -1,27 +1,13 @@
-/**
- * ColumnTabBar
- *
- * Fixed-bottom tab bar for mobile Task Board column navigation. Each
- * tab represents a column (Open / In Progress / Review / Completed)
- * with its current task count, and is underlined in its canonical
- * column color from `util/taskUtils.COLUMN_COLORS` when active.
- *
- * This replaces the redundant top "column name + count + progress bar"
- * stack in TaskBoardMobile (Phase 1 left it in place; Phase 2 swaps it
- * for the bar). Tap is the primary nav; the swipe gesture from
- * `useSwipeNavigation` remains as a power-user shortcut.
- *
- * iOS safe-area: the visible bar height is `TAB_BAR_HEIGHT_PX` plus
- * `env(safe-area-inset-bottom)`, absorbed into `mobileTabBarStyle`'s
- * `paddingBottom` so it can't overlap the iPhone home indicator.
- */
+// Fixed-bottom tab bar for the mobile Task Board: one tab per column
+// with its task count, underlined in COLUMN_COLORS when active.
+// iOS safe-area inset is baked into mobileTabBarStyle's paddingBottom.
 
 import { Box, Flex, Text } from '@chakra-ui/react';
 import { COLUMN_COLORS } from '@/util/taskUtils';
 import { mobileTabBarStyle } from './styles/taskBoardStyles';
 
-const ColumnTabBar = ({ taskColumns = [], activeIndex = 0, onSelect }) => {
-  if (!taskColumns.length) return null;
+const ColumnTabBar = ({ taskColumns, activeIndex, onSelect }) => {
+  if (!taskColumns?.length) return null;
 
   return (
     <Box
@@ -47,7 +33,7 @@ const ColumnTabBar = ({ taskColumns = [], activeIndex = 0, onSelect }) => {
               role="tab"
               aria-selected={isActive}
               aria-label={`${col.title} (${count})`}
-              onClick={() => onSelect?.(idx)}
+              onClick={() => onSelect(idx)}
               flex="1"
               minW={0}
               py={1.5}

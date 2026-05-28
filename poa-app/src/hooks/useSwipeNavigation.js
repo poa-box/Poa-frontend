@@ -1,35 +1,14 @@
-/**
- * useSwipeNavigation
- * Horizontal-swipe navigation for mobile carousels.
- *
- * Phase 2 of the mobile Task Manager redesign: tap on the
- * ColumnTabBar is the primary nav, and swipe is now an
- * additive shortcut. `SCROLL_TOLERANCE` was bumped from 30 → 45
- * so that vertical card drags inside a column don't accidentally
- * register as horizontal column swaps. The first-visit
- * "swipe to navigate" guide overlay was removed alongside the
- * top column header; the visible tabs teach the gesture
- * naturally.
- */
+// Horizontal-swipe navigation for the mobile column carousel.
+// Tap on ColumnTabBar is the primary nav; swipe is the shortcut.
+// SCROLL_TOLERANCE is 45 (not 30) so vertical card drags don't
+// accidentally register as horizontal column swaps.
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 const SWIPE_THRESHOLD = 50;
 const SCROLL_TOLERANCE = 45;
 
-/**
- * Hook for swipe navigation with improved touch detection
- * @param {Object} options - Configuration options
- * @param {number} options.itemCount - Total number of items to navigate
- * @param {number} options.initialIndex - Initial active index
- * @param {Function} options.onNavigate - Callback when navigation occurs
- * @returns {Object} Swipe navigation handlers and state
- */
-export function useSwipeNavigation({
-  itemCount,
-  initialIndex = 0,
-  onNavigate,
-} = {}) {
+export function useSwipeNavigation({ itemCount, initialIndex = 0, onNavigate } = {}) {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [isSwiping, setIsSwiping] = useState(false);
 
@@ -123,11 +102,6 @@ export function useSwipeNavigation({
     activeIndex,
     setActiveIndex: navigateTo,
     containerRef,
-    isSwiping,
-    navigateNext,
-    navigatePrev,
-    canNavigateNext: activeIndex < itemCount - 1,
-    canNavigatePrev: activeIndex > 0,
     touchHandlers: {
       onTouchStart: handleTouchStart,
       onTouchMove: handleTouchMove,
