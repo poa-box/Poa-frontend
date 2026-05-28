@@ -561,6 +561,11 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
       topHatId
       roleHatIds
 
+      eligibilityModule {
+        id
+        eligibilityModuleAdminHat
+      }
+
       roles(where: { isUserRole: true }) {
         id
         hatId

@@ -409,6 +409,23 @@ export function useOrgStructure() {
     fetchMetadata();
   }, [org?.metadataHash, org?.metadata, safeFetchFromIpfs, safeFetchImageFromIpfs]);
 
+  // Strip the EligibilityModule's admin hat from the raw role list before
+  // any other downstream logic touches it. `where: { isUserRole: true }`
+  // in the GraphQL query is supposed to exclude system hats, but the
+  // deployed subgraph has historical orgs (e.g. Test6, plant-houston)
+  // whose admin hat ended up with isUserRole = true. POContext already
+  // filters this hat out of `roleHatIds`; the team page goes through a
+  // separate query path, so it needs the same defensive treatment.
+  const eligibilityAdminHatId =
+    org?.eligibilityModule?.eligibilityModuleAdminHat || null;
+  const filteredRoles = useMemo(() => {
+    if (!org?.roles) return undefined;
+    if (!eligibilityAdminHatId) return org.roles;
+    return org.roles.filter(
+      (r) => String(r.hatId) !== String(eligibilityAdminHatId),
+    );
+  }, [org?.roles, eligibilityAdminHatId]);
+
   // Hats anyone can claim via quickJoinWithUser without vouching. Sourced
   // from the subgraph's QuickJoinContract.memberHatIds (see subgraph-pop #179).
   const memberHatIdSet = useMemo(() => {
@@ -426,13 +443,13 @@ export function useOrgStructure() {
   // isEligible because the user has no vouches yet. Vouching wins, since it's
   // the more restrictive gate.
   const roles = useMemo(() => {
-    const base = transformRolesData(org?.roles, roleHatIds, {}, org?.users);
+    const base = transformRolesData(filteredRoles, roleHatIds, {}, org?.users);
     return base.map((role) => ({
       ...role,
       isQuickJoinEligible:
         memberHatIdSet.has(normalizeHatId(role.hatId)) && !role.vouchingEnabled,
     }));
-  }, [org?.roles, roleHatIds, org?.users, memberHatIdSet]);
+  }, [filteredRoles, roleHatIds, org?.users, memberHatIdSet]);
 
   // TaskManager v4/v5 — flatten the org's `taskManager.globalRolePermissions` entries into
   // HatPermission-shaped rows so they flow through the existing PermissionsMatrix without a
