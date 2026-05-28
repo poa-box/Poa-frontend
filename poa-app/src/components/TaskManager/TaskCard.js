@@ -9,6 +9,7 @@ import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/token
 import { usePOContext } from '../../context/POContext';
 import { useOrgName } from '../../hooks/useOrgName';
 import { getDifficultyColor } from '../../util/taskUtils';
+import { darkCardStyle } from '@/components/shared/glassStyles';
 
 const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) => {
   const poContext = usePOContext();
@@ -63,15 +64,17 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
     veryhard: 4
   };
 
-  // Enhanced mobile card style with better visual hierarchy
+  // Dark surface for mobile — sits on top of the dark glass column without
+  // the visual whiplash of the previous opaque white card. Uses the shared
+  // darkCardStyle token from glassStyles.js so future surfaces inherit
+  // the same look.
   const mobileCardStyle = {
-    background: 'rgba(255, 255, 255, 0.98)',
-    borderRadius: '12px',
+    ...darkCardStyle,
     boxShadow: isDragging
-      ? '0 10px 25px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(128, 90, 213, 0.4)'
-      : '0 4px 12px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+      ? '0 10px 25px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(159, 122, 234, 0.55)'
+      : darkCardStyle.boxShadow,
     padding: '14px',
-    marginBottom: '14px',
+    marginBottom: '12px',
     transition: 'transform 0.25s ease, box-shadow 0.25s ease',
     transform: isDragging ? 'scale(0.98) rotate(-1deg)' : 'scale(1) rotate(0)',
     opacity: isDragging ? 0.9 : 1,
@@ -119,29 +122,31 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
         <Text
           fontWeight="700"
           fontSize={isCardMobile ? "0.95rem" : "0.85rem"}
-          color="#2D3748" // gray.700
-          mb={isCardMobile ? 2 : 1.5}
+          color={isCardMobile ? "whiteAlpha.900" : "#2D3748"}
+          mb={isCardMobile ? 1.5 : 1.5}
           noOfLines={2}
           lineHeight="tight"
           letterSpacing="tight"
-          _groupHover={{ color: "purple.700" }}
+          _groupHover={{ color: isCardMobile ? "purple.200" : "purple.700" }}
         >
           {name}
         </Text>
 
-        {/* Improved description section */}
-        <Text
-          fontSize={isCardMobile ? "0.8rem" : "0.75rem"}
-          color="#4A5568" // gray.600
-          mb={isCardMobile ? 3 : 2}
-          noOfLines={2}
-          lineHeight="1.4"
-        >
-          {truncateDescription(description, isCardMobile ? 80 : 50)}
-        </Text>
+        {/* Description: 1 line on mobile to save vertical real estate */}
+        {description && (
+          <Text
+            fontSize={isCardMobile ? "0.8rem" : "0.75rem"}
+            color={isCardMobile ? "whiteAlpha.700" : "#4A5568"}
+            mb={isCardMobile ? 2.5 : 2}
+            noOfLines={isCardMobile ? 1 : 2}
+            lineHeight="1.4"
+          >
+            {truncateDescription(description, isCardMobile ? 60 : 50)}
+          </Text>
+        )}
 
         {/* Info and tags with better layout */}
-        <Flex direction="column" gap={2}>
+        <Flex direction="column" gap={isCardMobile ? 1.5 : 2}>
           {/* Difficulty and time indicators */}
           <Flex align="center" justify="space-between">
             {difficulty && (
@@ -157,27 +162,44 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
                     />
                   ))}
                 </HStack>
-                <Text fontSize="xs" color="gray.500" ml={1.5} fontWeight="medium">
+                <Text
+                  fontSize="xs"
+                  color={isCardMobile ? "whiteAlpha.700" : "gray.500"}
+                  ml={1.5}
+                  fontWeight="medium"
+                  textTransform="capitalize"
+                >
                   {difficulty}
                 </Text>
               </Flex>
             )}
 
             <HStack spacing={1} align="center">
-              <TimeIcon boxSize={3} color="gray.400" />
-              <Text fontSize="xs" color="gray.500" fontWeight="medium">
+              <TimeIcon boxSize={3} color={isCardMobile ? "whiteAlpha.600" : "gray.400"} />
+              <Text fontSize="xs" color={isCardMobile ? "whiteAlpha.700" : "gray.500"} fontWeight="medium">
                 {estHours} hr{estHours !== 1 ? 's' : ''}
               </Text>
             </HStack>
           </Flex>
 
           {/* Reward and assigned user */}
-          <Flex justify="space-between" align="center" mt={1}>
-            <HStack spacing={1}>
+          <Flex justify="space-between" align="center" gap={2} mt={isCardMobile ? 0 : 1}>
+            <HStack spacing={1.5} flexWrap="wrap">
               {Payout && (
-                <Flex align="center" bg="purple.50" px={2} py={0.5} borderRadius="full">
-                  <StarIcon boxSize={3} mr={1} color="purple.500" />
-                  <Text fontWeight="bold" color="purple.700" fontSize="xs">
+                <Flex
+                  align="center"
+                  bg={isCardMobile ? "purple.900" : "purple.50"}
+                  px={2}
+                  py={0.5}
+                  borderRadius="full"
+                  border={isCardMobile ? "1px solid rgba(159, 122, 234, 0.35)" : undefined}
+                >
+                  <StarIcon boxSize={3} mr={1} color={isCardMobile ? "purple.300" : "purple.500"} />
+                  <Text
+                    fontWeight="bold"
+                    color={isCardMobile ? "purple.200" : "purple.700"}
+                    fontSize="xs"
+                  >
                     {Payout} {tokenLabel}
                   </Text>
                 </Flex>
@@ -186,7 +208,14 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
                 const tokenInfo = getTokenByAddress(bountyToken);
                 return (
                   <Tooltip label={`Token bounty: ${tokenInfo.name}`} placement="top">
-                    <Flex align="center" bg="green.50" px={2} py={0.5} borderRadius="full">
+                    <Flex
+                      align="center"
+                      bg={isCardMobile ? "green.900" : "green.50"}
+                      px={2}
+                      py={0.5}
+                      borderRadius="full"
+                      border={isCardMobile ? "1px solid rgba(72, 187, 120, 0.35)" : undefined}
+                    >
                       {tokenInfo.logo && (
                         <Image
                           src={tokenInfo.logo}
@@ -197,7 +226,11 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
                           fallback={<></>}
                         />
                       )}
-                      <Text fontWeight="bold" color="green.700" fontSize="xs">
+                      <Text
+                        fontWeight="bold"
+                        color={isCardMobile ? "green.200" : "green.700"}
+                        fontSize="xs"
+                      >
                         +{bountyPayout} {tokenInfo.symbol}
                       </Text>
                     </Flex>
@@ -206,39 +239,41 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
               })()}
             </HStack>
 
-            {(claimedBy || claimerUsername) && (
-              <UserIdentity
-                address={claimedBy}
-                usernameHint={claimerUsername}
-                size="xs"
-                showName={false}
-              />
-            )}
-
-            {columnId === 'completed' && (
-              <Badge colorScheme="green" {...badgeStyle}>
-                <CheckIcon mr={1} boxSize={2} />
-                Completed
-              </Badge>
-            )}
-
-            {rejectionCount > 0 && columnId !== 'completed' && (
-              <Tooltip label={`Rejected ${rejectionCount} time${rejectionCount > 1 ? 's' : ''}`} placement="top">
-                <Badge colorScheme="red" {...badgeStyle}>
-                  <WarningIcon mr={1} boxSize={2} />
-                  Rejected
+            <HStack spacing={1.5}>
+              {columnId === 'completed' && (
+                <Badge colorScheme="green" {...badgeStyle}>
+                  <CheckIcon mr={1} boxSize={2} />
+                  Completed
                 </Badge>
-              </Tooltip>
-            )}
+              )}
 
-            {requiresApplication && columnId === 'open' && applicants?.length > 0 && (
-              <Tooltip label={`${applicants.length} applicant${applicants.length > 1 ? 's' : ''}`} placement="top">
-                <Badge colorScheme="purple" {...badgeStyle}>
-                  <InfoIcon mr={1} boxSize={2} />
-                  {applicants.length} Applied
-                </Badge>
-              </Tooltip>
-            )}
+              {rejectionCount > 0 && columnId !== 'completed' && (
+                <Tooltip label={`Rejected ${rejectionCount} time${rejectionCount > 1 ? 's' : ''}`} placement="top">
+                  <Badge colorScheme="red" {...badgeStyle}>
+                    <WarningIcon mr={1} boxSize={2} />
+                    Rejected
+                  </Badge>
+                </Tooltip>
+              )}
+
+              {requiresApplication && columnId === 'open' && applicants?.length > 0 && (
+                <Tooltip label={`${applicants.length} applicant${applicants.length > 1 ? 's' : ''}`} placement="top">
+                  <Badge colorScheme="purple" {...badgeStyle}>
+                    <InfoIcon mr={1} boxSize={2} />
+                    {applicants.length} Applied
+                  </Badge>
+                </Tooltip>
+              )}
+
+              {(claimedBy || claimerUsername) && (
+                <UserIdentity
+                  address={claimedBy}
+                  usernameHint={claimerUsername}
+                  size="xs"
+                  showName={false}
+                />
+              )}
+            </HStack>
           </Flex>
         </Flex>
       </Box>

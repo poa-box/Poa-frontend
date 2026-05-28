@@ -5,12 +5,11 @@
  */
 
 import { useRef } from 'react';
-import { VStack, Box, Flex } from '@chakra-ui/react';
+import { VStack, Box } from '@chakra-ui/react';
 import { useTaskBoard } from '../../context/TaskBoardContext';
 import TaskBoardMobile from './TaskBoardMobile';
 import TaskBoardDesktop from './TaskBoardDesktop';
 import ProjectHeader from './ProjectHeader';
-import ViewSwitcher from './ViewSwitcher';
 import { useViewMode } from './views/useViewMode';
 import ListView from './views/list/ListView';
 import GanttView from './views/gantt/GanttView';
@@ -63,19 +62,17 @@ const TaskBoard = ({
         />
       )}
 
-      {/* Mobile-only view switcher row (desktop switcher lives in ProjectHeader) */}
-      {isMobile && (
-        <Flex w="100%" justify="center" px={2} pt={0} pb={2}>
-          <ViewSwitcher isMobile size="sm" />
-        </Flex>
-      )}
+      {/* Mobile view switcher now lives in MobileTopBar (mounted by MainLayout). */}
 
-      {/* Task board content */}
+      {/* Task board content. On mobile we own a fixed height with hidden
+          overflow so TaskBoardMobile's fixed ColumnTabBar sits flush at the
+          viewport bottom while the inner TaskColumn handles card scroll. */}
       <Box
         flex="1"
+        minH={0}
         width="100%"
-        height={{ base: "auto", md: "calc(100vh - 120px)" }}
-        overflow={{ base: "visible", md: "hidden" }}
+        height={{ base: "100%", md: "calc(100vh - 120px)" }}
+        overflow="hidden"
         mb={0}
       >
         {renderView()}

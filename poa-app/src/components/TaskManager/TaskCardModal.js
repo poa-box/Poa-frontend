@@ -717,7 +717,12 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
 
   return task ? (
     <>
-      <Modal isOpen={isOpen} onClose={handleCloseModal} size="2xl" isCentered>
+      <Modal
+        isOpen={isOpen}
+        onClose={handleCloseModal}
+        size={{ base: 'full', md: '2xl' }}
+        isCentered
+      >
         <ModalOverlay bg="blackAlpha.800" />
         <ModalContent
           bg="transparent"

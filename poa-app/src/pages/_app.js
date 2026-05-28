@@ -1,3 +1,4 @@
+import Head from "next/head";
 import { ChakraProvider, extendTheme, CSSReset } from "@chakra-ui/react";
 import { IPFSprovider } from "@/context/ipfsContext";
 import { Web3Provider } from "@/context/web3Context";
@@ -316,6 +317,15 @@ function MyApp({ Component, pageProps }) {
 
   return (
     <ErrorBoundary>
+      <Head>
+        {/* viewport-fit=cover lets iOS Safari report a non-zero
+            env(safe-area-inset-bottom) on devices with a home indicator
+            so the mobile task-board tab bar and FAB can clear it. */}
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover"
+        />
+      </Head>
       <WagmiProvider config={config}>
         <StableProviders>
           {page}

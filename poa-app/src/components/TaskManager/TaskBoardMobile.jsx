@@ -1,20 +1,38 @@
 /**
  * TaskBoardMobile
- * Mobile view for TaskBoard with swipe navigation
+ *
+ * Mobile view for the Task Board. Phase 2: a fixed bottom ColumnTabBar
+ * is the primary nav across the four columns, replacing the older
+ * top-of-screen "column title + count + progress" stack. Swipe
+ * (`useSwipeNavigation`) remains as a power-user shortcut alongside tap.
+ *
+ * The FAB sits above the tab bar with safe-area-aware offset so it
+ * never overlaps the iPhone home indicator nor the bar itself.
  */
 
 import { useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
-import { Box, VStack, HStack, Text, IconButton, Badge, Progress } from '@chakra-ui/react';
-import { AddIcon, InfoIcon } from '@chakra-ui/icons';
+import { Box, VStack, IconButton } from '@chakra-ui/react';
+import { AddIcon } from '@chakra-ui/icons';
 import TaskColumn from './TaskColumn';
+import ColumnTabBar from './ColumnTabBar';
 import { useSwipeNavigation } from '../../hooks/useSwipeNavigation';
-import { mobileGlassStyle, mobileNavGlassStyle, infoPopupStyle } from './styles/taskBoardStyles';
+import { mobileGlassStyle, TAB_BAR_HEIGHT_PX } from './styles/taskBoardStyles';
 import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
 import { usePOContext } from '@/context/POContext';
 import { userCanCreateTask, ROLE_INDICES } from '@/util/permissions';
 
 const normalizeHatId = (id) => String(id).trim();
+
+// Vertical reserve consumed by the fixed ColumnTabBar (its 56px height
+// plus the iOS safe-area inset it absorbs). The board's outermost Box
+// shrinks its height by this amount so the column never renders behind
+// the tab bar.
+const TAB_BAR_RESERVE = `calc(${TAB_BAR_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px))`;
+
+// FAB sits ~16px above the bar, again accounting for the inset so it
+// clears both the bar and the home indicator.
+const FAB_BOTTOM = `calc(${TAB_BAR_HEIGHT_PX}px + env(safe-area-inset-bottom, 0px) + 16px)`;
 
 const TaskBoardMobile = forwardRef(({
   taskColumns,
@@ -24,8 +42,7 @@ const TaskBoardMobile = forwardRef(({
 
   const {
     activeIndex,
-    showGuide,
-    dismissGuide,
+    setActiveIndex,
     touchHandlers,
     containerRef,
   } = useSwipeNavigation({
@@ -63,7 +80,6 @@ const TaskBoardMobile = forwardRef(({
     return false;
   }, [userHatIds, projectRolePermissions, hasNonMemberRole]);
 
-  // Expose methods to parent
   useImperativeHandle(ref, () => ({
     getActiveIndex: () => activeIndex,
     getColumnRef: (index) => taskColumnsRef.current[index],
@@ -73,11 +89,6 @@ const TaskBoardMobile = forwardRef(({
   const columnTitle = currentColumn?.title || '';
   const columnId = currentColumn?.id || '';
 
-  const getTaskCount = (colId) => {
-    const column = taskColumns?.find(col => col.id === colId);
-    return column?.tasks?.length || 0;
-  };
-
   const handleAddTask = () => {
     const columnRef = taskColumnsRef.current[activeIndex];
     if (columnRef && columnRef.handleOpenAddTaskModal) {
@@ -85,12 +96,12 @@ const TaskBoardMobile = forwardRef(({
     }
   };
 
-  const showFab = columnTitle === 'Open' && canCreateTask && !showGuide;
+  const showFab = columnTitle === 'Open' && canCreateTask;
 
   return (
     <Box
       w="100%"
-      h="100%"
+      h={`calc(100% - ${TAB_BAR_RESERVE})`}
       position="relative"
       ref={containerRef}
       {...touchHandlers}
@@ -102,54 +113,18 @@ const TaskBoardMobile = forwardRef(({
         w="100%"
         h="100%"
       >
-        {/* Navigation header */}
-        <Box
-          sx={mobileNavGlassStyle}
-          mx={2}
-          mb={2}
-          mt={1}
-          overflow="hidden"
-        >
-          <HStack spacing={2} py={2} px={3} w="100%" align="center" justify="center" overflow="visible">
-            <Text
-              fontSize="md"
-              fontWeight="bold"
-              textAlign="center"
-              color="white"
-              noOfLines={1}
-              display="flex"
-              alignItems="center"
-              justifyContent="center"
-            >
-              {columnTitle}
-              <Badge ml={2} colorScheme="purple" fontSize="0.7em">
-                {getTaskCount(columnId)}
-              </Badge>
-            </Text>
-          </HStack>
-        </Box>
-
-        {/* Progress indicator */}
-        <Progress
-          value={(activeIndex / (taskColumns.length - 1)) * 100}
-          size="xs"
-          colorScheme="purple"
-          bg="whiteAlpha.100"
-          mt={0}
-          mb={1}
-          mx={2}
-          borderRadius="full"
-        />
-
-        {/* Column content */}
+        {/* Column content — title now lives in the bottom ColumnTabBar.
+            The outermost Box's height is the viewport minus the tab bar
+            reserve, so the column always stops above the bar (and the
+            iOS home indicator). */}
         <Box
           px={2}
+          pt={1}
           position="relative"
           flex="1"
+          minH={0}
           display="flex"
           flexDirection="column"
-          h="100%"
-          minH="calc(100vh - 200px)"
         >
           <Box
             position="relative"
@@ -158,7 +133,7 @@ const TaskBoardMobile = forwardRef(({
             display="flex"
             flexDirection="column"
             flex="1"
-            h="100%"
+            minH={0}
             sx={mobileGlassStyle}
             p={2}
           >
@@ -176,14 +151,14 @@ const TaskBoardMobile = forwardRef(({
         </Box>
       </VStack>
 
-      {/* Add Task FAB */}
+      {/* Add Task FAB — sits above the tab bar; only on Open column */}
       {showFab && (
         <IconButton
           icon={<AddIcon color="white" boxSize="1.25em" />}
           aria-label="Add task"
           onClick={handleAddTask}
           position="fixed"
-          bottom={4}
+          bottom={FAB_BOTTOM}
           right={4}
           boxSize="56px"
           borderRadius="full"
@@ -191,30 +166,16 @@ const TaskBoardMobile = forwardRef(({
           _hover={{ bg: 'purple.600' }}
           _active={{ bg: 'purple.700' }}
           boxShadow="0 6px 16px rgba(0,0,0,0.4)"
-          zIndex={9}
+          zIndex={21}
         />
       )}
 
-      {/* Swipe guide overlay */}
-      {showGuide && (
-        <Box
-          position="absolute"
-          top="60%"
-          left="50%"
-          transform="translate(-50%, -50%)"
-          zIndex={10}
-          style={infoPopupStyle}
-          onClick={dismissGuide}
-        >
-          <InfoIcon color="purple.300" mb={2} boxSize="16px" />
-          <Text color="gray.800" fontSize="sm" fontWeight="medium">
-            Swipe left or right to navigate between columns
-          </Text>
-          <Text color="gray.600" fontSize="2xs" mt={1}>
-            This message will disappear shortly
-          </Text>
-        </Box>
-      )}
+      {/* Fixed bottom tab bar — column navigation primary affordance */}
+      <ColumnTabBar
+        taskColumns={taskColumns || []}
+        activeIndex={activeIndex}
+        onSelect={setActiveIndex}
+      />
     </Box>
   );
 });

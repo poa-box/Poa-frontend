@@ -11,6 +11,7 @@ import {
   COLUMN_COLORS,
   COLUMN_TITLES,
 } from '@/util/taskUtils';
+import { darkCardStyle } from '@/components/shared/glassStyles';
 
 const STATUS_BADGE_SCHEME = {
   open: 'green',
@@ -77,9 +78,7 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
   // narrow widths. Desktop fits the metadata into one horizontal flex row.
   const containerSx = isMobile
     ? {
-        bg: 'rgba(255,255,255,0.98)',
-        borderRadius: '12px',
-        boxShadow: '0 4px 12px rgba(0,0,0,0.1), 0 0 0 1px rgba(0,0,0,0.05)',
+        ...darkCardStyle,
         p: '12px 14px',
         mb: '10px',
       }
@@ -122,7 +121,7 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
             <Text
               fontWeight="700"
               fontSize="0.95rem"
-              color="#2D3748"
+              color="whiteAlpha.900"
               noOfLines={2}
               lineHeight="tight"
               flex="1"
@@ -140,12 +139,12 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
             </Badge>
           </Flex>
           {showProject && projectName && (
-            <Text fontSize="0.7rem" color="purple.600" fontWeight="600" noOfLines={1}>
+            <Text fontSize="0.7rem" color="purple.300" fontWeight="600" noOfLines={1}>
               {projectName}
             </Text>
           )}
           {description && (
-            <Text fontSize="0.75rem" color="#4A5568" noOfLines={1} lineHeight="1.4">
+            <Text fontSize="0.75rem" color="whiteAlpha.700" noOfLines={1} lineHeight="1.4">
               {description}
             </Text>
           )}
@@ -156,23 +155,30 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
                   {Array.from({ length: dots }).map((_, i) => (
                     <Box key={i} w={1.5} h={1.5} borderRadius="full" bg={diffColor} />
                   ))}
-                  <Text fontSize="xs" color="gray.500" fontWeight="medium" textTransform="capitalize">
+                  <Text fontSize="xs" color="whiteAlpha.700" fontWeight="medium" textTransform="capitalize">
                     {difficulty}
                   </Text>
                 </HStack>
               )}
               <HStack spacing={1}>
-                <TimeIcon boxSize={3} color="gray.400" />
-                <Text fontSize="xs" color="gray.500" fontWeight="medium">
+                <TimeIcon boxSize={3} color="whiteAlpha.600" />
+                <Text fontSize="xs" color="whiteAlpha.700" fontWeight="medium">
                   {estHours} hr{estHours !== 1 ? 's' : ''}
                 </Text>
               </HStack>
             </HStack>
             <HStack spacing={2}>
               {Payout && (
-                <Flex align="center" bg="purple.50" px={2} py={0.5} borderRadius="full">
-                  <StarIcon boxSize={3} mr={1} color="purple.500" />
-                  <Text fontWeight="bold" color="purple.700" fontSize="xs">
+                <Flex
+                  align="center"
+                  bg="purple.900"
+                  px={2}
+                  py={0.5}
+                  borderRadius="full"
+                  border="1px solid rgba(159, 122, 234, 0.35)"
+                >
+                  <StarIcon boxSize={3} mr={1} color="purple.300" />
+                  <Text fontWeight="bold" color="purple.200" fontSize="xs">
                     {Payout} {tokenLabel}
                   </Text>
                 </Flex>

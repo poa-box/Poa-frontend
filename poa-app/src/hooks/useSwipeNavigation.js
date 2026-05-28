@@ -1,12 +1,21 @@
 /**
  * useSwipeNavigation
- * Custom hook for handling touch swipe navigation in mobile views
+ * Horizontal-swipe navigation for mobile carousels.
+ *
+ * Phase 2 of the mobile Task Manager redesign: tap on the
+ * ColumnTabBar is the primary nav, and swipe is now an
+ * additive shortcut. `SCROLL_TOLERANCE` was bumped from 30 → 45
+ * so that vertical card drags inside a column don't accidentally
+ * register as horizontal column swaps. The first-visit
+ * "swipe to navigate" guide overlay was removed alongside the
+ * top column header; the visible tabs teach the gesture
+ * naturally.
  */
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 const SWIPE_THRESHOLD = 50;
-const SCROLL_TOLERANCE = 30;
+const SCROLL_TOLERANCE = 45;
 
 /**
  * Hook for swipe navigation with improved touch detection
@@ -28,57 +37,12 @@ export function useSwipeNavigation({
   const touchStartY = useRef(null);
   const containerRef = useRef(null);
 
-  // Track if user has seen the swipe guide
-  const [hasSeenGuide, setHasSeenGuide] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('hasSeenSwipeGuide') === 'true';
-    }
-    return false;
-  });
-
-  // Initialize guide visibility
-  const [showGuide, setShowGuide] = useState(() => {
-    if (!hasSeenGuide) return true;
-    // 4% chance to show for returning users
-    return Math.floor(Math.random() * 25) === 0;
-  });
-
-  // Auto-hide guide
-  useEffect(() => {
-    if (showGuide) {
-      const timer = setTimeout(() => {
-        setShowGuide(false);
-        if (!hasSeenGuide) {
-          setHasSeenGuide(true);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('hasSeenSwipeGuide', 'true');
-          }
-        }
-      }, 8500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [showGuide, hasSeenGuide]);
-
-  const dismissGuide = useCallback(() => {
-    if (showGuide) {
-      setShowGuide(false);
-      if (!hasSeenGuide) {
-        setHasSeenGuide(true);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('hasSeenSwipeGuide', 'true');
-        }
-      }
-    }
-  }, [showGuide, hasSeenGuide]);
-
   const navigateTo = useCallback((index) => {
     if (index >= 0 && index < itemCount) {
       setActiveIndex(index);
-      dismissGuide();
       onNavigate?.(index);
     }
-  }, [itemCount, dismissGuide, onNavigate]);
+  }, [itemCount, onNavigate]);
 
   const navigateNext = useCallback(() => {
     if (activeIndex < itemCount - 1) {
@@ -160,8 +124,6 @@ export function useSwipeNavigation({
     setActiveIndex: navigateTo,
     containerRef,
     isSwiping,
-    showGuide,
-    dismissGuide,
     navigateNext,
     navigatePrev,
     canNavigateNext: activeIndex < itemCount - 1,

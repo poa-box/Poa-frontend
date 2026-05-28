@@ -75,18 +75,15 @@ const AllTasksView = ({ isDesktop = true, sidebarVisible, toggleSidebar }) => {
         </Box>
       )}
 
-      {/* Mobile switcher row — desktop switcher lives in the header above */}
-      {isMobile && (
-        <Flex w="100%" justify="center" px={2} pt={0} pb={2}>
-          <ViewSwitcher isMobile allowBoard={false} size="sm" />
-        </Flex>
-      )}
+      {/* Mobile All Tasks label + view switcher both live in the
+          MainLayout-mounted MobileTopBar (variant="allTasks"). */}
 
       <Box
         flex="1"
+        minH={0}
         width="100%"
-        height={{ base: 'auto', md: 'calc(100vh - 120px)' }}
-        overflow={{ base: 'visible', md: 'hidden' }}
+        height={{ base: '100%', md: 'calc(100vh - 120px)' }}
+        overflow="hidden"
         mb={0}
       >
         {renderView()}

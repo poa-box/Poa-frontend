@@ -26,15 +26,26 @@ export const mobileNavGlassStyle = {
   boxShadow: '0 4px 12px rgba(0, 0, 0, 0.4)',
 };
 
-export const infoPopupStyle = {
-  backgroundColor: 'rgba(255, 255, 255, 1)',
-  boxShadow: '0 8px 24px rgba(0, 0, 0, 0.5)',
-  border: '1px solid rgba(105, 57, 153, 0.4)',
-  borderRadius: '12px',
-  padding: '12px',
-  maxWidth: '80%',
-  textAlign: 'center',
-  zIndex: 20,
+/**
+ * Visual height of the fixed-bottom mobile column tab bar (Phase 2),
+ * excluding the iOS safe-area inset (the bar absorbs that separately
+ * via `paddingBottom: calc(env(safe-area-inset-bottom, 0px) + 8px)`).
+ * Exposed as a constant so TaskBoardMobile can match the column
+ * paddingBottom + FAB offset against it without drift.
+ */
+export const TAB_BAR_HEIGHT_PX = 56;
+
+/**
+ * Fixed bottom bar for column navigation on mobile. Bakes in
+ * `env(safe-area-inset-bottom)` so the tab targets clear the iOS
+ * home indicator without per-call boilerplate.
+ */
+export const mobileTabBarStyle = {
+  backgroundColor: 'rgba(0, 0, 0, 0.92)',
+  borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+  boxShadow: '0 -4px 16px rgba(0, 0, 0, 0.5)',
+  paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+  paddingTop: '6px',
 };
 
 export const columnInfo = {
