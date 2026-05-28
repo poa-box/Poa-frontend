@@ -203,6 +203,29 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
   // Map roles
   const contractRoles = roles.map((role, idx) => mapRole(role, idx, roles.length));
 
+  // Defensive normalization for quick-join roles: if a role is in
+  // permissions.quickJoinRoles AND has vouching disabled AND has default
+  // eligibility disabled, force eligible=true. The EligibilityModule would
+  // otherwise reject every mint, leaving the role unreachable (see Decentral
+  // Park's Neighbor hat for the production manifestation of this bug). The
+  // validation guard in validateDeploymentConfig should already block this
+  // upstream, but normalize here too so a regression in the wizard's review
+  // step can't ship contradictory calldata.
+  const quickJoinRoleIndices = (permissions?.quickJoinRoles) || [];
+  quickJoinRoleIndices.forEach(roleIdx => {
+    const cr = contractRoles[roleIdx];
+    if (!cr) return;
+    if (!cr.vouching.enabled && !cr.defaults.eligible) {
+      console.warn(
+        `[DeployMapper] Forcing defaults.eligible=true on quick-join role "${cr.name}" (idx ${roleIdx}); both vouching and eligibility were disabled, which would make the role unclaimable.`
+      );
+      contractRoles[roleIdx] = {
+        ...cr,
+        defaults: { ...cr.defaults, eligible: true },
+      };
+    }
+  });
+
   // Map voting classes.
   // Safety check: if democracyWeight exists and classes don't match it
   // (e.g., APPLY_VARIATION updated the weight but not classes), rebuild from the weight.
@@ -367,6 +390,24 @@ export function validateDeploymentConfig(state) {
       if (role.vouching.voucherRoleIndex >= state.roles.length) {
         errors.push(`Role "${role.name}" has invalid voucher role reference`);
       }
+    }
+  });
+
+  // Quick-join eligibility guard: a role in quickJoinRoles with vouching disabled
+  // AND default eligibility disabled is unreachable — QuickJoin.memberHatIds
+  // advertises it as joinable but the EligibilityModule rejects every mint.
+  // Decentral Park's Neighbor hat shipped in exactly this state (template seeded
+  // eligible:false, the user toggled vouching off for the quick-join role but
+  // didn't realize eligibility needed to flip), so the on-chain Hats.mintHat
+  // reverts on every quickJoinWithUser. Catch it at the wizard's Review step.
+  const quickJoinRoleIndices = (state.permissions?.quickJoinRoles) || [];
+  quickJoinRoleIndices.forEach(roleIdx => {
+    const role = state.roles[roleIdx];
+    if (!role) return; // out-of-range refs caught elsewhere
+    if (!role.vouching.enabled && !role.defaults.eligible) {
+      errors.push(
+        `Role "${role.name}" is set as quick-join but has both vouching and default eligibility disabled — no one would be able to claim it. Enable default eligibility for this role.`
+      );
     }
   });
 
