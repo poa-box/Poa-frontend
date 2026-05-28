@@ -48,6 +48,18 @@ export const lightCardStyle = {
   boxShadow: '0 2px 4px rgba(0, 0, 0, 0.04)',
 };
 
+/**
+ * Dark inner card — used on dark glass surfaces (mobile task board /
+ * list view). A true dark surface rather than glass-on-glass at low
+ * opacity, which would smear into the column.
+ */
+export const darkCardStyle = {
+  bg: 'rgba(20, 20, 28, 0.85)',
+  border: '1px solid rgba(255, 255, 255, 0.12)',
+  borderRadius: '12px',
+  boxShadow: '0 4px 12px rgba(0, 0, 0, 0.35)',
+};
+
 export const inputStyles = {
   bg: 'whiteAlpha.100',
   border: '1px solid',

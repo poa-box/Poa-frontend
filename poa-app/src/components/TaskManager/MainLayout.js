@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
-import { Flex, Box, Heading, useMediaQuery, Select, Text, Button, VStack, HStack, IconButton, useDisclosure, Input, FormControl, FormLabel, Tooltip, Badge } from '@chakra-ui/react';
-import { AddIcon, InfoIcon, ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon } from '@chakra-ui/icons';
+import { Flex, Box, Heading, useMediaQuery, Text, Button, VStack, HStack, IconButton, useDisclosure, Badge } from '@chakra-ui/react';
+import { AddIcon } from '@chakra-ui/icons';
 import ProjectSidebar from './ProjectSidebar';
 import TaskBoard from './TaskBoard';
 import CreateProjectModal from './CreateProjectModal';
 import FolderTreeEditor from '../folders/FolderTreeEditor';
+import MobileTopBar from './MobileTopBar';
+import ProjectSwitcherDrawer from './ProjectSwitcherDrawer';
 import { useFolderDoc } from '../folders/useFolderDoc';
 import { TaskBoardProvider } from '../../context/TaskBoardContext';
 import AllTasksView from './views/AllTasksView';
@@ -219,16 +221,6 @@ function ExampleTaskModal({ isOpen, onClose }) {
   );
 }
 
-// Enhanced styles for mobile project selector
-const mobileHeaderStyle = {
-  background: 'linear-gradient(180deg, rgba(0,0,0,0.85) 0%, rgba(20,20,20,0.75) 100%)',
-  borderRadius: '8px',
-  padding: '8px 12px',
-  boxShadow: '0 3px 10px rgba(0, 0, 0, 0.2)',
-  border: '1px solid rgba(255, 255, 255, 0.1)',
-  marginBottom: '3px',
-  marginTop: '64px',
-};
 
 const MainLayout = () => {
   const {
@@ -298,9 +290,7 @@ const MainLayout = () => {
     }
   }, [isMobileQuery, isMobile]);
 
-  const [showMobileProjectCreator, setShowMobileProjectCreator] = useState(false);
-  const [newProjectName, setNewProjectName] = useState('');
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const projectDrawer = useDisclosure();
   const { isOpen: isProjectModalOpen, onOpen: onProjectModalOpen, onClose: onProjectModalClose } = useDisclosure();
   const [showHelp, setShowHelp] = useState(true);
   const { pendingAction, isActive: isTourActive, currentStepDef, nextStep: tourNextStep } = useTour();
@@ -405,236 +395,9 @@ const MainLayout = () => {
     );
   }, [taskService, executeWithNotification, taskManagerContractAddress, addToIpfs, roleHatIds, creatorHatIds]);
 
-  const handleCreateNewProject = () => {
-    if (newProjectName.trim()) {
-      handleCreateProject(newProjectName.trim());
-      setNewProjectName('');
-      setShowMobileProjectCreator(false);
-      setShowHelp(false);
-    }
-  };
-
   // Toggle sidebar visibility
   const toggleSidebar = () => {
     setSidebarVisible(!sidebarVisible);
-  };
-
-  // Mobile project selection via dropdown with enhanced UX
-  const renderMobileProjectSelector = () => {
-    const hasProjects = projects && projects.length > 0;
-    
-    return (
-      <Box w="100%" mb={1} py={0}>
-        <VStack spacing={1} align="stretch">
-          {/* Project Selection Header */}
-          <Box style={mobileHeaderStyle}>
-            <Flex justify="space-between" align="center" mb={1}>
-              <Heading 
-                size="sm" 
-                color="white" 
-                fontWeight="600"
-                letterSpacing="wide"
-              >
-                {hasProjects ? 'Select Project' : 'Create Your First Project'}
-              </Heading>
-
-              {hasProjects && (
-                <IconButton
-                  size="sm"
-                  icon={<AddIcon boxSize="14px" />}
-                  colorScheme="purple"
-                  variant="ghost"
-                  onClick={() => setShowMobileProjectCreator(prev => !prev)}
-                  aria-label="Create new project"
-                  p={1}
-                />
-              )}
-            </Flex>
-
-            {hasProjects && !showMobileProjectCreator && (
-              <Flex 
-                bg="whiteAlpha.100" 
-                p={1.5} 
-                borderRadius="md" 
-                align="center"
-                border="1px solid rgba(255,255,255,0.1)"
-                onClick={onOpen}
-                cursor="pointer"
-                _hover={{ bg: "whiteAlpha.200" }}
-                mt={1}
-                height="32px"
-              >
-                <Text color="white" fontWeight="medium" fontSize="sm" flex={1} noOfLines={1}>
-                  {allTasksMode ? 'All Tasks' : selectedProject?.name || 'Select a project'}
-                </Text>
-                <ChevronDownIcon color="white" ml={1} boxSize="16px" />
-              </Flex>
-            )}
-
-            {/* Show mobile project creator */}
-            {showMobileProjectCreator && (
-              <Flex mt={1} direction="column">
-                <Input
-                  placeholder="Project name"
-                  value={newProjectName}
-                  onChange={(e) => setNewProjectName(e.target.value)}
-                  bg="whiteAlpha.100"
-                  color="white"
-                  size="sm"
-                  height="32px"
-                  _placeholder={{ color: "whiteAlpha.500" }}
-                  mb={1}
-                />
-                <Button
-                  colorScheme="purple"
-                  onClick={handleCreateNewProject}
-                  isDisabled={!newProjectName.trim()}
-                  size="sm"
-                  height="28px"
-                >
-                  Create Project
-                </Button>
-              </Flex>
-            )}
-          </Box>
-
-          {/* First time help - only show when necessary and in very compact form */}
-          {projects.length === 0 && showHelp && (
-            <Box
-              p={2}
-              borderRadius="md"
-              bg="rgba(0, 0, 0, 0.4)"
-              borderWidth="1px"
-              borderColor="purple.500"
-              mt={1}
-            >
-              <Flex align="center" mb={0.5}>
-                <InfoIcon color="purple.300" mr={1} boxSize="10px" />
-                <Text color="white" fontWeight="medium" fontSize="xs">Getting Started</Text>
-              </Flex>
-              <Text color="whiteAlpha.800" fontSize="2xs">
-                Create your first project to start organizing tasks for your team.
-              </Text>
-            </Box>
-          )}
-
-          {/* Project selection modal */}
-          {isOpen && (
-            <Box 
-              position="fixed" 
-              top="0" 
-              left="0" 
-              w="100%" 
-              h="100%" 
-              bg="rgba(0,0,0,0.7)" 
-              zIndex={100}
-              p={4}
-              onClick={onClose}
-            >
-              <Box
-                maxW="90%"
-                maxH="80vh"
-                mx="auto"
-                mt="15vh"
-                bg="rgba(30,30,40,0.95)"
-                borderRadius="lg"
-                p={3}
-                boxShadow="0 10px 30px rgba(0,0,0,0.4)"
-                border="1px solid rgba(255,255,255,0.1)"
-                onClick={(e) => e.stopPropagation()}
-                overflowY="auto"
-              >
-                <Heading size="sm" color="white" mb={2} textAlign="center">
-                  Select Project
-                </Heading>
-                <VStack spacing={1}>
-                  {/* Mobile All-Tasks shortcut — sits at the top of the
-                      project picker so the cross-project view is reachable
-                      from mobile too, without dedicating chrome above the
-                      project carousel. */}
-                  <Box
-                    w="100%"
-                    p={2}
-                    bg={allTasksMode
-                      ? 'linear-gradient(135deg, rgba(159,122,234,0.35) 0%, rgba(66,153,225,0.25) 100%)'
-                      : 'linear-gradient(135deg, rgba(159,122,234,0.18) 0%, rgba(66,153,225,0.12) 100%)'}
-                    borderRadius="md"
-                    cursor="pointer"
-                    border="1px solid"
-                    borderColor={allTasksMode ? 'purple.300' : 'whiteAlpha.200'}
-                    onClick={() => {
-                      handleSelectAllTasks();
-                      onClose();
-                    }}
-                    _hover={{ borderColor: 'purple.300' }}
-                  >
-                    <Text color="white" fontSize="xs" fontWeight="700">
-                      All Tasks
-                    </Text>
-                    <Text color="whiteAlpha.700" fontSize="2xs">
-                      Every project, one view
-                    </Text>
-                  </Box>
-                  {projects.length > 0 && (
-                    <Flex align="center" gap={2} w="100%" px={1} pt={1}>
-                      <Text
-                        fontSize="2xs"
-                        color="whiteAlpha.500"
-                        fontWeight="700"
-                        letterSpacing="widest"
-                        textTransform="uppercase"
-                      >
-                        Projects
-                      </Text>
-                      <Box flex="1" h="1px" bg="whiteAlpha.100" />
-                    </Flex>
-                  )}
-                  {projects.map(project => (
-                    <Box
-                      key={project.id}
-                      w="100%"
-                      p={2}
-                      bg={selectedProject?.id === project.id 
-                        ? "rgba(128, 90, 213, 0.2)" 
-                        : "whiteAlpha.100"}
-                      borderRadius="md"
-                      cursor="pointer"
-                      onClick={() => {
-                        handleSelectProject(project.id);
-                        onClose();
-                      }}
-                      _hover={{ bg: "whiteAlpha.200" }}
-                      borderLeft={selectedProject?.id === project.id 
-                        ? "3px solid" 
-                        : "1px solid"}
-                      borderColor={selectedProject?.id === project.id 
-                        ? "purple.400" 
-                        : "transparent"}
-                    >
-                      <Text color="white" fontSize="xs">{project.name}</Text>
-                    </Box>
-                  ))}
-                  
-                  <Button 
-                    colorScheme="purple" 
-                    variant="outline" 
-                    size="xs" 
-                    mt={1} 
-                    leftIcon={<AddIcon boxSize={3} />}
-                    onClick={() => {
-                      setShowMobileProjectCreator(true);
-                      onClose();
-                    }}
-                  >
-                    Create New Project
-                  </Button>
-                </VStack>
-              </Box>
-            </Box>
-          )}
-        </VStack>
-      </Box>
-    );
   };
 
   return (
@@ -665,28 +428,33 @@ const MainLayout = () => {
           </Box>
         )}
         
-        {/* Main content area */}
-        <Box 
+        {/* Main content area. On mobile we keep overflow=hidden at this level
+            so the fixed ColumnTabBar in TaskBoardMobile doesn't get overscrolled
+            past — each inner view (board column / list view) manages its own
+            scrollable region. */}
+        <Box
           flex="1"
           position="relative"
-          overflow={isMobile ? "auto" : "hidden"} // Keep this scrollable on mobile
+          overflow="hidden"
           height={isMobile ? "100%" : "auto"}
           width="100%"
           zIndex={2}
           transition="transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, border-color 0.3s ease"
           display="flex"
           flexDirection="column"
-          pb={isMobile ? "1px" : undefined} // Add extra padding at bottom for mobile
         >
-          {/* Place mobile project selector inside the scrollable area */}
-          {isMobile && (
-            <Box width="100%" pt={2} px={2}>
-              {renderMobileProjectSelector()}
-            </Box>
+          {/* Compact sticky mobile top bar — project name + view switcher. */}
+          {isMobile && projects.length > 0 && (
+            <MobileTopBar
+              variant={allTasksMode ? 'allTasks' : 'project'}
+              projectName={allTasksMode ? undefined : selectedProject?.name}
+              onOpen={projectDrawer.onOpen}
+              allowBoard={!allTasksMode}
+            />
           )}
           
           {allTasksMode ? (
-            <Box flex="1" width="100%" overflow={isMobile ? 'visible' : 'auto'}>
+            <Box flex="1" minH={0} width="100%" overflow={isMobile ? 'hidden' : 'auto'}>
               <AllTasksView
                 isDesktop={!isMobile}
                 sidebarVisible={sidebarVisible}
@@ -694,7 +462,7 @@ const MainLayout = () => {
               />
             </Box>
           ) : selectedProject ? (
-            <Box flex="1" width="100%" overflow={isMobile ? "visible" : "auto"}>
+            <Box flex="1" minH={0} width="100%" overflow={isMobile ? "hidden" : "auto"}>
               <TaskBoardProvider
                 key={selectedProject.id}
                 projectId={selectedProject.id}
@@ -788,6 +556,21 @@ const MainLayout = () => {
         foldersRoot={foldersRoot}
         organizerHatIds={organizerHatIds}
       />
+
+      {/* Mobile project switcher — bottom-sheet drawer. Mounted at the
+          layout root so it survives the all-tasks ↔ project render swap. */}
+      {isMobile && (
+        <ProjectSwitcherDrawer
+          isOpen={projectDrawer.isOpen}
+          onClose={projectDrawer.onClose}
+          projects={projects}
+          selectedProjectId={selectedProject?.id}
+          allTasksMode={allTasksMode}
+          onSelectProject={handleSelectProject}
+          onSelectAllTasks={handleSelectAllTasks}
+          onCreateProject={onProjectModalOpen}
+        />
+      )}
     </DndProvider>
   );
 };

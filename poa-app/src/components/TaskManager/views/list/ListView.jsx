@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Box, Flex, Center, Checkbox, Heading, Text, useBreakpointValue } from '@chakra-ui/react';
+import { Box, Flex, Center, Checkbox, Heading, IconButton, Text, Tooltip, useBreakpointValue } from '@chakra-ui/react';
+import { CheckIcon } from '@chakra-ui/icons';
 import PulseLoader from '@/components/shared/PulseLoader';
 import EmptyState from '@/components/voting/EmptyState';
 import { COLUMN_TITLES } from '@/util/taskUtils';
@@ -101,8 +102,7 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) =>
     } catch {}
   }, []);
 
-  const onToggleHideCompleted = (e) => {
-    const next = e.target.checked;
+  const persistHideCompleted = (next) => {
     setHideCompleted(next);
     try {
       if (typeof window !== 'undefined') {
@@ -166,40 +166,63 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) =>
         p={{ base: 3, md: 4 }}
         minH="200px"
       >
-        {/* Toolbar */}
+        {/* Toolbar — single row on mobile to reclaim vertical space.
+            Desktop keeps the two-section layout with a separator. */}
         <Flex
-          align={{ base: 'stretch', md: 'center' }}
+          align="center"
           justify="space-between"
-          direction={{ base: 'column', md: 'row' }}
-          mb={4}
-          gap={3}
-          pb={3}
+          direction="row"
+          mb={{ base: 2.5, md: 4 }}
+          gap={{ base: 2, md: 3 }}
+          pb={{ base: 2, md: 3 }}
           borderBottom="1px solid"
           borderColor="whiteAlpha.150"
+          wrap={{ base: 'nowrap', md: 'wrap' }}
         >
           <ListControls
             sortId={sortId}
             onSortChange={setSortId}
             groupId={groupId}
             onGroupChange={setGroupId}
+            isMobile={!!isMobile}
           />
-          <Flex align="center" gap={3} px={1}>
-            <Text fontSize="sm" color="whiteAlpha.700">
-              {sortedTasks.length} task{sortedTasks.length !== 1 ? 's' : ''}
-              {hideCompleted && tasks.length !== sortedTasks.length
-                ? ` (${tasks.length - sortedTasks.length} hidden)`
-                : ''}
-            </Text>
-            <Checkbox
-              size="sm"
-              isChecked={hideCompleted}
-              onChange={onToggleHideCompleted}
-              colorScheme="purple"
-              color="whiteAlpha.800"
+          {isMobile ? (
+            <Tooltip
+              label={hideCompleted ? 'Show completed tasks' : 'Hide completed tasks'}
+              placement="top"
             >
-              Hide completed
-            </Checkbox>
-          </Flex>
+              <IconButton
+                size="xs"
+                variant={hideCompleted ? 'solid' : 'outline'}
+                colorScheme="purple"
+                aria-label={hideCompleted ? 'Show completed tasks' : 'Hide completed tasks'}
+                aria-pressed={hideCompleted}
+                icon={<CheckIcon boxSize={3} />}
+                onClick={() => persistHideCompleted(!hideCompleted)}
+                borderColor="whiteAlpha.300"
+                color={hideCompleted ? 'white' : 'whiteAlpha.700'}
+                flexShrink={0}
+              />
+            </Tooltip>
+          ) : (
+            <Flex align="center" gap={3} px={1}>
+              <Text fontSize="sm" color="whiteAlpha.700">
+                {sortedTasks.length} task{sortedTasks.length !== 1 ? 's' : ''}
+                {hideCompleted && tasks.length !== sortedTasks.length
+                  ? ` (${tasks.length - sortedTasks.length} hidden)`
+                  : ''}
+              </Text>
+              <Checkbox
+                size="sm"
+                isChecked={hideCompleted}
+                onChange={(e) => persistHideCompleted(e.target.checked)}
+                colorScheme="purple"
+                color="whiteAlpha.800"
+              >
+                Hide completed
+              </Checkbox>
+            </Flex>
+          )}
         </Flex>
 
         {isLoading ? (

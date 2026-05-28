@@ -1,26 +1,14 @@
-/**
- * useSwipeNavigation
- * Custom hook for handling touch swipe navigation in mobile views
- */
+// Horizontal-swipe navigation for the mobile column carousel.
+// Tap on ColumnTabBar is the primary nav; swipe is the shortcut.
+// SCROLL_TOLERANCE is 45 (not 30) so vertical card drags don't
+// accidentally register as horizontal column swaps.
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 
 const SWIPE_THRESHOLD = 50;
-const SCROLL_TOLERANCE = 30;
+const SCROLL_TOLERANCE = 45;
 
-/**
- * Hook for swipe navigation with improved touch detection
- * @param {Object} options - Configuration options
- * @param {number} options.itemCount - Total number of items to navigate
- * @param {number} options.initialIndex - Initial active index
- * @param {Function} options.onNavigate - Callback when navigation occurs
- * @returns {Object} Swipe navigation handlers and state
- */
-export function useSwipeNavigation({
-  itemCount,
-  initialIndex = 0,
-  onNavigate,
-} = {}) {
+export function useSwipeNavigation({ itemCount, initialIndex = 0, onNavigate } = {}) {
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [isSwiping, setIsSwiping] = useState(false);
 
@@ -28,57 +16,12 @@ export function useSwipeNavigation({
   const touchStartY = useRef(null);
   const containerRef = useRef(null);
 
-  // Track if user has seen the swipe guide
-  const [hasSeenGuide, setHasSeenGuide] = useState(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('hasSeenSwipeGuide') === 'true';
-    }
-    return false;
-  });
-
-  // Initialize guide visibility
-  const [showGuide, setShowGuide] = useState(() => {
-    if (!hasSeenGuide) return true;
-    // 4% chance to show for returning users
-    return Math.floor(Math.random() * 25) === 0;
-  });
-
-  // Auto-hide guide
-  useEffect(() => {
-    if (showGuide) {
-      const timer = setTimeout(() => {
-        setShowGuide(false);
-        if (!hasSeenGuide) {
-          setHasSeenGuide(true);
-          if (typeof window !== 'undefined') {
-            localStorage.setItem('hasSeenSwipeGuide', 'true');
-          }
-        }
-      }, 8500);
-
-      return () => clearTimeout(timer);
-    }
-  }, [showGuide, hasSeenGuide]);
-
-  const dismissGuide = useCallback(() => {
-    if (showGuide) {
-      setShowGuide(false);
-      if (!hasSeenGuide) {
-        setHasSeenGuide(true);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('hasSeenSwipeGuide', 'true');
-        }
-      }
-    }
-  }, [showGuide, hasSeenGuide]);
-
   const navigateTo = useCallback((index) => {
     if (index >= 0 && index < itemCount) {
       setActiveIndex(index);
-      dismissGuide();
       onNavigate?.(index);
     }
-  }, [itemCount, dismissGuide, onNavigate]);
+  }, [itemCount, onNavigate]);
 
   const navigateNext = useCallback(() => {
     if (activeIndex < itemCount - 1) {
@@ -159,13 +102,6 @@ export function useSwipeNavigation({
     activeIndex,
     setActiveIndex: navigateTo,
     containerRef,
-    isSwiping,
-    showGuide,
-    dismissGuide,
-    navigateNext,
-    navigatePrev,
-    canNavigateNext: activeIndex < itemCount - 1,
-    canNavigatePrev: activeIndex > 0,
     touchHandlers: {
       onTouchStart: handleTouchStart,
       onTouchMove: handleTouchMove,
