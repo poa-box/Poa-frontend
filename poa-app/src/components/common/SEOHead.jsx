@@ -32,7 +32,13 @@ export default function SEOHead({
 
   return (
     <Head>
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      {/* viewport-fit=cover lets iOS Safari report a non-zero
+          env(safe-area-inset-bottom); the mobile task board's bottom
+          tab bar + FAB rely on it to clear the home indicator. */}
+      <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1, viewport-fit=cover"
+      />
       <title>{fullTitle}</title>
       <meta name="description" content={truncatedDescription} />
       {keywordsContent && <meta name="keywords" content={keywordsContent} />}
