@@ -231,6 +231,7 @@ export const FETCH_ORG_FULL_DATA = gql`
       }
       eligibilityModule {
         id
+        eligibilityModuleAdminHat
       }
       paymentManager {
         id

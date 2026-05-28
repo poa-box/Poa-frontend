@@ -8,5 +8,23 @@
       { "name": "_hatId", "type": "uint256" }
     ],
     "outputs": [{ "name": "isWearer", "type": "bool" }]
+  },
+  {
+    "type": "function",
+    "name": "getNextId",
+    "stateMutability": "view",
+    "inputs": [{ "name": "_admin", "type": "uint256" }],
+    "outputs": [{ "name": "nextId", "type": "uint256" }]
+  },
+  {
+    "type": "function",
+    "name": "transferHat",
+    "stateMutability": "nonpayable",
+    "inputs": [
+      { "name": "_hatId", "type": "uint256" },
+      { "name": "_from", "type": "address" },
+      { "name": "_to", "type": "address" }
+    ],
+    "outputs": []
   }
 ]

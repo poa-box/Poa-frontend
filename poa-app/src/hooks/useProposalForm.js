@@ -20,6 +20,11 @@ import {
   TITLE_PREFIX as ELECTION_TITLE_PREFIX,
   DESCRIPTION_PREFIX as ELECTION_DESCRIPTION_PREFIX,
 } from '@/components/voting/ElectionConfigurator';
+import {
+  TITLE_PREFIX as CREATE_ROLE_TITLE_PREFIX,
+  DESCRIPTION_PREFIX as CREATE_ROLE_DESCRIPTION_PREFIX,
+  defaultRoleConfig,
+} from '@/components/voting/RoleConfigurator';
 
 const defaultProposal = {
   name: "",
@@ -48,6 +53,13 @@ const defaultProposal = {
   setterFunction: "",     // Function name (e.g., "setConfig")
   setterValues: {},       // Template input values
   setterParams: [],       // Raw function parameters (for advanced mode)
+  // Create-role fields — bundle that builds a multi-call batch:
+  //   1. EligibilityModule.createHatWithEligibility(...)
+  //   2. EligibilityModule.configureVouching(predictedHatId, ...)   (if vouching)
+  //   3. HybridVoting.setCreatorHatAllowed(predictedHatId, true)    (if canVote)
+  //   4. TaskManager.setProjectRolePerm(pid, predictedHatId, mask)  (per project)
+  // Hat ID is pre-computed via Hats.getNextId at submit time.
+  roleConfig: { ...defaultRoleConfig },
   id: 0,
 };
 
@@ -84,16 +96,22 @@ export function useProposalForm({ onSubmit }) {
 
   const handleProposalTypeChange = useCallback((e) => {
     const newType = e.target.value;
-    // Election + setter use hybrid voting, which doesn't support hat-restricted voting.
-    // Clear restriction state on switch in so a stale toggle doesn't leak into submit.
-    const isHybrid = newType === 'election' || newType === 'setter';
+    // election + setter + createRole all use hybrid voting, which doesn't
+    // support hat-restricted voting. Clear restriction state on switch in
+    // so a stale toggle doesn't leak into submit.
+    const isHybrid = newType === 'election' || newType === 'setter' || newType === 'createRole';
     setProposal(prev => {
-      // When switching away from election, drop auto-generated title/description
-      // (matches the sentinel-prefix convention in ElectionConfigurator). Preserve
-      // anything the user typed themselves.
+      // When switching away from election/createRole, drop auto-generated
+      // title/description (matches the sentinel-prefix convention each
+      // configurator owns). Preserve anything the user typed themselves.
       const leavingElection = prev.type === 'election' && newType !== 'election';
-      const clearedName = leavingElection && prev.name?.startsWith(ELECTION_TITLE_PREFIX) ? '' : prev.name;
-      const clearedDescription = leavingElection && prev.description?.startsWith(ELECTION_DESCRIPTION_PREFIX) ? '' : prev.description;
+      const leavingCreateRole = prev.type === 'createRole' && newType !== 'createRole';
+      let clearedName = prev.name;
+      let clearedDescription = prev.description;
+      if (leavingElection && clearedName?.startsWith(ELECTION_TITLE_PREFIX)) clearedName = '';
+      if (leavingElection && clearedDescription?.startsWith(ELECTION_DESCRIPTION_PREFIX)) clearedDescription = '';
+      if (leavingCreateRole && clearedName?.startsWith(CREATE_ROLE_TITLE_PREFIX)) clearedName = '';
+      if (leavingCreateRole && clearedDescription?.startsWith(CREATE_ROLE_DESCRIPTION_PREFIX)) clearedDescription = '';
 
       return {
         ...prev,
@@ -113,6 +131,9 @@ export function useProposalForm({ onSubmit }) {
           electionFallbackRoleId: '',
           electionFallbackHolders: [],
           electionIncludeNoOneOption: false,
+        } : {}),
+        ...(newType !== 'createRole' ? {
+          roleConfig: { ...defaultRoleConfig },
         } : {}),
       };
     });
@@ -290,6 +311,62 @@ export function useProposalForm({ onSubmit }) {
     return true;
   }, [proposal.options, toast]);
 
+  const validateCreateRoleProposal = useCallback(() => {
+    const rc = proposal.roleConfig || {};
+    const fail = (title, description) => {
+      toast({ title, description, status: 'error', duration: 5000, isClosable: true });
+      return false;
+    };
+
+    if (!rc.parentHatId || String(rc.parentHatId).trim() === '') {
+      return fail('No Parent Role Selected', 'Pick which role this new role should sit under.');
+    }
+    if (!rc.name || rc.name.trim() === '') {
+      return fail('Missing Role Name', 'Give the new role a name.');
+    }
+    const maxSupply = Number(rc.maxSupply);
+    if (!Number.isFinite(maxSupply) || maxSupply < 1 || maxSupply > 4294967295) {
+      return fail('Invalid Max Supply', 'Max supply must be between 1 and 4,294,967,295.');
+    }
+
+    if (rc.vouching?.enabled) {
+      const quorum = Number(rc.vouching.quorum);
+      if (!Number.isFinite(quorum) || quorum < 1) {
+        return fail('Invalid Vouching Quorum', 'Vouching quorum must be at least 1.');
+      }
+      if (!rc.vouching.selfVouch && (!rc.vouching.voucherHatId || String(rc.vouching.voucherHatId).trim() === '')) {
+        return fail('Missing Voucher Role', 'Pick the role whose members can vouch, or toggle on self-vouching.');
+      }
+    }
+
+    const wearers = rc.initialWearers || [];
+    const seen = new Set();
+    for (const w of wearers) {
+      if (!w.address || !utils.isAddress(w.address)) {
+        return fail('Invalid Wearer Address', `"${w.name || 'Unnamed'}" has an invalid address.`);
+      }
+      const key = w.address.toLowerCase();
+      if (seen.has(key)) {
+        return fail('Duplicate Wearer', `Address ${w.address.slice(0, 6)}…${w.address.slice(-4)} is listed twice.`);
+      }
+      seen.add(key);
+    }
+
+    const projectPerms = rc.projectPerms || [];
+    const seenProjects = new Set();
+    for (const p of projectPerms) {
+      if (!p.projectId) {
+        return fail('Missing Project', 'Pick a project for each project-permission row, or remove the row.');
+      }
+      if (seenProjects.has(p.projectId)) {
+        return fail('Duplicate Project Permission', 'Each project can only appear once in the permissions list.');
+      }
+      seenProjects.add(p.projectId);
+    }
+
+    return true;
+  }, [proposal.roleConfig, toast]);
+
   const validateSetterProposal = useCallback(() => {
     if (proposal.setterMode === 'template') {
       if (!proposal.setterTemplate) {
@@ -464,7 +541,7 @@ export function useProposalForm({ onSubmit }) {
     return true;
   }, [proposal.setterMode, proposal.setterTemplate, proposal.setterContract, proposal.setterFunction, proposal.setterValues, proposal.setterParams, toast]);
 
-  const buildProposalData = useCallback((eligibilityModuleAddress, contractAddresses, freshHoldersOverride = null, hatsProtocolAddress = null) => {
+  const buildProposalData = useCallback((eligibilityModuleAddress, contractAddresses, freshHoldersOverride = null, hatsProtocolAddress = null, predictedRoleHatId = null) => {
     let numOptions;
     let batches = [];
     let optionNames = [];
@@ -664,6 +741,127 @@ export function useProposalForm({ onSubmit }) {
         batches.push([]);
         numOptions = optionNames.length;
       }
+    } else if (proposal.type === "createRole") {
+      // Create-role proposal — a single winning batch that calls:
+      //   1. EligibilityModule.createHatWithEligibility(params)
+      //   2. EligibilityModule.configureVouching(predictedHatId, ...)   (optional)
+      //   3. HybridVoting.setCreatorHatAllowed(predictedHatId, true)    (optional)
+      //   4. TaskManager.setProjectRolePerm(pid, predictedHatId, mask)  (per project)
+      //
+      // predictedRoleHatId is pre-computed in handleSubmit via Hats.getNextId.
+      // Race condition: a sibling hat created under the same parent between
+      // submit and execution shifts the real id; downstream calls then point
+      // at the wrong hat. The configurator surfaces a warning when another
+      // active createRole proposal targets the same parent.
+      const rc = proposal.roleConfig || {};
+      const wearers = rc.initialWearers || [];
+      const projectPerms = rc.projectPerms || [];
+
+      const hatParams = [
+        rc.parentHatId,
+        rc.name || '',
+        Number(rc.maxSupply) || 1,
+        Boolean(rc.mutable),
+        rc.imageURI || '',
+        Boolean(rc.defaultEligible),
+        Boolean(rc.defaultStanding),
+        wearers.map(w => w.address),
+        wearers.map(w => Boolean(w.eligible ?? rc.defaultEligible)),
+        wearers.map(w => Boolean(w.standing ?? rc.defaultStanding)),
+      ];
+
+      const elIface = new utils.Interface([
+        {
+          type: 'function',
+          name: 'createHatWithEligibility',
+          stateMutability: 'nonpayable',
+          inputs: [{
+            name: 'params',
+            type: 'tuple',
+            components: [
+              { name: 'parentHatId', type: 'uint256' },
+              { name: 'details', type: 'string' },
+              { name: 'maxSupply', type: 'uint32' },
+              { name: '_mutable', type: 'bool' },
+              { name: 'imageURI', type: 'string' },
+              { name: 'defaultEligible', type: 'bool' },
+              { name: 'defaultStanding', type: 'bool' },
+              { name: 'mintToAddresses', type: 'address[]' },
+              { name: 'wearerEligibleFlags', type: 'bool[]' },
+              { name: 'wearerStandingFlags', type: 'bool[]' },
+            ],
+          }],
+          outputs: [{ name: 'newHatId', type: 'uint256' }],
+        },
+        'function configureVouching(uint256 hatId, uint32 quorum, uint256 membershipHatId, bool combineWithHierarchy)',
+      ]);
+
+      const hvIface = new utils.Interface([
+        'function setCreatorHatAllowed(uint256 h, bool ok)',
+      ]);
+
+      const tmIface = new utils.Interface([
+        'function setProjectRolePerm(bytes32 pid, uint256 hatId, uint8 mask)',
+      ]);
+
+      const batch = [];
+
+      // 1. Create the hat
+      batch.push({
+        target: eligibilityModuleAddress,
+        value: '0',
+        data: elIface.encodeFunctionData('createHatWithEligibility', [hatParams]),
+      });
+
+      // 2. Vouching config (downstream calls need the predicted hatId)
+      if (rc.vouching?.enabled && predictedRoleHatId) {
+        const voucherHatId = rc.vouching.selfVouch ? predictedRoleHatId : rc.vouching.voucherHatId;
+        batch.push({
+          target: eligibilityModuleAddress,
+          value: '0',
+          data: elIface.encodeFunctionData('configureVouching', [
+            predictedRoleHatId,
+            Number(rc.vouching.quorum) || 1,
+            voucherHatId,
+            Boolean(rc.vouching.combineWithHierarchy),
+          ]),
+        });
+      }
+
+      // 3. Proposal-creator permission on HybridVoting
+      if (rc.canVote && predictedRoleHatId) {
+        const hybridAddr = contractAddresses?.votingContractAddress
+          || contractAddresses?.hybridVotingContractAddress;
+        if (hybridAddr) {
+          batch.push({
+            target: hybridAddr,
+            value: '0',
+            data: hvIface.encodeFunctionData('setCreatorHatAllowed', [predictedRoleHatId, true]),
+          });
+        }
+      }
+
+      // 4. Project permissions
+      if (projectPerms.length > 0 && predictedRoleHatId) {
+        const taskManagerAddr = contractAddresses?.taskManagerContractAddress;
+        if (taskManagerAddr) {
+          for (const p of projectPerms) {
+            batch.push({
+              target: taskManagerAddr,
+              value: '0',
+              data: tmIface.encodeFunctionData('setProjectRolePerm', [
+                p.projectId,
+                predictedRoleHatId,
+                Number(p.mask) || 0,
+              ]),
+            });
+          }
+        }
+      }
+
+      batches = [batch, []];   // Yes wins: create + configure. No wins: nothing.
+      numOptions = 2;
+      optionNames = ['Create role', 'Reject'];
     } else if (proposal.type === "setter") {
       // Setter proposal - call contract setter function(s)
       let setterCalls = [];
@@ -803,6 +1001,11 @@ export function useProposalForm({ onSubmit }) {
         return;
       }
 
+      if (proposal.type === "createRole" && !validateCreateRoleProposal()) {
+        setLoadingSubmit(false);
+        return;
+      }
+
       if (proposal.type === "normal" && !validateNormalProposal()) {
         setLoadingSubmit(false);
         return;
@@ -871,11 +1074,57 @@ export function useProposalForm({ onSubmit }) {
       }
 
       const hatsProtocolAddress = getInfrastructureAddress(CONTRACT_NAMES.HATS_PROTOCOL, orgChainId) || null;
+
+      // Pre-compute the new role's hat ID via Hats.getNextId(parent). This
+      // lets the same batch chain configureVouching / setCreatorHatAllowed /
+      // setProjectRolePerm against the new role. The id is deterministic
+      // (parent || childIndex bit-packing), so as long as no sibling hat is
+      // created under the same parent between submit and execution, the
+      // prediction is accurate. The configurator warns when a concurrent
+      // createRole proposal targets the same parent.
+      let predictedRoleHatId = null;
+      if (proposal.type === 'createRole') {
+        const parentHatId = proposal.roleConfig?.parentHatId;
+        if (hatsProtocolAddress && orgNetwork?.rpcUrl && orgChainId && parentHatId) {
+          try {
+            const readProvider = new ethersProviders.JsonRpcProvider(
+              orgNetwork.rpcUrl,
+              { chainId: orgChainId, name: orgNetwork.name || `chain-${orgChainId}` }
+            );
+            const hats = createHatsService(readProvider);
+            const nextId = await hats.getNextId(hatsProtocolAddress, parentHatId);
+            predictedRoleHatId = nextId.toString();
+          } catch (err) {
+            console.error('[useProposalForm] Hats.getNextId failed:', err);
+            toast({
+              title: "Cannot predict new role's hat ID",
+              description: "Could not read Hats Protocol to pre-compute the new role's ID. Please try again.",
+              status: "error",
+              duration: 5000,
+              isClosable: true,
+            });
+            setLoadingSubmit(false);
+            return;
+          }
+        } else {
+          toast({
+            title: "Missing infrastructure config",
+            description: "Hats Protocol address or RPC is not configured for this chain.",
+            status: "error",
+            duration: 5000,
+            isClosable: true,
+          });
+          setLoadingSubmit(false);
+          return;
+        }
+      }
+
       const { numOptions, batches, optionNames } = buildProposalData(
         eligibilityModuleAddress,
         contractAddresses,
         freshHoldersOverride,
         hatsProtocolAddress,
+        predictedRoleHatId,
       );
 
       // Form collects hours; contract ABI expects minutes (uint32 minutesDuration).
@@ -926,6 +1175,9 @@ export function useProposalForm({ onSubmit }) {
         // Setter proposal fields
         setterContract: proposal.setterContract,
         setterTemplate: proposal.setterTemplate,
+        // Create-role proposal fields
+        roleConfig: proposal.roleConfig,
+        predictedRoleHatId,
         // Voting restrictions
         hatIds: proposal.isRestricted ? proposal.restrictedHatIds : [],
       });
@@ -942,6 +1194,9 @@ export function useProposalForm({ onSubmit }) {
         const template = getTemplateById(proposal.setterTemplate);
         const actionName = template?.name || proposal.setterFunction || 'settings change';
         successDescription = `Settings change proposal created. If approved, "${actionName}" will be executed automatically.`;
+      } else if (proposal.type === "createRole") {
+        const wearerCount = (proposal.roleConfig?.initialWearers || []).length;
+        successDescription = `Create-role proposal submitted for "${proposal.roleConfig?.name || 'new role'}". If approved, the role will be created${wearerCount ? ` and minted to ${wearerCount} member(s)` : ''}.`;
       } else {
         successDescription = "Your proposal has been created successfully.";
       }
@@ -967,7 +1222,7 @@ export function useProposalForm({ onSubmit }) {
       setLoadingSubmit(false);
       return false;
     }
-  }, [proposal, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, buildProposalData, onSubmit, resetForm, toast, orgChainId, orgNetwork, nativeCurrencySymbol]);
+  }, [proposal, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, validateCreateRoleProposal, buildProposalData, onSubmit, resetForm, toast, orgChainId, orgNetwork, nativeCurrencySymbol]);
 
   return {
     proposal,
