@@ -49,12 +49,73 @@ import { createPimlicoClient } from "permissionless/clients/pimlico";
 import PasskeyAccountABI from "../../../abi/PasskeyAccount.json";
 import PasskeyAccountFactoryABI from "../../../abi/PasskeyAccountFactory.json";
 import UniversalAccountRegistryABI from "../../../abi/UniversalAccountRegistry.json";
+import OrgDeployerNewABI from "../../../abi/OrgDeployerNew.json";
+import { DeploymentPreviewModal } from "@/features/deployer/components/DeploymentPreviewModal";
 import { buildUserOp, getUserOpHash } from "@/services/web3/passkey/userOpBuilder";
 import { signUserOpWithPasskey } from "@/services/web3/passkey/passkeySign";
 import { encodeOrgDeployPaymasterData } from "@/services/web3/passkey/paymasterData";
 import { getBundlerUrl, ENTRY_POINT_ADDRESS } from "@/config/passkey";
 import { DEFAULT_DEPLOY_CHAIN_ID, getNetworkByChainId, getSubgraphUrl } from "@/config/networks";
 import { FETCH_PASSKEY_FACTORY_ADDRESS } from "@/util/passkeyQueries";
+
+/**
+ * Read-only simulation of deployFullOrg against the deploy chain. Returns the
+ * decoded DeploymentResult (predicted module addresses) on success, or throws a
+ * friendly error if the call reverts. NO transaction is sent. This is also the
+ * behavioral version gate: a pre-`taskManagerPerms` (21-field) OrgDeployer will
+ * revert when decoding the 22-field tuple.
+ */
+// Friendlier guidance for reverts surfaced by the sim. Keyed by OrgDeployer ABI
+// error NAME (decodable via iface.parseError) and, for sub-contract errors whose
+// fragments aren't in this ABI (TaskManager/Hats setup), by raw 4-byte SELECTOR.
+const SIM_FRIENDLY_ERRORS = {
+  OrgExistsMismatch: 'this organization name is already taken on-chain — choose another name',
+  InvalidRoleConfiguration: 'a role is misconfigured (check hierarchy and vouching)',
+  InvalidAddress: 'an address field is zero or invalid',
+};
+const SIM_FRIENDLY_SELECTORS = {
+  '0xe3813bd4': 'a bootstrap task has no payout — set a payout greater than 0', // TaskManager InvalidPayout()
+};
+
+async function simulateDeployCalldata({ rpcUrl, to, from, calldata, valueWei }) {
+  const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
+  const iface = new ethers.utils.Interface(OrgDeployerNewABI);
+  const tx = { to, from, data: calldata };
+  if (valueWei && valueWei.gt && valueWei.gt(0)) tx.value = valueWei.toHexString();
+
+  const fail = (detail) => new Error(
+    `The deploy reverted in simulation (${detail}). Nothing was sent. ` +
+    `Fix the flagged configuration — or, if this network's OrgDeployer predates task permissions, it must be upgraded first.`
+  );
+  // Resolve revert bytes to a friendly reason: try the ABI error name, then the
+  // raw selector for known sub-contract errors. Returns null if unrecognizable.
+  const friendlyFromData = (data) => {
+    if (typeof data !== 'string' || !data.startsWith('0x') || data.length < 10) return null;
+    try { const name = iface.parseError(data).name; return SIM_FRIENDLY_ERRORS[name] || name; } catch { /* not an OrgDeployer error */ }
+    return SIM_FRIENDLY_SELECTORS[data.slice(0, 10).toLowerCase()] || `error ${data.slice(0, 10)}`;
+  };
+
+  let raw;
+  try {
+    raw = await provider.call(tx);
+  } catch (err) {
+    // Some providers THROW on revert and nest the error bytes in the payload.
+    const data = err?.error?.data?.data || err?.error?.data || err?.data?.data || err?.data;
+    const reason = friendlyFromData(typeof data === 'string' ? data : undefined) || err?.reason || err?.message || 'unknown error';
+    throw fail(reason);
+  }
+
+  // Many RPCs (e.g. Gnosis) return revert bytes as the call RESULT without throwing.
+  // A successful deployFullOrg returns a 9-address DeploymentResult; if it doesn't
+  // decode, treat the return as a revert (decode the custom error if possible).
+  try {
+    const [result] = iface.decodeFunctionResult('deployFullOrg', raw);
+    return result; // success → predicted module addresses
+  } catch {
+    const reason = (raw && raw !== '0x') ? friendlyFromData(raw) : 'empty return / no contract at address';
+    throw fail(reason || 'unknown revert');
+  }
+}
 
 /**
  * Inner component that has access to DeployerContext
@@ -155,6 +216,11 @@ function DeployerPageContent() {
   const [isLogoModalOpen, setIsLogoModalOpen] = useState(false);
   const [isLinksModalOpen, setIsLinksModalOpen] = useState(false);
   const [isDeploying, setIsDeploying] = useState(false);
+
+  // Preview-and-confirm modal: holds the simulated deployment data; its
+  // resolver is fulfilled (true=confirm, false=cancel) by the modal buttons.
+  const [previewData, setPreviewData] = useState(null);
+  const deployResolverRef = useRef(null);
 
   // Responsive values
   const exitButtonTop = useBreakpointValue({ base: "8px", lg: "8px", xl: "12px" });
@@ -289,10 +355,39 @@ function DeployerPageContent() {
         })
       );
 
+      // Upload bootstrap project/task descriptions to IPFS (-> metadataHash bytes32),
+      // mirroring the role-metadata flow above. Titles are stored on-chain as bytes.
+      const HASH_ZERO = '0x' + '0'.repeat(64);
+      const uploadBootstrapDesc = async (desc, label) => {
+        if (!desc || !desc.trim()) return HASH_ZERO;
+        try {
+          const result = await addToIpfs(JSON.stringify({ description: desc }));
+          return ipfsCidToBytes32(result.path);
+        } catch (err) {
+          console.error(`[DEPLOY] Bootstrap metadata upload failed for ${label}:`, err);
+          return HASH_ZERO;
+        }
+      };
+      const bootstrapWithMetadata = {
+        projects: await Promise.all(
+          (state.bootstrap?.projects || []).map(async (p, i) => ({
+            ...p,
+            metadataHash: await uploadBootstrapDesc(p.description, `project ${i + 1}`),
+          }))
+        ),
+        tasks: await Promise.all(
+          (state.bootstrap?.tasks || []).map(async (t, i) => ({
+            ...t,
+            metadataHash: await uploadBootstrapDesc(t.description, `task ${i + 1}`),
+          }))
+        ),
+      };
+
       // Get deployment params with resolved addresses and metadata
       const stateWithResolvedRoles = {
         ...state,
         roles: rolesWithMetadata,
+        bootstrap: bootstrapWithMetadata,
       };
 
       console.log('=== DEPLOYMENT DEBUG ===');
@@ -442,30 +537,102 @@ function DeployerPageContent() {
       const paymasterConfig = mapPaymasterConfig(state.paymaster);
       const paymasterFundingWei = getPaymasterFundingValue(state.paymaster);
 
+      // === Pre-flight simulation + preview-and-confirm gate ===
+      // Build the exact deployFullOrg calldata both send paths use, simulate it
+      // read-only (no tx sent), then show the user the decoded config + predicted
+      // module addresses. The real send only runs after they confirm.
+      // NOTE: this simulates the deployFullOrg call itself (the part that exercises
+      // the 22-field tuple + all new config). For the passkey path it does NOT
+      // simulate the ERC-4337 wrapper (executeBatch/registerAccount/initCode/
+      // paymaster) — those are validated by the bundler at send time.
+      const simDeployerAddress = isPasskeyDeployer
+        ? passkeyState.accountAddress
+        : await deploySigner.getAddress();
+
+      const deployCalldataArgs = {
+        memberTypeNames: membershipTypeNames,
+        executivePermissionNames: executiveRoleNames,
+        POname: state.organization.name,
+        quadraticVotingEnabled: hasQuadratic,
+        democracyVoteWeight: 50,
+        participationVoteWeight: 50,
+        hybridVotingEnabled,
+        participationVotingEnabled: !hybridVotingEnabled,
+        electionEnabled: state.features.electionHubEnabled,
+        educationHubEnabled: state.features.educationHubEnabled,
+        infoIPFSHash,
+        quorumPercentageDD: state.voting.ddQuorum,
+        quorumPercentagePV: state.voting.hybridQuorum,
+        username: deployerUsername,
+        deployerAddress: simDeployerAddress,
+        customRoles,
+        infrastructureAddresses,
+        regSignatureData,
+        paymasterConfig,
+        metadataAdminRoleIndex: state.metadataAdminRoleIndex,
+        // New deploy-time config (built by mapStateToDeploymentParams above).
+        taskManagerPerms: deployParams.taskManagerPerms,
+        ddInitialTargets: deployParams.ddInitialTargets,
+        bootstrap: deployParams.bootstrap,
+      };
+      const { calldata: deployCalldata, orgDeployerAddress: deployContractAddress } =
+        buildDeployCalldata(deployCalldataArgs);
+
+      // Read-only simulation against the deploy chain (also the behavioral version
+      // gate — a pre-taskManagerPerms OrgDeployer reverts decoding the 22-field tuple).
+      const simRpcUrl = getNetworkByChainId(targetChainId)?.rpcUrl;
+      let predictedResult = null;
+      try {
+        predictedResult = await simulateDeployCalldata({
+          rpcUrl: simRpcUrl,
+          to: deployContractAddress,
+          from: simDeployerAddress,
+          calldata: deployCalldata,
+          valueWei: paymasterFundingWei,
+        });
+        console.log('[DEPLOY] Simulation succeeded. Predicted modules:', predictedResult);
+      } catch (simErr) {
+        console.error('[DEPLOY] Pre-flight simulation reverted:', simErr);
+        toast({
+          title: 'Simulation failed — nothing deployed',
+          description: simErr.message,
+          status: 'error',
+          duration: 14000,
+          isClosable: true,
+        });
+        setIsDeploying(false);
+        throw simErr;
+      }
+
+      // Show the preview modal and wait for the user's decision.
+      const confirmed = await new Promise((resolve) => {
+        deployResolverRef.current = resolve;
+        setPreviewData({
+          orgName: state.organization.name,
+          isPasskey: isPasskeyDeployer,
+          deployerAddress: simDeployerAddress,
+          networkName: getNetworkByChainId(targetChainId)?.name || `Chain ${targetChainId}`,
+          fundingEth: paymasterFundingWei && paymasterFundingWei.gt(0)
+            ? ethers.utils.formatEther(paymasterFundingWei)
+            : '0',
+          params: deployParams,
+          predicted: predictedResult,
+        });
+      });
+      setPreviewData(null);
+      deployResolverRef.current = null;
+
+      if (!confirmed) {
+        console.log('[DEPLOY] User cancelled at preview — nothing sent.');
+        setIsDeploying(false);
+        return { success: false, cancelled: true };
+      }
+
       if (isPasskeyDeployer) {
         // === PASSKEY DEPLOYMENT via ERC-4337 UserOp ===
-        const { calldata, orgDeployerAddress } = buildDeployCalldata({
-          memberTypeNames: membershipTypeNames,
-          executivePermissionNames: executiveRoleNames,
-          POname: state.organization.name,
-          quadraticVotingEnabled: hasQuadratic,
-          democracyVoteWeight: 50,
-          participationVoteWeight: 50,
-          hybridVotingEnabled,
-          participationVotingEnabled: !hybridVotingEnabled,
-          electionEnabled: state.features.electionHubEnabled,
-          educationHubEnabled: state.features.educationHubEnabled,
-          infoIPFSHash,
-          quorumPercentageDD: state.voting.ddQuorum,
-          quorumPercentagePV: state.voting.hybridQuorum,
-          username: deployerUsername,
-          deployerAddress: passkeyState.accountAddress,
-          customRoles,
-          infrastructureAddresses,
-          regSignatureData,
-          paymasterConfig,
-          metadataAdminRoleIndex: state.metadataAdminRoleIndex,
-        });
+        // Reuse the exact calldata that was just simulated.
+        const calldata = deployCalldata;
+        const orgDeployerAddress = deployContractAddress;
 
         const fundingBigInt = paymasterFundingWei.gt(0) ? BigInt(paymasterFundingWei.toString()) : 0n;
 
@@ -716,7 +883,11 @@ function DeployerPageContent() {
           undefined, // overrideDeployerAddress
           paymasterConfig,
           paymasterFundingWei,
-          state.metadataAdminRoleIndex
+          state.metadataAdminRoleIndex,
+          // New deploy-time config (built by mapStateToDeploymentParams above).
+          deployParams.taskManagerPerms,
+          deployParams.ddInitialTargets,
+          deployParams.bootstrap
         );
       }
 
@@ -844,6 +1015,13 @@ function DeployerPageContent() {
         isOpen={isLinksModalOpen}
         onSave={handleSaveLinks}
         onClose={() => setIsLinksModalOpen(false)}
+      />
+
+      {/* Pre-flight preview + confirm (simulated, before any tx is sent) */}
+      <DeploymentPreviewModal
+        data={previewData}
+        onConfirm={() => deployResolverRef.current && deployResolverRef.current(true)}
+        onCancel={() => deployResolverRef.current && deployResolverRef.current(false)}
       />
 
       {/* Exit Confirmation Modal */}

@@ -19,6 +19,11 @@ import {
   HStack,
   useToast,
   useBreakpointValue,
+  Accordion,
+  AccordionItem,
+  AccordionButton,
+  AccordionPanel,
+  AccordionIcon,
 } from '@chakra-ui/react';
 import { useDeployer } from '../context/DeployerContext';
 import { StepHeader, NavigationButtons } from '../components/common';
@@ -26,6 +31,7 @@ import { RoleCardSimple } from '../components/role/RoleCardSimple';
 import { RoleCardAdvanced } from '../components/role/RoleCardAdvanced';
 import { TeamPreview } from '../components/role/TeamPreview';
 import { QuickAddRole } from '../components/role/QuickAddRole';
+import { TaskManagerPermsMatrix } from '../components/permissions/TaskManagerPermsMatrix';
 import { toggleBundleForRole } from '../utils/powerBundles';
 
 export function TeamStep() {
@@ -178,6 +184,24 @@ export function TeamStep() {
 
             {/* Quick Add Role */}
             <QuickAddRole onAdd={handleAddRole} />
+
+            {/* Org-wide task permissions (optional, collapsed by default) */}
+            <Accordion allowToggle borderColor="warmGray.100">
+              <AccordionItem border="1px solid" borderColor="warmGray.100" borderRadius="xl" overflow="hidden">
+                <AccordionButton _hover={{ bg: 'warmGray.50' }} py={3}>
+                  <Box flex="1" textAlign="left">
+                    <Text fontWeight="semibold" fontSize="sm">Org-wide task permissions</Text>
+                    <Text fontSize="xs" color="warmGray.500">
+                      Optional — grant roles extra TaskManager rights (claim, review, assign, budget, edit) across every project.
+                    </Text>
+                  </Box>
+                  <AccordionIcon />
+                </AccordionButton>
+                <AccordionPanel pb={4}>
+                  <TaskManagerPermsMatrix />
+                </AccordionPanel>
+              </AccordionItem>
+            </Accordion>
 
             {/* Mobile Summary (when sidebar is hidden) */}
             {!showSidebar && roles.length > 0 && (

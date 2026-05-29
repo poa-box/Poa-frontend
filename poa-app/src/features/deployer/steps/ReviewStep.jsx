@@ -55,6 +55,7 @@ import {
   PiSparkle,
   PiInfo,
   PiGasPump,
+  PiListChecks,
 } from 'react-icons/pi';
 import SignInModal from '../../../components/passkey/SignInModal';
 import PasskeyOnboardingModal from '../../../components/passkey/PasskeyOnboardingModal';
@@ -66,6 +67,19 @@ import NavigationButtons from '../components/common/NavigationButtons';
 import { roleHasBundle } from '../utils/powerBundles';
 import { DeployerUsernameSection } from '../components/review/DeployerUsernameSection';
 import { getNetworkByChainId, DEFAULT_DEPLOY_CHAIN_ID } from '../../../config/networks';
+import { TaskPermission, hasPermission } from '@/util/permissions';
+
+// TaskPerm bits surfaced in the review summary. CREATE is omitted — it is granted
+// to every role by default at deploy (see TaskManagerPermsMatrix / buildTaskManagerPerms).
+const TASK_PERM_REVIEW = [
+  { bit: TaskPermission.CLAIM, label: 'Claim' },
+  { bit: TaskPermission.REVIEW, label: 'Review' },
+  { bit: TaskPermission.ASSIGN, label: 'Assign' },
+  { bit: TaskPermission.SELF_REVIEW, label: 'Self-Review' },
+  { bit: TaskPermission.BUDGET, label: 'Budget' },
+  { bit: TaskPermission.EDIT_META, label: 'Edit Meta' },
+  { bit: TaskPermission.EDIT_FULL, label: 'Edit Full' },
+];
 
 // Animations
 const pulseGlow = keyframes`
@@ -1322,6 +1336,70 @@ export function ReviewStep({
           )}
         </ReviewSectionCard>
 
+        {/* Org-wide Task Permissions (only shown when grants exist) */}
+        {Object.keys(state.taskManagerPerms || {}).length > 0 && (
+          <ReviewSectionCard
+            title="Task Permissions"
+            stepIndex={STEPS.TEAM}
+            icon={PiGear}
+            status="valid"
+            goToStep={goToStep}
+          >
+            <VStack align="stretch" spacing={3}>
+              <Text fontSize="xs" color="warmGray.500">
+                Org-wide TaskManager rights granted at deploy. Every role can create tasks by default.
+              </Text>
+              {Object.entries(state.taskManagerPerms).map(([roleIdx, mask]) => {
+                const role = state.roles[Number(roleIdx)];
+                const grants = TASK_PERM_REVIEW.filter((p) => hasPermission(mask, p.bit));
+                if (!grants.length) return null;
+                return (
+                  <HStack key={roleIdx} align="start" spacing={2} flexWrap="wrap">
+                    <Text fontSize="sm" fontWeight="600" color="warmGray.700" minW="90px">
+                      {role?.name || `Role ${roleIdx}`}:
+                    </Text>
+                    <HStack flexWrap="wrap" spacing={1}>
+                      {grants.map((g) => (
+                        <Badge key={g.label} colorScheme="purple" borderRadius="full" px={2}>
+                          {g.label}
+                        </Badge>
+                      ))}
+                    </HStack>
+                  </HStack>
+                );
+              })}
+            </VStack>
+          </ReviewSectionCard>
+        )}
+
+        {/* Initial Work (bootstrap projects/tasks) — only when configured */}
+        {((state.bootstrap?.projects || []).length > 0 || (state.bootstrap?.tasks || []).length > 0) && (
+          <ReviewSectionCard
+            title="Initial Work"
+            stepIndex={STEPS.SETTINGS}
+            icon={PiListChecks}
+            status="valid"
+            goToStep={goToStep}
+          >
+            <VStack align="stretch" spacing={2}>
+              <Text fontSize="sm" color="warmGray.600">
+                {(state.bootstrap.projects || []).length} project{(state.bootstrap.projects || []).length !== 1 ? 's' : ''} and{' '}
+                {(state.bootstrap.tasks || []).length} task{(state.bootstrap.tasks || []).length !== 1 ? 's' : ''} created at deploy.
+              </Text>
+              {(state.bootstrap.projects || []).map((p, i) => (
+                <Text key={`p-${i}`} fontSize="xs" color="warmGray.500">
+                  • Project: {p.title?.trim() || `Project ${i + 1}`}
+                </Text>
+              ))}
+              {(state.bootstrap.tasks || []).map((t, i) => (
+                <Text key={`t-${i}`} fontSize="xs" color="warmGray.500">
+                  • Task: {t.title?.trim() || `Task ${i + 1}`}
+                </Text>
+              ))}
+            </VStack>
+          </ReviewSectionCard>
+        )}
+
         {/* Features Section */}
         <ReviewSectionCard
           title="Settings & Features"
@@ -1345,6 +1423,16 @@ export function ReviewStep({
                   : 'Governance Only'}
               </Badge>
             </HStack>
+
+            {/* Direct Democracy targets */}
+            {(state.ddInitialTargets || []).filter(Boolean).length > 0 && (
+              <HStack spacing={2} align="start">
+                <Text fontSize="sm" fontWeight="600" color="warmGray.700">DD Targets:</Text>
+                <Badge bg="amethyst.100" color="amethyst.700" borderRadius="full" px={3}>
+                  {state.ddInitialTargets.filter(Boolean).length} contract{state.ddInitialTargets.filter(Boolean).length !== 1 ? 's' : ''} whitelisted
+                </Badge>
+              </HStack>
+            )}
 
             {/* Feature Toggles */}
             <Flex gap={4} flexWrap="wrap">

@@ -100,7 +100,10 @@ export async function main(
     overrideDeployerAddress = null,
     paymasterConfig = null,
     paymasterFundingWei = null,
-    metadataAdminRoleIndex = null
+    metadataAdminRoleIndex = null,
+    taskManagerPerms = null,
+    ddInitialTargets = null,
+    bootstrap = null
   ) {
     // Validate infrastructure addresses - these must be fetched from subgraph
     const orgDeployerAddress = infrastructureAddresses.orgDeployerAddress;
@@ -196,7 +199,7 @@ export async function main(
       hybridThresholdPct: quorumPercentagePV || 50,
       ddThresholdPct: quorumPercentageDD || 50,
       hybridClasses: hybridClasses,
-      ddInitialTargets: [],
+      ddInitialTargets: ddInitialTargets || [],
       roles: roles,
       roleAssignments: roleAssignments,
       // Metadata admin: type(uint256).max = skip (topHat fallback in contract)
@@ -210,10 +213,7 @@ export async function main(
         enabled: educationHubEnabled || false,
       },
       // Bootstrap configuration (initial projects and tasks)
-      bootstrap: {
-        projects: [],
-        tasks: [],
-      },
+      bootstrap: bootstrap || { projects: [], tasks: [] },
       // Paymaster configuration (all-zeros = skip)
       paymasterConfig: paymasterConfig || {
         operatorRoleIndex: ethers.constants.MaxUint256,
@@ -226,6 +226,8 @@ export async function main(
         defaultBudgetCapPerEpoch: 0,
         defaultBudgetEpochLen: 0,
       },
+      // Org-wide TaskManager ROLE_PERM grants — MUST be last (matches contract struct order)
+      taskManagerPerms: taskManagerPerms || { roleIndices: [], masks: [] },
     };
 
     console.log("Deploying new DAO with the following parameters:", deploymentParams);
@@ -525,6 +527,9 @@ export function buildDeployCalldata({
   regSignatureData = null,
   paymasterConfig = null,
   metadataAdminRoleIndex = null,
+  taskManagerPerms = null,
+  ddInitialTargets = null,
+  bootstrap = null,
 }) {
   const orgDeployerAddress = infrastructureAddresses.orgDeployerAddress;
   const registryAddress = infrastructureAddresses.registryAddress;
@@ -565,7 +570,7 @@ export function buildDeployCalldata({
     hybridThresholdPct: quorumPercentagePV || 50,
     ddThresholdPct: quorumPercentageDD || 50,
     hybridClasses,
-    ddInitialTargets: [],
+    ddInitialTargets: ddInitialTargets || [],
     roles,
     roleAssignments,
     metadataAdminRoleIndex: metadataAdminRoleIndex !== null && metadataAdminRoleIndex !== undefined
@@ -573,7 +578,7 @@ export function buildDeployCalldata({
       : ethers.constants.MaxUint256,
     passkeyEnabled: true,
     educationHubConfig: { enabled: educationHubEnabled || false },
-    bootstrap: { projects: [], tasks: [] },
+    bootstrap: bootstrap || { projects: [], tasks: [] },
     paymasterConfig: paymasterConfig || {
       operatorRoleIndex: ethers.constants.MaxUint256,
       autoWhitelistContracts: false,
@@ -585,6 +590,8 @@ export function buildDeployCalldata({
       defaultBudgetCapPerEpoch: 0,
       defaultBudgetEpochLen: 0,
     },
+    // Org-wide TaskManager ROLE_PERM grants — MUST be last (matches contract struct order)
+    taskManagerPerms: taskManagerPerms || { roleIndices: [], masks: [] },
   };
 
   const iface = new ethers.utils.Interface(OrgDeployer);

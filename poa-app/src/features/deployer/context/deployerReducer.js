@@ -167,6 +167,34 @@ export const createDefaultVotingClass = (slicePct = 100) => ({
   locked: false, // Prevents weight redistribution when locked
 });
 
+// Create a default bootstrap project. Hat arrays hold ROLE INDICES (resolved to
+// hat IDs by the deployer). `cap` is a human token amount (→ wei at build time);
+// `bounties` map to parallel bountyTokens[]/bountyCaps[] arrays for the contract.
+export const createDefaultBootstrapProject = () => ({
+  id: uuidv4(),
+  title: '',
+  description: '',   // → IPFS → metadataHash (bytes32)
+  cap: '',           // human token amount, '' = 0 (uncapped)
+  managers: [],      // literal address strings
+  createHats: [],    // role indices
+  claimHats: [],     // role indices
+  reviewHats: [],    // role indices
+  assignHats: [],    // role indices
+  bounties: [],      // [{ token: address, cap: humanAmount }]
+});
+
+// Create a default bootstrap task. `projectIndex` indexes bootstrap.projects.
+export const createDefaultBootstrapTask = (projectIndex = 0) => ({
+  id: uuidv4(),
+  projectIndex,
+  title: '',
+  description: '',          // → IPFS → metadataHash (bytes32)
+  payout: '',               // human PT amount, '' = 0
+  bountyToken: '',          // address or '' (none)
+  bountyPayout: '',         // human amount, '' = 0
+  requiresApplication: false,
+});
+
 // Initial state for the deployer
 export const initialState = {
   // Current step in the wizard (starts at template selection)
@@ -288,6 +316,22 @@ export const initialState = {
   // null = Governance Only (topHat fallback), or a role index
   metadataAdminRoleIndex: null,
 
+  // Org-wide TaskManager ROLE_PERM grants: sparse map { [roleIndex]: uint8Mask }.
+  // mask is an OR of TaskPermission bits (see src/util/permissions.js). Empty = none.
+  // Resolved to hat IDs + applied via TaskManager.bootstrapGlobalPerms at deploy.
+  taskManagerPerms: {},
+
+  // DirectDemocracy execution-target whitelist (literal addresses). Empty = none.
+  ddInitialTargets: [],
+
+  // Bootstrap: initial projects + tasks created atomically at deploy. Empty = none.
+  // Project hat arrays (createHats/claimHats/reviewHats/assignHats) hold ROLE INDICES
+  // (resolved to hat IDs by the deployer); task.projectIndex indexes `projects`.
+  bootstrap: {
+    projects: [],
+    tasks: [],
+  },
+
   // Chain selection (defaults to Gnosis satellite chain)
   selectedChainId: DEFAULT_DEPLOY_CHAIN_ID,
 
@@ -377,6 +421,20 @@ export const ACTION_TYPES = {
   // Metadata Admin
   SET_METADATA_ADMIN_ROLE: 'SET_METADATA_ADMIN_ROLE',
 
+  // Org-wide TaskManager permissions
+  SET_TASK_MANAGER_PERM: 'SET_TASK_MANAGER_PERM',
+
+  // DirectDemocracy execution targets
+  SET_DD_INITIAL_TARGETS: 'SET_DD_INITIAL_TARGETS',
+
+  // Bootstrap projects & tasks
+  ADD_BOOTSTRAP_PROJECT: 'ADD_BOOTSTRAP_PROJECT',
+  UPDATE_BOOTSTRAP_PROJECT: 'UPDATE_BOOTSTRAP_PROJECT',
+  REMOVE_BOOTSTRAP_PROJECT: 'REMOVE_BOOTSTRAP_PROJECT',
+  ADD_BOOTSTRAP_TASK: 'ADD_BOOTSTRAP_TASK',
+  UPDATE_BOOTSTRAP_TASK: 'UPDATE_BOOTSTRAP_TASK',
+  REMOVE_BOOTSTRAP_TASK: 'REMOVE_BOOTSTRAP_TASK',
+
   // Paymaster
   TOGGLE_PAYMASTER: 'TOGGLE_PAYMASTER',
   UPDATE_PAYMASTER: 'UPDATE_PAYMASTER',
@@ -454,6 +512,117 @@ function adjustRolesAfterRoleRemoval(roles, removedIndex) {
 }
 
 /**
+ * Helper: re-index a { [roleIndex]: value } map after the role at `removedIndex`
+ * is deleted — drops the removed role's entry and decrements higher indices.
+ * Mirrors adjustPermissionsAfterRoleRemoval for map-shaped state (taskManagerPerms).
+ */
+function adjustIndexedMapAfterRoleRemoval(map, removedIndex) {
+  const adjusted = {};
+  for (const [k, value] of Object.entries(map || {})) {
+    const idx = Number(k);
+    if (idx === removedIndex) continue;
+    adjusted[idx > removedIndex ? idx - 1 : idx] = value;
+  }
+  return adjusted;
+}
+
+/**
+ * Helper: re-index a bootstrap project's role-index hat arrays after a role is
+ * removed — drops the removed role and decrements higher indices.
+ */
+function adjustBootstrapProjectsAfterRoleRemoval(projects, removedIndex) {
+  const fix = (arr) => (arr || [])
+    .filter((idx) => idx !== removedIndex)
+    .map((idx) => (idx > removedIndex ? idx - 1 : idx));
+  return (projects || []).map((p) => ({
+    ...p,
+    createHats: fix(p.createHats),
+    claimHats: fix(p.claimHats),
+    reviewHats: fix(p.reviewHats),
+    assignHats: fix(p.assignHats),
+  }));
+}
+
+/**
+ * Helper: build an old→new index permutation for REORDER_ROLES by matching role
+ * `id`s. Returns Map(oldIndex => newIndex). Roles absent from newRoles are omitted.
+ */
+function buildReorderPermutation(oldRoles, newRoles) {
+  const newIndexById = new Map(newRoles.map((r, j) => [r.id, j]));
+  const perm = new Map();
+  oldRoles.forEach((r, i) => {
+    if (newIndexById.has(r.id)) perm.set(i, newIndexById.get(r.id));
+  });
+  return perm;
+}
+
+/**
+ * Helper: remap every role-index-keyed slice of state through `mapFn`
+ * (oldIndex => newIndex, or null/undefined to drop). Used by REORDER_ROLES so a
+ * reorder doesn't silently desync permissions, hierarchy, vouching, paymaster,
+ * metadata-admin, power bundles, taskManagerPerms, or bootstrap project hats from
+ * the new role order. (REORDER_ROLES previously remapped nothing.)
+ */
+function remapRoleIndexedState(state, newRoles, mapFn) {
+  const keep = (i) => i !== null && i !== undefined;
+  const remapSingle = (idx) => {
+    if (idx === null || idx === undefined) return null;
+    const n = mapFn(idx);
+    return keep(n) ? n : null;
+  };
+
+  // Role-internal references (hierarchy parent + voucher) live on the reordered
+  // role objects but still point at OLD indices — remap them in place.
+  const roles = newRoles.map((role) => {
+    const newAdmin = remapSingle(role.hierarchy?.adminRoleIndex);
+    const newVoucher = remapSingle(role.vouching?.voucherRoleIndex);
+    return {
+      ...role,
+      hierarchy: { ...role.hierarchy, adminRoleIndex: newAdmin },
+      vouching: { ...role.vouching, voucherRoleIndex: keep(newVoucher) ? newVoucher : 0 },
+    };
+  });
+
+  const permissions = {};
+  for (const key of PERMISSION_KEYS) {
+    permissions[key] = (state.permissions[key] || []).map(mapFn).filter(keep);
+  }
+
+  const powerBundles = {};
+  for (const [k, arr] of Object.entries(state.philosophy.powerBundles || {})) {
+    powerBundles[k] = (arr || []).map(mapFn).filter(keep);
+  }
+
+  const taskManagerPerms = {};
+  for (const [k, mask] of Object.entries(state.taskManagerPerms || {})) {
+    const n = mapFn(Number(k));
+    if (keep(n)) taskManagerPerms[n] = mask;
+  }
+
+  const remapHats = (arr) => (arr || []).map(mapFn).filter(keep);
+  const bootstrap = {
+    ...state.bootstrap,
+    projects: (state.bootstrap?.projects || []).map((p) => ({
+      ...p,
+      createHats: remapHats(p.createHats),
+      claimHats: remapHats(p.claimHats),
+      reviewHats: remapHats(p.reviewHats),
+      assignHats: remapHats(p.assignHats),
+    })),
+  };
+
+  return {
+    roles,
+    permissions,
+    philosophy: { ...state.philosophy, powerBundles },
+    metadataAdminRoleIndex: remapSingle(state.metadataAdminRoleIndex),
+    paymaster: { ...state.paymaster, operatorRoleIndex: remapSingle(state.paymaster.operatorRoleIndex) },
+    taskManagerPerms,
+    bootstrap,
+  };
+}
+
+/**
  * Main reducer function
  */
 export function deployerReducer(state, action) {
@@ -510,6 +679,11 @@ export function deployerReducer(state, action) {
         voting,
         features: { ...initialState.features, ...features },
         metadataAdminRoleIndex: metadataAdminRoleIndex ?? null,
+        // Reset deploy-time config not (yet) carried by templates so a previously
+        // applied template's grants/targets/bootstrap don't leak into the new one.
+        taskManagerPerms: action.payload.taskManagerPerms ?? {},
+        ddInitialTargets: action.payload.ddInitialTargets ?? [],
+        bootstrap: action.payload.bootstrap ?? { projects: [], tasks: [] },
         philosophy: {
           ...state.philosophy,
           slider: sliderValue,
@@ -884,11 +1058,27 @@ export function deployerReducer(state, action) {
         }
       }
 
+      // Adjust org-wide TaskManager permission grants + bootstrap project hats
+      // (both keyed by role index) so they don't silently shift to the wrong role.
+      const adjustedTaskManagerPerms = adjustIndexedMapAfterRoleRemoval(
+        state.taskManagerPerms,
+        removeIndex,
+      );
+      const adjustedBootstrapProjects = adjustBootstrapProjectsAfterRoleRemoval(
+        state.bootstrap?.projects,
+        removeIndex,
+      );
+
       return {
         ...state,
         roles: adjustedRoles,
         permissions: adjustedPermissions,
         metadataAdminRoleIndex: adjustedMetadataAdminRole,
+        taskManagerPerms: adjustedTaskManagerPerms,
+        bootstrap: {
+          ...state.bootstrap,
+          projects: adjustedBootstrapProjects,
+        },
         paymaster: {
           ...state.paymaster,
           operatorRoleIndex: adjustedPaymasterOperatorRole,
@@ -896,11 +1086,25 @@ export function deployerReducer(state, action) {
       };
     }
 
-    case ACTION_TYPES.REORDER_ROLES:
-      return {
-        ...state,
-        roles: action.payload,
+    case ACTION_TYPES.REORDER_ROLES: {
+      const newRoles = action.payload;
+      // Remap every role-index-keyed slice of state to the new order. Match by
+      // role `id` to build the old→new permutation. If ids are missing or the set
+      // changed (shouldn't for a pure reorder), fall back to the raw swap rather
+      // than risk corrupting indices.
+      const sameSet = Array.isArray(newRoles)
+        && newRoles.length === state.roles.length
+        && newRoles.every((r) => r && r.id);
+      if (!sameSet) {
+        return { ...state, roles: newRoles };
+      }
+      const perm = buildReorderPermutation(state.roles, newRoles);
+      const mapFn = (idx) => {
+        const n = Number(idx);
+        return perm.has(n) ? perm.get(n) : null;
       };
+      return { ...state, ...remapRoleIndexedState(state, newRoles, mapFn) };
+    }
 
     case ACTION_TYPES.UPDATE_ROLE_HIERARCHY: {
       const { roleIndex, adminRoleIndex } = action.payload;
@@ -1169,6 +1373,92 @@ export function deployerReducer(state, action) {
       return {
         ...state,
         metadataAdminRoleIndex: action.payload, // null = Governance Only, or role index
+      };
+
+    // Org-wide TaskManager permissions: set the full uint8 mask for a role.
+    // mask 0 removes the entry (keeps the map sparse — see buildTaskManagerPerms).
+    case ACTION_TYPES.SET_TASK_MANAGER_PERM: {
+      const { roleIndex, mask } = action.payload;
+      const next = { ...state.taskManagerPerms };
+      const m = Number(mask) & 0xff;
+      if (!m) {
+        delete next[roleIndex];
+      } else {
+        next[roleIndex] = m;
+      }
+      return { ...state, taskManagerPerms: next };
+    }
+
+    // DirectDemocracy execution-target whitelist (replace the whole list).
+    case ACTION_TYPES.SET_DD_INITIAL_TARGETS:
+      return {
+        ...state,
+        ddInitialTargets: Array.isArray(action.payload) ? [...action.payload] : [],
+      };
+
+    // Bootstrap projects
+    case ACTION_TYPES.ADD_BOOTSTRAP_PROJECT:
+      return {
+        ...state,
+        bootstrap: {
+          ...state.bootstrap,
+          projects: [...state.bootstrap.projects, createDefaultBootstrapProject()],
+        },
+      };
+
+    case ACTION_TYPES.UPDATE_BOOTSTRAP_PROJECT: {
+      const { index, updates } = action.payload;
+      return {
+        ...state,
+        bootstrap: {
+          ...state.bootstrap,
+          projects: state.bootstrap.projects.map((p, idx) =>
+            idx === index ? { ...p, ...updates } : p
+          ),
+        },
+      };
+    }
+
+    case ACTION_TYPES.REMOVE_BOOTSTRAP_PROJECT: {
+      const removeIndex = action.payload;
+      const projects = state.bootstrap.projects.filter((_, idx) => idx !== removeIndex);
+      // Re-index tasks: drop tasks on the removed project, decrement higher refs.
+      const tasks = state.bootstrap.tasks
+        .filter((t) => t.projectIndex !== removeIndex)
+        .map((t) => (t.projectIndex > removeIndex ? { ...t, projectIndex: t.projectIndex - 1 } : t));
+      return { ...state, bootstrap: { ...state.bootstrap, projects, tasks } };
+    }
+
+    // Bootstrap tasks
+    case ACTION_TYPES.ADD_BOOTSTRAP_TASK:
+      return {
+        ...state,
+        bootstrap: {
+          ...state.bootstrap,
+          tasks: [...state.bootstrap.tasks, createDefaultBootstrapTask(action.payload?.projectIndex ?? 0)],
+        },
+      };
+
+    case ACTION_TYPES.UPDATE_BOOTSTRAP_TASK: {
+      const { index, updates } = action.payload;
+      return {
+        ...state,
+        bootstrap: {
+          ...state.bootstrap,
+          tasks: state.bootstrap.tasks.map((t, idx) =>
+            idx === index ? { ...t, ...updates } : t
+          ),
+        },
+      };
+    }
+
+    case ACTION_TYPES.REMOVE_BOOTSTRAP_TASK:
+      return {
+        ...state,
+        bootstrap: {
+          ...state.bootstrap,
+          tasks: state.bootstrap.tasks.filter((_, idx) => idx !== action.payload),
+        },
       };
 
     // Paymaster

@@ -8,6 +8,8 @@
 import { ethers } from 'ethers';
 import { indicesToBitmap } from './bitmapUtils';
 import { VOTING_STRATEGY } from '../context/deployerReducer';
+import { TaskPermission } from '@/util/permissions';
+import { getTokenByAddress } from '@/util/tokens';
 
 /**
  * Generate organization ID from name
@@ -166,6 +168,108 @@ export function mapPaymasterConfig(paymasterState) {
 }
 
 /**
+ * Build the TaskManagerPermConfig { roleIndices, masks } from the wizard's
+ * `taskManagerPerms` map ({ [roleIndex]: uint8Mask }).
+ *
+ * CREATE reconciliation (critical): the deployer applies these via
+ * `TaskManager.bootstrapGlobalPerms`, which OVERWRITES `rolePermGlobal[hat]`
+ * (TaskManager.sol:539) — it does NOT OR. That runs AFTER init has already
+ * granted CREATE to every role hat (the deploy always uses
+ * `roleAssignments.taskCreatorRolesBitmap = allRolesBitmap`, see
+ * newDeployment.js `buildRoleAssignments`). So every emitted mask MUST re-include
+ * CREATE or that init grant is silently erased for the role. We also skip any
+ * entry whose only bit is CREATE — that's already covered by the init bitmap, so
+ * an extra overwrite would be redundant calldata.
+ *
+ * NOTE: if `taskCreatorRolesBitmap` ever becomes configurable (it is currently
+ * hardcoded to all roles), revisit — the CREATE re-add should then track the
+ * actual deployed bitmap rather than being unconditional.
+ *
+ * @param {Object} taskManagerPerms - map of roleIndex -> uint8 mask
+ * @returns {{ roleIndices: ethers.BigNumber[], masks: number[] }} parallel arrays
+ */
+export function buildTaskManagerPerms(taskManagerPerms = {}) {
+  const roleIndices = [];
+  const masks = [];
+  for (const [k, rawMask] of Object.entries(taskManagerPerms || {})) {
+    const idx = Number(k);
+    if (!Number.isInteger(idx) || idx < 0) continue;
+    const mask = (Number(rawMask) & 0xff) | TaskPermission.CREATE; // preserve init CREATE grant
+    if (mask === TaskPermission.CREATE) continue; // CREATE-only already handled at init
+    roleIndices.push(ethers.BigNumber.from(idx));
+    masks.push(mask);
+  }
+  return { roleIndices, masks };
+}
+
+/**
+ * Build the BootstrapConfig { projects, tasks } from the wizard's bootstrap state.
+ *
+ * Field encoding (matches ITaskManagerBootstrap structs):
+ * - title         -> UTF-8 bytes
+ * - metadataHash  -> already a bytes32 CID (uploaded to IPFS in the create page,
+ *                    like role metadata) or HashZero
+ * - cap/payout/bountyCaps/bountyPayout -> 18-decimal wei (parseEther)
+ * - createHats/claimHats/reviewHats/assignHats -> ROLE INDICES (deployer resolves
+ *   them to hat IDs via _resolveBootstrapRoles)
+ * - managers/bountyTokens -> literal, validated addresses
+ * - projectIndex  -> uint8 index into projects[]
+ *
+ * @param {Object} bootstrap - { projects: [], tasks: [] } from state (with metadataHash filled)
+ * @returns {{ projects: Object[], tasks: Object[] }}
+ */
+export function buildBootstrapConfig(bootstrap = { projects: [], tasks: [] }) {
+  const toTitle = (s) => ethers.utils.hexlify(ethers.utils.toUtf8Bytes(s || ''));
+  // Participation-token amounts (project cap, task payout) are 18-decimal.
+  const toWei = (v) => {
+    const n = parseFloat(v);
+    return (!v || isNaN(n) || n <= 0) ? ethers.constants.Zero : ethers.utils.parseEther(String(v));
+  };
+  // Bounty amounts are denominated in the bounty TOKEN's own decimals (e.g. USDC=6),
+  // NOT 18 — mirror TaskService. Unknown tokens fall back to 18 via getTokenByAddress.
+  const toTokenWei = (v, tokenAddr) => {
+    const n = parseFloat(v);
+    if (!v || isNaN(n) || n <= 0) return ethers.constants.Zero;
+    const decimals = getTokenByAddress(tokenAddr)?.decimals ?? 18;
+    return ethers.utils.parseUnits(String(v), decimals);
+  };
+  const toIdxArray = (arr) => (arr || [])
+    .map(Number)
+    .filter((n) => Number.isInteger(n) && n >= 0);
+
+  const projects = (bootstrap?.projects || []).map((p) => {
+    const bounties = (p.bounties || []).filter((b) => b && ethers.utils.isAddress(b.token));
+    return {
+      title: toTitle(p.title),
+      metadataHash: p.metadataHash || ethers.constants.HashZero,
+      cap: toWei(p.cap),
+      managers: (p.managers || []).filter((a) => ethers.utils.isAddress(a)),
+      createHats: toIdxArray(p.createHats),
+      claimHats: toIdxArray(p.claimHats),
+      reviewHats: toIdxArray(p.reviewHats),
+      assignHats: toIdxArray(p.assignHats),
+      bountyTokens: bounties.map((b) => b.token),
+      bountyCaps: bounties.map((b) => toTokenWei(b.cap, b.token)),
+    };
+  });
+
+  const tasks = (bootstrap?.tasks || []).map((t) => {
+    const bountyToken = ethers.utils.isAddress(t.bountyToken) ? t.bountyToken : ethers.constants.AddressZero;
+    return {
+      projectIndex: Number(t.projectIndex) || 0,
+      payout: toWei(t.payout),
+      title: toTitle(t.title),
+      metadataHash: t.metadataHash || ethers.constants.HashZero,
+      bountyToken,
+      bountyPayout: bountyToken === ethers.constants.AddressZero ? ethers.constants.Zero : toTokenWei(t.bountyPayout, bountyToken),
+      requiresApplication: Boolean(t.requiresApplication),
+    };
+  });
+
+  return { projects, tasks };
+}
+
+/**
  * Get the ETH value to send with deployFullOrg (msg.value for paymaster funding)
  * @param {Object} paymasterState - Paymaster state from deployer context
  * @returns {ethers.BigNumber} Value in wei, or 0 if no funding
@@ -259,7 +363,10 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     hybridThresholdPct: voting.hybridQuorum,
     ddThresholdPct: voting.ddQuorum,
     hybridClasses,
-    ddInitialTargets: [], // Empty for now
+    // DirectDemocracy execution-target whitelist (valid, deduped addresses)
+    ddInitialTargets: Array.from(
+      new Set((state.ddInitialTargets || []).filter((a) => ethers.utils.isAddress(a)))
+    ),
     roles: contractRoles,
     roleAssignments,
     // Metadata admin: which role's hat gets metadata-admin privilege.
@@ -276,13 +383,14 @@ export function mapStateToDeploymentParams(state, deployerAddress, options = {})
     educationHubConfig: {
       enabled: features.educationHubEnabled || false,
     },
-    // Bootstrap configuration (initial projects and tasks)
-    bootstrap: {
-      projects: [],
-      tasks: [],
-    },
+    // Bootstrap configuration (initial projects and tasks). Descriptions are
+    // uploaded to IPFS in the create page before mapping (metadataHash filled).
+    bootstrap: buildBootstrapConfig(state.bootstrap),
     // Paymaster configuration (all-zeros = skip)
     paymasterConfig: mapPaymasterConfig(paymaster),
+    // Org-wide TaskManager ROLE_PERM grants (must be the LAST field — matches the
+    // contract struct order so ethers encodes the tuple positionally correct).
+    taskManagerPerms: buildTaskManagerPerms(state.taskManagerPerms),
   };
 }
 
@@ -450,6 +558,77 @@ export function validateDeploymentConfig(state) {
     }
   }
 
+  // DirectDemocracy execution targets must be valid addresses
+  if (Array.isArray(state.ddInitialTargets)) {
+    state.ddInitialTargets.forEach((addr) => {
+      if (addr && !ethers.utils.isAddress(addr)) {
+        errors.push(`DirectDemocracy target "${addr}" is not a valid address.`);
+      }
+    });
+  }
+
+  // Org-wide TaskManager permission grants: indices in range, masks 0-255
+  if (state.taskManagerPerms) {
+    for (const [k, mask] of Object.entries(state.taskManagerPerms)) {
+      const idx = Number(k);
+      const m = Number(mask);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= state.roles.length) {
+        errors.push(`Task permission references an invalid role index (${k}).`);
+      }
+      if (!Number.isInteger(m) || m < 0 || m > 255) {
+        errors.push(`Task permission mask for role "${state.roles[idx]?.name || k}" must be between 0 and 255.`);
+      }
+    }
+  }
+
+  // Bootstrap projects & tasks
+  if (state.bootstrap) {
+    const projects = state.bootstrap.projects || [];
+    const tasks = state.bootstrap.tasks || [];
+    const roleCount = state.roles.length;
+    projects.forEach((p, pIdx) => {
+      const label = p.title?.trim() || `Project ${pIdx + 1}`;
+      if (!p.title || !p.title.trim()) {
+        errors.push(`Bootstrap project ${pIdx + 1} needs a title.`);
+      }
+      ['createHats', 'claimHats', 'reviewHats', 'assignHats'].forEach((key) => {
+        (p[key] || []).forEach((ri) => {
+          if (!Number.isInteger(Number(ri)) || Number(ri) < 0 || Number(ri) >= roleCount) {
+            errors.push(`Bootstrap project "${label}" references an invalid role.`);
+          }
+        });
+      });
+      (p.managers || []).forEach((a) => {
+        if (a && !ethers.utils.isAddress(a)) errors.push(`Bootstrap project "${label}" has an invalid manager address.`);
+      });
+      (p.bounties || []).forEach((b) => {
+        const hasCap = parseFloat(b?.cap) > 0;
+        const validToken = b?.token && ethers.utils.isAddress(b.token);
+        if (b?.token && !ethers.utils.isAddress(b.token)) errors.push(`Bootstrap project "${label}" has an invalid bounty token address.`);
+        // A cap with no valid token would be silently dropped at build time — flag it.
+        if (hasCap && !validToken) errors.push(`Bootstrap project "${label}" has a bounty cap but no valid bounty token.`);
+      });
+    });
+    tasks.forEach((t, tIdx) => {
+      const label = t.title?.trim() || `${tIdx + 1}`;
+      if (!t.title || !t.title.trim()) errors.push(`Bootstrap task ${tIdx + 1} needs a title.`);
+      if (!Number.isInteger(Number(t.projectIndex)) || Number(t.projectIndex) < 0 || Number(t.projectIndex) >= projects.length) {
+        errors.push(`Bootstrap task "${label}" must belong to a valid project.`);
+      }
+      // The TaskManager reverts (InvalidPayout) on a zero payout at creation.
+      if (!(parseFloat(t.payout) > 0)) {
+        errors.push(`Bootstrap task "${label}" must have a payout greater than 0.`);
+      }
+      if (t.bountyToken && !ethers.utils.isAddress(t.bountyToken)) {
+        errors.push(`Bootstrap task "${label}" has an invalid bounty token address.`);
+      }
+      // A bounty amount with no valid token is silently zeroed at build time — flag it.
+      if (parseFloat(t.bountyPayout) > 0 && !ethers.utils.isAddress(t.bountyToken)) {
+        errors.push(`Bootstrap task "${label}" has a bounty amount but no valid bounty token.`);
+      }
+    });
+  }
+
   return {
     isValid: errors.length === 0,
     errors,
@@ -496,6 +675,8 @@ export default {
   buildRoleAssignments,
   mapPaymasterConfig,
   getPaymasterFundingValue,
+  buildTaskManagerPerms,
+  buildBootstrapConfig,
   mapStateToDeploymentParams,
   createDeploymentConfig,
   validateDeploymentConfig,

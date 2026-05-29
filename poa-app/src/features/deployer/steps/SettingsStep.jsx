@@ -18,11 +18,13 @@ import {
   Icon,
   useColorModeValue,
 } from '@chakra-ui/react';
-import { PiGraduationCap, PiHandshake, PiGlobe, PiIdentificationCard, PiVault } from 'react-icons/pi';
+import { PiGraduationCap, PiHandshake, PiGlobe, PiIdentificationCard, PiVault, PiTarget, PiListChecks } from 'react-icons/pi';
 import { NETWORKS, DEFAULT_DEPLOY_CHAIN_ID } from '../../../config/networks';
 import { useDeployer } from '../context/DeployerContext';
 import { StepHeader, NavigationButtons } from '../components/common';
+import { AddressListInput } from '../components/common/AddressListInput';
 import { PaymasterConfigSection } from '../components/paymaster/PaymasterConfigSection';
+import { BootstrapSection } from '../components/bootstrap/BootstrapSection';
 
 /**
  * FeatureToggle - A single feature toggle row
@@ -161,6 +163,39 @@ export function SettingsStep() {
               : `Any ${state.roles[state.metadataAdminRoleIndex]?.name || 'selected role'} holder can update the org profile directly.`
             }
           </Text>
+        </Box>
+
+        {/* Bootstrap: initial projects & tasks */}
+        <BootstrapSection />
+
+        {/* Direct Democracy execution targets */}
+        <Box
+          bg={cardBg}
+          p={6}
+          borderRadius="2xl"
+          border="1px solid"
+          borderColor={borderColor}
+          backdropFilter="blur(16px)"
+          boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
+        >
+          <HStack spacing={3} mb={4}>
+            <Icon as={PiTarget} boxSize={5} color="amethyst.500" />
+            <Box>
+              <Text fontWeight="600" fontSize="md">
+                Direct Democracy Targets
+              </Text>
+              <Text fontSize="xs" color="warmGray.500">
+                Contracts that Direct Democracy proposals are allowed to call. Optional — leave empty for none.
+              </Text>
+            </Box>
+          </HStack>
+          <AddressListInput
+            value={state.ddInitialTargets}
+            onChange={(targets) => actions.setDDInitialTargets(targets)}
+            addLabel="Add target contract"
+            placeholder="0x… contract address"
+            emptyHint="No execution targets yet. You can also add these later through governance."
+          />
         </Box>
 
         {/* Deployment Network (advanced mode only) */}

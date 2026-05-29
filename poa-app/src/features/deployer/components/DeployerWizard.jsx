@@ -456,6 +456,14 @@ export function DeployerWizard({
           setDeploymentStatus('success');
           return;
         }
+
+        // User cancelled at the preview-and-confirm modal — no tx was sent.
+        // Reset to idle (clears the "deploying" overlay) and return quietly
+        // without the "check your wallet" info toast.
+        if (result && result.cancelled) {
+          setDeploymentStatus('idle');
+          return;
+        }
       }
 
       // If no onDeployStart or no result, just show info
