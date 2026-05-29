@@ -46,7 +46,7 @@ function RoleNode({
   onApplyForRole,
   onWithdrawApplication,
 }) {
-  const { name, memberCount, level, vouchingEnabled, vouchingQuorum } = role;
+  const { name, description, memberCount, level, vouchingEnabled, vouchingQuorum } = role;
 
   // Connector position: centered in the gap created by the current level's padding
   // Each level adds 32px (8 spacing units * 4px). Connector sits 16px into that gap.
@@ -109,6 +109,11 @@ function RoleNode({
               <Text fontWeight="bold" color="warmGray.900" fontSize="md">
                 {name}
               </Text>
+              {description ? (
+                <Text fontSize="xs" color="warmGray.600" noOfLines={2} maxW="sm">
+                  {description}
+                </Text>
+              ) : null}
               {vouchingEnabled && (
                 <Tooltip
                   label={`Requires ${vouchingQuorum} vouches to join`}

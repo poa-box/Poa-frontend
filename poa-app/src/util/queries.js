@@ -581,6 +581,9 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
           mintedCount
           name
           metadataCID
+          metadata {
+            description
+          }
           metadataUpdatedAt
           metadataUpdatedAtBlock
           wearers {

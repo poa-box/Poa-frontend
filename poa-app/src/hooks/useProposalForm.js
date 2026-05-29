@@ -13,9 +13,11 @@ import {
   getTemplateById,
 } from '@/config/setterDefinitions';
 import { usePOContext } from '@/context/POContext';
+import { useIPFScontext } from '@/context/ipfsContext';
 import { getNetworkByChainId } from '../config/networks';
 import { getInfrastructureAddress, CONTRACT_NAMES } from '@/config/contracts';
 import { createHatsService } from '@/services/web3/domain/HatsService';
+import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
 import {
   TITLE_PREFIX as ELECTION_TITLE_PREFIX,
   DESCRIPTION_PREFIX as ELECTION_DESCRIPTION_PREFIX,
@@ -55,9 +57,11 @@ const defaultProposal = {
   setterParams: [],       // Raw function parameters (for advanced mode)
   // Create-role fields — bundle that builds a multi-call batch:
   //   1. EligibilityModule.createHatWithEligibility(...)
-  //   2. EligibilityModule.configureVouching(predictedHatId, ...)   (if vouching)
-  //   3. HybridVoting.setCreatorHatAllowed(predictedHatId, true)    (if canVote)
-  //   4. TaskManager.setProjectRolePerm(pid, predictedHatId, mask)  (per project)
+  //   2. EligibilityModule.configureVouching(predictedHatId, ...)       (if vouching)
+  //   3. HybridVoting.setCreatorHatAllowed(predictedHatId, true)        (if canVote)
+  //   4. TaskManager.setProjectRolePerm(pid, predictedHatId, mask)      (per project)
+  //   5. TaskManager.setConfig(ROLE_PERM/CREATOR_HAT/ORGANIZER_HAT, …)  (global perms)
+  //   6. EligibilityModule.updateHatMetadata(predictedHatId, name, cid) (if description)
   // Hat ID is pre-computed via Hats.getNextId at submit time.
   roleConfig: { ...defaultRoleConfig },
   id: 0,
@@ -66,6 +70,7 @@ const defaultProposal = {
 export function useProposalForm({ onSubmit }) {
   const toast = useToast();
   const { orgChainId } = usePOContext();
+  const { addToIpfs } = useIPFScontext();
   const orgNetwork = getNetworkByChainId(orgChainId);
   const nativeCurrencySymbol = orgNetwork?.nativeCurrency?.symbol || 'ETH';
   const [proposal, setProposal] = useState(defaultProposal);
@@ -364,6 +369,11 @@ export function useProposalForm({ onSubmit }) {
       seenProjects.add(p.projectId);
     }
 
+    const globalPerms = Number(rc.globalPerms) || 0;
+    if (globalPerms < 0 || globalPerms > 255) {
+      return fail('Invalid Permissions', 'Global task permission mask must be between 0 and 255.');
+    }
+
     return true;
   }, [proposal.roleConfig, toast]);
 
@@ -541,7 +551,7 @@ export function useProposalForm({ onSubmit }) {
     return true;
   }, [proposal.setterMode, proposal.setterTemplate, proposal.setterContract, proposal.setterFunction, proposal.setterValues, proposal.setterParams, toast]);
 
-  const buildProposalData = useCallback((eligibilityModuleAddress, contractAddresses, freshHoldersOverride = null, hatsProtocolAddress = null, predictedRoleHatId = null) => {
+  const buildProposalData = useCallback((eligibilityModuleAddress, contractAddresses, freshHoldersOverride = null, hatsProtocolAddress = null, predictedRoleHatId = null, metadataCIDBytes32 = null) => {
     let numOptions;
     let batches = [];
     let optionNames = [];
@@ -744,15 +754,17 @@ export function useProposalForm({ onSubmit }) {
     } else if (proposal.type === "createRole") {
       // Create-role proposal — a single winning batch that calls:
       //   1. EligibilityModule.createHatWithEligibility(params)
-      //   2. EligibilityModule.configureVouching(predictedHatId, ...)   (optional)
-      //   3. HybridVoting.setCreatorHatAllowed(predictedHatId, true)    (optional)
-      //   4. TaskManager.setProjectRolePerm(pid, predictedHatId, mask)  (per project)
+      //   2. EligibilityModule.configureVouching(predictedHatId, ...)        (optional)
+      //   3. HybridVoting.setCreatorHatAllowed(predictedHatId, true)         (optional)
+      //   4. TaskManager.setProjectRolePerm(pid, predictedHatId, mask)       (per project)
+      //   5. TaskManager.setConfig(ROLE_PERM/CREATOR_HAT/ORGANIZER_HAT, ...) (org-wide)
+      //   6. EligibilityModule.updateHatMetadata(predictedHatId, name, cid)  (if description)
       //
       // predictedRoleHatId is pre-computed in handleSubmit via Hats.getNextId.
       // Race condition: a sibling hat created under the same parent between
-      // submit and execution shifts the real id; downstream calls then point
-      // at the wrong hat. The configurator surfaces a warning when another
-      // active createRole proposal targets the same parent.
+      // submit and execution shifts the real id; ALL downstream calls (2-6)
+      // then point at the wrong hat. The configurator surfaces a warning when
+      // another active createRole proposal targets the same parent.
       const rc = proposal.roleConfig || {};
       const wearers = rc.initialWearers || [];
       const projectPerms = rc.projectPerms || [];
@@ -794,6 +806,7 @@ export function useProposalForm({ onSubmit }) {
           outputs: [{ name: 'newHatId', type: 'uint256' }],
         },
         'function configureVouching(uint256 hatId, uint32 quorum, uint256 membershipHatId, bool combineWithHierarchy)',
+        'function updateHatMetadata(uint256 hatId, string name, bytes32 metadataCID)',
       ]);
 
       const hvIface = new utils.Interface([
@@ -802,6 +815,7 @@ export function useProposalForm({ onSubmit }) {
 
       const tmIface = new utils.Interface([
         'function setProjectRolePerm(bytes32 pid, uint256 hatId, uint8 mask)',
+        'function setConfig(uint8 key, bytes value)',
       ]);
 
       const batch = [];
@@ -841,22 +855,79 @@ export function useProposalForm({ onSubmit }) {
         }
       }
 
-      // 4. Project permissions
-      if (projectPerms.length > 0 && predictedRoleHatId) {
-        const taskManagerAddr = contractAddresses?.taskManagerContractAddress;
-        if (taskManagerAddr) {
-          for (const p of projectPerms) {
-            batch.push({
-              target: taskManagerAddr,
-              value: '0',
-              data: tmIface.encodeFunctionData('setProjectRolePerm', [
-                p.projectId,
-                predictedRoleHatId,
-                Number(p.mask) || 0,
-              ]),
-            });
-          }
+      const taskManagerAddr = contractAddresses?.taskManagerContractAddress;
+
+      // 4. Per-project permission overrides
+      if (projectPerms.length > 0 && predictedRoleHatId && taskManagerAddr) {
+        for (const p of projectPerms) {
+          batch.push({
+            target: taskManagerAddr,
+            value: '0',
+            data: tmIface.encodeFunctionData('setProjectRolePerm', [
+              p.projectId,
+              predictedRoleHatId,
+              Number(p.mask) || 0,
+            ]),
+          });
         }
+      }
+
+      // 5. Org-wide task-system grants via TaskManager.setConfig.
+      //    Mirrors setterDefinitions.js: ROLE_PERM (global mask), CREATOR_HAT_ALLOWED
+      //    (create projects/tasks), ORGANIZER_HAT_ALLOWED (reorganize folder tree).
+      if (taskManagerAddr && predictedRoleHatId) {
+        const ROLE_PERM_KEY = 2;       // TaskManager ConfigKey.ROLE_PERM
+        const CREATOR_HAT_KEY = 1;     // TaskManager ConfigKey.CREATOR_HAT_ALLOWED
+        const ORGANIZER_HAT_KEY = 7;   // TaskManager ConfigKey.ORGANIZER_HAT_ALLOWED
+
+        const globalPerms = Number(rc.globalPerms) || 0;
+        if (globalPerms > 0) {
+          batch.push({
+            target: taskManagerAddr,
+            value: '0',
+            data: tmIface.encodeFunctionData('setConfig', [
+              ROLE_PERM_KEY,
+              utils.defaultAbiCoder.encode(['uint256', 'uint8'], [predictedRoleHatId, globalPerms]),
+            ]),
+          });
+        }
+        if (rc.canCreateTasks) {
+          batch.push({
+            target: taskManagerAddr,
+            value: '0',
+            data: tmIface.encodeFunctionData('setConfig', [
+              CREATOR_HAT_KEY,
+              utils.defaultAbiCoder.encode(['uint256', 'bool'], [predictedRoleHatId, true]),
+            ]),
+          });
+        }
+        if (rc.canOrganizeFolders) {
+          batch.push({
+            target: taskManagerAddr,
+            value: '0',
+            data: tmIface.encodeFunctionData('setConfig', [
+              ORGANIZER_HAT_KEY,
+              utils.defaultAbiCoder.encode(['uint256', 'bool'], [predictedRoleHatId, true]),
+            ]),
+          });
+        }
+      }
+
+      // 6. Role metadata — set name + description on-chain via Hats metadata.
+      //    updateHatMetadata stores the IPFS CID in the hat details (requires a
+      //    mutable hat) and emits HatMetadataUpdated, which the subgraph indexes
+      //    into hat.name + hat.metadata.description. No contract changes needed.
+      //    metadataCIDBytes32 is computed in handleSubmit (IPFS upload).
+      if (metadataCIDBytes32 && predictedRoleHatId) {
+        batch.push({
+          target: eligibilityModuleAddress,
+          value: '0',
+          data: elIface.encodeFunctionData('updateHatMetadata', [
+            predictedRoleHatId,
+            rc.name || '',
+            metadataCIDBytes32,
+          ]),
+        });
       }
 
       batches = [batch, []];   // Yes wins: create + configure. No wins: nothing.
@@ -1119,12 +1190,49 @@ export function useProposalForm({ onSubmit }) {
         }
       }
 
+      // Create-role only: persist the role's name + description on-chain via the
+      // Hats metadata pattern. Upload { name, description } to IPFS, encode the CID
+      // to bytes32, and let buildProposalData append an updateHatMetadata call (the
+      // subgraph indexes it into hat.name + hat.metadata.description).
+      // Gated on description only: the hat image is already stored via
+      // createHatWithEligibility's imageURI, and the subgraph metadata parser reads
+      // name + description only — so an image would add on-chain cost for no effect.
+      // updateHatMetadata calls changeHatDetails, which requires a mutable hat — so
+      // only attempt it when the role is mutable.
+      let metadataCIDBytes32 = null;
+      if (proposal.type === 'createRole') {
+        const rc = proposal.roleConfig || {};
+        if (rc.description?.trim() && rc.mutable) {
+          try {
+            const result = await addToIpfs(JSON.stringify({
+              name: rc.name || '',
+              description: rc.description || '',
+            }));
+            if (result?.path) {
+              metadataCIDBytes32 = ipfsCidToBytes32(result.path);
+            }
+          } catch (err) {
+            console.error('[useProposalForm] role metadata IPFS upload failed:', err);
+            toast({
+              title: 'Could not save role description',
+              description: 'Failed to upload role metadata to IPFS. Please try again.',
+              status: 'error',
+              duration: 5000,
+              isClosable: true,
+            });
+            setLoadingSubmit(false);
+            return;
+          }
+        }
+      }
+
       const { numOptions, batches, optionNames } = buildProposalData(
         eligibilityModuleAddress,
         contractAddresses,
         freshHoldersOverride,
         hatsProtocolAddress,
         predictedRoleHatId,
+        metadataCIDBytes32,
       );
 
       // Form collects hours; contract ABI expects minutes (uint32 minutesDuration).
@@ -1222,7 +1330,7 @@ export function useProposalForm({ onSubmit }) {
       setLoadingSubmit(false);
       return false;
     }
-  }, [proposal, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, validateCreateRoleProposal, buildProposalData, onSubmit, resetForm, toast, orgChainId, orgNetwork, nativeCurrencySymbol]);
+  }, [proposal, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, validateCreateRoleProposal, buildProposalData, onSubmit, resetForm, toast, orgChainId, orgNetwork, nativeCurrencySymbol, addToIpfs]);
 
   return {
     proposal,
