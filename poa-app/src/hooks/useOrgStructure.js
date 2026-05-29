@@ -115,11 +115,15 @@ function transformRolesData(roles, roleHatIds, roleNamesFromIPFS = {}, users = [
     const parentHatId = hat.parentHatId;
     const vouchConfig = hat.vouchConfig;
     const defaultEligible = hat.defaultEligible ?? false;
+    // Role description from the hat's IPFS metadata (set via EligibilityModule.updateHatMetadata).
+    // May be empty until the subgraph's IPFS file data source resolves.
+    const description = hat.metadata?.description || '';
 
     return {
       id: role.id,
       hatId,
       name,
+      description,
       image: role.image || '',
       canVote: role.canVote ?? true, // Default to true for voting roles
       level,

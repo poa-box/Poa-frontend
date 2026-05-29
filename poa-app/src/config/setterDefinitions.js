@@ -381,7 +381,9 @@ export const SETTER_TEMPLATES = [
           { value: 4, label: 'REVIEW - Review completed tasks' },
           { value: 8, label: 'ASSIGN - Assign tasks to others' },
           { value: 16, label: 'SELF_REVIEW - Allow claimer to complete their own task' },
-          { value: 32, label: 'BUDGET - Edit project budgets (PT cap & bounty caps)' }
+          { value: 32, label: 'BUDGET - Edit project budgets (PT cap & bounty caps)' },
+          { value: 64, label: 'EDIT_META - Edit task title / metadata' },
+          { value: 128, label: 'EDIT_FULL - Edit task payout, bounty & metadata' }
         ],
         helpText: 'Select which permissions to grant'
       }
@@ -404,6 +406,8 @@ export const SETTER_TEMPLATES = [
       if (has(8)) permLabels.push('ASSIGN');
       if (has(16)) permLabels.push('SELF_REVIEW');
       if (has(32)) permLabels.push('BUDGET');
+      if (has(64)) permLabels.push('EDIT_META');
+      if (has(128)) permLabels.push('EDIT_FULL');
       return `Set "${roleName}" permissions for ${projectName}: ${permLabels.join(', ') || 'none'}`;
     }
   },

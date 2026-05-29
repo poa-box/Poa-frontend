@@ -66,6 +66,8 @@ export function parseAutoTitle(title) {
 
 const SENTINEL_SELF_VOUCH = 'self';
 
+// Full TaskPerm bitmask (matches TaskPerm.sol and src/util/permissions.js).
+// Shared by the global (org-wide) mask and each per-project override.
 const PERM_OPTIONS = [
   { value: 1, label: 'CREATE — Create new tasks' },
   { value: 2, label: 'CLAIM — Claim tasks' },
@@ -73,7 +75,16 @@ const PERM_OPTIONS = [
   { value: 8, label: 'ASSIGN — Assign tasks to others' },
   { value: 16, label: 'SELF_REVIEW — Claimer can complete their own task' },
   { value: 32, label: 'BUDGET — Edit project budgets (PT cap & bounty caps)' },
+  { value: 64, label: 'EDIT_META — Edit task title / metadata' },
+  { value: 128, label: 'EDIT_FULL — Edit task payout, bounty & metadata' },
 ];
+
+/** Short permission names (e.g. ["CREATE", "REVIEW"]) for a mask. */
+function maskLabels(mask) {
+  return PERM_OPTIONS
+    .filter(opt => (Number(mask) & opt.value) === opt.value)
+    .map(opt => opt.label.split(' ')[0]);
+}
 
 export const defaultRoleConfig = {
   parentHatId: '',
@@ -85,6 +96,10 @@ export const defaultRoleConfig = {
   defaultEligible: true,
   defaultStanding: true,
   canVote: false,
+  // Task-system grants (all additive — encoder appends nothing when untouched):
+  globalPerms: 0,            // org-wide TaskPerm mask via setConfig(ROLE_PERM)
+  canCreateTasks: false,     // setConfig(CREATOR_HAT_ALLOWED) — create projects/tasks
+  canOrganizeFolders: false, // setConfig(ORGANIZER_HAT_ALLOWED) — reorganize folder tree
   vouching: {
     enabled: false,
     quorum: 1,
@@ -111,6 +126,9 @@ function buildRoleDescription(rc) {
     bits.push('no vouching');
   }
   if (rc.canVote) bits.push('can create proposals');
+  if (Number(rc.globalPerms) > 0) bits.push('global task permissions');
+  if (rc.canCreateTasks) bits.push('can create tasks');
+  if (rc.canOrganizeFolders) bits.push('can organize folders');
   const wearerCount = (rc.initialWearers || []).length;
   if (wearerCount > 0) {
     bits.push(`${wearerCount} initial wearer${wearerCount > 1 ? 's' : ''}`);
@@ -166,6 +184,40 @@ const StepHeader = ({ step, title, subtitle, onBack }) => (
       </Button>
     ) : null}
   </HStack>
+);
+
+/** Eyebrow header that groups the Step-2 permission sections. */
+const SectionLabel = ({ children }) => (
+  <Text
+    fontSize="xs"
+    color="purple.300"
+    textTransform="uppercase"
+    letterSpacing="wide"
+    fontWeight="bold"
+    mt={1}
+  >
+    {children}
+  </Text>
+);
+
+/**
+ * Reusable TaskPerm bitmask checkbox group. Used for both the global
+ * (org-wide) mask and each per-project override so the bit list stays in sync.
+ */
+const PermissionMaskCheckboxes = ({ mask, onToggle }) => (
+  <VStack align="stretch" spacing={1} pl={1}>
+    {PERM_OPTIONS.map(opt => (
+      <Checkbox
+        key={opt.value}
+        isChecked={(Number(mask) & opt.value) === opt.value}
+        colorScheme="purple"
+        size="sm"
+        onChange={() => onToggle(opt.value)}
+      >
+        <Text fontSize="xs" color="gray.200">{opt.label}</Text>
+      </Checkbox>
+    ))}
+  </VStack>
 );
 
 const RoleConfigurator = ({
@@ -317,6 +369,12 @@ const RoleConfigurator = ({
     update({ projectPerms: next });
   }, [rc.projectPerms, update]);
 
+  const handleGlobalPermToggle = useCallback((permValue) => {
+    const current = Number(rc.globalPerms || 0);
+    const flipped = (current & permValue) ? current & ~permValue : current | permValue;
+    update({ globalPerms: flipped });
+  }, [rc.globalPerms, update]);
+
   /*════════════════════════════ STEP 1 ════════════════════════════*/
   const renderStep1 = () => (
     <VStack align="stretch" spacing={4}>
@@ -450,6 +508,8 @@ const RoleConfigurator = ({
         onBack={() => setStep(1)}
       />
 
+      {/*──────────────── GOVERNANCE ────────────────*/}
+      <SectionLabel>Governance</SectionLabel>
       <Box
         p={4}
         borderRadius="md"
@@ -473,6 +533,139 @@ const RoleConfigurator = ({
         </HStack>
       </Box>
 
+      {/*──────────────── TASK SYSTEM ────────────────*/}
+      <SectionLabel>Task system</SectionLabel>
+      <Box
+        p={4}
+        borderRadius="md"
+        bg="whiteAlpha.50"
+        border="1px solid rgba(148, 115, 220, 0.2)"
+      >
+        <VStack align="stretch" spacing={2}>
+          <Box>
+            <Text color="gray.200" fontSize="sm" fontWeight="medium">Global task permissions</Text>
+            <Text color="gray.500" fontSize="xs">
+              Applies to every project, including ones created later. Per-project grants below override these.
+            </Text>
+          </Box>
+          <PermissionMaskCheckboxes mask={rc.globalPerms} onToggle={handleGlobalPermToggle} />
+          <Text color="gray.500" fontSize="2xs">
+            EDIT_FULL already includes EDIT_META. SELF_REVIEW only applies alongside REVIEW.
+          </Text>
+        </VStack>
+      </Box>
+
+      <Box
+        p={4}
+        borderRadius="md"
+        bg="whiteAlpha.50"
+        border="1px solid rgba(148, 115, 220, 0.2)"
+      >
+        <VStack align="stretch" spacing={3}>
+          <HStack justify="space-between">
+            <Box>
+              <Text color="gray.200" fontSize="sm" fontWeight="medium">Can create projects &amp; tasks</Text>
+              <Text color="gray.500" fontSize="xs">Org-wide permission to create new projects and tasks.</Text>
+            </Box>
+            <Switch
+              colorScheme="purple"
+              isChecked={Boolean(rc.canCreateTasks)}
+              onChange={(e) => update({ canCreateTasks: e.target.checked })}
+            />
+          </HStack>
+          <HStack justify="space-between">
+            <Box>
+              <Text color="gray.200" fontSize="sm" fontWeight="medium">Can organize the folder tree</Text>
+              <Text color="gray.500" fontSize="xs">Group and reorder projects by publishing folder-tree updates.</Text>
+            </Box>
+            <Switch
+              colorScheme="purple"
+              isChecked={Boolean(rc.canOrganizeFolders)}
+              onChange={(e) => update({ canOrganizeFolders: e.target.checked })}
+            />
+          </HStack>
+        </VStack>
+      </Box>
+
+      <Box
+        p={4}
+        borderRadius="md"
+        bg="whiteAlpha.50"
+        border="1px solid rgba(148, 115, 220, 0.2)"
+      >
+        <VStack align="stretch" spacing={3}>
+          <HStack justify="space-between" align="center">
+            <Box>
+              <Text color="gray.200" fontSize="sm" fontWeight="medium">Per-project permissions (optional)</Text>
+              <Text color="gray.500" fontSize="xs">
+                Override the global permissions above for a specific project.
+              </Text>
+            </Box>
+            <Button
+              size="xs"
+              leftIcon={<AddIcon boxSize={2.5} />}
+              variant="ghost"
+              color="purple.300"
+              onClick={handleAddProjectPerm}
+              isDisabled={(allProjects || []).length === 0}
+            >
+              Add project
+            </Button>
+          </HStack>
+
+          {(rc.projectPerms || []).length === 0 ? (
+            <EmptyBox>
+              No per-project overrides. Add one to grant task access on a specific project only.
+            </EmptyBox>
+          ) : (
+            <VStack align="stretch" spacing={3}>
+              {(rc.projectPerms || []).map((p, idx) => (
+                <Box
+                  key={idx}
+                  p={3}
+                  borderRadius="md"
+                  bg="whiteAlpha.50"
+                  border="1px solid rgba(148, 115, 220, 0.15)"
+                >
+                  <VStack align="stretch" spacing={2}>
+                    <HStack>
+                      <Select
+                        size="sm"
+                        value={p.projectId || ''}
+                        onChange={(e) => handleProjectPickerChange(idx, e.target.value)}
+                        placeholder="Select project"
+                        {...inputStyles}
+                      >
+                        {(allProjects || []).map(proj => (
+                          <option key={proj.id} value={proj.id} style={{ background: '#1a1a2e' }}>
+                            {proj.name || proj.title || proj.id.slice(0, 10)}
+                          </option>
+                        ))}
+                      </Select>
+                      <IconButton
+                        aria-label="Remove project permission"
+                        icon={<DeleteIcon boxSize={3} />}
+                        size="sm"
+                        variant="ghost"
+                        color="gray.400"
+                        _hover={{ color: 'red.300', bg: 'whiteAlpha.100' }}
+                        onClick={() => handleRemoveProjectPerm(idx)}
+                      />
+                    </HStack>
+                    <PermissionMaskCheckboxes
+                      mask={p.mask}
+                      onToggle={(permValue) => handlePermMaskToggle(idx, permValue)}
+                    />
+                  </VStack>
+                </Box>
+              ))}
+            </VStack>
+          )}
+        </VStack>
+      </Box>
+
+      {/*──────────────── MEMBERSHIP & VOUCHING ────────────────*/}
+      <SectionLabel>Membership &amp; vouching</SectionLabel>
       <Box
         p={4}
         borderRadius="md"
@@ -588,95 +781,6 @@ const RoleConfigurator = ({
               </HStack>
             </VStack>
           ) : null}
-        </VStack>
-      </Box>
-
-      <Box
-        p={4}
-        borderRadius="md"
-        bg="whiteAlpha.50"
-        border="1px solid rgba(148, 115, 220, 0.2)"
-      >
-        <VStack align="stretch" spacing={3}>
-          <HStack justify="space-between" align="center">
-            <Box>
-              <Text color="gray.200" fontSize="sm" fontWeight="medium">Project permissions (optional)</Text>
-              <Text color="gray.500" fontSize="xs">
-                Grant per-project task permissions to the new role.
-              </Text>
-            </Box>
-            <Button
-              size="xs"
-              leftIcon={<AddIcon boxSize={2.5} />}
-              variant="ghost"
-              color="purple.300"
-              onClick={handleAddProjectPerm}
-              isDisabled={(allProjects || []).length === 0}
-            >
-              Add project
-            </Button>
-          </HStack>
-
-          {(rc.projectPerms || []).length === 0 ? (
-            <EmptyBox>
-              No project permissions configured. Add one to grant task access on a specific project.
-            </EmptyBox>
-          ) : (
-            <VStack align="stretch" spacing={3}>
-              {(rc.projectPerms || []).map((p, idx) => (
-                <Box
-                  key={idx}
-                  p={3}
-                  borderRadius="md"
-                  bg="whiteAlpha.50"
-                  border="1px solid rgba(148, 115, 220, 0.15)"
-                >
-                  <VStack align="stretch" spacing={2}>
-                    <HStack>
-                      <Select
-                        size="sm"
-                        value={p.projectId || ''}
-                        onChange={(e) => handleProjectPickerChange(idx, e.target.value)}
-                        placeholder="Select project"
-                        {...inputStyles}
-                      >
-                        {(allProjects || []).map(proj => (
-                          <option key={proj.id} value={proj.id} style={{ background: '#1a1a2e' }}>
-                            {proj.name || proj.title || proj.id.slice(0, 10)}
-                          </option>
-                        ))}
-                      </Select>
-                      <IconButton
-                        aria-label="Remove project permission"
-                        icon={<DeleteIcon boxSize={3} />}
-                        size="sm"
-                        variant="ghost"
-                        color="gray.400"
-                        _hover={{ color: 'red.300', bg: 'whiteAlpha.100' }}
-                        onClick={() => handleRemoveProjectPerm(idx)}
-                      />
-                    </HStack>
-                    <VStack align="stretch" spacing={1} pl={1}>
-                      {PERM_OPTIONS.map(opt => {
-                        const checked = (Number(p.mask) & opt.value) === opt.value;
-                        return (
-                          <Checkbox
-                            key={opt.value}
-                            isChecked={checked}
-                            colorScheme="purple"
-                            size="sm"
-                            onChange={() => handlePermMaskToggle(idx, opt.value)}
-                          >
-                            <Text fontSize="xs" color="gray.200">{opt.label}</Text>
-                          </Checkbox>
-                        );
-                      })}
-                    </VStack>
-                  </VStack>
-                </Box>
-              ))}
-            </VStack>
-          )}
         </VStack>
       </Box>
 
@@ -881,6 +985,34 @@ const RoleConfigurator = ({
         </Text>
       );
     }
+    if (Number(rc.globalPerms) > 0) {
+      lines.push(
+        <Text key="globalperms" fontSize="sm" color="green.300">
+          ✓ Grant <b>{maskLabels(rc.globalPerms).join(', ')}</b> on <b>all projects</b> (org-wide)
+        </Text>
+      );
+    }
+    if (rc.canCreateTasks) {
+      lines.push(
+        <Text key="cancreate" fontSize="sm" color="green.300">
+          ✓ Members of <b>{rc.name}</b> can create projects &amp; tasks
+        </Text>
+      );
+    }
+    if (rc.canOrganizeFolders) {
+      lines.push(
+        <Text key="canorganize" fontSize="sm" color="green.300">
+          ✓ Members can reorganize the task folder tree
+        </Text>
+      );
+    }
+    if (rc.description?.trim() && rc.mutable) {
+      lines.push(
+        <Text key="desc" fontSize="sm" color="green.300">
+          ✓ Save role description on-chain (Hats metadata via IPFS)
+        </Text>
+      );
+    }
     const wearerCount = (rc.initialWearers || []).length;
     if (wearerCount > 0) {
       lines.push(
@@ -892,9 +1024,7 @@ const RoleConfigurator = ({
     const projectPerms = rc.projectPerms || [];
     if (projectPerms.length > 0) {
       projectPerms.forEach((p, i) => {
-        const labels = PERM_OPTIONS
-          .filter(opt => (Number(p.mask) & opt.value) === opt.value)
-          .map(opt => opt.label.split(' ')[0]);
+        const labels = maskLabels(p.mask);
         if (labels.length > 0) {
           lines.push(
             <Text key={`proj-${i}`} fontSize="sm" color="green.300">
