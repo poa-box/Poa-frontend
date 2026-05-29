@@ -61,6 +61,8 @@ export {
   buildRoleAssignments,
   mapPaymasterConfig,
   getPaymasterFundingValue,
+  buildTaskManagerPerms,
+  buildBootstrapConfig,
   mapStateToDeploymentParams,
   createDeploymentConfig,
   validateDeploymentConfig,

@@ -164,6 +164,28 @@ export function DeployerProvider({ children }) {
     setMetadataAdminRole: (roleIndex) =>
       dispatch({ type: ACTION_TYPES.SET_METADATA_ADMIN_ROLE, payload: roleIndex }),
 
+    // Org-wide TaskManager permissions (full uint8 mask per role; 0 = remove)
+    setTaskManagerPerm: (roleIndex, mask) =>
+      dispatch({ type: ACTION_TYPES.SET_TASK_MANAGER_PERM, payload: { roleIndex, mask } }),
+
+    // DirectDemocracy execution-target whitelist
+    setDDInitialTargets: (targets) =>
+      dispatch({ type: ACTION_TYPES.SET_DD_INITIAL_TARGETS, payload: targets }),
+
+    // Bootstrap projects & tasks
+    addBootstrapProject: () =>
+      dispatch({ type: ACTION_TYPES.ADD_BOOTSTRAP_PROJECT }),
+    updateBootstrapProject: (index, updates) =>
+      dispatch({ type: ACTION_TYPES.UPDATE_BOOTSTRAP_PROJECT, payload: { index, updates } }),
+    removeBootstrapProject: (index) =>
+      dispatch({ type: ACTION_TYPES.REMOVE_BOOTSTRAP_PROJECT, payload: index }),
+    addBootstrapTask: (projectIndex) =>
+      dispatch({ type: ACTION_TYPES.ADD_BOOTSTRAP_TASK, payload: { projectIndex } }),
+    updateBootstrapTask: (index, updates) =>
+      dispatch({ type: ACTION_TYPES.UPDATE_BOOTSTRAP_TASK, payload: { index, updates } }),
+    removeBootstrapTask: (index) =>
+      dispatch({ type: ACTION_TYPES.REMOVE_BOOTSTRAP_TASK, payload: index }),
+
     // Paymaster
     togglePaymaster: (value) =>
       dispatch({ type: ACTION_TYPES.TOGGLE_PAYMASTER, payload: value }),
@@ -301,6 +323,9 @@ export function DeployerProvider({ children }) {
       const idx = state.metadataAdminRoleIndex;
       return idx !== null && idx < state.roles.length ? state.roles[idx] : null;
     },
+
+    // Org-wide TaskManager permission mask for a role (0 = none)
+    getTaskManagerPermMask: (roleIndex) => (state.taskManagerPerms || {})[roleIndex] || 0,
 
     // Paymaster
     isPaymasterEnabled: () => state.paymaster.enabled,
