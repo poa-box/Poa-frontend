@@ -17,6 +17,7 @@ import {
 import { FiUserPlus, FiX } from 'react-icons/fi';
 import { UserSearchInput } from '@/components/common';
 import UserIdentity from '@/components/common/UserIdentity';
+import { truncateAddress } from '@/utils/profileUtils';
 
 /**
  * VouchForNewMember component
@@ -100,6 +101,7 @@ export function VouchForNewMember({
           onSelect={setSelectedUser}
           placeholder="Search by username or 0x address..."
           disabled={isVouching}
+          variant="light"
         />
 
         {/* Selected user display */}

@@ -1,6 +1,7 @@
 /**
  * UserSearchInput - Reusable user search input component
- * Searches by username or wallet address with auto-detection
+ * Searches by partial username or wallet address with auto-detection, and shows
+ * a dropdown list of matching users (autocomplete style).
  */
 
 import React from 'react';
@@ -15,10 +16,46 @@ import {
   Text,
   Icon,
 } from '@chakra-ui/react';
-import { FiSearch, FiCheck, FiUserPlus } from 'react-icons/fi';
+import { FiSearch, FiUserPlus } from 'react-icons/fi';
 import PulseLoader from "@/components/shared/PulseLoader";
 import { useUserSearch } from '@/hooks/useUserSearch';
 import UserIdentity from '@/components/common/UserIdentity';
+
+/**
+ * Color tokens per visual context. The component renders on dark surfaces
+ * (e.g. the Add Task modal) by default; pass variant="light" when it sits on a
+ * light/white card (e.g. the vouching panel) so typed text stays legible.
+ */
+const VARIANTS = {
+  dark: {
+    inputBg: 'whiteAlpha.50',
+    inputColor: 'white',
+    inputBorder: 'whiteAlpha.200',
+    inputHoverBorder: 'whiteAlpha.300',
+    placeholder: 'gray.500',
+    searchIcon: 'gray.400',
+    dropdownBg: 'gray.800',
+    dropdownBorder: 'whiteAlpha.200',
+    itemHoverBg: 'whiteAlpha.100',
+    primaryText: 'white',
+    secondaryText: 'gray.400',
+    helperText: 'gray.500',
+  },
+  light: {
+    inputBg: 'white',
+    inputColor: 'warmGray.900',
+    inputBorder: 'warmGray.200',
+    inputHoverBorder: 'warmGray.300',
+    placeholder: 'warmGray.400',
+    searchIcon: 'warmGray.400',
+    dropdownBg: 'white',
+    dropdownBorder: 'warmGray.200',
+    itemHoverBg: 'warmGray.50',
+    primaryText: 'warmGray.900',
+    secondaryText: 'warmGray.500',
+    helperText: 'warmGray.500',
+  },
+};
 
 /**
  * UserSearchInput component
@@ -27,17 +64,19 @@ import UserIdentity from '@/components/common/UserIdentity';
  * @param {string} props.placeholder - Input placeholder text
  * @param {boolean} props.disabled - Disable input
  * @param {string} props.size - Chakra size: 'sm' | 'md' | 'lg'
+ * @param {'dark'|'light'} props.variant - Color scheme for the surface it sits on (default 'dark')
  */
 export function UserSearchInput({
   onSelect,
   placeholder = 'Search by username or 0x address...',
   disabled = false,
   size = 'md',
+  variant = 'dark',
 }) {
   const {
     searchQuery,
     setSearchQuery,
-    searchResult,
+    searchResults,
     isSearching,
     error,
     helperText,
@@ -45,9 +84,11 @@ export function UserSearchInput({
     truncateAddress,
   } = useUserSearch();
 
-  const handleSelect = () => {
-    if (searchResult && onSelect) {
-      onSelect(searchResult);
+  const styles = VARIANTS[variant] || VARIANTS.dark;
+
+  const handleSelect = (result) => {
+    if (result && onSelect) {
+      onSelect(result);
       clear();
     }
   };
@@ -56,19 +97,19 @@ export function UserSearchInput({
     <Box position="relative">
       <InputGroup size={size}>
         <InputLeftElement pointerEvents="none">
-          <Icon as={FiSearch} color="gray.400" />
+          <Icon as={FiSearch} color={styles.searchIcon} />
         </InputLeftElement>
         <Input
           placeholder={placeholder}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           disabled={disabled}
-          bg="whiteAlpha.50"
+          bg={styles.inputBg}
           border="1px solid"
-          borderColor="whiteAlpha.200"
-          color="white"
-          _placeholder={{ color: 'gray.500' }}
-          _hover={{ borderColor: 'whiteAlpha.300' }}
+          borderColor={styles.inputBorder}
+          color={styles.inputColor}
+          _placeholder={{ color: styles.placeholder }}
+          _hover={{ borderColor: styles.inputHoverBorder }}
           _focus={{
             borderColor: 'purple.400',
             boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)',
@@ -76,52 +117,54 @@ export function UserSearchInput({
         />
         <InputRightElement>
           {isSearching && <PulseLoader size="sm" color="purple.400" />}
-          {!isSearching && searchResult && (
-            <Icon as={FiCheck} color="green.400" />
-          )}
         </InputRightElement>
       </InputGroup>
 
       {/* Results dropdown */}
-      {searchResult && (
+      {searchResults.length > 0 && (
         <Box
           position="absolute"
           top="100%"
           left={0}
           right={0}
           mt={1}
-          bg="gray.800"
+          bg={styles.dropdownBg}
           borderRadius="md"
           border="1px solid"
-          borderColor="whiteAlpha.200"
+          borderColor={styles.dropdownBorder}
           boxShadow="lg"
-          zIndex={10}
+          zIndex={20}
           overflow="hidden"
+          maxH="260px"
+          overflowY="auto"
         >
-          <HStack
-            p={3}
-            cursor="pointer"
-            _hover={{ bg: 'whiteAlpha.100' }}
-            onClick={handleSelect}
-            transition="background-color 0.2s"
-          >
-            <UserIdentity
-              address={searchResult.address}
-              usernameHint={searchResult.username}
-              size="sm"
-              showName={false}
-              link={false}
-            />
-            <VStack align="start" spacing={0} flex={1}>
-              <Text color="white" fontSize="sm" fontWeight="medium">
-                {searchResult.username || 'No username registered'}
-              </Text>
-              <Text color="gray.400" fontSize="xs">
-                {truncateAddress(searchResult.address)}
-              </Text>
-            </VStack>
-            <Icon as={FiUserPlus} color="purple.400" />
-          </HStack>
+          {searchResults.map((result) => (
+            <HStack
+              key={result.address}
+              p={3}
+              cursor="pointer"
+              _hover={{ bg: styles.itemHoverBg }}
+              onClick={() => handleSelect(result)}
+              transition="background-color 0.2s"
+            >
+              <UserIdentity
+                address={result.address}
+                usernameHint={result.username}
+                size="sm"
+                showName={false}
+                link={false}
+              />
+              <VStack align="start" spacing={0} flex={1} minW={0}>
+                <Text color={styles.primaryText} fontSize="sm" fontWeight="medium" noOfLines={1}>
+                  {result.username || 'No username registered'}
+                </Text>
+                <Text color={styles.secondaryText} fontSize="xs" fontFamily="mono">
+                  {truncateAddress(result.address)}
+                </Text>
+              </VStack>
+              <Icon as={FiUserPlus} color="purple.400" />
+            </HStack>
+          ))}
         </Box>
       )}
 
@@ -134,7 +177,7 @@ export function UserSearchInput({
 
       {/* Helper text */}
       {helperText && !error && (
-        <Text color="gray.500" fontSize="xs" mt={1}>
+        <Text color={styles.helperText} fontSize="xs" mt={1}>
           {helperText}
         </Text>
       )}
