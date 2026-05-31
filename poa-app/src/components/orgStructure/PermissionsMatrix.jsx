@@ -40,6 +40,7 @@ import {
   FiEdit2,
   FiEdit3,
   FiBriefcase,
+  FiFolderPlus,
 } from 'react-icons/fi';
 
 /**
@@ -56,6 +57,8 @@ const PERMISSION_ICONS = {
   DirectDemocracyVoting_Creator: FiPlusSquare,
   DirectDemocracyVoting_Voter: FiThumbsUp,
   Executor_Voter: FiThumbsUp,
+  // TaskManager project-creator hats (taskManager.creatorHatIds) — distinct from TaskPerm bits
+  TaskManager_CreateProject: FiFolderPlus,
   // TaskManager TaskPerm bits (v4 added Budget, v5 added EditMeta + EditFull)
   TaskManager_Create: FiClipboard,
   TaskManager_Claim: FiTarget,
@@ -81,6 +84,7 @@ const SHORT_LABELS = {
   DirectDemocracyVoting_Creator: 'Poll Create',
   DirectDemocracyVoting_Voter: 'Poll Vote',
   Executor_Voter: 'Execute',
+  TaskManager_CreateProject: 'Create Project',
   TaskManager_Create: 'Task Create',
   TaskManager_Claim: 'Task Claim',
   TaskManager_Review: 'Task Review',
@@ -105,6 +109,7 @@ const FULL_DESCRIPTIONS = {
   DirectDemocracyVoting_Creator: 'Start a non-binding community poll — one member, one vote — for sentiment decisions.',
   DirectDemocracyVoting_Voter: 'Vote in non-binding community polls. One member, one vote, regardless of shares held.',
   Executor_Voter: 'Trigger on-chain execution of proposals that have passed voting (treasury transfers, role changes, etc.).',
+  TaskManager_CreateProject: 'Create new projects in the task manager. Project creators automatically become a manager of the projects they create, which lets them run tasks inside those projects regardless of the per-task grants below.',
   TaskManager_Create: 'Create new tasks under any project (org-wide). Per-project grants set via project setup override this global grant.',
   TaskManager_Claim: 'Claim or apply for tasks (org-wide).',
   TaskManager_Review: 'Approve or reject submitted tasks; required to call completeTask / rejectTask.',

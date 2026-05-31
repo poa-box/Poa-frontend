@@ -634,6 +634,9 @@ export const FETCH_ORG_STRUCTURE_DATA = gql`
       # hats hold CREATE / CLAIM / REVIEW / ASSIGN / BUDGET / EDIT_META / EDIT_FULL globally.
       taskManager {
         id
+        # Hats allowed to create PROJECTS (distinct from the per-task TaskPerm bits
+        # below). Surfaced as the "Create Project" column in the permissions matrix.
+        creatorHatIds
         globalRolePermissions {
           hatId
           mask

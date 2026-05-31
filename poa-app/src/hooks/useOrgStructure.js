@@ -19,6 +19,8 @@ const PERMISSION_LABELS = {
   Creator: 'Create Proposals',
   Member: 'Member Access',
   Approver: 'Approver',
+  // TaskManager project-creator hats (taskManager.creatorHatIds) — who may create projects.
+  CreateProject: 'Create Projects',
   // TaskManager TaskPerm bits — surfaced via useOrgStructure's taskManagerHatPermissions
   // synthesis (TaskManager v4 added BUDGET, v5 added EDIT_META + EDIT_FULL).
   Create: 'Create Tasks',
@@ -246,7 +248,8 @@ const CONTRACT_TYPE_ORDER = [
 const PERMISSION_ROLE_ORDER = [
   // governance roles
   'Voter', 'Creator', 'Approver', 'Member',
-  // TaskManager TaskPerm bits (low bit first → high bit last)
+  // TaskManager: project-creation first, then per-task TaskPerm bits (low bit → high bit)
+  'CreateProject',
   'Create', 'Claim', 'Review', 'Assign', 'SelfReview', 'Budget', 'EditMeta', 'EditFull',
 ];
 
@@ -490,10 +493,24 @@ export function useOrgStructure() {
     return entries;
   }, [org?.taskManager?.globalRolePermissions]);
 
+  // TaskManager creator hats — org.taskManager.creatorHatIds lists which hats may create
+  // PROJECTS (a separate grant from the per-task TaskPerm bits above). Flatten into
+  // HatPermission-shaped rows so the matrix renders a "Create Project" column.
+  const taskManagerCreatorHatPermissions = useMemo(() => {
+    const creatorHatIds = org?.taskManager?.creatorHatIds;
+    if (!creatorHatIds || !creatorHatIds.length) return [];
+    return creatorHatIds.map((hatId) => ({
+      hatId,
+      permissionRole: 'CreateProject',
+      contractType: 'TaskManager',
+      allowed: true,
+    }));
+  }, [org?.taskManager?.creatorHatIds]);
+
   const mergedHatPermissions = useMemo(() => {
     const base = org?.hatPermissions || [];
-    return [...base, ...taskManagerHatPermissions];
-  }, [org?.hatPermissions, taskManagerHatPermissions]);
+    return [...base, ...taskManagerHatPermissions, ...taskManagerCreatorHatPermissions];
+  }, [org?.hatPermissions, taskManagerHatPermissions, taskManagerCreatorHatPermissions]);
 
   // Build permissions matrix
   const permissionsMatrix = useMemo(() => {
