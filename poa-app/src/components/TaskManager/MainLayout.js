@@ -13,8 +13,9 @@ import AllTasksView from './views/AllTasksView';
 
 // Sentinel projectId used in the URL when the user has selected the
 // "All Tasks" sidebar entry. Kept short + URL-safe; matched as a literal
-// in handleSelectProject + the render branch below.
-const ALL_TASKS_ID = '__all__';
+// in handleSelectProject + the render branch below. Exported so the /tasks
+// page can default mobile into this mode without duplicating the magic string.
+export const ALL_TASKS_ID = '__all__';
 import { useDataBaseContext} from '../../context/dataBaseContext';
 import { useIPFScontext } from '../../context/ipfsContext';
 import { useUserContext } from '../../context/UserContext';
