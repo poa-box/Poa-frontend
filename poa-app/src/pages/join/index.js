@@ -502,10 +502,12 @@ const User = () => {
     try {
       // For vouch-gated orgs: apply first, join later (after quorum met).
       // applyForRole() does not require membership — it just records the application on-chain.
+      // Sponsor the gas via the quick-join hats (the applicant is eligible for those, so
+      // the paymaster pays) — the vouch-gated hat itself can't sponsor it. See useClaimRole.
       const applyResult = await applyForRole(selectedHatId, {
         notes: applicationNotes.trim(),
         appliedAt: new Date().toISOString(),
-      });
+      }, quickJoinPaymasterHatIds);
 
       if (!applyResult?.success) {
         toast({
@@ -554,6 +556,7 @@ const User = () => {
   }, [
     selectedHatId, applicationNotes,
     applyForRole, toast, accountAddress, address, userDAO, rolesWithVouching,
+    quickJoinPaymasterHatIds,
   ]);
 
   const benefits = [
