@@ -6,11 +6,7 @@ import {
   Heading,
   Flex,
   Container,
-  chakra,
 } from "@chakra-ui/react";
-import { motion } from "framer-motion";
-
-const MotionBox = chakra(motion.div);
 
 const WhatIsPoa = () => {
   return (
@@ -23,13 +19,7 @@ const WhatIsPoa = () => {
         >
           {/* Text side */}
           <Box flex="1">
-            <MotionBox
-              initial={{ opacity: 0, y: 12 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.7 }}
-              maxW="620px"
-            >
+            <Box className="poa-reveal" maxW="620px">
               <Text
                 fontSize={["sm", "sm"]}
                 fontWeight="600"
@@ -69,19 +59,12 @@ const WhatIsPoa = () => {
                   Create your organization, we&apos;ll recommend the right setup for you &rarr;
                 </Text>
               </Link>
-            </MotionBox>
+            </Box>
           </Box>
 
           {/* Video placeholder */}
           <Flex flex="1" justify="center" align="center">
-            <MotionBox
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-              w="100%"
-              maxW="520px"
-            >
+            <Box className="poa-reveal" w="100%" maxW="520px">
               <Box
                 w="100%"
                 pt="56.25%"
@@ -127,7 +110,7 @@ const WhatIsPoa = () => {
                   </Text>
                 </Flex>
               </Box>
-            </MotionBox>
+            </Box>
           </Flex>
         </Flex>
       </Container>

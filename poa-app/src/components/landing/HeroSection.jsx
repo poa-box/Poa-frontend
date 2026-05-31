@@ -7,23 +7,9 @@ import {
   HStack,
   Container,
   Heading,
-  chakra,
 } from "@chakra-ui/react";
-import { motion } from "framer-motion";
-
-const MotionBox = chakra(motion.div);
-const MotionSpan = motion.span;
 
 const HEADLINE_WORDS = "Build Organizations Owned by the People Who Run Them".split(" ");
-
-const wordVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: (i) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.5, delay: i * 0.06, ease: "easeOut" },
-  }),
-};
 
 const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen }) => {
   return (
@@ -103,25 +89,18 @@ const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen 
         >
           {HEADLINE_WORDS.map((word, i) => (
             <React.Fragment key={i}>
-              <MotionSpan
-                custom={i}
-                initial="hidden"
-                animate="visible"
-                variants={wordVariants}
-                style={{ display: "inline-block" }}
+              <span
+                className="poa-rise"
+                style={{ display: "inline-block", animationDelay: `${(i * 0.05).toFixed(2)}s` }}
               >
                 {word}
-              </MotionSpan>
+              </span>
               {i < HEADLINE_WORDS.length - 1 ? " " : ""}
             </React.Fragment>
           ))}
         </Heading>
 
-        <MotionBox
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.6 }}
-        >
+        <Box className="poa-rise" style={{ animationDelay: "0.45s" }}>
           <Text
             fontSize={["xl", "xl", "1.375rem"]}
             color="warmGray.700"
@@ -135,13 +114,9 @@ const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen 
             <br />
             Governed entirely by your community.
           </Text>
-        </MotionBox>
+        </Box>
 
-        <MotionBox
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.7, delay: 0.8 }}
-        >
+        <Box className="poa-rise" style={{ animationDelay: "0.6s" }}>
           <HStack
             spacing={[3, 4]}
             justify="center"
@@ -186,9 +161,7 @@ const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen 
               </Button>
             </Link>
           </HStack>
-        </MotionBox>
-
-
+        </Box>
       </Container>
     </Box>
   );
