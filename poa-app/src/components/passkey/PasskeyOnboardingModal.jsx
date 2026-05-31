@@ -43,7 +43,7 @@ const STEP_PROGRESS = {
   [OnboardingStep.ERROR]: 0,
 };
 
-export default function PasskeyOnboardingModal({ isOpen, onClose, onSuccess, showWalletOption = false }) {
+export default function PasskeyOnboardingModal({ isOpen, onClose, onSuccess, showWalletOption = false, paymasterHatId }) {
   const [username, setUsername] = useState('');
   const inputRef = useRef(null);
   const toast = useToast();
@@ -88,7 +88,7 @@ export default function PasskeyOnboardingModal({ isOpen, onClose, onSuccess, sho
       return;
     }
 
-    await startOnboarding(trimmed);
+    await startOnboarding(trimmed, paymasterHatId);
   };
 
   const handleClose = () => {

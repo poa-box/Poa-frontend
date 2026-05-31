@@ -287,6 +287,14 @@ export class PasskeyOnboardingService {
         paymasterData = encodeSolidarityOnboardingPaymasterData();
       } else {
         // Org mode: registerAndQuickJoinWithPasskey
+        // The paymaster sponsors the UserOp against this hat's shared org budget, so a
+        // hat ID is mandatory. Guard before the registration challenge so a misconfigured
+        // call fails fast with a clear message instead of prompting for a second biometric
+        // and then throwing "Cannot convert undefined to a BigInt" deep in paymaster encoding.
+        if (this.hatId === undefined || this.hatId === null) {
+          throw new Error('A paymaster hat ID is required for org-mode onboarding.');
+        }
+
         // This signs the registration challenge (biometric prompt #2)
         callData = await this._buildOrgModeCallData(credential, accountAddress, username, onStep);
 

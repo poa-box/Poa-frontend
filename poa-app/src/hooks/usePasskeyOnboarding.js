@@ -80,8 +80,11 @@ export function usePasskeyOnboarding() {
   /**
    * Start the onboarding flow.
    * @param {string} username - Username to register
+   * @param {string|bigint} paymasterHatId - Hat ID whose org budget sponsors the
+   *   onboarding UserOp (the quick-join member hat the new account will be granted).
+   *   Required for org-mode onboarding — the paymaster checks this hat's shared budget.
    */
-  const startOnboarding = useCallback(async (username) => {
+  const startOnboarding = useCallback(async (username, paymasterHatId) => {
     if (!isReady) {
       setError(new Error('Required infrastructure not available. Please try again later.'));
       return;
@@ -100,6 +103,7 @@ export function usePasskeyOnboarding() {
         quickJoinAddress: quickJoinContractAddress,
         paymasterAddress,
         orgId,
+        hatId: paymasterHatId,
         chainId,
       });
 
