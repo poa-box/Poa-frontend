@@ -7,9 +7,7 @@ import {
   SimpleGrid,
   Icon,
   Container,
-  chakra,
 } from "@chakra-ui/react";
-import { motion } from "framer-motion";
 import {
   HiUserGroup,
   HiSparkles,
@@ -18,8 +16,6 @@ import {
   HiShieldCheck,
   HiAcademicCap,
 } from "react-icons/hi";
-
-const MotionBox = chakra(motion.div);
 
 const FEATURES = [
   {
@@ -86,13 +82,7 @@ const FeatureCards = () => {
 
         <SimpleGrid columns={[1, 2, 3]} spacing={[10, 12, 16]}>
           {FEATURES.map((feature, index) => (
-            <MotionBox
-              key={feature.title}
-              initial={{ opacity: 0, y: 16 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-            >
+            <Box className="poa-reveal" key={feature.title}>
               <VStack
                 align="flex-start"
                 spacing={3}
@@ -122,7 +112,7 @@ const FeatureCards = () => {
                   {feature.description}
                 </Text>
               </VStack>
-            </MotionBox>
+            </Box>
           ))}
         </SimpleGrid>
       </Container>

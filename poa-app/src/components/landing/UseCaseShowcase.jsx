@@ -10,16 +10,12 @@ import {
   GridItem,
   Icon,
   Container,
-  chakra,
 } from "@chakra-ui/react";
-import { motion } from "framer-motion";
 import {
   HiAcademicCap,
   HiUserGroup,
   HiCode,
 } from "react-icons/hi";
-
-const MotionBox = chakra(motion.div);
 
 /* ── Option 1: Overlapping translucent circles ── */
 const OverlappingCircles = () => (
@@ -218,14 +214,9 @@ const UseCaseShowcase = () => {
             </Text>
           </Box>
           <Box display={["none", "none", "block"]} flexShrink={0} mr={8}>
-            <MotionBox
-              initial={{ opacity: 0, scale: 0.9 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.8, delay: 0.2 }}
-            >
+            <Box className="poa-reveal">
               <SectionGraphic />
-            </MotionBox>
+            </Box>
           </Box>
         </Flex>
 
@@ -235,13 +226,7 @@ const UseCaseShowcase = () => {
         >
           {USE_CASES.map((useCase, index) => (
             <GridItem key={useCase.title}>
-              <MotionBox
-                initial={{ opacity: 0, y: 16 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                h="100%"
-              >
+              <Box className="poa-reveal" h="100%">
                 <Link href="/create" style={{ textDecoration: "none" }}>
                   <Box
                     p={[6, 7]}
@@ -295,7 +280,7 @@ const UseCaseShowcase = () => {
                     </VStack>
                   </Box>
                 </Link>
-              </MotionBox>
+              </Box>
             </GridItem>
           ))}
         </Grid>

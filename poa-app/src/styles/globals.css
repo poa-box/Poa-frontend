@@ -181,6 +181,65 @@
   }
 }
 
+/* ─────────────────────────────────────────────────────────────────────────
+   Landing-page entrance animations (pure CSS).
+
+   These replace framer-motion entrance reveals on the marketing landing page.
+   framer-motion only ran its reveal AFTER the heavy app JS bundle hydrated, so
+   on mobile the hero text sat at opacity:0 for seconds while the page already
+   looked "loaded" — a flash of invisible text. CSS animations live in the
+   render-blocking stylesheet, so they run at first paint regardless of when (or
+   whether) JS hydrates.
+
+   The base (default) state is always VISIBLE. The hidden→visible motion is
+   layered on only when the user hasn't asked to reduce motion, so reduced-motion
+   users — and any no-JS / pre-hydration state — always see the text.
+   ───────────────────────────────────────────────────────────────────────── */
+
+@keyframes poaRiseIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* On-load reveal for above-the-fold content (the hero), where there is no
+     scroll to trigger on. Plays once at first paint. Longhands (not the
+     `animation` shorthand) so a per-element inline `animation-delay` used for
+     staggering can't be reset by the shorthand. */
+  .poa-rise {
+    opacity: 0;
+    animation-name: poaRiseIn;
+    animation-duration: 0.55s;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    animation-fill-mode: both;
+  }
+}
+
+/* Scroll-triggered reveal for below-the-fold sections. Where the browser
+   supports scroll-driven animations (Chromium, Safari 26+) each section fades
+   up as it scrolls into view — purely from CSS, no JS. Everywhere else (older
+   iOS Safari, Firefox) the @supports block is skipped and the content is simply
+   visible by default, never stuck invisible waiting on JS. Once an element has
+   passed the reveal range it holds the end state, so it can never get stuck. */
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .poa-reveal {
+      opacity: 0;
+      animation-name: poaRiseIn;
+      animation-fill-mode: both;
+      animation-timing-function: linear;
+      animation-timeline: view();
+      animation-range: entry 0% cover 40%;
+    }
+  }
+}
+
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 8px;

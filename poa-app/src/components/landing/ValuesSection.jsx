@@ -7,11 +7,7 @@ import {
   Heading,
   Flex,
   Container,
-  chakra,
 } from "@chakra-ui/react";
-import { motion } from "framer-motion";
-
-const MotionBox = chakra(motion.div);
 
 /* Concentric community rings — layers of governance and membership */
 // Round computed SVG coordinates to 2 decimals to keep server and client
@@ -121,12 +117,7 @@ const ValuesSection = () => {
           >
             {/* Text side */}
             <Box flex="1">
-              <MotionBox
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.7 }}
-              >
+              <Box className="poa-reveal">
                 <VStack spacing={[4, 5]} align={["center", "center", "flex-start"]} textAlign={["center", "center", "left"]}>
                   <Text
                     fontSize={["sm", "sm"]}
@@ -167,7 +158,7 @@ const ValuesSection = () => {
                     </Text>
                   </Link>
                 </VStack>
-              </MotionBox>
+              </Box>
             </Box>
 
             {/* Graphic side */}
@@ -178,14 +169,9 @@ const ValuesSection = () => {
               display={["none", "none", "flex"]}
               maxW="420px"
             >
-              <MotionBox
-                initial={{ opacity: 0, scale: 0.9 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.8, delay: 0.3 }}
-              >
+              <Box className="poa-reveal">
                 <CommunityGraphic />
-              </MotionBox>
+              </Box>
             </Flex>
           </Flex>
       </Container>

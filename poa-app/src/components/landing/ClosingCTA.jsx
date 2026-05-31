@@ -7,22 +7,13 @@ import {
   Text,
   VStack,
   Container,
-  chakra,
 } from "@chakra-ui/react";
-import { motion } from "framer-motion";
-
-const MotionBox = chakra(motion.div);
 
 const ClosingCTA = () => {
   return (
     <Box as="section" py={["16", "20", "24"]} px={[4, 6, 8]}>
       <Container maxW="container.md" textAlign="center">
-        <MotionBox
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: "-50px" }}
-          transition={{ duration: 0.7 }}
-        >
+        <Box className="poa-reveal">
           <VStack spacing={[5, 6]}>
             <Heading
               as="h2"
@@ -56,7 +47,7 @@ const ClosingCTA = () => {
               </Button>
             </Link>
           </VStack>
-        </MotionBox>
+        </Box>
       </Container>
     </Box>
   );
