@@ -13,6 +13,7 @@ import { useOrgName } from "@/hooks/useOrgName";
 import { useTaskDrafts } from "@/hooks/useTaskDrafts";
 import { orgUrl } from "@/util/orgUrl";
 import DraftsReviewModal from "@/components/TaskManager/DraftsReviewModal";
+import MobileSectionWheel from "./MobileSectionWheel";
 import { NAVBAR_MOBILE_HEIGHT } from "./navbarLayout";
 const Navbar = React.memo(() => {
   const router = useRouter();
@@ -58,6 +59,14 @@ const Navbar = React.memo(() => {
     ...(isAdmin ? [{ name: 'Settings', path: orgUrl(org, 'settings') }] : []),
   ], [org, hideTreasury, educationHubEnabled, isAdmin]);
 
+  // Sections shown in the mobile swipe-wheel: the content sections only.
+  // Settings stays as the gear (desktop) / drawer row — it's a config surface,
+  // not a peer content section, so it's excluded from the wheel.
+  const wheelSections = useMemo(
+    () => navItems.filter((item) => item.name !== 'Settings'),
+    [navItems]
+  );
+
   // Function to check active route
   const isActive = useCallback((path) => {
     const basePath = '/' + (router.pathname.split('/')[1] || '');
@@ -85,7 +94,7 @@ const Navbar = React.memo(() => {
         justifyContent="space-between"
       >
         {/* Left side - Home icon */}
-        <Flex h="100%" w={{ base: "40%", md: "auto" }} mr={{ base: "2", md: "4" }} align="center">
+        <Flex h="100%" w="auto" mr={{ base: "2", md: "4" }} align="center">
           <Link as={NextLink} href={orgUrl(org, 'home')} passHref>
             {/* Desktop Home Icon */}
             <IconButton
@@ -112,40 +121,11 @@ const Navbar = React.memo(() => {
           </Link>
         </Flex>
         
-        {/* Center Logo for Mobile only */}
-        <Flex 
-          justify="center" 
-          align="center" 
-          position="absolute" 
-          left="0" 
-          right="0" 
-          mx="auto"
-          display={{ base: 'flex', md: 'none' }}
-          pointerEvents="auto"
-          h="100%"
-          zIndex={1}
-          width="40%"
-        >
-          <Link 
-            href="https://poa.box" 
-            isExternal 
-            display="flex"
-            justifyContent="center"
-            alignItems="center"
-            h="100%"
-            w="100%"
-          >
-            <NextImage
-              src="/images/poa_og.webp"
-              alt="PoA Logo"
-              width={40}
-              height={40}
-              priority
-              style={{ objectFit: 'contain', maxHeight: '87%', width: 'auto' }}
-            />
-          </Link>
-        </Flex>
-        
+        {/* Mobile section wheel — current page centered, neighbouring sections
+            peeking left/right; swipe or tap to move between them. Replaces the
+            old center logo. Mobile-only; desktop uses the inline nav below. */}
+        <MobileSectionWheel sections={wheelSections} />
+
         {/* Desktop Navigation */}
         <Flex
           data-tour="nav-links"
