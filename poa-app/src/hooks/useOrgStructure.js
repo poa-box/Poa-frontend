@@ -10,6 +10,7 @@ import { useIPFScontext } from '../context/ipfsContext';
 import { usePOContext } from '../context/POContext';
 import { formatTokenAmount } from '../util/formatToken';
 import { useSubgraphClient } from '../util/apolloClient';
+import { useOnchainCreatorHats } from './useOnchainCreatorHats';
 
 /**
  * Permission type mapping for display
@@ -19,6 +20,8 @@ const PERMISSION_LABELS = {
   Creator: 'Create Proposals',
   Member: 'Member Access',
   Approver: 'Approver',
+  // TaskManager project-creator hats (taskManager.creatorHatIds) — who may create projects.
+  CreateProject: 'Create Projects',
   // TaskManager TaskPerm bits — surfaced via useOrgStructure's taskManagerHatPermissions
   // synthesis (TaskManager v4 added BUDGET, v5 added EDIT_META + EDIT_FULL).
   Create: 'Create Tasks',
@@ -246,7 +249,8 @@ const CONTRACT_TYPE_ORDER = [
 const PERMISSION_ROLE_ORDER = [
   // governance roles
   'Voter', 'Creator', 'Approver', 'Member',
-  // TaskManager TaskPerm bits (low bit first → high bit last)
+  // TaskManager: project-creation first, then per-task TaskPerm bits (low bit → high bit)
+  'CreateProject',
   'Create', 'Claim', 'Review', 'Assign', 'SelfReview', 'Budget', 'EditMeta', 'EditFull',
 ];
 
@@ -336,7 +340,7 @@ function groupMembersByRole(users, roles) {
  * @returns {Object} Org structure data and utilities
  */
 export function useOrgStructure() {
-  const { orgId, roleHatIds, topHatId, subgraphUrl } = usePOContext();
+  const { orgId, roleHatIds, topHatId, subgraphUrl, orgChainId } = usePOContext();
   const { safeFetchFromIpfs, safeFetchImageFromIpfs } = useIPFScontext();
 
   // State for IPFS metadata
@@ -359,6 +363,18 @@ export function useOrgStructure() {
   });
 
   const org = data?.organization;
+
+  // Creator/voting hats that the subgraph can't index — set in the voting
+  // contracts' initialize() without emitting events (see poa-box/POP#171), and
+  // TaskManager project-creators are only exposed via a lens call — are read
+  // straight from chain (current block, any RPC) so the matrix shows the real
+  // creators now, independent of subgraph state.
+  const { onchainCreatorRows } = useOnchainCreatorHats({
+    hybridVoting: org?.hybridVoting?.id,
+    directDemocracyVoting: org?.directDemocracyVoting?.id,
+    taskManager: org?.taskManager?.id,
+    chainId: orgChainId,
+  });
 
   // Load org metadata from subgraph (preferred) or IPFS (fallback)
   useEffect(() => {
@@ -490,10 +506,38 @@ export function useOrgStructure() {
     return entries;
   }, [org?.taskManager?.globalRolePermissions]);
 
+  // TaskManager creator hats — org.taskManager.creatorHatIds lists which hats may create
+  // PROJECTS (a separate grant from the per-task TaskPerm bits above). Flatten into
+  // HatPermission-shaped rows so the matrix renders a "Create Project" column.
+  const taskManagerCreatorHatPermissions = useMemo(() => {
+    const creatorHatIds = org?.taskManager?.creatorHatIds;
+    if (!creatorHatIds || !creatorHatIds.length) return [];
+    return creatorHatIds.map((hatId) => ({
+      hatId,
+      permissionRole: 'CreateProject',
+      contractType: 'TaskManager',
+      allowed: true,
+    }));
+  }, [org?.taskManager?.creatorHatIds]);
+
   const mergedHatPermissions = useMemo(() => {
     const base = org?.hatPermissions || [];
-    return [...base, ...taskManagerHatPermissions];
-  }, [org?.hatPermissions, taskManagerHatPermissions]);
+    // onchainCreatorRows are read live from the contracts and supplement the
+    // subgraph rows (buildPermissionsMatrix ORs them in), so deploy-time
+    // creators the subgraph never indexed still light up. Idempotent once the
+    // subgraph catches up.
+    return [
+      ...base,
+      ...taskManagerHatPermissions,
+      ...taskManagerCreatorHatPermissions,
+      ...onchainCreatorRows,
+    ];
+  }, [
+    org?.hatPermissions,
+    taskManagerHatPermissions,
+    taskManagerCreatorHatPermissions,
+    onchainCreatorRows,
+  ]);
 
   // Build permissions matrix
   const permissionsMatrix = useMemo(() => {
