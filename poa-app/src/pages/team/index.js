@@ -3,7 +3,7 @@
  * Displays org roles, permissions, members, and governance configuration
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import SEOHead from "@/components/common/SEOHead";
 import {
   Box,
@@ -88,6 +88,14 @@ const OrgStructurePage = () => {
   const rolesWithVouching = roles?.filter(role => role.vouchingEnabled) || [];
   const { getVouchProgress } = useVouches(eligibilityModuleAddress, rolesWithVouching);
 
+  // Default-eligible quick-join hats sponsor a role application's gas: the applicant
+  // is eligible for these (so the paymaster pays) even though they're not yet eligible
+  // for the vouch-gated hat they're applying for. See useClaimRole.applyForRole.
+  const quickJoinHatIds = useMemo(
+    () => (roles || []).filter((r) => r.isQuickJoinEligible).map((r) => r.hatId),
+    [roles],
+  );
+
   // Application modal state
   const [applicationModal, setApplicationModal] = useState({ isOpen: false, hatId: null, roleName: '' });
 
@@ -103,8 +111,14 @@ const OrgStructurePage = () => {
   const handleSubmitApplication = useCallback(async (applicationData) => {
     if (!applicationModal.hatId) return;
     handleCloseApplicationModal();
-    await applyForRole(applicationModal.hatId, applicationData);
-  }, [applicationModal.hatId, applyForRole, handleCloseApplicationModal]);
+    await applyForRole(applicationModal.hatId, applicationData, quickJoinHatIds);
+  }, [applicationModal.hatId, applyForRole, handleCloseApplicationModal, quickJoinHatIds]);
+
+  // Withdraw is gas-sponsored the same way as applying — see quickJoinHatIds above.
+  const handleWithdrawApplication = useCallback(
+    (hatId) => withdrawApplication(hatId, quickJoinHatIds),
+    [withdrawApplication, quickJoinHatIds],
+  );
 
   // Refresh application statuses when roles data is available
   useEffect(() => {
@@ -236,7 +250,7 @@ const OrgStructurePage = () => {
               isApplyingForHat={isApplyingForHat}
               isWithdrawingFromHat={isWithdrawingFromHat}
               onApplyForRole={handleOpenApplicationModal}
-              onWithdrawApplication={withdrawApplication}
+              onWithdrawApplication={handleWithdrawApplication}
             />
           </Box>
 

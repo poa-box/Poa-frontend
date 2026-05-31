@@ -175,7 +175,7 @@ export function useClaimRole(eligibilityModuleAddress) {
    * @param {Object} applicationData - Application data (notes, experience, etc.)
    * @returns {Promise<{success: boolean, error?: Error}>}
    */
-  const applyForRole = useCallback(async (hatId, applicationData) => {
+  const applyForRole = useCallback(async (hatId, applicationData, sponsorshipHatIds = []) => {
     if (!eligibility || !eligibilityModuleAddress) {
       console.error('[useClaimRole] Service not ready or no eligibility module');
       return { success: false, error: new Error('Service not ready') };
@@ -187,14 +187,24 @@ export function useClaimRole(eligibilityModuleAddress) {
       const ipfsResult = await addToIpfs(JSON.stringify(applicationData));
       const applicationHash = ipfsCidToBytes32(ipfsResult.path);
 
-      // paymasterHatIds = [the hat being applied for]. Same pattern as claimVouchedHat
-      // above — first-time applicants have no hats on this org, so without this the
-      // paymaster is skipped (effectiveHatIds.length === 0) and the UserOp falls back
-      // to self-funded, failing with AA21 on a brand-new smart account.
+      // Gas sponsorship: the PaymasterHub only sponsors a hat-scoped UserOp when the
+      // account is *eligible* for that hat (EligibilityModule.getWearerStatus). An
+      // applicant is NOT yet eligible for the vouch-gated hat they're applying for —
+      // that's the whole point of applying — so sponsoring via [hatId] makes
+      // validatePaymasterUserOp revert (AA33) and the UserOp falls back to self-funded,
+      // which then fails for any passkey user with no native balance. Sponsor via the
+      // org's default-eligible quick-join hat(s) instead — the applicant IS eligible for
+      // those (the same budget the join flow uses). When none are supplied (e.g. an
+      // existing member applying), omit paymasterHatIds so the manager falls back to the
+      // user's current hats.
+      const paymasterHatIds = sponsorshipHatIds?.length ? sponsorshipHatIds : undefined;
       const result = await executeWithNotification(
-        () => eligibility.applyForRole(eligibilityModuleAddress, hatId, applicationHash, {
-          paymasterHatIds: [hatId],
-        }),
+        () => eligibility.applyForRole(
+          eligibilityModuleAddress,
+          hatId,
+          applicationHash,
+          paymasterHatIds ? { paymasterHatIds } : {},
+        ),
         {
           pendingMessage: 'Submitting application...',
           successMessage: 'Application submitted!',
@@ -221,7 +231,7 @@ export function useClaimRole(eligibilityModuleAddress) {
    * @param {string} hatId - The hat ID to withdraw application from
    * @returns {Promise<{success: boolean, error?: Error}>}
    */
-  const withdrawApplication = useCallback(async (hatId) => {
+  const withdrawApplication = useCallback(async (hatId, sponsorshipHatIds = []) => {
     if (!eligibility || !eligibilityModuleAddress) {
       console.error('[useClaimRole] Service not ready or no eligibility module');
       return { success: false, error: new Error('Service not ready') };
@@ -230,8 +240,17 @@ export function useClaimRole(eligibilityModuleAddress) {
     setWithdrawingHatId(hatId);
 
     try {
+      // Same sponsorship rationale as applyForRole: an applicant who hasn't been
+      // vouched in yet isn't eligible for the vouch-gated hat, so it can't sponsor the
+      // withdrawal. Route gas through the default-eligible quick-join hat(s) they ARE
+      // eligible for; omit when none are supplied so the manager uses the user's hats.
+      const paymasterHatIds = sponsorshipHatIds?.length ? sponsorshipHatIds : undefined;
       const result = await executeWithNotification(
-        () => eligibility.withdrawApplication(eligibilityModuleAddress, hatId),
+        () => eligibility.withdrawApplication(
+          eligibilityModuleAddress,
+          hatId,
+          paymasterHatIds ? { paymasterHatIds } : {},
+        ),
         {
           pendingMessage: 'Withdrawing application...',
           successMessage: 'Application withdrawn!',
