@@ -7,11 +7,12 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import apolloClient from '@/util/apolloClient';
 import { FETCH_USERNAME_NEW } from '@/util/queries';
-import { findUserByUsernameAcrossChains } from '@/util/crossChainUsername';
+import { searchUsersByUsernameAcrossChains } from '@/util/crossChainUsername';
 
-// Username validation regex (alphanumeric + underscore, 3-32 chars)
+// Username validation regex (alphanumeric + underscore)
 const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
-const MIN_USERNAME_LENGTH = 3;
+// Minimum characters before we run an as-you-type partial search.
+const MIN_QUERY_LENGTH = 2;
 
 // Address validation regex (0x followed by 40 hex chars)
 const ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
@@ -31,8 +32,8 @@ function detectInputType(input) {
     return 'address';
   }
 
-  // Check if it could be a username (alphanumeric + underscore, 3+ chars)
-  if (USERNAME_REGEX.test(trimmed) && trimmed.length >= MIN_USERNAME_LENGTH) {
+  // Check if it could be a username fragment (alphanumeric + underscore, 2+ chars)
+  if (USERNAME_REGEX.test(trimmed) && trimmed.length >= MIN_QUERY_LENGTH) {
     return 'username';
   }
 
@@ -55,9 +56,9 @@ function truncateAddress(address) {
  * @param {number} options.debounceMs - Debounce delay in ms (default: 500)
  * @returns {Object} Search state and utilities
  */
-export function useUserSearch({ debounceMs = 500 } = {}) {
+export function useUserSearch({ debounceMs = 300 } = {}) {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResult, setSearchResult] = useState(null);
+  const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const [error, setError] = useState(null);
 
@@ -68,7 +69,7 @@ export function useUserSearch({ debounceMs = 500 } = {}) {
   useEffect(() => {
     // Clear results if no valid input
     if (!inputType) {
-      setSearchResult(null);
+      setSearchResults([]);
       setError(null);
       setIsSearching(false);
       return;
@@ -78,52 +79,55 @@ export function useUserSearch({ debounceMs = 500 } = {}) {
     setIsSearching(true);
     setError(null);
 
+    // Guard against out-of-order resolution while typing: a slower earlier
+    // request must not overwrite the results of a newer one.
+    let cancelled = false;
+
     const timer = setTimeout(async () => {
       try {
         if (inputType === 'address') {
-          // Search by address - get username if exists
+          // Exact address lookup — get username if one is registered.
           const { data } = await apolloClient.query({
             query: FETCH_USERNAME_NEW,
             variables: { id: searchQuery.trim().toLowerCase() },
             fetchPolicy: 'network-only',
           });
+          if (cancelled) return;
 
-          // Address is always valid for vouching, even without username
-          setSearchResult({
+          // An address is always a valid target, even without a username.
+          setSearchResults([{
             address: searchQuery.trim().toLowerCase(),
             username: data?.account?.username || null,
-          });
+          }]);
           setError(null);
         } else {
-          // Search by username across ALL chains
-          const result = await findUserByUsernameAcrossChains(searchQuery.trim());
-          if (result.address) {
-            setSearchResult({
-              address: result.address,
-              username: result.username,
-            });
-            setError(null);
-          } else {
-            setSearchResult(null);
-            setError('Username not found');
-          }
+          // Partial username search across ALL chains — returns a ranked list.
+          const results = await searchUsersByUsernameAcrossChains(searchQuery.trim());
+          if (cancelled) return;
+
+          setSearchResults(results);
+          setError(results.length === 0 ? 'No users found' : null);
         }
       } catch (err) {
+        if (cancelled) return;
         console.error('[useUserSearch] Search failed:', err);
-        setSearchResult(null);
+        setSearchResults([]);
         setError('Search failed. Please try again.');
       } finally {
-        setIsSearching(false);
+        if (!cancelled) setIsSearching(false);
       }
     }, debounceMs);
 
-    return () => clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, [searchQuery, inputType, debounceMs]);
 
   // Clear function
   const clear = useCallback(() => {
     setSearchQuery('');
-    setSearchResult(null);
+    setSearchResults([]);
     setError(null);
     setIsSearching(false);
   }, []);
@@ -131,13 +135,13 @@ export function useUserSearch({ debounceMs = 500 } = {}) {
   // Helper text based on current state
   const helperText = useMemo(() => {
     if (error) return null; // Error shown separately
-    if (searchResult) return null; // Result shown separately
+    if (searchResults.length > 0) return null; // Results shown separately
     if (isSearching) return 'Searching...';
     if (searchQuery && !inputType) {
-      return 'Enter a username (3+ chars) or wallet address (0x...)';
+      return 'Enter a username (2+ chars) or wallet address (0x...)';
     }
     return null;
-  }, [searchQuery, inputType, isSearching, error, searchResult]);
+  }, [searchQuery, inputType, isSearching, error, searchResults]);
 
   return {
     // Input state
@@ -145,7 +149,7 @@ export function useUserSearch({ debounceMs = 500 } = {}) {
     setSearchQuery,
 
     // Result state
-    searchResult,
+    searchResults,
     isSearching,
     error,
 

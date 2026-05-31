@@ -44,6 +44,21 @@ const FIND_USER_BY_USERNAME = gql`
   }
 `;
 
+const SEARCH_USERS_BY_USERNAME = gql`
+  query SearchUsersByUsername($query: String!, $first: Int!) {
+    accounts(
+      where: { username_contains_nocase: $query }
+      first: $first
+      orderBy: username
+      orderDirection: asc
+    ) {
+      id
+      user
+      username
+    }
+  }
+`;
+
 const FIND_USER_PROFILE_BY_USERNAME = gql`
   query FindUserProfile($username: String!) {
     accounts(where: { username: $username }, first: 1) {
@@ -214,6 +229,63 @@ export async function findUserByUsernameAcrossChains(username) {
   }
 
   return { address: null, username: null, chain: null };
+}
+
+/**
+ * Search for users whose username contains `query` (case-insensitive substring),
+ * across ALL chains. Results are merged, de-duped by address, and ranked so that
+ * exact matches come first, then prefix matches, then other substring matches
+ * (alphabetical within each tier).
+ *
+ * Used to power as-you-type autocomplete — the caller should debounce and pass a
+ * query of at least a couple of characters to keep result sets manageable.
+ *
+ * @param {string} query - Partial username to search for
+ * @param {number} [limit=8] - Max number of merged results to return
+ * @returns {Promise<Array<{ address: string, username: string, chain: string }>>}
+ */
+export async function searchUsersByUsernameAcrossChains(query, limit = 8) {
+  const trimmed = query.trim().toLowerCase();
+  if (trimmed.length === 0) return [];
+
+  // Over-fetch per chain so cross-chain de-duping still leaves enough results.
+  const results = await queryAllChains(SEARCH_USERS_BY_USERNAME, {
+    query: trimmed,
+    first: limit * 2,
+  });
+
+  const byAddress = new Map();
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    const { source, data } = result.value;
+    const accounts = data?.accounts || [];
+    for (const account of accounts) {
+      const address = account.id?.toLowerCase();
+      if (!address || !account.username) continue;
+      if (!byAddress.has(address)) {
+        byAddress.set(address, {
+          address,
+          username: account.username,
+          chain: source.name,
+        });
+      }
+    }
+  }
+
+  const rank = (username) => {
+    const u = username.toLowerCase();
+    if (u === trimmed) return 0; // exact match
+    if (u.startsWith(trimmed)) return 1; // prefix match
+    return 2; // other substring match
+  };
+
+  return Array.from(byAddress.values())
+    .sort((a, b) => {
+      const byRank = rank(a.username) - rank(b.username);
+      if (byRank !== 0) return byRank;
+      return a.username.toLowerCase().localeCompare(b.username.toLowerCase());
+    })
+    .slice(0, limit);
 }
 
 /**
