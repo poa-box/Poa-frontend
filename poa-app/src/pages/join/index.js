@@ -1765,6 +1765,7 @@ const User = () => {
         <PasskeyOnboardingModal
           isOpen={isCreateOpen}
           onClose={onCreateClose}
+          paymasterHatId={quickJoinPaymasterHatIds[0]?.toString()}
           onSuccess={(result) => {
             if (!hasVouchGatedRoles) {
               optimisticJoin({
