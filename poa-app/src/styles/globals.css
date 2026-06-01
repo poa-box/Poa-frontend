@@ -221,6 +221,30 @@
   }
 }
 
+@keyframes poaFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Opacity-ONLY entrance, for gradient (-webkit-background-clip: text) text.
+     A residual transform on the text — or on any ancestor — permanently breaks
+     the gradient clip in iOS Safari and renders the text invisible. .poa-rise
+     leaves transform: translateY(0) at rest, so the gradient hero headline uses
+     this transform-free variant instead and still gets a soft entrance. */
+  .poa-fade {
+    opacity: 0;
+    animation-name: poaFadeIn;
+    animation-duration: 0.6s;
+    animation-timing-function: ease-out;
+    animation-fill-mode: both;
+  }
+}
+
 /* Scroll-triggered reveal for below-the-fold sections. Where the browser
    supports scroll-driven animations (Chromium, Safari 26+) each section fades
    up as it scrolls into view — purely from CSS, no JS. Everywhere else (older
