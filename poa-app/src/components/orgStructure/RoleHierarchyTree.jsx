@@ -2,18 +2,26 @@
  * RoleHierarchyTree - Visual tree display of Hats Protocol roles
  */
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Box,
+  Flex,
   VStack,
   HStack,
   Text,
   Badge,
+  Button,
   Icon,
   Tooltip,
   Skeleton,
 } from '@chakra-ui/react';
-import { FiUsers, FiShield, FiCheckCircle } from 'react-icons/fi';
+import {
+  FiUsers,
+  FiShield,
+  FiCheckCircle,
+  FiChevronDown,
+  FiChevronUp,
+} from 'react-icons/fi';
 import { ClaimRoleButton } from './ClaimRoleButton';
 
 /**
@@ -26,6 +34,70 @@ function normalizeHatId(id) {
     return str.toLowerCase();
   }
   return str;
+}
+
+/**
+ * Role description with a graceful clamp.
+ *
+ * Collapsed to two lines so the tree stays compact and scannable; a
+ * "Read more" toggle is shown only when the text actually overflows. Overflow
+ * is measured against the live layout (which changes with viewport width and
+ * the role's tree depth) rather than a fixed character count, so the toggle
+ * never appears for descriptions that already fit.
+ */
+function RoleDescription({ text }) {
+  const COLLAPSED_LINES = 2;
+  const textRef = useRef(null);
+  const [expanded, setExpanded] = useState(false);
+  const [isClamped, setIsClamped] = useState(false);
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el) return undefined;
+
+    // Only measure while collapsed — expanding removes the clamp, so measuring
+    // then would always report "fits" and wrongly hide the Show less toggle.
+    const measure = () => {
+      if (expanded) return;
+      setIsClamped(el.scrollHeight > el.clientHeight + 1);
+    };
+
+    measure();
+
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text, expanded]);
+
+  return (
+    <Box>
+      <Text
+        ref={textRef}
+        fontSize="sm"
+        color="warmGray.600"
+        lineHeight="tall"
+        noOfLines={expanded ? undefined : COLLAPSED_LINES}
+      >
+        {text}
+      </Text>
+
+      {(isClamped || expanded) && (
+        <Button
+          variant="link"
+          size="xs"
+          mt={1}
+          color="amethyst.500"
+          fontWeight="semibold"
+          rightIcon={<Icon as={expanded ? FiChevronUp : FiChevronDown} boxSize={3} />}
+          _hover={{ color: 'amethyst.600' }}
+          onClick={() => setExpanded((prev) => !prev)}
+        >
+          {expanded ? 'Show less' : 'Read more'}
+        </Button>
+      )}
+    </Box>
+  );
 }
 
 /**
@@ -94,74 +166,76 @@ function RoleNode({
           borderColor: 'amethyst.300',
         }}
       >
-        <HStack justify="space-between" spacing={4}>
-          {/* Role info */}
-          <HStack spacing={3}>
-            <Box
-              p={2}
-              borderRadius="lg"
-              bg="amethyst.50"
-            >
-              <Icon as={FiShield} color="amethyst.500" boxSize={5} />
-            </Box>
+        <HStack align="flex-start" spacing={3}>
+          {/* Role icon */}
+          <Box
+            p={2}
+            borderRadius="lg"
+            bg="amethyst.50"
+            flexShrink={0}
+          >
+            <Icon as={FiShield} color="amethyst.500" boxSize={5} />
+          </Box>
 
-            <VStack align="flex-start" spacing={0}>
-              <Text fontWeight="bold" color="warmGray.900" fontSize="md">
-                {name}
-              </Text>
-              {description ? (
-                <Text fontSize="xs" color="warmGray.600" noOfLines={2} maxW="sm">
-                  {description}
+          {/* Role body: header row, then full-width description */}
+          <VStack align="stretch" flex="1" minW={0} spacing={2}>
+            {/* Header row — name/meta on the left, count + claim on the right */}
+            <Flex justify="space-between" align="flex-start" gap={3} flexWrap="wrap">
+              <VStack align="flex-start" spacing={1} minW={0}>
+                <Text fontWeight="bold" color="warmGray.900" fontSize="md">
+                  {name}
                 </Text>
-              ) : null}
-              {vouchingEnabled && (
-                <Tooltip
-                  label={`Requires ${vouchingQuorum} vouches to join`}
-                  placement="top"
+                {vouchingEnabled && (
+                  <Tooltip
+                    label={`Requires ${vouchingQuorum} vouches to join`}
+                    placement="top"
+                  >
+                    <HStack spacing={1}>
+                      <Icon as={FiCheckCircle} color="green.500" boxSize={3} />
+                      <Text fontSize="xs" color="warmGray.500">
+                        Vouching enabled
+                      </Text>
+                    </HStack>
+                  </Tooltip>
+                )}
+              </VStack>
+
+              <HStack spacing={3} flexShrink={0}>
+                <Badge
+                  bg="amethyst.100"
+                  color="amethyst.700"
+                  px={3}
+                  py={1}
+                  borderRadius="full"
+                  display="flex"
+                  alignItems="center"
+                  gap={1}
                 >
-                  <HStack spacing={1}>
-                    <Icon as={FiCheckCircle} color="green.500" boxSize={3} />
-                    <Text fontSize="xs" color="warmGray.500">
-                      Vouching enabled
-                    </Text>
-                  </HStack>
-                </Tooltip>
-              )}
-            </VStack>
-          </HStack>
+                  <Icon as={FiUsers} boxSize={3} />
+                  {memberCount}
+                </Badge>
 
-          {/* Member count badge and claim button */}
-          <HStack spacing={3}>
-            <Badge
-              bg="amethyst.100"
-              color="amethyst.700"
-              px={3}
-              py={1}
-              borderRadius="full"
-              display="flex"
-              alignItems="center"
-              gap={1}
-            >
-              <Icon as={FiUsers} boxSize={3} />
-              {memberCount}
-            </Badge>
+                {showClaimButton && (
+                  <ClaimRoleButton
+                    role={role}
+                    userHasRole={userHasRole}
+                    isClaiming={isClaiming}
+                    onClaim={onClaim}
+                    isConnected={isConnected}
+                    vouchProgress={vouchProgress}
+                    hasApplied={hasApplied}
+                    isApplying={isApplying}
+                    isWithdrawing={isWithdrawing}
+                    onApply={onApplyForRole}
+                    onWithdraw={onWithdrawApplication}
+                  />
+                )}
+              </HStack>
+            </Flex>
 
-            {showClaimButton && (
-              <ClaimRoleButton
-                role={role}
-                userHasRole={userHasRole}
-                isClaiming={isClaiming}
-                onClaim={onClaim}
-                isConnected={isConnected}
-                vouchProgress={vouchProgress}
-                hasApplied={hasApplied}
-                isApplying={isApplying}
-                isWithdrawing={isWithdrawing}
-                onApply={onApplyForRole}
-                onWithdraw={onWithdrawApplication}
-              />
-            )}
-          </HStack>
+            {/* Description — its own row, aligned under the role name */}
+            {description ? <RoleDescription text={description} /> : null}
+          </VStack>
         </HStack>
       </Box>
     </Box>
