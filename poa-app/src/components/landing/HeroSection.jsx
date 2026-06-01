@@ -1,4 +1,3 @@
-import React from "react";
 import Link from "next/link";
 import {
   Box,
@@ -8,8 +7,6 @@ import {
   Container,
   Heading,
 } from "@chakra-ui/react";
-
-const HEADLINE_WORDS = "Build Organizations Owned by the People Who Run Them".split(" ");
 
 const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen }) => {
   return (
@@ -64,41 +61,35 @@ const HeroSection = ({ mounted, isAuthenticated, onSignInOpen, onOnboardingOpen 
       />
 
       <Container maxW="container.md" textAlign="center" position="relative" zIndex={1}>
-        {/* Word-by-word animated gradient headline */}
-        <Heading
-          as="h1"
-          aria-label="Build Organizations Owned by the People Who Run Them"
-          fontSize={["4xl", "5xl", "6xl", "6xl"]}
-          fontWeight="700"
-          lineHeight="1.15"
-          mb={[6, 8, 10]}
-          letterSpacing="-0.02em"
-          sx={{
-            background: "linear-gradient(135deg, #7C3AED 0%, #A855F7 40%, #EC4899 100%)",
-            backgroundSize: "200% 200%",
-            animation: "gradientShift 8s ease infinite",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-            "@keyframes gradientShift": {
-              "0%": { backgroundPosition: "0% 50%" },
-              "50%": { backgroundPosition: "100% 50%" },
-              "100%": { backgroundPosition: "0% 50%" },
-            },
-          }}
-        >
-          {HEADLINE_WORDS.map((word, i) => (
-            <React.Fragment key={i}>
-              <span
-                className="poa-rise"
-                style={{ display: "inline-block", animationDelay: `${(i * 0.05).toFixed(2)}s` }}
-              >
-                {word}
-              </span>
-              {i < HEADLINE_WORDS.length - 1 ? " " : ""}
-            </React.Fragment>
-          ))}
-        </Heading>
+        {/* Gradient headline. Opacity-only entrance (.poa-fade), never a
+            transform: a residual transform on -webkit-background-clip:text
+            content (or any ancestor) permanently breaks the gradient clip in
+            iOS Safari and renders the text invisible. */}
+        <Box className="poa-fade">
+          <Heading
+            as="h1"
+            fontSize={["4xl", "5xl", "6xl", "6xl"]}
+            fontWeight="700"
+            lineHeight="1.15"
+            mb={[6, 8, 10]}
+            letterSpacing="-0.02em"
+            sx={{
+              background: "linear-gradient(135deg, #7C3AED 0%, #A855F7 40%, #EC4899 100%)",
+              backgroundSize: "200% 200%",
+              animation: "gradientShift 8s ease infinite",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent",
+              backgroundClip: "text",
+              "@keyframes gradientShift": {
+                "0%": { backgroundPosition: "0% 50%" },
+                "50%": { backgroundPosition: "100% 50%" },
+                "100%": { backgroundPosition: "0% 50%" },
+              },
+            }}
+          >
+            Build Organizations Owned by the People Who Run Them
+          </Heading>
+        </Box>
 
         <Box className="poa-rise" style={{ animationDelay: "0.45s" }}>
           <Text
