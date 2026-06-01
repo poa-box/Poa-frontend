@@ -45,6 +45,7 @@ import {
   MAX_LOGO_SIZE_BYTES,
   ACCEPTED_IMAGE_MIME,
 } from '@/util/imageUpload';
+import { normalizeHourlyRate, DEFAULT_HOURLY_RATE } from '@/util/taskUtils';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { getSubgraphUrl, getNetworkByChainId } from '@/config/networks';
@@ -256,6 +257,8 @@ export default function OrgMetadataEditor({
   currentBackgroundColor,
   currentUseTokenSymbol,
   currentTokenSymbol,
+  currentTaskPayoutHoursOnly,
+  currentTaskPayoutHourlyRate,
 }) {
   const toast = useToast();
   const { addToIpfs } = useIPFScontext();
@@ -295,6 +298,10 @@ export default function OrgMetadataEditor({
   const [hideTreasury, setHideTreasury] = useState(currentHideTreasury || false);
   const [bgColor, setBgColor] = useState(currentBackgroundColor || '');
   const [useTokenSymbol, setUseTokenSymbol] = useState(currentUseTokenSymbol === true);
+  const [taskPayoutHoursOnly, setTaskPayoutHoursOnly] = useState(currentTaskPayoutHoursOnly === true);
+  const [taskPayoutHourlyRate, setTaskPayoutHourlyRate] = useState(
+    String(currentTaskPayoutHourlyRate ?? DEFAULT_HOURLY_RATE)
+  );
 
   // Update form when props change (e.g., after successful save + subgraph re-index).
   // Do NOT reset logoURL here — it's set by user actions (upload/remove) only.
@@ -310,7 +317,9 @@ export default function OrgMetadataEditor({
     setHideTreasury(currentHideTreasury || false);
     setBgColor(currentBackgroundColor || '');
     setUseTokenSymbol(currentUseTokenSymbol === true);
-  }, [currentName, currentDescription, currentLinks, currentHideTreasury, currentBackgroundColor, currentUseTokenSymbol]);
+    setTaskPayoutHoursOnly(currentTaskPayoutHoursOnly === true);
+    setTaskPayoutHourlyRate(String(currentTaskPayoutHourlyRate ?? DEFAULT_HOURLY_RATE));
+  }, [currentName, currentDescription, currentLinks, currentHideTreasury, currentBackgroundColor, currentUseTokenSymbol, currentTaskPayoutHoursOnly, currentTaskPayoutHourlyRate]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -358,6 +367,8 @@ export default function OrgMetadataEditor({
         backgroundColor: bgColor.trim() || null,
         hideTreasury,
         useTokenSymbol,
+        taskPayoutHoursOnly,
+        taskPayoutHourlyRate: normalizeHourlyRate(taskPayoutHourlyRate),
       };
 
       // 2. Upload metadata to IPFS
@@ -624,6 +635,57 @@ export default function OrgMetadataEditor({
               />
             </HStack>
           </FormControl>
+
+          {/* Pay by Hours Only Toggle */}
+          <Box>
+            <FormControl>
+              <HStack justifyContent="space-between" alignItems="center">
+                <Box>
+                  <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={0} htmlFor="task-payout-hours-only">
+                    Pay by hours only (ignore difficulty)
+                  </FormLabel>
+                  <FormHelperText color="warmGray.400" fontSize="xs" mt={1}>
+                    When on, task payout is rate × estimated hours — difficulty no longer affects the amount.
+                  </FormHelperText>
+                </Box>
+                <Switch
+                  id="task-payout-hours-only"
+                  isChecked={taskPayoutHoursOnly}
+                  onChange={(e) => setTaskPayoutHoursOnly(e.target.checked)}
+                  colorScheme="coral"
+                />
+              </HStack>
+            </FormControl>
+            {taskPayoutHoursOnly && (
+              <FormControl mt={4}>
+                <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={2} htmlFor="task-payout-hourly-rate">
+                  Tokens per hour
+                </FormLabel>
+                <Input
+                  id="task-payout-hourly-rate"
+                  type="number"
+                  min="0.5"
+                  step="0.5"
+                  value={taskPayoutHourlyRate}
+                  onChange={(e) => setTaskPayoutHourlyRate(e.target.value)}
+                  onBlur={(e) => {
+                    const val = parseFloat(e.target.value);
+                    setTaskPayoutHourlyRate(String(val > 0 ? val : DEFAULT_HOURLY_RATE));
+                  }}
+                  bg="white"
+                  borderColor="warmGray.200"
+                  borderRadius="xl"
+                  color="warmGray.800"
+                  _focus={{ borderColor: 'coral.400', boxShadow: '0 0 0 1px var(--chakra-colors-coral-400)' }}
+                  maxW="160px"
+                  size="lg"
+                />
+                <FormHelperText color="warmGray.400" fontSize="xs">
+                  e.g. 10 → a 2-hour task pays 20.
+                </FormHelperText>
+              </FormControl>
+            )}
+          </Box>
 
           <Divider borderColor="warmGray.100" />
 

@@ -36,12 +36,39 @@ export const DIFFICULTY_CONFIG = {
 };
 
 /**
- * Calculate task payout based on difficulty and estimated hours
+ * Default tokens-per-hour rate for orgs that opt into hours-only payouts
+ * (the "Pay by hours only" org setting). Used when no rate is configured.
+ */
+export const DEFAULT_HOURLY_RATE = 10;
+
+/**
+ * Normalize a configured hourly rate to a positive finite number, falling
+ * back to DEFAULT_HOURLY_RATE for missing/invalid values.
+ * @param {*} value - Raw rate (from org metadata / settings input)
+ * @returns {number}
+ */
+export function normalizeHourlyRate(value) {
+    const rate = Number(value);
+    return Number.isFinite(rate) && rate > 0 ? rate : DEFAULT_HOURLY_RATE;
+}
+
+/**
+ * Calculate task payout.
+ *
+ * Default mode: difficulty-weighted — base + (multiplier * estimated hours).
+ * Hours-only mode: when `payoutConfig.hoursOnly` is set (the org-level "Pay by
+ * hours only" setting), difficulty is ignored and payout is simply
+ * rate * estimated hours, where rate defaults to DEFAULT_HOURLY_RATE.
+ *
  * @param {string} difficulty - The difficulty level (easy, medium, hard, veryHard)
  * @param {number} estimatedHours - The estimated hours to complete the task
+ * @param {{hoursOnly?: boolean, hourlyRate?: number}} [payoutConfig] - Optional org payout config
  * @returns {number} - The calculated payout amount
  */
-export function calculatePayout(difficulty, estimatedHours) {
+export function calculatePayout(difficulty, estimatedHours, payoutConfig) {
+    if (payoutConfig?.hoursOnly) {
+        return Math.round(normalizeHourlyRate(payoutConfig.hourlyRate) * estimatedHours);
+    }
     const config = DIFFICULTY_CONFIG[difficulty];
     if (!config) {
         console.warn(`Unknown difficulty: ${difficulty}, defaulting to medium`);

@@ -41,6 +41,8 @@ const SettingsPage = () => {
     hideTreasury,
     useTokenSymbol,
     participationTokenSymbol,
+    taskPayoutHoursOnly,
+    taskPayoutHourlyRate,
     poContextLoading,
     error: contextError,
   } = usePOContext();
@@ -168,6 +170,8 @@ const SettingsPage = () => {
             currentHideTreasury={hideTreasury}
             currentUseTokenSymbol={useTokenSymbol}
             currentTokenSymbol={participationTokenSymbol}
+            currentTaskPayoutHoursOnly={taskPayoutHoursOnly}
+            currentTaskPayoutHourlyRate={taskPayoutHourlyRate}
           />
         </VStack>
       </Box>

@@ -10,9 +10,11 @@ import {
 import { CloseIcon, EditIcon } from '@chakra-ui/icons';
 import { calculatePayout } from '@/util/taskUtils';
 import { getTokenByAddress, hasBounty } from '@/util/tokens';
+import { usePOContext } from '@/context/POContext';
 
 const DraftRow = ({ draft, onEdit, onDelete, compact = false, isActive = false }) => {
-  const payout = calculatePayout(draft.difficulty, draft.estHours);
+  const { taskPayoutConfig } = usePOContext() || {};
+  const payout = calculatePayout(draft.difficulty, draft.estHours, taskPayoutConfig);
   const showBounty = hasBounty(draft.bountyToken, draft.bountyAmount);
   const bountyToken = showBounty ? getTokenByAddress(draft.bountyToken) : null;
 
