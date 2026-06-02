@@ -49,6 +49,11 @@ export function TaskCreationProvider({ projectName, children }) {
     [projectsData, projectName],
   );
   const projectRolePermissions = currentProject?.rolePermissions || [];
+  // Org-wide ROLE_PERM grants — the fallback when a hat has no per-project mask
+  // (mirrors the contract's _permMask: project mask wins if non-zero, else
+  // global). Without this, hats granted CREATE only via setConfig(ROLE_PERM, …)
+  // resolve as denied. Kept consistent with TaskColumn's gate (PR #442).
+  const globalRolePermissions = currentProject?.globalRolePermissions || [];
   const currentProjectId = currentProject?.id;
   const projectDrafts = useMemo(
     () => (currentProjectId ? draftsForProject(currentProjectId) : []),
@@ -57,7 +62,7 @@ export function TaskCreationProvider({ projectName, children }) {
 
   // Whether the user has a non-member (executive+) role; used as a permissive
   // fallback when a project has no explicit role permissions configured.
-  // NOTE: keep this and `canCreate` below in sync with TaskColumn.js:65-84.
+  // NOTE: keep this and `canCreate` below in sync with TaskColumn's gate.
   const hasNonMemberRole = useMemo(() => {
     if (!userHatIds.length || !roleHatIds?.length) return false;
     const normalizedUserHats = userHatIds.map(normalizeHatId);
@@ -70,11 +75,14 @@ export function TaskCreationProvider({ projectName, children }) {
     return false;
   }, [userHatIds, roleHatIds]);
 
+  // Falls back to executive+ role ONLY when NEITHER project nor global perms are
+  // configured (an unconfigured org); otherwise defer to the effective-permission
+  // resolution, which mirrors the contract's _permMask. Matches TaskColumn (#442).
   const canCreate = useMemo(() => {
-    if (userCanCreateTask(userHatIds, projectRolePermissions)) return true;
-    if (!projectRolePermissions?.length && hasNonMemberRole) return true;
+    if (userCanCreateTask(userHatIds, projectRolePermissions, globalRolePermissions)) return true;
+    if (!projectRolePermissions?.length && !globalRolePermissions?.length && hasNonMemberRole) return true;
     return false;
-  }, [userHatIds, projectRolePermissions, hasNonMemberRole]);
+  }, [userHatIds, projectRolePermissions, globalRolePermissions, hasNonMemberRole]);
 
   const close = () => setIsOpen(false);
 
