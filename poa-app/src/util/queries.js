@@ -395,10 +395,12 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
           createdAt
           rolePermissions {
             hatId
+            mask
             canCreate
             canClaim
             canReview
             canAssign
+            canSelfReview
             canBudget
             canEditMeta
             canEditFull
