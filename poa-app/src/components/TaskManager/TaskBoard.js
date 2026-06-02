@@ -46,7 +46,7 @@ const TaskBoard = ({
     );
 
   const renderView = () => {
-    if (viewMode === 'list') return <ListView projectName={projectName} />;
+    if (viewMode === 'list') return <ListView projectName={projectName} allowCreate />;
     if (viewMode === 'gantt' && !isMobile) return <GanttView projectName={projectName} />;
     return renderBoard();
   };
