@@ -4,6 +4,7 @@ import { FETCH_ORG_FULL_DATA } from '../util/queries';
 import { useRouter } from 'next/router';
 import { formatTokenAmount } from '../util/formatToken';
 import { resolveTokenLabel, DEFAULT_TOKEN_LABEL } from '../util/tokenLabel';
+import { normalizeHourlyRate, DEFAULT_HOURLY_RATE } from '../util/taskUtils';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
 import { useIPFScontext } from './ipfsContext';
@@ -143,6 +144,9 @@ const initialState = {
     educationHubEnabled: false,
     hideTreasury: false,
     useTokenSymbol: false,
+    // Org-level "Pay by hours only" task-payout setting (ignores difficulty).
+    taskPayoutHoursOnly: false,
+    taskPayoutHourlyRate: DEFAULT_HOURLY_RATE,
     participationTokenSymbol: null,
     tokenLabel: DEFAULT_TOKEN_LABEL,
     roleNames: {},
@@ -396,6 +400,11 @@ export const POProvider = ({ children }) => {
                     backgroundColor: org.metadata?.backgroundColor || null,
                     hideTreasury: org.metadata?.hideTreasury === true,
                     useTokenSymbol: org.metadata?.useTokenSymbol === true,
+                    // Hours-only payout config. These fields may be absent from
+                    // the subgraph response until subgraph-pop indexes them; the
+                    // IPFS fallback effect below backfills them in that window.
+                    taskPayoutHoursOnly: org.metadata?.taskPayoutHoursOnly === true,
+                    taskPayoutHourlyRate: normalizeHourlyRate(org.metadata?.taskPayoutHourlyRate),
                     participationTokenSymbol: org.participationToken?.symbol || null,
                     tokenLabel: resolveTokenLabel({
                         useTokenSymbol: org.metadata?.useTokenSymbol === true,
@@ -468,30 +477,47 @@ export const POProvider = ({ children }) => {
         }
     }, [orgData, router]);
 
-    // Fetch logo and hideTreasury from IPFS metadata — only as fallback
-    // when the subgraph hasn't indexed org metadata yet.
+    // Backfill metadata fields from IPFS that the subgraph hasn't surfaced yet.
+    // Two cases:
+    //   1. Subgraph has no `metadata` at all (brand-new org, pre-index) — fill
+    //      logo / hideTreasury / backgroundColor / useTokenSymbol.
+    //   2. Subgraph has `metadata` but not the hours-only payout fields. Those
+    //      live in the IPFS metadata JSON and aren't in the subgraph schema
+    //      until subgraph-pop ships them, so backfill just those. This bridge
+    //      self-disables once the subgraph returns `taskPayoutHoursOnly`
+    //      (defined, even when false).
     useEffect(() => {
         async function fetchMetadataFromIpfs() {
             const org = orgData?.organization;
             if (!org?.metadataHash) {
                 return;
             }
-            // Skip IPFS fetch if subgraph already has metadata indexed
-            if (org.metadata) {
+            const subgraphHasMetadata = !!org.metadata;
+            const subgraphHasPayoutConfig = org.metadata?.taskPayoutHoursOnly !== undefined;
+            // Skip IPFS fetch only when the subgraph already provided everything.
+            if (subgraphHasMetadata && subgraphHasPayoutConfig) {
                 return;
             }
             try {
                 const metadata = await safeFetchFromIpfs(org.metadataHash);
-                dispatch({ type: 'SET_LOGO_URL', payload: metadata?.logo || '' });
-                const useTokenSymbol = metadata?.useTokenSymbol === true;
-                const symbol = org.participationToken?.symbol || null;
-                dispatch({ type: 'SET_ORG_DATA', payload: {
-                    hideTreasury: metadata?.hideTreasury === true,
-                    backgroundColor: metadata?.backgroundColor || null,
-                    useTokenSymbol,
-                    participationTokenSymbol: symbol,
-                    tokenLabel: resolveTokenLabel({ useTokenSymbol, symbol }),
-                } });
+                const payload = {};
+                if (!subgraphHasMetadata) {
+                    dispatch({ type: 'SET_LOGO_URL', payload: metadata?.logo || '' });
+                    const useTokenSymbol = metadata?.useTokenSymbol === true;
+                    const symbol = org.participationToken?.symbol || null;
+                    payload.hideTreasury = metadata?.hideTreasury === true;
+                    payload.backgroundColor = metadata?.backgroundColor || null;
+                    payload.useTokenSymbol = useTokenSymbol;
+                    payload.participationTokenSymbol = symbol;
+                    payload.tokenLabel = resolveTokenLabel({ useTokenSymbol, symbol });
+                }
+                if (!subgraphHasPayoutConfig) {
+                    payload.taskPayoutHoursOnly = metadata?.taskPayoutHoursOnly === true;
+                    payload.taskPayoutHourlyRate = normalizeHourlyRate(metadata?.taskPayoutHourlyRate);
+                }
+                if (Object.keys(payload).length > 0) {
+                    dispatch({ type: 'SET_ORG_DATA', payload });
+                }
             } catch (e) {
                 console.warn('[POContext] Failed to fetch metadata from IPFS:', e);
             }
@@ -601,6 +627,14 @@ export const POProvider = ({ children }) => {
         educationHubEnabled: state.educationHubEnabled,
         hideTreasury: state.hideTreasury,
         useTokenSymbol: state.useTokenSymbol,
+        // Hours-only task payout: raw fields (for the settings editor) plus a
+        // convenience object to hand straight to calculatePayout().
+        taskPayoutHoursOnly: state.taskPayoutHoursOnly,
+        taskPayoutHourlyRate: state.taskPayoutHourlyRate,
+        taskPayoutConfig: {
+            hoursOnly: state.taskPayoutHoursOnly,
+            hourlyRate: state.taskPayoutHourlyRate,
+        },
         participationTokenSymbol: state.participationTokenSymbol,
         tokenLabel: state.tokenLabel,
         roleNames: state.roleNames,

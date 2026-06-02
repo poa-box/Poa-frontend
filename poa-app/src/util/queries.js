@@ -162,6 +162,8 @@ export const FETCH_ORG_FULL_DATA = gql`
         logo
         hideTreasury
         useTokenSymbol
+        taskPayoutHoursOnly
+        taskPayoutHourlyRate
         links {
           name
           url

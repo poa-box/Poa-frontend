@@ -80,10 +80,18 @@ export const TaskBoardProvider = ({
   const [taskColumns, setTaskColumns] = useState(initialColumns);
   const { selectedProject } = useDataBaseContext();
   const { nextTaskId } = useProjectContext();
-  const { taskManagerContractAddress } = usePOContext();
+  const { taskManagerContractAddress, taskPayoutHoursOnly, taskPayoutHourlyRate } = usePOContext();
   const { addToIpfs } = useIPFScontext();
   const { emit } = useRefreshEmit();
   const { addNotification, updateNotification } = useNotification();
+
+  // Org-level payout config handed to calculatePayout(). Memoized on the raw
+  // primitives so its identity is stable across unrelated re-renders (keeps the
+  // tx callbacks below from being recreated needlessly).
+  const payoutConfig = useMemo(
+    () => ({ hoursOnly: taskPayoutHoursOnly, hourlyRate: taskPayoutHourlyRate }),
+    [taskPayoutHoursOnly, taskPayoutHourlyRate]
+  );
 
   // Get services from the new hook — do NOT pass { ipfsService: { addToIpfs } } here,
   // useWeb3Services already gets it from useIPFScontext(). Passing an inline object
@@ -345,7 +353,7 @@ export const TaskBoardProvider = ({
       return;
     }
 
-    const kubixPayout = calculatePayout(task.difficulty, task.estHours);
+    const kubixPayout = calculatePayout(task.difficulty, task.estHours, payoutConfig);
 
     // Save previous state
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
@@ -433,6 +441,7 @@ export const TaskBoardProvider = ({
   }, [
     taskService,
     taskManagerContractAddress,
+    payoutConfig,
     selectedProject,
     consumeNextTaskIds,
     isReady,
@@ -465,7 +474,7 @@ export const TaskBoardProvider = ({
     const baseTaskId = consumeNextTaskIds(drafts.length);
 
     const optimisticTasks = drafts.map((d, i) => {
-      const kubixPayout = calculatePayout(d.difficulty, d.estHours);
+      const kubixPayout = calculatePayout(d.difficulty, d.estHours, payoutConfig);
       const predictedTaskId = String(baseTaskId + i);
       const predictedId = `${taskManagerContractAddress}-${predictedTaskId}`.toLowerCase();
       return {
@@ -499,7 +508,7 @@ export const TaskBoardProvider = ({
       // never carry one — but we don't forward it even if a future code path
       // does, to keep the behaviour explicit at the boundary.
       const taskData = drafts.map(d => ({
-        payout: calculatePayout(d.difficulty, d.estHours),
+        payout: calculatePayout(d.difficulty, d.estHours, payoutConfig),
         name: d.name,
         description: d.description,
         location: 'Open',
@@ -550,6 +559,7 @@ export const TaskBoardProvider = ({
   }, [
     taskService,
     taskManagerContractAddress,
+    payoutConfig,
     consumeNextTaskIds,
     isReady,
     addNotification,
@@ -574,7 +584,7 @@ export const TaskBoardProvider = ({
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    const payout = calculatePayout(updatedTask.difficulty, updatedTask.estHours);
+    const payout = calculatePayout(updatedTask.difficulty, updatedTask.estHours, payoutConfig);
 
     const newTask = {
       ...updatedTask,
@@ -628,6 +638,7 @@ export const TaskBoardProvider = ({
   }, [
     taskService,
     taskManagerContractAddress,
+    payoutConfig,
     isReady,
     addNotification,
     updateNotification,

@@ -36,7 +36,7 @@ import { useUserContext } from '../../context/UserContext';
 import { usePOContext } from '../../context/POContext';
 import { UserSearchInput } from '@/components/common';
 import UserIdentity from '@/components/common/UserIdentity';
-import { calculatePayout, DIFFICULTY_CONFIG } from '@/util/taskUtils';
+import { calculatePayout, DIFFICULTY_CONFIG, normalizeHourlyRate } from '@/util/taskUtils';
 import { inputStyles } from '@/components/shared/glassStyles';
 import DraftRow from './DraftRow';
 import { useKeepFieldsPref } from '@/hooks/useTaskDrafts';
@@ -92,9 +92,13 @@ const DraftsPanel = ({
   isSubmittingDrafts,
   tokenLabel,
 }) => {
+  const { taskPayoutHoursOnly, taskPayoutHourlyRate } = usePOContext();
   const totalPayout = useMemo(
-    () => drafts.reduce((sum, d) => sum + calculatePayout(d.difficulty, d.estHours), 0),
-    [drafts]
+    () => drafts.reduce(
+      (sum, d) => sum + calculatePayout(d.difficulty, d.estHours, { hoursOnly: taskPayoutHoursOnly, hourlyRate: taskPayoutHourlyRate }),
+      0
+    ),
+    [drafts, taskPayoutHoursOnly, taskPayoutHourlyRate]
   );
 
   return (
@@ -167,7 +171,7 @@ const AddTaskModal = ({
   initialEditingDraftId = null,
 }) => {
   const { hasExecRole } = useUserContext();
-  const { orgChainId, tokenLabel } = usePOContext();
+  const { orgChainId, tokenLabel, taskPayoutHoursOnly, taskPayoutHourlyRate } = usePOContext();
   const isDraftMode = mode === 'draft';
   const showAssign = !isDraftMode && hasExecRole;
 
@@ -189,8 +193,8 @@ const AddTaskModal = ({
   const toast = useToast();
 
   const estimatedPayout = useMemo(
-    () => calculatePayout(difficulty, estHours),
-    [difficulty, estHours]
+    () => calculatePayout(difficulty, estHours, { hoursOnly: taskPayoutHoursOnly, hourlyRate: taskPayoutHourlyRate }),
+    [difficulty, estHours, taskPayoutHoursOnly, taskPayoutHourlyRate]
   );
 
   useEffect(() => {
@@ -520,7 +524,9 @@ const AddTaskModal = ({
               </HStack>
             </VStack>
             <Tooltip
-              label={`Base: ${DIFFICULTY_CONFIG[difficulty]?.base || 0} + (${DIFFICULTY_CONFIG[difficulty]?.multiplier || 0} × ${estHours} hrs)`}
+              label={taskPayoutHoursOnly
+                ? `${normalizeHourlyRate(taskPayoutHourlyRate)} × ${estHours} hrs (difficulty not counted)`
+                : `Base: ${DIFFICULTY_CONFIG[difficulty]?.base || 0} + (${DIFFICULTY_CONFIG[difficulty]?.multiplier || 0} × ${estHours} hrs)`}
               placement="left"
               bg="gray.800"
               color="white"
