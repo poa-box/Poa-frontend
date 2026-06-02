@@ -65,7 +65,7 @@ const TaskBoardMobile = forwardRef(({
 
   const canCreateTask = useMemo(() => {
     if (userCanCreateTask(userHatIds, projectRolePermissions, globalRolePermissions)) return true;
-    if (!projectRolePermissions?.length && hasNonMemberRole) return true;
+    if (!projectRolePermissions?.length && !globalRolePermissions?.length && hasNonMemberRole) return true;
     return false;
   }, [userHatIds, projectRolePermissions, globalRolePermissions, hasNonMemberRole]);
 

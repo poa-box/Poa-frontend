@@ -80,18 +80,18 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
   }, [userHatIds, roleHatIds]);
 
   // Check if user can create tasks in this project
-  // Falls back to checking if user has executive+ role when permissions are not configured
+  // Falls back to executive+ role ONLY when NEITHER project nor global permissions are configured
   const canCreateTask = useMemo(() => {
     if (userCanCreateTask(userHatIds, projectRolePermissions, globalRolePermissions)) return true;
-    if (!projectRolePermissions?.length && hasNonMemberRole) return true;
+    if (!projectRolePermissions?.length && !globalRolePermissions?.length && hasNonMemberRole) return true;
     return false;
   }, [userHatIds, projectRolePermissions, globalRolePermissions, hasNonMemberRole]);
 
   // Check if user can review tasks in this project
-  // Falls back to checking if user has executive+ role when permissions are not configured
+  // Falls back to executive+ role ONLY when NEITHER project nor global permissions are configured
   const canReviewTask = useMemo(() => {
     if (userCanReviewTask(userHatIds, projectRolePermissions, globalRolePermissions)) return true;
-    if (!projectRolePermissions?.length && hasNonMemberRole) return true;
+    if (!projectRolePermissions?.length && !globalRolePermissions?.length && hasNonMemberRole) return true;
     return false;
   }, [userHatIds, projectRolePermissions, globalRolePermissions, hasNonMemberRole]);
 
