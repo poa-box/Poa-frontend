@@ -48,6 +48,8 @@ const TaskBoardMobile = forwardRef(({
   }, [projectsData, projectName]);
 
   const projectRolePermissions = currentProject?.rolePermissions || [];
+  // Org-wide ROLE_PERM grants — fallback when a hat has no per-project mask (mirrors _permMask).
+  const globalRolePermissions = currentProject?.globalRolePermissions || [];
 
   const hasNonMemberRole = useMemo(() => {
     if (!userHatIds.length || !roleHatIds?.length) return false;
@@ -62,10 +64,10 @@ const TaskBoardMobile = forwardRef(({
   }, [userHatIds, roleHatIds]);
 
   const canCreateTask = useMemo(() => {
-    if (userCanCreateTask(userHatIds, projectRolePermissions)) return true;
+    if (userCanCreateTask(userHatIds, projectRolePermissions, globalRolePermissions)) return true;
     if (!projectRolePermissions?.length && hasNonMemberRole) return true;
     return false;
-  }, [userHatIds, projectRolePermissions, hasNonMemberRole]);
+  }, [userHatIds, projectRolePermissions, globalRolePermissions, hasNonMemberRole]);
 
   useImperativeHandle(ref, () => ({
     getActiveIndex: () => activeIndex,

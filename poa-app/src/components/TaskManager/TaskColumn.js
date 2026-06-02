@@ -55,6 +55,10 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
   }, [projectsData, projectName]);
 
   const projectRolePermissions = currentProject?.rolePermissions || [];
+  // Org-wide ROLE_PERM grants — the fallback when a hat has no per-project mask, mirroring the
+  // contract's _permMask (project mask wins if non-zero, else global). Without this, hats granted
+  // CREATE only via setConfig(ROLE_PERM, ...) are invisible to the frontend.
+  const globalRolePermissions = currentProject?.globalRolePermissions || [];
   const currentProjectId = currentProject?.id;
   const projectDrafts = useMemo(
     () => (currentProjectId ? draftsForProject(currentProjectId) : []),
@@ -78,18 +82,18 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
   // Check if user can create tasks in this project
   // Falls back to checking if user has executive+ role when permissions are not configured
   const canCreateTask = useMemo(() => {
-    if (userCanCreateTask(userHatIds, projectRolePermissions)) return true;
+    if (userCanCreateTask(userHatIds, projectRolePermissions, globalRolePermissions)) return true;
     if (!projectRolePermissions?.length && hasNonMemberRole) return true;
     return false;
-  }, [userHatIds, projectRolePermissions, hasNonMemberRole]);
+  }, [userHatIds, projectRolePermissions, globalRolePermissions, hasNonMemberRole]);
 
   // Check if user can review tasks in this project
   // Falls back to checking if user has executive+ role when permissions are not configured
   const canReviewTask = useMemo(() => {
-    if (userCanReviewTask(userHatIds, projectRolePermissions)) return true;
+    if (userCanReviewTask(userHatIds, projectRolePermissions, globalRolePermissions)) return true;
     if (!projectRolePermissions?.length && hasNonMemberRole) return true;
     return false;
-  }, [userHatIds, projectRolePermissions, hasNonMemberRole]);
+  }, [userHatIds, projectRolePermissions, globalRolePermissions, hasNonMemberRole]);
 
   // Empty state icons and messages, moved from TaskBoard for consistency
   const emptyStateIcons = {
