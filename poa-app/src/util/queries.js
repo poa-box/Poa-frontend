@@ -395,6 +395,12 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
           createdAt
           rolePermissions {
             hatId
+            # Required by userHasEffectiveTaskPermission's _permMask check: a
+            # per-project grant is only honored when mask > 0 (mask 0 ⇒ fall
+            # back to the global grant). Without this field every per-project
+            # CREATE/CLAIM/… grant is silently ignored. Mirrors the mask the
+            # org-structure query already requests.
+            mask
             canCreate
             canClaim
             canReview

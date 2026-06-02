@@ -7,6 +7,11 @@ import { COLUMN_TITLES } from '@/util/taskUtils';
 import { useFlatTasks } from '../useFlatTasks';
 import TaskRow from './TaskRow';
 import ListControls from './ListControls';
+import {
+  TaskCreationProvider,
+  NewTaskButton,
+  EmptyStateCreateButton,
+} from './ListTaskCreation';
 
 // Apply the dark glass directly to the container (matching the Board's
 // `taskBoardStyles.glassLayerStyle` pattern). The older inner-layer
@@ -86,7 +91,7 @@ const useLocalState = (key, defaultValue) => {
   return [value, setAndStore];
 };
 
-const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) => {
+const ListView = ({ projectName, tasks: tasksOverride, showProject = false, allowCreate = false }) => {
   const ownTasks = useFlatTasks();
   const tasks = tasksOverride ?? ownTasks;
   const isMobile = useBreakpointValue({ base: true, md: false });
@@ -143,7 +148,7 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) =>
 
   const isLoading = tasks.length === 0 && projectName == null;
 
-  return (
+  const content = (
     <Box
       w="100%"
       h="100%"
@@ -186,43 +191,48 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) =>
             onGroupChange={setGroupId}
             isMobile={!!isMobile}
           />
-          {isMobile ? (
-            <Tooltip
-              label={hideCompleted ? 'Show completed tasks' : 'Hide completed tasks'}
-              placement="top"
-            >
-              <IconButton
-                size="xs"
-                variant={hideCompleted ? 'solid' : 'outline'}
-                colorScheme="purple"
-                aria-label={hideCompleted ? 'Show completed tasks' : 'Hide completed tasks'}
-                aria-pressed={hideCompleted}
-                icon={<CheckIcon boxSize={3} />}
-                onClick={() => persistHideCompleted(!hideCompleted)}
-                borderColor="whiteAlpha.300"
-                color={hideCompleted ? 'white' : 'whiteAlpha.700'}
-                flexShrink={0}
-              />
-            </Tooltip>
-          ) : (
-            <Flex align="center" gap={3} px={1}>
-              <Text fontSize="sm" color="whiteAlpha.700">
-                {sortedTasks.length} task{sortedTasks.length !== 1 ? 's' : ''}
-                {hideCompleted && tasks.length !== sortedTasks.length
-                  ? ` (${tasks.length - sortedTasks.length} hidden)`
-                  : ''}
-              </Text>
-              <Checkbox
-                size="sm"
-                isChecked={hideCompleted}
-                onChange={(e) => persistHideCompleted(e.target.checked)}
-                colorScheme="purple"
-                color="whiteAlpha.800"
+          <Flex align="center" gap={{ base: 2, md: 3 }} flexShrink={0}>
+            {isMobile ? (
+              <Tooltip
+                label={hideCompleted ? 'Show completed tasks' : 'Hide completed tasks'}
+                placement="top"
               >
-                Hide completed
-              </Checkbox>
-            </Flex>
-          )}
+                <IconButton
+                  size="xs"
+                  variant={hideCompleted ? 'solid' : 'outline'}
+                  colorScheme="purple"
+                  aria-label={hideCompleted ? 'Show completed tasks' : 'Hide completed tasks'}
+                  aria-pressed={hideCompleted}
+                  icon={<CheckIcon boxSize={3} />}
+                  onClick={() => persistHideCompleted(!hideCompleted)}
+                  borderColor="whiteAlpha.300"
+                  color={hideCompleted ? 'white' : 'whiteAlpha.700'}
+                  flexShrink={0}
+                />
+              </Tooltip>
+            ) : (
+              <Flex align="center" gap={3} px={1}>
+                <Text fontSize="sm" color="whiteAlpha.700">
+                  {sortedTasks.length} task{sortedTasks.length !== 1 ? 's' : ''}
+                  {hideCompleted && tasks.length !== sortedTasks.length
+                    ? ` (${tasks.length - sortedTasks.length} hidden)`
+                    : ''}
+                </Text>
+                <Checkbox
+                  size="sm"
+                  isChecked={hideCompleted}
+                  onChange={(e) => persistHideCompleted(e.target.checked)}
+                  colorScheme="purple"
+                  color="whiteAlpha.800"
+                >
+                  Hide completed
+                </Checkbox>
+              </Flex>
+            )}
+            {/* Primary create action — renders only inside a TaskCreationProvider
+                (project-scoped list); null on the cross-project All Tasks list. */}
+            <NewTaskButton isMobile={!!isMobile} />
+          </Flex>
         </Flex>
 
         {isLoading ? (
@@ -234,10 +244,11 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) =>
             <EmptyState
               text={
                 tasks.length === 0
-                  ? 'No tasks yet — create one from the Board to get started.'
+                  ? 'No tasks yet — create your first task to get started.'
                   : 'All tasks are completed. Toggle off "Hide completed" to see them.'
               }
             />
+            {tasks.length === 0 && <EmptyStateCreateButton />}
           </Box>
         ) : groupedView ? (
           <Box>
@@ -275,6 +286,14 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false }) =>
       </Box>
     </Box>
   );
+
+  // Task creation depends on TaskBoardContext, which only exists for a
+  // project-scoped list. The cross-project All Tasks list passes
+  // allowCreate=false, so it renders the same list with no provider — and the
+  // New Task / Create Task buttons (which read the context) render nothing.
+  if (!allowCreate) return content;
+
+  return <TaskCreationProvider projectName={projectName}>{content}</TaskCreationProvider>;
 };
 
 export default ListView;
