@@ -6,11 +6,16 @@ import { FaGripVertical, FaFolder, FaFolderOpen } from 'react-icons/fa';
 const DraggableProject = ({ project, isSelected, onSelectProject, onDeleteProject }) => {
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'project',
-    item: { name: project.name },
+    // Carry the project id, not the name — onDeleteProject → taskService
+    // .deleteProject expects the (composite) project id so parseProjectId can
+    // extract the bytes32 pid. Passing the name made parseProjectId fall back
+    // to keccak256(name), targeting a nonexistent project so the delete tx
+    // always reverted.
+    item: { id: project.id, name: project.name },
     end: (item, monitor) => {
       const dropResult = monitor.getDropResult();
       if (item && dropResult) {
-        onDeleteProject(item.name);
+        onDeleteProject(item.id);
       }
     },
     collect: (monitor) => ({
