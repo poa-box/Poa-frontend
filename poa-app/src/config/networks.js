@@ -34,34 +34,6 @@ export const NETWORKS = {
     defaultFunding: '0.0002',
     defaultBudgetCap: '0.0002',
   },
-  sepolia: {
-    chainId: 11155111,
-    name: 'Sepolia',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrl: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com',
-    blockExplorer: 'https://sepolia.etherscan.io',
-    isTestnet: true,
-    subgraphUrl: process.env.NEXT_PUBLIC_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest',
-    bountyTokens: {
-      USDC: '0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238',
-    },
-    defaultFunding: '0.05',
-    defaultBudgetCap: '0.05',
-  },
-  baseSepolia: {
-    chainId: 84532,
-    name: 'Base Sepolia',
-    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
-    rpcUrl: process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || 'https://base-sepolia-rpc.publicnode.com',
-    blockExplorer: 'https://sepolia.basescan.org',
-    isTestnet: true,
-    subgraphUrl: process.env.NEXT_PUBLIC_BASE_SEPOLIA_SUBGRAPH_URL || 'https://api.studio.thegraph.com/query/73367/poa-base-sepolia/version/latest',
-    bountyTokens: {
-      USDC: '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
-    },
-    defaultFunding: '0.05',
-    defaultBudgetCap: '0.05',
-  },
 };
 
 // Home chain (accounts, passkeys, core infrastructure)

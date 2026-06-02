@@ -1,8 +1,8 @@
 import { gql } from '@apollo/client';
 
 // ============================================
-// POP SUBGRAPH QUERIES (Sepolia + Base Sepolia)
-// Schema: https://api.studio.thegraph.com/query/73367/poa-sepolia/version/latest
+// POP SUBGRAPH QUERIES (Arbitrum + Gnosis)
+// Endpoints are configured per-chain in src/config/networks.js
 // ============================================
 
 // Fetch single organization by orgId (bytes)
