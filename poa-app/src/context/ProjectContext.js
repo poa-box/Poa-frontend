@@ -23,6 +23,10 @@ const STATUS_TO_COLUMN = {
 export const ProjectProvider = ({ children }) => {
     const [projectsData, setProjectsData] = useState([]);
     const [nextTaskId, setNextTaskId] = useState(0);
+    // Org-wide ROLE_PERM grants, lifted to state so consumers can read them without a
+    // project in hand (e.g. the Create Project modal, which shows them as a baseline
+    // even when the org has zero projects yet).
+    const [globalRolePermissions, setGlobalRolePermissions] = useState([]);
     const { orgId, subgraphUrl } = usePOContext();
 
     const client = useSubgraphClient(subgraphUrl);
@@ -87,7 +91,10 @@ export const ProjectProvider = ({ children }) => {
             // Org-wide ROLE_PERM grants — shared across every project under this TaskManager.
             // Attach to each transformed project so consumers can mirror the contract's
             // _permMask fallback: project mask wins if non-zero, else fall back to global.
-            const globalRolePermissions = data.organization.taskManager.globalRolePermissions || [];
+            // Also surfaced at the context level (below) for consumers that need the org-wide
+            // grants without a project — e.g. the Create Project modal's baseline display.
+            const globalPerms = data.organization.taskManager.globalRolePermissions || [];
+            setGlobalRolePermissions(globalPerms);
 
             // Transform projects for kanban board
             const transformedProjects = projects.map(project => {
@@ -106,7 +113,7 @@ export const ProjectProvider = ({ children }) => {
                     spent: project.spent || '0',
                     bountyCaps: project.bountyCaps || [],
                     rolePermissions: project.rolePermissions || [],
-                    globalRolePermissions,
+                    globalRolePermissions: globalPerms,
                     columns: [
                         { id: 'open', title: 'Open', tasks: [] },
                         { id: 'inProgress', title: 'In Progress', tasks: [] },
@@ -223,7 +230,8 @@ export const ProjectProvider = ({ children }) => {
         taskCount,
         recommendedTasks,
         nextTaskId,
-    }), [projectsData, taskCount, recommendedTasks, nextTaskId]);
+        globalRolePermissions,
+    }), [projectsData, taskCount, recommendedTasks, nextTaskId, globalRolePermissions]);
 
     return (
         <ProjectContext.Provider value={contextValue}>
