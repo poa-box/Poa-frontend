@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   Button,
-  Input,
+  IconButton,
   Modal,
   ModalBody,
   ModalCloseButton,
@@ -23,7 +23,7 @@ import {
   Link,
   Tooltip,
 } from '@chakra-ui/react';
-import { CheckIcon, WarningIcon, ExternalLinkIcon, InfoOutlineIcon } from '@chakra-ui/icons';
+import { CheckIcon, WarningIcon, ExternalLinkIcon, InfoOutlineIcon, CloseIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import EditTaskModal from './EditTaskModal';
 import TaskApplicationModal from './TaskApplicationModal';
@@ -32,9 +32,9 @@ import { useDataBaseContext } from '@/context/dataBaseContext';
 import { useUserContext } from '@/context/UserContext';
 import { useIPFScontext } from '@/context/ipfsContext';
 import { useRouter } from 'next/router';
-import { ethers } from 'ethers';
-import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { useProjectContext } from '@/context/ProjectContext';
+import { UserSearchInput } from '@/components/common';
+import UserIdentity from '@/components/common/UserIdentity';
 import {
   userCanReviewTask,
   userCanAssignTask,
@@ -85,7 +85,7 @@ const SectionHeader = ({ children }) => (
 
 const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
   const [submission, setSubmission] = useState('');
-  const [assignAddress, setAssignAddress] = useState('');
+  const [selectedAssignee, setSelectedAssignee] = useState(null);
   const [isAssigning, setIsAssigning] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
   const { moveTask, deleteTask, applyForTask, approveApplication, assignTask, rejectTask } = useTaskBoard();
@@ -375,8 +375,9 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
     }
   };
 
-  // Handle assigning a task directly (for executives)
-  // Supports both wallet addresses and usernames
+  // Handle assigning a task directly (for executives).
+  // The assignee is chosen via UserSearchInput, which already resolved the
+  // typed username/address to a concrete { address, username } object.
   const handleAssignTask = async () => {
     if (!hasExecRole) {
       toast({
@@ -390,11 +391,10 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
       return;
     }
 
-    const input = assignAddress.trim();
-    if (!input) {
+    if (!selectedAssignee?.address) {
       toast({
-        title: 'Input Required',
-        description: 'Please enter a username or wallet address.',
+        title: 'Select a User',
+        description: 'Search for and select a user to assign this task to.',
         status: 'error',
         duration: 3000,
         isClosable: true,
@@ -405,45 +405,17 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
     setIsAssigning(true);
 
     try {
-      let resolvedAddress = input;
+      const { address, username } = selectedAssignee;
 
-      // Check if input is already a valid address
-      if (!ethers.utils.isAddress(input)) {
-        // Not an address, try to resolve as username
-        toast({
-          title: 'Resolving Username',
-          description: `Looking up "${input}"...`,
-          status: 'info',
-          duration: 2000,
-          isClosable: true,
-        });
-
-        const { resolved, notFound } = await resolveUsernames([input]);
-
-        if (notFound.length > 0 || !resolved.has(input.toLowerCase())) {
-          toast({
-            title: 'User Not Found',
-            description: `No user found with username "${input}". Please check the spelling or use a wallet address.`,
-            status: 'error',
-            duration: 4000,
-            isClosable: true,
-          });
-          setIsAssigning(false);
-          return;
-        }
-
-        resolvedAddress = resolved.get(input.toLowerCase());
-      }
-
-      await assignTask(task.id, resolvedAddress, input !== resolvedAddress ? input : '');
+      await assignTask(task.id, address, username || '');
       toast({
         title: 'Task Assigned',
-        description: `The task has been assigned to ${input !== resolvedAddress ? input : `${resolvedAddress.slice(0, 6)}...${resolvedAddress.slice(-4)}`}.`,
+        description: `The task has been assigned to ${username || `${address.slice(0, 6)}...${address.slice(-4)}`}.`,
         status: 'success',
         duration: 3000,
         isClosable: true,
       });
-      setAssignAddress('');
+      setSelectedAssignee(null);
       setShowAssignSection(false);
       handleCloseModal();
     } catch (error) {
@@ -988,27 +960,66 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                   {columnId === 'open' && hasExecRole && showAssignSection && (
                     <Box w="100%" p={4} bg="whiteAlpha.50" borderRadius="lg" border="1px solid" borderColor="whiteAlpha.100">
                       <SectionHeader>Assign Task</SectionHeader>
-                      <HStack>
-                        <Input
-                          placeholder="Username or wallet address (0x...)"
-                          value={assignAddress}
-                          onChange={(e) => setAssignAddress(e.target.value)}
+
+                      {!selectedAssignee && (
+                        <UserSearchInput
+                          onSelect={setSelectedAssignee}
+                          placeholder="Search by username or 0x address..."
+                          disabled={isAssigning}
                           size="sm"
-                          {...inputStyles}
                         />
-                        <Button
-                          size="sm"
-                          colorScheme="teal"
-                          onClick={handleAssignTask}
-                          isLoading={isAssigning}
-                          loadingText="Resolving..."
+                      )}
+
+                      {selectedAssignee && (
+                        <HStack
+                          p={3}
+                          bg="whiteAlpha.100"
+                          borderRadius="lg"
+                          justify="space-between"
+                          border="1px solid"
+                          borderColor="whiteAlpha.200"
                         >
-                          Assign
-                        </Button>
-                      </HStack>
-                      <Text fontSize="xs" color="gray.500" mt={2}>
-                        Enter a username or full wallet address
-                      </Text>
+                          <HStack spacing={3} minW={0}>
+                            <UserIdentity
+                              address={selectedAssignee.address}
+                              usernameHint={selectedAssignee.username}
+                              size="sm"
+                              showName={false}
+                              link={false}
+                            />
+                            <VStack align="start" spacing={0} minW={0}>
+                              <Text color="white" fontSize="sm" fontWeight="medium" noOfLines={1}>
+                                {selectedAssignee.username || 'No username'}
+                              </Text>
+                              <Text color="gray.400" fontSize="xs" fontFamily="mono">
+                                {`${selectedAssignee.address.slice(0, 6)}...${selectedAssignee.address.slice(-4)}`}
+                              </Text>
+                            </VStack>
+                          </HStack>
+                          <IconButton
+                            icon={<CloseIcon boxSize={2.5} />}
+                            size="xs"
+                            variant="ghost"
+                            colorScheme="whiteAlpha"
+                            onClick={() => setSelectedAssignee(null)}
+                            aria-label="Clear selected user"
+                            isDisabled={isAssigning}
+                          />
+                        </HStack>
+                      )}
+
+                      <Button
+                        mt={3}
+                        w="100%"
+                        size="sm"
+                        colorScheme="teal"
+                        onClick={handleAssignTask}
+                        isLoading={isAssigning}
+                        loadingText="Assigning..."
+                        isDisabled={!selectedAssignee}
+                      >
+                        Assign Task
+                      </Button>
                     </Box>
                   )}
                 </>
@@ -1082,7 +1093,11 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                 {!task.isIndexing && columnId === 'open' && hasExecRole && (
                   <Button
                     variant="ghost"
-                    onClick={() => setShowAssignSection(!showAssignSection)}
+                    onClick={() => {
+                      const next = !showAssignSection;
+                      setShowAssignSection(next);
+                      if (!next) setSelectedAssignee(null);
+                    }}
                     color={showAssignSection ? "teal.300" : "gray.400"}
                     _hover={{ bg: 'whiteAlpha.100', color: 'white' }}
                     size="sm"
