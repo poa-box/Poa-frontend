@@ -36,14 +36,16 @@ import {
   AccordionIcon,
   Switch,
   Checkbox,
+  Collapse,
   useToast,
   Image,
 } from '@chakra-ui/react';
-import { AddIcon, InfoIcon } from '@chakra-ui/icons';
+import { AddIcon, InfoIcon, ChevronRightIcon } from '@chakra-ui/icons';
 import { ethers } from 'ethers';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { getBountyTokenOptions } from '../../util/tokens';
 import { usePOContext } from '../../context/POContext';
+import { useProjectContext } from '../../context/ProjectContext';
 import { createChainClients } from '@/services/web3/utils/chainClients';
 import { formatTokenAmount } from '@/util/formatToken';
 
@@ -60,10 +62,29 @@ const BALANCE_ABI = [
   { type: 'function', name: 'balanceOf', inputs: [{ name: 'account', type: 'address' }], outputs: [{ name: '', type: 'uint256' }], stateMutability: 'view' },
 ];
 
+// Org-wide TaskPerm grants, surfaced read-only in Advanced Settings so a project
+// creator can see what's already granted across the whole org before overriding it
+// per-project. Order + labels mirror the org-structure permissions matrix.
+const GLOBAL_PERMISSION_ROWS = [
+  { flag: 'canCreate', label: 'Create Tasks' },
+  { flag: 'canClaim', label: 'Claim Tasks' },
+  { flag: 'canReview', label: 'Review Tasks' },
+  { flag: 'canAssign', label: 'Assign Tasks' },
+  { flag: 'canSelfReview', label: 'Self-Review' },
+  { flag: 'canBudget', label: 'Edit Budgets' },
+  { flag: 'canEditMeta', label: 'Edit Task Metadata' },
+  { flag: 'canEditFull', label: 'Edit Tasks (Full)' },
+];
+
 const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [], defaultName = '', defaultDescription = '' }) => {
   const toast = useToast();
   const { orgChainId, taskManagerContractAddress, tokenLabel } = usePOContext();
+  // Org-wide TaskPerm grants for the read-only baseline shown in Advanced Settings.
+  const { globalRolePermissions = [] } = useProjectContext() || {};
   const [loading, setLoading] = useState(false);
+  // Org-wide defaults render as a compact, collapsed reference so they don't crowd
+  // the editable per-project Role Permissions section.
+  const [showGlobalDefaults, setShowGlobalDefaults] = useState(false);
 
   // Basic fields
   const [name, setName] = useState('');
@@ -160,6 +181,25 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
   const getRoleName = (hatId) => {
     return roleNames[hatId] || roleNames[String(hatId)] || `Role ${hatId.toString().slice(-6)}`;
   };
+
+  // For each TaskPerm, the org-wide roles that already hold it (deduped role names).
+  // Read-only — purely informational so creators see the baseline before overriding below.
+  const globalPermissionSummary = useMemo(() => (
+    GLOBAL_PERMISSION_ROWS.map(({ flag, label }) => {
+      const names = (globalRolePermissions || [])
+        .filter((g) => g && g[flag])
+        .map((g) => getRoleName(g.hatId));
+      return { label, roles: Array.from(new Set(names)) };
+    })
+    // getRoleName derives purely from roleNames; recompute when grants or names change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ), [globalRolePermissions, roleNames]);
+
+  // Only permissions that actually have an org-wide grant — keeps the reference compact.
+  const grantedPermissionRows = useMemo(
+    () => globalPermissionSummary.filter((row) => row.roles.length > 0),
+    [globalPermissionSummary],
+  );
 
   const toggleRole = (hatId, setter) => {
     setter(prev => {
@@ -582,7 +622,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
 
                     <Divider />
 
-                    {/* Role Permissions */}
+                    {/* Role Permissions (per-project) — the primary, editable control.
+                        Kept first so it isn't buried under the org-wide reference. */}
                     <Box>
                       <HStack spacing={1} mb={3}>
                         <Text fontWeight="medium">Role Permissions</Text>
@@ -619,6 +660,58 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                           Organization roles are still loading...
                         </Text>
                       )}
+                    </Box>
+
+                    <Divider />
+
+                    {/* Organization-wide defaults — compact, collapsed reference so it
+                        doesn't crowd the editable per-project settings above. */}
+                    <Box>
+                      <HStack
+                        as="button"
+                        type="button"
+                        onClick={() => setShowGlobalDefaults((v) => !v)}
+                        spacing={1.5}
+                        color="gray.500"
+                        _hover={{ color: 'gray.700' }}
+                        aria-expanded={showGlobalDefaults}
+                      >
+                        <ChevronRightIcon
+                          boxSize={4}
+                          transform={showGlobalDefaults ? 'rotate(90deg)' : undefined}
+                          transition="transform 0.15s"
+                        />
+                        <Text fontSize="xs" fontWeight="medium">Organization-wide defaults</Text>
+                        <Tooltip label="Task permissions already granted to roles across the whole org. The per-project settings above override these for this project." placement="top">
+                          <InfoIcon boxSize={3} />
+                        </Tooltip>
+                      </HStack>
+                      <Collapse in={showGlobalDefaults} animateOpacity>
+                        <Box pt={2} pl={5}>
+                          {grantedPermissionRows.length > 0 ? (
+                            <VStack spacing={1.5} align="stretch">
+                              {grantedPermissionRows.map(({ label, roles }) => (
+                                <HStack key={label} align="start" justify="space-between" spacing={3}>
+                                  <Text fontSize="xs" color="gray.600" flexShrink={0}>{label}</Text>
+                                  <Wrap justify="flex-end" flex={1} spacing={1}>
+                                    {roles.map((roleName) => (
+                                      <WrapItem key={roleName}>
+                                        <Tag size="sm" colorScheme="purple" variant="subtle" borderRadius="full">
+                                          <TagLabel>{roleName}</TagLabel>
+                                        </Tag>
+                                      </WrapItem>
+                                    ))}
+                                  </Wrap>
+                                </HStack>
+                              ))}
+                            </VStack>
+                          ) : (
+                            <Text fontSize="xs" color="gray.500">
+                              No org-wide task permissions are configured; executive and higher roles manage tasks by default.
+                            </Text>
+                          )}
+                        </Box>
+                      </Collapse>
                     </Box>
                   </VStack>
                 </AccordionPanel>
