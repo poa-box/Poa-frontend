@@ -99,6 +99,9 @@ export const ProjectProvider = ({ children }) => {
                     metadataHash: project.metadataHash,
                     // Use indexed metadata from subgraph as primary source
                     description: project.metadata?.description || '',
+                    // createdAt is indexed by the subgraph (unix seconds string); surfaced in the
+                    // project info modal's stats. May be undefined on optimistic/indexing projects.
+                    createdAt: project.createdAt,
                     cap: project.cap,
                     spent: project.spent || '0',
                     bountyCaps: project.bountyCaps || [],

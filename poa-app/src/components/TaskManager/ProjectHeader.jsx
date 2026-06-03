@@ -9,38 +9,17 @@ import {
   Text,
   IconButton,
   Tooltip,
-  Modal,
-  ModalOverlay,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalCloseButton,
   useDisclosure,
-  VStack,
-  HStack,
-  Image,
-  Link,
-  Button,
 } from '@chakra-ui/react';
-import { InfoIcon, ExternalLinkIcon, EditIcon } from '@chakra-ui/icons';
+import { InfoIcon } from '@chakra-ui/icons';
 import { FaProjectDiagram } from 'react-icons/fa';
 import { useDataBaseContext } from '@/context/dataBaseContext';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
-import { formatTokenAmount } from '@/util/formatToken';
-import { getTokenByAddress } from '@/util/tokens';
 import { userCanBudgetProject } from '@/util/permissions';
 import EditBudgetModal from './EditBudgetModal';
+import ProjectInfoModal from './ProjectInfoModal';
 import ViewSwitcher from './ViewSwitcher';
-
-const glassLayerStyle = {
-  position: "absolute",
-  height: "100%",
-  width: "100%",
-  zIndex: -1,
-  borderRadius: "inherit",
-  backgroundColor: "rgba(33, 33, 33, 0.97)",
-};
 
 const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -49,13 +28,14 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
   const { tokenLabel = 'Shares' } = usePOContext() || {};
   const { userData } = useUserContext() || {};
 
-  // Use indexed description from subgraph (no IPFS fetching needed)
-  const projectDescription = selectedProject?.description || '';
-  // Format budget from wei (18 decimals) to human-readable, 0 means no budget
-  const projectBudget = formatTokenAmount(selectedProject?.cap || '0');
-
   const userHatIds = userData?.hatIds || [];
-  const canEditBudget = userCanBudgetProject(userHatIds, selectedProject?.rolePermissions);
+  // Pass global grants too so hats granted BUDGET only org-wide (via setConfig ROLE_PERM)
+  // still unlock the edit affordance, matching the contract's _permMask fallback.
+  const canEditBudget = userCanBudgetProject(
+    userHatIds,
+    selectedProject?.rolePermissions,
+    selectedProject?.globalRolePermissions,
+  );
 
   return (
     <>
@@ -114,98 +94,21 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
         </Flex>
       </Box>
 
-      {/* Project Info Modal */}
-      <Modal isOpen={isOpen} onClose={onClose} size="xl">
-        <ModalOverlay />
-        <ModalContent bg="transparent" textColor="white">
-          <div style={glassLayerStyle} />
-          <ModalHeader borderTopRadius="md">
-            <Flex align="center" justify="space-between">
-              <Text>{projectName}</Text>
-              {canEditBudget && (
-                <Button
-                  size="sm"
-                  leftIcon={<EditIcon />}
-                  variant="outline"
-                  colorScheme="purple"
-                  mr={8}
-                  onClick={() => {
-                    onClose();
-                    onBudgetOpen();
-                  }}
-                >
-                  Edit budget
-                </Button>
-              )}
-            </Flex>
-          </ModalHeader>
-          <ModalCloseButton />
-          <ModalBody pb={6}>
-            <VStack align="start" spacing={4}>
-              <Box w="100%">
-                <Text fontWeight="bold" mb={2} color="gray.300">
-                  Description
-                </Text>
-                {projectDescription ? (
-                  <Text style={{ whiteSpace: 'pre-wrap' }} lineHeight="1.6">
-                    {projectDescription}
-                  </Text>
-                ) : (
-                  <Text color="gray.400" fontStyle="italic">
-                    No description available for this project.
-                  </Text>
-                )}
-              </Box>
-              <Box w="100%">
-                <Text fontWeight="bold" mb={2} color="gray.300">
-                  Budget
-                </Text>
-                {projectBudget !== '0' ? (
-                  <Text>
-                    {projectBudget} {tokenLabel.toLowerCase()}
-                  </Text>
-                ) : (
-                  <Text color="gray.400" fontStyle="italic">
-                    No share budget
-                  </Text>
-                )}
-                {(selectedProject?.bountyCaps || []).length > 0 && (
-                  <VStack align="start" spacing={2} mt={3}>
-                    <Text fontWeight="bold" fontSize="sm" color="gray.300">
-                      Bounty Token Budgets
-                    </Text>
-                    {selectedProject.bountyCaps.map((bc) => {
-                      const tokenInfo = getTokenByAddress(bc.token);
-                      // Caps at or above 10^30 are effectively unlimited (contract uses 2^128-1)
-                      const isUnlimited = bc.cap && bc.cap.length > 30;
-                      const formattedCap = isUnlimited ? 'Unlimited' : formatTokenAmount(bc.cap || '0', tokenInfo.decimals, 2);
-                      return (
-                        <HStack key={bc.token} spacing={2} align="center">
-                          {tokenInfo.logo ? (
-                            <Image src={tokenInfo.logo} alt={tokenInfo.symbol} boxSize="20px" borderRadius="full" fallback={<></>} />
-                          ) : (
-                            <Box w="20px" h="20px" borderRadius="full" bg="gray.500" display="flex" alignItems="center" justifyContent="center">
-                              <Text fontSize="xs" fontWeight="bold" color="white">{tokenInfo.symbol.charAt(0)}</Text>
-                            </Box>
-                          )}
-                          <Text fontSize="sm">
-                            {tokenInfo.symbol}: {formattedCap}
-                          </Text>
-                          {tokenInfo.projectUrl && (
-                            <Link href={tokenInfo.projectUrl} isExternal onClick={(e) => e.stopPropagation()}>
-                              <ExternalLinkIcon boxSize={3} color="gray.500" _hover={{ color: 'gray.300' }} />
-                            </Link>
-                          )}
-                        </HStack>
-                      );
-                    })}
-                  </VStack>
-                )}
-              </Box>
-            </VStack>
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+      {/* Mounted only when open so useOrgStructure's query is deferred until first use */}
+      {isOpen && (
+        <ProjectInfoModal
+          isOpen={isOpen}
+          onClose={onClose}
+          project={selectedProject}
+          projectName={projectName}
+          tokenLabel={tokenLabel}
+          canEditBudget={canEditBudget}
+          onEditBudget={() => {
+            onClose();
+            onBudgetOpen();
+          }}
+        />
+      )}
 
       <EditBudgetModal
         isOpen={isBudgetOpen}
