@@ -27,6 +27,7 @@ import {
 import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { getBountyTokenOptions, BOUNTY_TOKENS, hasBounty as checkHasBounty } from '../../util/tokens';
 import { usePOContext } from '../../context/POContext';
+import EstTimePicker from './EstTimePicker';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -78,7 +79,7 @@ const EditTaskModal = ({
   allowDelete = true,
   metadataOnly = false,
 }) => {
-  const { orgChainId, tokenLabel } = usePOContext();
+  const { orgChainId, tokenLabel, taskPayoutHoursOnly } = usePOContext();
   const tokenOptions = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
 
   const [name, setName] = useState(task.name);
@@ -190,30 +191,41 @@ const EditTaskModal = ({
                   </Select>
                 </FormControl>
                 <FormControl>
-                  <FormLabel color="gray.200" fontSize="sm">Estimated Hours</FormLabel>
-                  <Input
-                    type="number"
-                    min="0.5"
-                    step="0.5"
-                    value={estHours}
-                    onChange={(e) => {
-                      const val = parseFloat(e.target.value);
-                      if (isNaN(val)) {
-                        setEstimatedHours(0.5);
-                      } else {
-                        setEstimatedHours(val);
-                      }
-                    }}
-                    onBlur={(e) => {
-                      const val = parseFloat(e.target.value);
-                      if (val <= 0.5) {
-                        setEstimatedHours(0.5);
-                      } else {
-                        setEstimatedHours(Math.round(val * 2) / 2);
-                      }
-                    }}
-                    {...inputStyles}
-                  />
+                  <FormLabel color="gray.200" fontSize="sm">
+                    {taskPayoutHoursOnly ? 'Estimated Time' : 'Estimated Hours'}
+                  </FormLabel>
+                  {taskPayoutHoursOnly ? (
+                    <EstTimePicker
+                      value={estHours}
+                      onChange={setEstimatedHours}
+                      inputStyles={inputStyles}
+                      selectStyles={selectStyles}
+                    />
+                  ) : (
+                    <Input
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={estHours}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (isNaN(val)) {
+                          setEstimatedHours(0.5);
+                        } else {
+                          setEstimatedHours(val);
+                        }
+                      }}
+                      onBlur={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (val <= 0.5) {
+                          setEstimatedHours(0.5);
+                        } else {
+                          setEstimatedHours(Math.round(val * 2) / 2);
+                        }
+                      }}
+                      {...inputStyles}
+                    />
+                  )}
                 </FormControl>
               </SimpleGrid>
             </Box>
@@ -371,6 +383,7 @@ const EditTaskModal = ({
               <Button
                 colorScheme="teal"
                 onClick={handleEditTask}
+                isDisabled={taskPayoutHoursOnly && !(Number(estHours) > 0)}
               >
                 Save Changes
               </Button>

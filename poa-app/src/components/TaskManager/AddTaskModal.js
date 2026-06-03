@@ -36,9 +36,10 @@ import { useUserContext } from '../../context/UserContext';
 import { usePOContext } from '../../context/POContext';
 import { UserSearchInput } from '@/components/common';
 import UserIdentity from '@/components/common/UserIdentity';
-import { calculatePayout, DIFFICULTY_CONFIG, normalizeHourlyRate } from '@/util/taskUtils';
+import { calculatePayout, DIFFICULTY_CONFIG, normalizeHourlyRate, formatEstTime } from '@/util/taskUtils';
 import { inputStyles } from '@/components/shared/glassStyles';
 import DraftRow from './DraftRow';
+import EstTimePicker from './EstTimePicker';
 import { useKeepFieldsPref } from '@/hooks/useTaskDrafts';
 
 const glassLayerStyle = {
@@ -388,6 +389,7 @@ const AddTaskModal = ({
 
   const formInvalid =
     !name.trim() ||
+    (taskPayoutHoursOnly && !(Number(estHours) > 0)) ||
     (hasBounty && (!bountyToken || !bountyAmount || Number(bountyAmount) <= 0));
 
   const renderForm = () => (
@@ -483,23 +485,32 @@ const AddTaskModal = ({
 
           <FormControl id="task-estimated-hours">
             <FormLabel color="gray.200" fontSize="sm">
-              Estimated Hours
+              {taskPayoutHoursOnly ? 'Estimated Time' : 'Estimated Hours'}
             </FormLabel>
-            <Input
-              type="number"
-              min="0.5"
-              step="0.5"
-              value={estHours}
-              onChange={(e) => {
-                const val = parseFloat(e.target.value);
-                setEstHours(isNaN(val) ? 0.5 : val);
-              }}
-              onBlur={(e) => {
-                const val = parseFloat(e.target.value);
-                setEstHours(val <= 0.5 ? 0.5 : Math.round(val * 2) / 2);
-              }}
-              {...inputStyles}
-            />
+            {taskPayoutHoursOnly ? (
+              <EstTimePicker
+                value={estHours}
+                onChange={setEstHours}
+                inputStyles={inputStyles}
+                selectStyles={selectStyles}
+              />
+            ) : (
+              <Input
+                type="number"
+                min="0.5"
+                step="0.5"
+                value={estHours}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setEstHours(isNaN(val) ? 0.5 : val);
+                }}
+                onBlur={(e) => {
+                  const val = parseFloat(e.target.value);
+                  setEstHours(val <= 0.5 ? 0.5 : Math.round(val * 2) / 2);
+                }}
+                {...inputStyles}
+              />
+            )}
           </FormControl>
         </SimpleGrid>
 
@@ -525,7 +536,7 @@ const AddTaskModal = ({
             </VStack>
             <Tooltip
               label={taskPayoutHoursOnly
-                ? `${normalizeHourlyRate(taskPayoutHourlyRate)} × ${estHours} hrs (difficulty not counted)`
+                ? `${normalizeHourlyRate(taskPayoutHourlyRate)}/hr × ${formatEstTime(estHours)} (difficulty not counted)`
                 : `Base: ${DIFFICULTY_CONFIG[difficulty]?.base || 0} + (${DIFFICULTY_CONFIG[difficulty]?.multiplier || 0} × ${estHours} hrs)`}
               placement="left"
               bg="gray.800"

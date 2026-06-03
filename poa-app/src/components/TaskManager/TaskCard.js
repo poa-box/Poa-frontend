@@ -8,13 +8,18 @@ import { TimeIcon, StarIcon, CheckIcon, InfoIcon, WarningIcon } from '@chakra-ui
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import { usePOContext } from '../../context/POContext';
 import { useOrgName } from '../../hooks/useOrgName';
-import { getDifficultyColor } from '../../util/taskUtils';
+import { getDifficultyColor, formatEstTime } from '../../util/taskUtils';
 import { darkCardStyle } from '@/components/shared/glassStyles';
 
 const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) => {
   const poContext = usePOContext();
   const tokenLabel = poContext?.tokenLabel || 'Shares';
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
+  // Orgs that pay by hours only enter/track time in 15-min steps, so show a
+  // "1h 30m" duration instead of decimal "1.5 hrs".
+  const estLabel = poContext?.taskPayoutHoursOnly
+    ? formatEstTime(estHours)
+    : `${estHours} hr${Number(estHours) !== 1 ? 's' : ''}`;
 
   const router = useRouter();
   const userDAO = useOrgName();
@@ -177,7 +182,7 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
             <HStack spacing={1} align="center">
               <TimeIcon boxSize={3} color={isCardMobile ? "whiteAlpha.600" : "gray.400"} />
               <Text fontSize="xs" color={isCardMobile ? "whiteAlpha.700" : "gray.500"} fontWeight="medium">
-                {estHours} hr{estHours !== 1 ? 's' : ''}
+                {estLabel}
               </Text>
             </HStack>
           </Flex>

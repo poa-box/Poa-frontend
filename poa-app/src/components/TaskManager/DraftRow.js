@@ -8,7 +8,7 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import { CloseIcon, EditIcon } from '@chakra-ui/icons';
-import { calculatePayout } from '@/util/taskUtils';
+import { calculatePayout, formatEstTime } from '@/util/taskUtils';
 import { getTokenByAddress, hasBounty } from '@/util/tokens';
 import { usePOContext } from '@/context/POContext';
 
@@ -47,7 +47,9 @@ const DraftRow = ({ draft, onEdit, onDelete, compact = false, isActive = false }
             {payout} payout
           </Badge>
           <Badge colorScheme="gray" variant="subtle" fontSize="2xs">
-            {draft.difficulty} · {draft.estHours}h
+            {taskPayoutConfig?.hoursOnly
+              ? formatEstTime(draft.estHours)
+              : `${draft.difficulty} · ${draft.estHours}h`}
           </Badge>
           {showBounty && (
             <Badge colorScheme="green" variant="subtle" fontSize="2xs">

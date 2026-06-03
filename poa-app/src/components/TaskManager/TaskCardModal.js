@@ -44,6 +44,7 @@ import {
 import { useOrgName } from '@/hooks/useOrgName';
 import UsernameLink from '@/components/common/UsernameLink';
 import { usePOContext } from '@/context/POContext';
+import { formatEstTime } from '@/util/taskUtils';
 
 
 const glassLayerStyle = {
@@ -94,7 +95,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
   const { safeFetchFromIpfs } = useIPFScontext();
   const router = useRouter();
   const userDAO = useOrgName();
-  const { tokenLabel } = usePOContext();
+  const { tokenLabel, taskPayoutHoursOnly } = usePOContext();
   const toast = useToast();
   const { isOpen, onOpen, onClose} = useDisclosure();
   const { isOpen: isApplicationModalOpen, onOpen: onOpenApplicationModal, onClose: onCloseApplicationModal } = useDisclosure();
@@ -769,7 +770,11 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                       <Badge colorScheme={difficultyColorScheme[(task.difficulty || taskMetadata?.difficulty)?.toLowerCase()?.replace(" ", "") || 'easy']}>
                         {task.difficulty || taskMetadata?.difficulty || 'Unknown'}
                       </Badge>
-                      <Badge colorScheme="blue">{task.estHours || taskMetadata?.estHours || '0'} hrs</Badge>
+                      <Badge colorScheme="blue">
+                        {taskPayoutHoursOnly
+                          ? formatEstTime(task.estHours || taskMetadata?.estHours || 0)
+                          : `${task.estHours || taskMetadata?.estHours || '0'} hrs`}
+                      </Badge>
                       <Spacer />
                       {task.claimedBy && (
                         <Text fontSize="sm" color="gray.400">

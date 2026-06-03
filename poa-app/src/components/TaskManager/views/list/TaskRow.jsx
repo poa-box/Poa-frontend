@@ -10,6 +10,7 @@ import {
   DIFFICULTY_DOTS,
   COLUMN_COLORS,
   COLUMN_TITLES,
+  formatEstTime,
 } from '@/util/taskUtils';
 import { darkCardStyle } from '@/components/shared/glassStyles';
 
@@ -73,6 +74,11 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
   const statusScheme = STATUS_BADGE_SCHEME[columnId] || 'gray';
   const hasTokenBounty = checkHasBounty(bountyToken, bountyPayoutRaw);
   const tokenInfo = hasTokenBounty ? getTokenByAddress(bountyToken) : null;
+  // Hours-only orgs track time in 15-min steps → show "1h 30m" rather than
+  // decimal "1.5 hrs" / "1.5h".
+  const hoursOnly = poContext?.taskPayoutHoursOnly;
+  const estLabel = hoursOnly ? formatEstTime(estHours) : `${estHours} hr${Number(estHours) !== 1 ? 's' : ''}`;
+  const estLabelShort = hoursOnly ? formatEstTime(estHours) : `${estHours}h`;
 
   // Mobile renders the row as a card-ish stack to preserve density on
   // narrow widths. Desktop fits the metadata into one horizontal flex row.
@@ -163,7 +169,7 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
               <HStack spacing={1}>
                 <TimeIcon boxSize={3} color="whiteAlpha.600" />
                 <Text fontSize="xs" color="whiteAlpha.700" fontWeight="medium">
-                  {estHours} hr{estHours !== 1 ? 's' : ''}
+                  {estLabel}
                 </Text>
               </HStack>
             </HStack>
@@ -259,7 +265,7 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
           <HStack spacing={1} flexShrink={0} minW="60px" display={{ base: 'none', md: 'flex' }}>
             <TimeIcon boxSize={3} color="gray.400" />
             <Text fontSize="xs" color="gray.500" fontWeight="medium">
-              {estHours}h
+              {estLabelShort}
             </Text>
           </HStack>
 
