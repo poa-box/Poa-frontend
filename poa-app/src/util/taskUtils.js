@@ -78,6 +78,60 @@ export function calculatePayout(difficulty, estimatedHours, payoutConfig) {
 }
 
 /**
+ * Task durations are stored as decimal hours (e.g. 0.25 = 15 min) in IPFS and
+ * the subgraph, but when an org pays by hours only they're entered and shown to
+ * members in 15-minute steps. These helpers convert between the stored decimal
+ * hours and the hours + minutes the UI works with.
+ */
+export const MINUTES_STEP = 15;
+export const HOURS_STEP = MINUTES_STEP / 60; // 0.25
+
+/**
+ * Split a decimal-hours value into whole hours plus a 0/15/30/45 minute
+ * remainder. Anything off-grid (e.g. a legacy 0.7h task) is snapped to the
+ * nearest 15-minute mark so the picker always has a valid selection.
+ * @param {number|string} hours
+ * @returns {{hours: number, minutes: number}}
+ */
+export function splitHoursMinutes(hours) {
+    const totalMin = Math.round(Number(hours) * 60);
+    const safeMin = Number.isFinite(totalMin) && totalMin > 0 ? totalMin : 0;
+    const snapped = Math.round(safeMin / MINUTES_STEP) * MINUTES_STEP;
+    return { hours: Math.floor(snapped / 60), minutes: snapped % 60 };
+}
+
+/**
+ * Combine whole hours + minutes back into decimal hours. Multiples of 15
+ * minutes map to exact quarters (15→0.25, 30→0.5, 45→0.75) with no float dust.
+ * @param {number|string} hours
+ * @param {number|string} minutes
+ * @returns {number}
+ */
+export function combineHoursMinutes(hours, minutes) {
+    const h = Math.max(0, Math.floor(Number(hours) || 0));
+    const m = Math.max(0, Math.round(Number(minutes) || 0));
+    return h + m / 60;
+}
+
+/**
+ * Format a decimal-hours duration as a compact "1h 30m" / "45m" / "2h" label.
+ * Rounds to the nearest minute so stored values like 0.25 render as "15m"
+ * rather than "0.25 hrs". Used everywhere a task's estimated time is shown
+ * while an org pays by hours only.
+ * @param {number|string} hours
+ * @returns {string}
+ */
+export function formatEstTime(hours) {
+    const totalMin = Math.round(Number(hours) * 60);
+    if (!Number.isFinite(totalMin) || totalMin <= 0) return '0m';
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    if (h && m) return `${h}h ${m}m`;
+    if (h) return `${h}h`;
+    return `${m}m`;
+}
+
+/**
  * Map subgraph task status to frontend column ID
  */
 export const STATUS_TO_COLUMN = {

@@ -23,6 +23,7 @@ import {
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import { inputStyles } from '@/components/shared/glassStyles';
 import { usePOContext } from '../../context/POContext';
+import { formatEstTime } from '@/util/taskUtils';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -44,7 +45,7 @@ const difficultyColorScheme = {
 
 const TaskApplicationModal = ({ isOpen, onClose, onApply, task }) => {
   const toast = useToast();
-  const { tokenLabel = 'Shares' } = usePOContext() || {};
+  const { tokenLabel = 'Shares', taskPayoutHoursOnly } = usePOContext() || {};
   const [loading, setLoading] = useState(false);
 
   const [notes, setNotes] = useState('');
@@ -145,7 +146,9 @@ const TaskApplicationModal = ({ isOpen, onClose, onApply, task }) => {
                     {task.difficulty || 'Unknown'}
                   </Badge>
                   <Text fontSize="xs" color="gray.400">
-                    {task.estHours || '0'} hrs
+                    {taskPayoutHoursOnly
+                      ? formatEstTime(task.estHours || 0)
+                      : `${task.estHours || '0'} hrs`}
                   </Text>
                   <Spacer />
                   <Text fontSize="xs" color="green.300" fontWeight="bold">
