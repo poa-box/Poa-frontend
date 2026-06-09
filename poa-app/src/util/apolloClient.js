@@ -6,7 +6,7 @@ import { RetryLink } from '@apollo/client/link/retry';
 import { DEFAULT_SUBGRAPH_URL } from '../config/networks';
 
 // Increment this when subgraph schema changes significantly to clear stale cache
-const CACHE_VERSION = 'v11';
+const CACHE_VERSION = 'v12'; // v12: TaskManager v6 deadline fields
 
 /**
  * Retry link -- handles transient network failures with exponential backoff.

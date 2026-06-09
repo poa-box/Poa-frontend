@@ -6,6 +6,7 @@ export const SORT_OPTIONS = [
   { id: 'difficulty_desc', label: 'Hardest first' },
   { id: 'payout_desc', label: 'Highest payout' },
   { id: 'hours_desc', label: 'Most hours' },
+  { id: 'due_asc', label: 'Due soonest' },
   { id: 'status', label: 'Status order' },
 ];
 

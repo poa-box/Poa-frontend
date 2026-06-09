@@ -4,6 +4,7 @@ import { CheckIcon } from '@chakra-ui/icons';
 import PulseLoader from '@/components/shared/PulseLoader';
 import EmptyState from '@/components/voting/EmptyState';
 import { COLUMN_TITLES } from '@/util/taskUtils';
+import { dueDateSec, effectiveDeadlineSec } from '@/util/deadlineUtils';
 import { useFlatTasks } from '../useFlatTasks';
 import TaskRow from './TaskRow';
 import ListControls from './ListControls';
@@ -35,6 +36,17 @@ const toNumber = (v, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+// Deadline ordering key: the sooner of soft due date / enforced claim deadline;
+// undated tasks sort last.
+const deadlineKey = (t) => {
+  const due = dueDateSec(t);
+  const enforced = effectiveDeadlineSec(t);
+  if (due === null && enforced === null) return Infinity;
+  if (due === null) return enforced;
+  if (enforced === null) return due;
+  return Math.min(due, enforced);
+};
+
 const SORTERS = {
   created_desc: (a, b) => toNumber(b.createdAt) - toNumber(a.createdAt),
   created_asc: (a, b) => toNumber(a.createdAt) - toNumber(b.createdAt),
@@ -42,6 +54,7 @@ const SORTERS = {
     (DIFF_ORDER[DIFF_KEY(a.difficulty)] ?? 4) - (DIFF_ORDER[DIFF_KEY(b.difficulty)] ?? 4),
   payout_desc: (a, b) => toNumber(b.Payout) - toNumber(a.Payout),
   hours_desc: (a, b) => toNumber(b.estHours) - toNumber(a.estHours),
+  due_asc: (a, b) => deadlineKey(a) - deadlineKey(b),
   status: (a, b) =>
     (COLUMN_ORDER[a.columnId] ?? 99) - (COLUMN_ORDER[b.columnId] ?? 99),
 };

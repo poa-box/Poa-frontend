@@ -1,5 +1,16 @@
 import { Box, Flex, HStack, Text, Badge, Tooltip, Image } from '@chakra-ui/react';
-import { TimeIcon, StarIcon, CheckIcon, WarningIcon, InfoIcon } from '@chakra-ui/icons';
+import { TimeIcon, StarIcon, CheckIcon, WarningIcon, InfoIcon, CalendarIcon } from '@chakra-ui/icons';
+import {
+  dueDateSec,
+  effectiveDeadlineSec,
+  isClaimExpired,
+  isOverdueSoft,
+  formatRemaining,
+  formatDeadlineDate,
+  deadlineSeverity,
+  SEVERITY_SCHEME,
+} from '@/util/deadlineUtils';
+import { useNow } from '@/hooks/useNow';
 import { useRouter } from 'next/router';
 import UserIdentity from '@/components/common/UserIdentity';
 import { usePOContext } from '@/context/POContext';
@@ -79,6 +90,28 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
   const hoursOnly = poContext?.taskPayoutHoursOnly;
   const estLabel = hoursOnly ? formatEstTime(estHours) : `${estHours} hr${Number(estHours) !== 1 ? 's' : ''}`;
   const estLabelShort = hoursOnly ? formatEstTime(estHours) : `${estHours}h`;
+
+  // Deadlines (v6): one chip — takeover > countdown (claimed) > due date.
+  const now = useNow(30000);
+  const claimExpired = task.columnId === 'inProgress' && isClaimExpired(task, now);
+  const enforcedDeadline = task.columnId === 'inProgress' ? effectiveDeadlineSec(task) : null;
+  const due = dueDateSec(task);
+  const softOverdue = isOverdueSoft(task, now);
+  const deadlineChip = claimExpired
+    ? { label: 'Open to takeover', scheme: 'orange', tip: 'The claim window expired — anyone can take this task over.' }
+    : enforcedDeadline !== null
+    ? {
+        label: formatRemaining(enforcedDeadline, now),
+        scheme: SEVERITY_SCHEME[deadlineSeverity(enforcedDeadline, now)] || 'gray',
+        tip: `Submit by ${formatDeadlineDate(enforcedDeadline)}`,
+      }
+    : due !== null && task.columnId !== 'completed'
+    ? {
+        label: `Due ${formatDeadlineDate(due)}`,
+        scheme: softOverdue ? 'red' : 'gray',
+        tip: softOverdue ? 'Past its due date' : 'Due date',
+      }
+    : null;
 
   // Mobile renders the row as a card-ish stack to preserve density on
   // narrow widths. Desktop fits the metadata into one horizontal flex row.
@@ -172,6 +205,14 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
                   {estLabel}
                 </Text>
               </HStack>
+              {deadlineChip && (
+                <Tooltip label={deadlineChip.tip} placement="top">
+                  <Badge colorScheme={deadlineChip.scheme} fontSize="0.65rem" textTransform="none" borderRadius="full" px={2}>
+                    <CalendarIcon mr={1} boxSize={2.5} />
+                    {deadlineChip.label}
+                  </Badge>
+                </Tooltip>
+              )}
             </HStack>
             <HStack spacing={2}>
               {Payout && (
@@ -268,6 +309,25 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
               {estLabelShort}
             </Text>
           </HStack>
+
+          {/* Deadline chip (v6) */}
+          {deadlineChip && (
+            <Tooltip label={deadlineChip.tip} placement="top">
+              <Badge
+                colorScheme={deadlineChip.scheme}
+                fontSize="0.65rem"
+                textTransform="none"
+                borderRadius="full"
+                px={2}
+                flexShrink={0}
+                display={{ base: 'none', md: 'inline-flex' }}
+                alignItems="center"
+              >
+                <CalendarIcon mr={1} boxSize={2.5} />
+                {deadlineChip.label}
+              </Badge>
+            </Tooltip>
+          )}
 
           {/* Payout pill */}
           {Payout && (

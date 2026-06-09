@@ -9,6 +9,17 @@ import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/token
 import { usePOContext } from '../../context/POContext';
 import { useOrgName } from '../../hooks/useOrgName';
 import { getDifficultyColor, formatEstTime } from '../../util/taskUtils';
+import {
+  dueDateSec,
+  effectiveDeadlineSec,
+  isClaimExpired,
+  isOverdueSoft,
+  formatRemaining,
+  formatDeadlineDate,
+  deadlineSeverity,
+  SEVERITY_SCHEME,
+} from '@/util/deadlineUtils';
+import { useNow } from '@/hooks/useNow';
 import { darkCardStyle } from '@/components/shared/glassStyles';
 
 const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) => {
@@ -20,6 +31,13 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
   const estLabel = poContext?.taskPayoutHoursOnly
     ? formatEstTime(estHours)
     : `${estHours} hr${Number(estHours) !== 1 ? 's' : ''}`;
+
+  // Deadlines (v6): one chip max per card — priority takeover > countdown > due date.
+  const now = useNow(30000);
+  const claimExpired = columnId === 'inProgress' && isClaimExpired(task, now);
+  const claimDeadlineSec = columnId === 'inProgress' ? effectiveDeadlineSec(task) : null;
+  const due = dueDateSec(task);
+  const softOverdue = isOverdueSoft(task, now);
 
   const router = useRouter();
   const userDAO = useOrgName();
@@ -38,7 +56,7 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'task',
-    item: { id, columnId, name, description, difficulty, estHours, claimedBy, claimerUsername, Payout, submission: task.submission, projectId },
+    item: { id, columnId, name, description, difficulty, estHours, claimedBy, claimerUsername, Payout, submission: task.submission, projectId, dueDate: task.dueDate, absoluteDeadline: task.absoluteDeadline, completionWindow: task.completionWindow, claimDeadline: task.claimDeadline, assignedAt: task.assignedAt },
     canDrag: () => !task.isIndexing,
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
@@ -269,6 +287,38 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
                   </Badge>
                 </Tooltip>
               )}
+
+              {/* Deadline chip (v6) — one max: takeover > countdown > due date */}
+              {claimExpired ? (
+                <Tooltip
+                  label="The claim window expired. Still in progress, but anyone can take this task over."
+                  placement="top"
+                >
+                  <Badge colorScheme="orange" {...badgeStyle}>
+                    <TimeIcon mr={1} boxSize={2} />
+                    Open to takeover
+                  </Badge>
+                </Tooltip>
+              ) : claimDeadlineSec !== null && columnId === 'inProgress' ? (
+                <Tooltip label={`Submit by ${formatDeadlineDate(claimDeadlineSec)}`} placement="top">
+                  <Badge
+                    colorScheme={SEVERITY_SCHEME[deadlineSeverity(claimDeadlineSec, now)] || 'gray'}
+                    {...badgeStyle}
+                  >
+                    <TimeIcon mr={1} boxSize={2} />
+                    {formatRemaining(claimDeadlineSec, now)}
+                  </Badge>
+                </Tooltip>
+              ) : due !== null && columnId !== 'completed' ? (
+                <Tooltip
+                  label={softOverdue ? 'Past its due date' : 'Due date (display-only unless enforced)'}
+                  placement="top"
+                >
+                  <Badge colorScheme={softOverdue ? 'red' : 'gray'} {...badgeStyle}>
+                    Due {formatDeadlineDate(due)}
+                  </Badge>
+                </Tooltip>
+              ) : null}
 
               {(claimedBy || claimerUsername) && (
                 <UserIdentity
