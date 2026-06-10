@@ -31,10 +31,9 @@ const Ethos = () => {
           >
             Most software is rented. An institution should not be. The
             organizations made here keep their own records, hold their own
-            money, and can host their own copy of the tools, so if we
-            disappeared tomorrow, the records and the rules would remain.
-            Good institutions outlast their founders. We think the tools
-            should too.
+            money, and can host their own copy of the tools. Good
+            institutions outlast their founders. We think the tools should
+            too.
           </Text>
         </Box>
       </Wrap>

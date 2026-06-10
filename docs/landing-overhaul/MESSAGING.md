@@ -45,13 +45,16 @@ properties described; a reader who does not will never notice an absence.
 
 ### Nav
 
-Links: How it works (anchor), Who it is for (anchor), Docs, Browse.
+Links: How it works (anchor), Docs, Browse. (A who-it-is-for anchor was
+drafted and cut: three links is enough chrome for a document.)
 Auth button states: Sign in / Create account / My account / Connect
 (the current "Connect Wallet" label dies; "Connect" is complete without the
 banned word).
-Primary nav action: Start an organization.
 
 ### Hero
+
+Eyebrow (mono): `est. 2024` (founding date from the existing structured
+data; the page's first patina mark.)
 
 Headline: `Start something that lasts.`
 
@@ -62,13 +65,11 @@ Nothing to install.`
 Primary button: `Start an organization` (→ /create)
 Secondary link: `Read how it works` (→ /docs/)
 
-Quiet line under the actions (verified, passkey flow): `An account is a
-username and a passkey. No app, no seed phrases, no fees to start.`
-NOTE: "no fees to start" holds while the solidarity fund holds a balance,
-which is the same condition under which the page offers account creation at
-all. Acceptable. "seed phrases" is not on the banned list and names the thing
-people fear; keep unless it reads too technical in review. (Review pass 1
-may delete this line entirely.)
+Quiet line under the actions: `An account is a username and a passkey.
+Poa charges nothing.`
+(The drafted "no fees to start" died in build: it is only true while the
+solidarity fund holds a balance. "Poa charges nothing" is unconditionally
+true: there is no payment or subscription code in the product.)
 
 Hero alternative A:
 - Headline: `An organization your group actually owns.`
@@ -130,9 +131,10 @@ what they are.`
 
 Pillar three. `The door is open.`
 `What you earn lands in your own account and cashes out to the payment app
-you already use. The record is public. The software is open-source, and any
-organization can run its own copy. Built so no one can lock you in,
-including us.`
+you already use. The record is public, and any organization can run its own
+copy of the tools. Built so no one can lock you in, including us.`
+(The word "open-source" was cut here in build so the substrate is named
+exactly once on the page, in the footer, as the brief directs.)
 
 ### Section 04, who it is for
 
@@ -160,12 +162,12 @@ Link: `Browse the organizations` (→ /explore)
 
 Label: `06`  Heading: `Why we built it`
 
-`Most software is rented. An institution should not be. Poa is open-source
-and runs on public infrastructure that does not belong to us, so the
-organizations made here keep their own records, hold their own money, and
-can host their own copy of all of it. If we disappeared tomorrow, the
-records and the rules would remain. Good institutions outlast their
-founders. We think the tools should too.`
+`Most software is rented. An institution should not be. The organizations
+made here keep their own records, hold their own money, and can host their
+own copy of the tools. Good institutions outlast their founders. We think
+the tools should too.`
+(Trimmed in review pass 2 from a longer draft; the substrate phrasing moved
+out so it appears only in the footer.)
 
 ### Footer
 

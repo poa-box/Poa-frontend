@@ -27,7 +27,7 @@ const Specimen = () => {
     >
       <Flex justify="space-between" align="baseline" mb={5}>
         <MonoLabel color="ink.500">specimen</MonoLabel>
-        <MonoLabel color="ink.500">no. 0001</MonoLabel>
+        <MonoLabel color="ink.500">exhibit a</MonoLabel>
       </Flex>
 
       <Box borderTop="2px solid" borderColor="ink.900" pt={5} pb={4} textAlign="center">
@@ -72,8 +72,8 @@ const Specimen = () => {
         </Text>
       </Box>
 
-      <Text as="figcaption" fontFamily="ledger" fontSize="0.75rem" color="ink.500" mt={4} textAlign="center">
-        a charter as it appears here, set as a specimen
+      <Text as="figcaption" srOnly>
+        An illustrative example of an organization charter as it appears on Poa.
       </Text>
     </Box>
   );
