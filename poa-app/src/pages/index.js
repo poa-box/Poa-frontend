@@ -178,6 +178,7 @@ export default function Home() {
         title="Poa: start an organization your group owns"
         description="Poa is the simplest way for a group to become a real organization: rules you choose together, membership built on vouching, and a treasury that pays people in dollars. Nothing to install."
         path="/"
+        ogImage="/images/poa-og-charter.png"
         keywords={[
           "member owned organization",
           "community owned organization",
