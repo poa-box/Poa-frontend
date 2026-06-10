@@ -215,7 +215,10 @@ export default function Home() {
         fontSize="0.875rem"
         px={4}
         py={3}
+        border="2px solid"
+        borderColor="meadow.600"
         _focus={{ left: "8px", top: "8px" }}
+        _focusVisible={{ outline: "none", boxShadow: "none" }}
       >
         Skip to content
       </Box>

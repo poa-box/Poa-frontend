@@ -27,7 +27,7 @@ const Pillars = () => {
           What makes it different
         </SectionHeading>
 
-        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={{ base: 9, md: 12 }}>
+        <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={{ base: 9, lg: 12 }}>
           {PILLARS.map((pillar) => (
             <Box key={pillar.title}>
               <Text as="h3" fontFamily="charter" fontWeight="540" fontSize="1.3125rem" lineHeight="1.3" color="ink.900" mb={3}>

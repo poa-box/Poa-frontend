@@ -32,7 +32,7 @@ const HowItWorks = () => {
           Three steps to an organization
         </SectionHeading>
 
-        <SimpleGrid columns={{ base: 1, md: 3 }} spacing={{ base: 9, md: 12 }} mb={{ base: 14, md: 20 }}>
+        <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={{ base: 9, lg: 12 }} mb={{ base: 14, md: 20 }}>
           {STEPS.map((step) => (
             <Box key={step.number}>
               <MonoLabel as="p" mb={3}>
