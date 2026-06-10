@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
+import Head from "next/head";
 import { Box, useDisclosure } from "@chakra-ui/react";
 import { useRouter } from "next/router";
 import { useAccount } from "wagmi";
@@ -17,16 +18,16 @@ const SolidarityOnboardingModal = dynamic(() => import("@/components/passkey/Sol
 const SignInModal = dynamic(() => import("@/components/passkey/SignInModal"), { ssr: false });
 
 // Landing page sections — all part of the single scrollable page, so bundling
-// them into the page chunk is cheaper than seven separate HTTP requests with
-// duplicated Chakra/framer-motion imports.
-import Navbar from "@/components/landing/Navbar";
-import HeroSection from "@/components/landing/HeroSection";
-import ValuesSection from "@/components/landing/ValuesSection";
-import WhatIsPoa from "@/components/landing/WhatIsPoa";
-import UseCaseShowcase from "@/components/landing/UseCaseShowcase";
-import FeatureCards from "@/components/landing/FeatureCards";
-import ClosingCTA from "@/components/landing/ClosingCTA";
-import Footer from "@/components/landing/Footer";
+// them into the page chunk is cheaper than separate HTTP requests with
+// duplicated Chakra imports.
+import CharterNav from "@/components/landing/charter/CharterNav";
+import CharterHero from "@/components/landing/charter/CharterHero";
+import ProblemSection from "@/components/landing/charter/ProblemSection";
+import HowItWorks from "@/components/landing/charter/HowItWorks";
+import Pillars from "@/components/landing/charter/Pillars";
+import WhoItsFor from "@/components/landing/charter/WhoItsFor";
+import Ethos from "@/components/landing/charter/Ethos";
+import CharterFooter from "@/components/landing/charter/CharterFooter";
 
 export default function Home() {
   const router = useRouter();
@@ -66,21 +67,21 @@ export default function Home() {
   // Account menu state
   const getAccountMenuItem = () => {
     if (mounted && isPasskeyUser) {
-      return { text: "My Account", onClick: () => router.push("/account") };
+      return { text: "My account", onClick: () => router.push("/account") };
     }
     if (!isConnected && showSolidarityOnboarding) {
-      return { text: "Create Account", onClick: onOnboardingOpen };
+      return { text: "Create account", onClick: onOnboardingOpen };
     }
     if (!isConnected) {
-      return { text: "Connect Wallet", onClick: openConnectModal };
+      return { text: "Connect", onClick: openConnectModal };
     }
     if (isAccountLoading) {
-      return { text: "Loading...", onClick: () => {} };
+      return { text: "Loading", onClick: () => {} };
     }
     if (hasAccount) {
-      return { text: "My Account", onClick: () => router.push("/account") };
+      return { text: "My account", onClick: () => router.push("/account") };
     }
-    return { text: "Sign Up", onClick: () => setIsSignupOpen(true) };
+    return { text: "Sign up", onClick: () => setIsSignupOpen(true) };
   };
 
   const accountMenuItem = getAccountMenuItem();
@@ -96,7 +97,7 @@ export default function Home() {
     "alternateName": ["poa.box", "poa box", "Poa.box"],
     "url": "https://poa.box",
     "description":
-      "Poa (poa.box) is a no-code platform for community-owned organizations. Economic democracy in software.",
+      "Poa (poa.box) is the simplest way for a group to become a real organization the members own together: rules, membership, and money in one place.",
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
@@ -129,20 +130,18 @@ export default function Home() {
       ],
     },
     "knowsAbout": [
-      "Economic democracy",
+      "Member owned organizations",
       "Worker cooperatives",
-      "Community-owned organizations",
-      "Contribution-based voting",
-      "Hybrid voting",
+      "Student organizations",
+      "Community organizations",
       "Direct democracy",
-      "Open-source project governance",
-      "Decentralized governance",
-      "DAO governance",
-      "On-chain voting",
-      "Decentralized treasury management",
+      "Participation based voting",
+      "Vouch based membership",
+      "Shared treasuries",
+      "Open-source governance tools",
     ],
     "description":
-      "Poa (poa.box) is a no-code builder for community-owned organizations. Members write the rules, vote on the rules, and hold the treasury. Governance power is earned by contributing, not bought with capital. Launch your community-owned organization on poa.box.",
+      "Poa (poa.box) is the simplest way for a group to start an organization its members own: rules chosen from named templates, membership built on vouching, and a treasury that pays people in dollars.",
   };
 
   const softwareLD = {
@@ -151,11 +150,11 @@ export default function Home() {
     "name": "Poa",
     "alternateName": ["poa.box", "Poa Perpetual Organization Architect"],
     "applicationCategory": "BusinessApplication",
-    "applicationSubCategory": "Community-owned organization platform",
+    "applicationSubCategory": "Member owned organization platform",
     "operatingSystem": "Web",
     "url": "https://poa.box",
     "description":
-      "Poa (poa.box) is a no-code platform to launch and govern community-owned organizations. Voting, treasury, tasks, and roles in one product. Governance power earned by contributing, not bought with capital. Free to use on poa.box.",
+      "Start an organization your group owns: voting, membership, tasks, and a shared treasury in one place. Voting power is earned by participating. Free to use on poa.box.",
     "offers": {
       "@type": "Offer",
       "price": "0",
@@ -176,29 +175,52 @@ export default function Home() {
   return (
     <>
       <SEOHead
-        title="Poa: Community-Owned Organization Builder (No-Code, poa.box)"
-        description="Launch a community-owned organization on poa.box. Members write the rules, vote on the rules, and hold the treasury. Governance power earned by contributing, not bought with capital."
+        title="Poa: start an organization your group owns"
+        description="Poa is the simplest way for a group to become a real organization: rules you choose together, membership built on vouching, and a treasury that pays people in dollars. Nothing to install."
         path="/"
         keywords={[
-          "community-owned organization",
-          "no-code DAO",
-          "DAO platform",
-          "DAO builder",
-          "decentralized governance",
-          "contribution-based voting",
-          "hybrid voting",
+          "member owned organization",
+          "community owned organization",
+          "start an organization",
           "worker cooperative software",
           "student organization governance",
-          "open-source project governance",
-          "decentralized treasury",
-          "on-chain voting",
+          "creative collective",
+          "club treasury",
+          "vouch based membership",
+          "participation based voting",
+          "organization templates",
           "poa.box",
         ]}
         jsonLd={[webSite, organizationLD, softwareLD, breadcrumb]}
       />
 
-      <Box minH="100vh" overflowX="hidden" bg="white">
-        <Navbar
+      {/* Preload only the two faces the first paint needs; italic and the
+          500 mono arrive on demand. */}
+      <Head>
+        <link rel="preload" href="/fonts/newsreader-var-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+        <link rel="preload" href="/fonts/plex-mono-500-latin.woff2" as="font" type="font/woff2" crossOrigin="anonymous" />
+      </Head>
+
+      <Box
+        as="a"
+        href="#main-content"
+        position="absolute"
+        left="-9999px"
+        top="0"
+        zIndex="100"
+        bg="paper.50"
+        color="ink.900"
+        fontFamily="ledger"
+        fontSize="0.875rem"
+        px={4}
+        py={3}
+        _focus={{ left: "8px", top: "8px" }}
+      >
+        Skip to content
+      </Box>
+
+      <Box minH="100vh" overflowX="hidden" bg="paper.100" sx={{ colorScheme: "light" }}>
+        <CharterNav
           mounted={mounted}
           isPasskeyUser={isPasskeyUser}
           isConnected={isConnected}
@@ -206,20 +228,17 @@ export default function Home() {
           accountMenuItem={accountMenuItem}
           onSignInOpen={onSignInOpen}
         />
-        <HeroSection
-          mounted={mounted}
-          isAuthenticated={isAuthenticated}
-          onSignInOpen={onSignInOpen}
-          onOnboardingOpen={onOnboardingOpen}
-        />
 
-        <ValuesSection />
-        <WhatIsPoa />
-        <UseCaseShowcase />
-        {/* <HowItWorks /> */}
-        <FeatureCards />
-        <ClosingCTA />
-        <Footer />
+        <Box as="main" id="main-content">
+          <CharterHero />
+          <ProblemSection />
+          <HowItWorks />
+          <Pillars />
+          <WhoItsFor />
+          <Ethos />
+        </Box>
+
+        <CharterFooter />
       </Box>
 
       {/* Auth Modals — mount only after first open so dynamic() chunks
