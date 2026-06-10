@@ -1,0 +1,214 @@
+# Landing page overhaul: messaging
+
+Phase 2 artifact. Every claim below traces to the AUDIT.md claims ledger.
+House style enforced: sentence case, no em-dashes, no hyphens in organic
+compound modifiers, no exclamation marks, no superlatives.
+
+## Positioning statement
+
+Poa is the simplest way for a group of people to become a real organization
+they own together. It puts the three things an institution needs in one
+place: rules the group chooses from named templates, membership built on
+vouching, and money that is held together and paid out in dollars. Every
+decision is recorded and stays readable. The competitor is not another
+product. It is never forming an institution at all.
+
+## Audience notes
+
+Primary: the organizer. The person in the group chat who collects the dues,
+schedules the meetings, and worries about what happens when they leave. They
+are not technical. They have been burned by tools that quietly owned their
+community. They respond to plain language, visible rules, and proof that the
+exit is real.
+
+Secondary: the members being invited, who will see this page once, on a
+phone, after clicking a vouch link. The page must read fast and feel like an
+institution, not an app store listing.
+
+The page never mentions the substrate except one sentence in the footer.
+A reader who knows the underlying technology will recognize it from the
+properties described; a reader who does not will never notice an absence.
+
+## Page copy, final
+
+### Meta
+
+- Title: `Poa: start an organization your group owns`
+- Description: `Poa is the simplest way for a group to become a real
+  organization: rules you choose together, membership built on vouching, and
+  a treasury that pays people in dollars. Nothing to install.`
+- OG image: regenerated paper and ink specimen, text "poa" and "Start
+  something that lasts." (no banned words; alt text: "Poa")
+- JSON-LD: keep WebSite, Organization, SoftwareApplication; strip every
+  banned term from `knowsAbout`, `keywords`, descriptions. Price 0 stays
+  (Poa charges nothing; verified: no payment or subscription code).
+
+### Nav
+
+Links: How it works (anchor), Who it is for (anchor), Docs, Browse.
+Auth button states: Sign in / Create account / My account / Connect
+(the current "Connect Wallet" label dies; "Connect" is complete without the
+banned word).
+Primary nav action: Start an organization.
+
+### Hero
+
+Headline: `Start something that lasts.`
+
+Subline: `Poa turns a group into an organization: rules you choose together,
+membership built on vouching, and a treasury that pays people in dollars.
+Nothing to install.`
+
+Primary button: `Start an organization` (→ /create)
+Secondary link: `Read how it works` (→ /docs/)
+
+Quiet line under the actions (verified, passkey flow): `An account is a
+username and a passkey. No app, no seed phrases, no fees to start.`
+NOTE: "no fees to start" holds while the solidarity fund holds a balance,
+which is the same condition under which the page offers account creation at
+all. Acceptable. "seed phrases" is not on the banned list and names the thing
+people fear; keep unless it reads too technical in review. (Review pass 1
+may delete this line entirely.)
+
+Hero alternative A:
+- Headline: `An organization your group actually owns.`
+- Subline: `Rules, membership, and money in one place, owned by the people
+  in it. Nothing to install. Built so no one can take it away, including us.`
+
+Hero alternative B:
+- Headline: `Turn your group into an institution.`
+- Subline: `A real organization with readable rules, members who vouch for
+  each other, and a treasury that pays people in dollars. Set up in minutes.`
+
+### Section 01, the problem
+
+Label: `01`  Heading: `How groups usually end`
+
+Three vignettes, set like ledger lines:
+
+1. `The dues live in one member's payment app, next to their grocery money.`
+2. `The treasurer graduates in May. By June nobody remembers what was
+   decided, or why.`
+3. `The community spends six years on a platform. The platform changes the
+   rules in an afternoon.`
+
+Closing line: `None of this is anyone's fault. Becoming a real institution
+used to take months and lawyers, so almost nobody did it.`
+
+### Section 02, how it works
+
+Label: `02`  Heading: `Three steps to an organization`
+
+Step one. `Choose your rules.`
+`Start from a named template: worker cooperative, student organization,
+creative collective, community organization, open source project. Each one
+is a readable set of rules: who can join, how votes are counted, who
+approves the work. Adjust anything, or write your own from scratch.`
+
+Step two. `Invite your members.`
+`People join because a member vouches for them. Your group decides how many
+vouches it takes, and which roles stay open to anyone. Trust is the
+membership system.`
+
+Step three. `Run it together.`
+`Proposals, votes, tasks, and money, all in one place. Work gets paid in
+dollars. Every decision is recorded with its reasoning and stays readable
+for as long as the organization exists.`
+
+### Section 03, what makes it different
+
+Label: `03`  Heading: `What makes it different`
+
+Pillar one. `Owned by the members.`
+`Voting power is earned by participating, not bought. The people who do the
+work decide what happens next, and the organization answers to no one else.`
+
+Pillar two. `A memory.`
+`Every proposal is kept with its reasoning, in a record no one can quietly
+rewrite. Organizations here accumulate precedent, character, and proof of
+what they are.`
+
+Pillar three. `The door is open.`
+`What you earn lands in your own account and cashes out to the payment app
+you already use. The record is public. The software is open-source, and any
+organization can run its own copy. Built so no one can lock you in,
+including us.`
+
+### Section 04, who it is for
+
+Label: `04`  Heading: `Who it is for`
+
+- `Student organizations. Officers change every spring. The organization
+  keeps its memory.`
+- `Worker owned businesses. One worker, one vote, and the books in the open.`
+- `Creative collectives. Decide together what gets made, and what it pays.`
+- `Community organizations. Dues, decisions, and projects, all in the open.`
+- `Open source projects. The people who build it steer it.`
+
+Each line ends with the named template it maps to, set in mono, e.g.
+`template: worker cooperative` (these are the real template names from the
+deployment flow).
+
+### Section 05, proof
+
+No invented numbers. One ledger style line:
+
+`Every organization on Poa is public: its rules, its decisions, its books.`
+Link: `Browse the organizations` (→ /explore)
+
+### Section 06, ethos
+
+Label: `06`  Heading: `Why we built it`
+
+`Most software is rented. An institution should not be. Poa is open-source
+and runs on public infrastructure that does not belong to us, so the
+organizations made here keep their own records, hold their own money, and
+can host their own copy of all of it. If we disappeared tomorrow, the
+records and the rules would remain. Good institutions outlast their
+founders. We think the tools should too.`
+
+### Footer
+
+Tagline under the mark: `Organizations owned by the people in them.`
+
+Columns:
+- Product: Start an organization (/create), Browse organizations (/explore),
+  Templates (/docs/deployment-wizard/), Docs (/docs/)
+- Project: About (/about), Source (github.com/poa-box), Discord, X
+
+Substrate sentence (the one permitted): `Poa runs on open public
+infrastructure, and all of it is open-source.`
+
+Legal line: `© 2026 Poa` (the current "All rights reserved" is wrong next
+to an AGPL license and dies here).
+
+## Vocabulary lint list
+
+Banned by the brief (must appear nowhere in rendered page, meta, OG, alt,
+URLs): blockchain, crypto, web3, DAO, token, tokens, on-chain, onchain,
+wallet, smart contract, gas, mint, airdrop, NFT, DeFi, multisig, dapp,
+decentralized, protocol fee, stablecoin.
+
+Found in the current page and also linted out:
+- "DAO", "no-code DAO", "DAO platform", "DAO builder" (meta keywords)
+- "decentralized governance", "decentralized treasury", "on-chain voting"
+  (meta keywords and JSON-LD)
+- "Connect Wallet" (navbar button)
+- "deploy / deployment" (crypto coded; replaced with "start", "set up")
+- "governance model" (jargon; replaced with "rules")
+- "protocol" (crypto coded here; the landing footer drops the protocol
+  dashboard link)
+- "no-code" (startup jargon; replaced with "nothing to install" and "no
+  code required" where needed)
+- "Earn ... a share of the treasury" (unverifiable claim, removed entirely)
+
+House style lint, applied to all copy above:
+- no em-dashes anywhere
+- sentence case everywhere, including buttons and headings
+- "worker owned", "member owned", "vouch based", "community owned" with no
+  hyphens; "open-source" keeps its hyphen as an established technical term
+- no exclamation marks, no superlatives
+
+Lint check of this document's final copy: zero banned words, zero
+em-dashes. (The grep based lint runs again against rendered output in
+phase 5.)
