@@ -1,8 +1,9 @@
 # Landing page overhaul: decisions
 
-Phase 6 artifact. Everything significant, with reasons. Screenshots:
-`shots/before-*` (old page) and `shots/after-*` (new page, from the
-production static export) at 375, 768, and 1440.
+Phase 6 artifact. Everything significant, with reasons. Before/after
+screenshots at 375/768/1440 were kept during the work and removed from the
+repo before merge (15MB of PNGs); the before/after gif lives untracked in
+the workspace root, and earlier states are recoverable from git history.
 
 ## What the audit taught
 

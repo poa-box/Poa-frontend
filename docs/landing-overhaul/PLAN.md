@@ -93,5 +93,5 @@ verify become TODO(hudson), never invented copy.
 ## Artifact location
 
 All overhaul artifacts live in `docs/landing-overhaul/` to keep the repo root
-clean; screenshots go in `docs/landing-overhaul/shots/` (PNGs committed there
-deliberately, small and few).
+clean. Screenshots were kept in `docs/landing-overhaul/shots/` during the
+work and removed from the repo before merge.
