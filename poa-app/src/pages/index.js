@@ -95,11 +95,11 @@ export default function Home() {
   const webSite = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    "name": "poa",
-    "alternateName": ["Poa", "poa.box", "poa box", "Poa.box"],
+    "name": "Poa",
+    "alternateName": ["poa", "poa.box", "poa box", "Poa.box"],
     "url": "https://poa.box",
     "description":
-      "poa (poa.box) is the simplest way for a group to become a real organization the members own together: rules, membership, and money in one place.",
+      "Poa (poa.box) is the simplest way for a group to become a real organization the members own together: rules, membership, and money in one place.",
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
@@ -113,8 +113,8 @@ export default function Home() {
   const organizationLD = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    "name": "poa",
-    "alternateName": ["Poa", "poa.box", "poa box", "Poa.box"],
+    "name": "Poa",
+    "alternateName": ["poa", "poa.box", "poa box", "Poa.box"],
     "url": "https://poa.box",
     "logo": "https://poa.box/images/poa_og.webp",
     "sameAs": [
@@ -143,14 +143,14 @@ export default function Home() {
       "Open-source governance tools",
     ],
     "description":
-      "poa (poa.box) is the simplest way for a group to start an organization its members own: rules chosen from named templates, membership built on vouching, and a treasury that pays people in dollars.",
+      "Poa (poa.box) is the simplest way for a group to start an organization its members own: rules chosen from named templates, membership built on vouching, and a treasury that pays people in dollars.",
   };
 
   const softwareLD = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
-    "name": "poa",
-    "alternateName": ["Poa", "poa.box", "Poa Perpetual Organization Architect"],
+    "name": "Poa",
+    "alternateName": ["poa", "poa.box", "Poa Perpetual Organization Architect"],
     "applicationCategory": "BusinessApplication",
     "applicationSubCategory": "Member owned organization platform",
     "operatingSystem": "Web",
@@ -162,7 +162,7 @@ export default function Home() {
       "price": "0",
       "priceCurrency": "USD",
     },
-    "creator": { "@type": "Organization", "name": "poa" },
+    "creator": { "@type": "Organization", "name": "Poa" },
   };
 
   const breadcrumb = {
@@ -177,8 +177,8 @@ export default function Home() {
   return (
     <>
       <SEOHead
-        title="poa: start an organization your group owns"
-        description="poa is the simplest way for a group to become a real organization: rules you choose together, membership built on vouching, and a treasury that pays people in dollars. Nothing to install."
+        title="Poa: start an organization your group owns"
+        description="Poa is the simplest way for a group to become a real organization: rules you choose together, membership built on vouching, and a treasury that pays people in dollars. Nothing to install."
         path="/"
         ogImage="/images/poa-og-charter.png"
         keywords={[

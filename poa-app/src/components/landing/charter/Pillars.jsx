@@ -22,7 +22,7 @@ const Pillars = () => {
   return (
     <Box as="section" aria-labelledby="pillars-heading" pb={SECTION_PY}>
       <Wrap>
-        <SectionRule number="04" label="The properties" />
+        <SectionRule number="04" label="The principles" />
         <SectionHeading numeral="4" numeralColor="oxblood.600" id="pillars-heading" mb={{ base: 10, md: 14 }}>
           What makes it different
         </SectionHeading>

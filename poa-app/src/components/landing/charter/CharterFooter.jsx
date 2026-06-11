@@ -47,7 +47,7 @@ const CharterFooter = () => {
         >
           <Box maxW="340px">
             <Box display="inline-block" bg="paper.100" px={3} py={2} borderRadius="2px" mb={5}>
-              <Image src="/images/poa_logo.webp" alt="poa" h="32px" />
+              <Image src="/images/poa_logo.webp" alt="Poa" h="32px" />
             </Box>
             <Text fontFamily="charter" fontStyle="italic" fontSize="1.1875rem" lineHeight="1.5" color="paper.100">
               Organizations owned by the people in them.
@@ -91,10 +91,10 @@ const CharterFooter = () => {
             pt={6}
           >
             <Text fontFamily="ledger" fontSize="0.8125rem" color="paper.300">
-              poa runs on open public infrastructure, and all of it is open-source.
+              Poa runs on open public infrastructure, and all of it is open-source.
             </Text>
             <Text fontFamily="ledger" fontSize="0.8125rem" color="paper.300">
-              © {new Date().getFullYear()} poa
+              © {new Date().getFullYear()} Poa
             </Text>
           </Flex>
         </Box>

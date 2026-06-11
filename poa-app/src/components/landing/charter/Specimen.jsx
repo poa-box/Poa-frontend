@@ -3,11 +3,11 @@ import { Box, Flex, Text } from "@chakra-ui/react";
 import { MonoLabel } from "./Bones";
 
 const ROWS = [
-  ["founded", "12 March 2026"],
+  ["founded", "9 October 2024"],
   ["members", "14"],
   ["rules", "worker cooperative, adjusted"],
   ["votes", "one worker, one vote"],
-  ["treasury", "$1,840.16"],
+  ["treasury", "$12,408.90"],
 ];
 
 const DECISIONS = [
@@ -89,7 +89,7 @@ const Specimen = () => {
       <Box borderBottom="3px solid" borderColor="oxblood.600" pt={2} />
 
       <Text as="figcaption" srOnly>
-        An illustrative example of an organization charter as it appears on poa.
+        An illustrative example of an organization charter as it appears on Poa.
       </Text>
     </Box>
   );

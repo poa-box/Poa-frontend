@@ -163,6 +163,45 @@ Three directives, three responses:
    it should be a public good." Both verifiable (the templates are worker
    and community governance; the code is AGPL and free to use).
 
+## Pass 5 (blank-slate review + casing clarification)
+
+An independent cold review (no build context) scored the page 6/10 overall:
+strong on distinctiveness (8) and clarity (7/7), weak on trust (4) and
+desire (5). Its core findings and what was done:
+
+- **"The headline says nothing; the subline is the real headline."** Fixed
+  the cheap half: a category kicker now sits above the H1
+  ("organizations owned by the people in them"), so the fold names the
+  category before the poetry. The reviewer also called **"est. 2024" a
+  heritage costume on a two year old product whose pitch is longevity**:
+  cut from the hero and the OG image.
+- **"The best trust sentence is buried."** "Every organization on Poa is
+  public: its rules, its decisions, its books" was a footnote link; it is
+  now a bordered band at trust-claim size closing section 05, with the
+  link re-worded "Read the books for yourself."
+- **Mobile nav hid "How it works" exactly where orientation is scarcest**:
+  now visible at every width; "Browse" renamed "Organizations".
+- **Copy fixes**: step one no longer enumerates all five templates (they
+  appear again in 05); the Learning row dropped the jargon ("earn their
+  standing") for "Onboarding courses your organization writes; passing
+  them earns voting weight"; "The properties" running label became "The
+  principles"; the ethos now says "because we believe", conviction rather
+  than asserted fact; the specimen's toy treasury ($1,840.16) became
+  $12,408.90 and its founding date moved to 2024 so it reads like a
+  business, not a pizza fund.
+- **Casing, clarified by Hudson**: "Poa" in prose is correct; "POA" is
+  never acceptable. Prose, title, JSON-LD names, and og:site_name are back
+  to "Poa" (lowercase "poa" kept as alternateName); the mono-label
+  text-transform can no longer hit brand strings; the lint guard now
+  targets all-caps POA.
+
+Findings deliberately NOT acted on (need Hudson or conflict with hard
+rules): naming the substrate plainly (banned vocabulary list), a "where
+the money lives" custody/recovery section (needs verified product answers
+on dues-in, passkey recovery, wind-down), signing the ethos with real
+names, live counts at the fold, and replacing the specimen with a real
+organization (the reviewer's #1; already a TODO below).
+
 ## TODO(hudson)
 
 1. **Featured founding org.** If you want a real ledger entry on the page

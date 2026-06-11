@@ -3,10 +3,12 @@ import NextLink from "next/link";
 import { Box, Button, Flex, HStack, Image, Link } from "@chakra-ui/react";
 import { Wrap, CharterButton } from "./Bones";
 
+// "How it works" stays visible on mobile: orientation is scarcest exactly
+// there. Docs and the org index wait for wider screens.
 const NAV_LINKS = [
-  { label: "How it works", href: "/#how-it-works", anchor: true, fromMd: true },
-  { label: "Docs", href: "/docs" },
-  { label: "Browse", href: "/explore", fromSm: true },
+  { label: "How it works", href: "/#how-it-works", anchor: true },
+  { label: "Docs", href: "/docs", fromSm: true },
+  { label: "Organizations", href: "/explore", fromMd: true },
 ];
 
 const linkStyles = {
@@ -45,7 +47,7 @@ const CharterNav = ({ mounted, isPasskeyUser, isConnected, isAuthenticated, acco
             alignItems="center"
             _focusVisible={{ outline: "2px solid", outlineColor: "meadow.600", outlineOffset: "3px", boxShadow: "none" }}
           >
-            <Image src="/images/poa_logo.webp" alt="poa" h={{ base: "30px", md: "34px" }} />
+            <Image src="/images/poa_logo.webp" alt="Poa" h={{ base: "30px", md: "34px" }} />
           </Link>
 
           <HStack spacing={{ base: 4, md: 7 }}>

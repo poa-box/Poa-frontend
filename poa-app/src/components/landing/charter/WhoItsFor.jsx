@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { Wrap, SectionRule, SectionHeading, CharterLink, Prose, SECTION_PY } from "./Bones";
+import { Wrap, SectionRule, SectionHeading, CharterLink, SECTION_PY } from "./Bones";
 
 // The template tags are the real template names from the deployment flow
 // (src/features/deployer/templates/definitions/).
@@ -61,13 +61,35 @@ const WhoItsFor = () => {
           ))}
         </Box>
 
-        <Prose mt={{ base: 8, md: 10 }} color="ink.500">
-          Every organization on poa is public: its rules, its decisions, its
-          books.{" "}
-          <CharterLink href="/explore" fontSize="1rem">
-            Browse the organizations
+        {/* The page's best trust claim, set at trust-claim size: nothing
+            here is taken on faith, the ledgers are one click away. */}
+        <Box
+          mt={{ base: 10, md: 14 }}
+          bg="paper.50"
+          border="1px solid"
+          borderColor="paper.300"
+          borderRadius="2px"
+          boxShadow="6px 6px 0 rgba(33, 29, 21, 0.9)"
+          px={{ base: 6, md: 10 }}
+          py={{ base: 7, md: 9 }}
+          textAlign="center"
+        >
+          <Text
+            fontFamily="charter"
+            fontSize={{ base: "1.375rem", md: "1.75rem" }}
+            lineHeight="1.4"
+            color="ink.900"
+            mb={5}
+          >
+            Every organization on Poa is public:{" "}
+            <Box as="em" fontStyle="italic">
+              its rules, its decisions, its books.
+            </Box>
+          </Text>
+          <CharterLink href="/explore" fontSize="1.0625rem">
+            Read the books for yourself
           </CharterLink>
-        </Prose>
+        </Box>
       </Wrap>
     </Box>
   );

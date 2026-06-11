@@ -18,12 +18,11 @@ const CharterHero = () => {
           pt={{ base: 12, md: 20 }}
           pb={{ base: 16, md: 24 }}
         >
-          <Flex justify="space-between" align="baseline" mb={3} px={1}>
-            <MonoLabel color="oxblood.600">est. 2024</MonoLabel>
-            <MonoLabel color="oxblood.600" textTransform="none">
-              poa.box
-            </MonoLabel>
-          </Flex>
+          {/* The category, named before the poetry: a stranger should know
+              what this is before the headline asks them to feel anything. */}
+          <MonoLabel as="p" color="oxblood.600" mb={3}>
+            organizations owned by the people in them
+          </MonoLabel>
 
           {/* rules — headline — rules, like the mark */}
           <TriRule />
@@ -31,14 +30,14 @@ const CharterHero = () => {
             as="h1"
             fontFamily="charter"
             fontWeight="470"
-            fontSize={{ base: "3.25rem", sm: "4.25rem", md: "6.25rem" }}
+            fontSize={{ base: "3rem", sm: "4.25rem", md: "6.25rem" }}
             lineHeight="1.02"
             letterSpacing="-0.02em"
             color="ink.900"
             py={{ base: 7, md: 10 }}
           >
             Start something
-            <Box as="br" display={{ base: "none", sm: "inline" }} />{" "}
+            <br />
             <Box as="em" fontStyle="italic" fontWeight="440" color="oxblood.600">
               that lasts.
             </Box>
@@ -55,7 +54,7 @@ const CharterHero = () => {
             mt={{ base: 8, md: 11 }}
             mb={4}
           >
-            poa turns a group into an organization: rules you choose together,
+            Poa turns a group into an organization: rules you choose together,
             members who vouch for each other, and a treasury that pays people
             in dollars.
           </Text>
@@ -85,7 +84,7 @@ const CharterHero = () => {
             color="ink.500"
             mt={10}
           >
-            An account is a username and a passkey. poa charges nothing.
+            An account is a username and a passkey. Poa charges nothing.
           </Text>
         </Box>
       </Wrap>

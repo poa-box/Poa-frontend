@@ -7,7 +7,7 @@ const STEPS = [
   {
     numeral: "1.",
     title: "Choose your rules.",
-    body: "Start from a named template: worker cooperative, student organization, creative collective, community organization, open source project. Each one is a readable set of rules: who can join, how votes are counted, who approves the work. Adjust anything, or write your own from scratch.",
+    body: "Start from a named template, worker cooperative to student organization. Each one is a readable set of rules: who can join, how votes are counted, who approves the work. Adjust anything, or write your own from scratch.",
   },
   {
     numeral: "2.",

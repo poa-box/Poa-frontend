@@ -27,7 +27,7 @@ const SURFACES = [
   },
   {
     name: "Learning",
-    line: "Courses where new members earn their standing by learning how it all works.",
+    line: "Onboarding courses your organization writes; passing them earns voting weight.",
     note: "participation, earned",
   },
 ];

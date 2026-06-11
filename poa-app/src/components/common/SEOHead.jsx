@@ -13,11 +13,11 @@ export default function SEOHead({
   jsonLd,
   keywords,
 }) {
-  // Brand casing is lowercase "poa" (matching the mark), so the presence
-  // check is case-insensitive and the appended suffix is lowercase.
+  // Brand presence check is case-insensitive ("Poa", "poa", "poa.box" all
+  // count) so lowercase-brand titles don't get a redundant suffix.
   const fullTitle = title.toLowerCase().includes("poa")
     ? title
-    : `${title} | poa`;
+    : `${title} | Poa`;
   // next.config has `trailingSlash: true`, so the site canonical for any
   // non-root, non-querystring path must end with `/`. Without this, the
   // canonical URL itself 308-redirects to the slashed version, which Google
@@ -52,7 +52,7 @@ export default function SEOHead({
       <meta property="og:url" content={canonicalUrl} />
       <meta property="og:image" content={ogImage} />
       <meta property="og:type" content={ogType} />
-      <meta property="og:site_name" content="poa" />
+      <meta property="og:site_name" content="Poa" />
 
       {/* Twitter Card */}
       <meta name="twitter:card" content="summary_large_image" />

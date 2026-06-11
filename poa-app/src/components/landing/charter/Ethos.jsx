@@ -41,10 +41,10 @@ const Ethos = () => {
             color="paper.100"
           >
             Most software is rented. An institution should not be. We built
-            poa because worker and community ownership is how a better future
-            gets made, and the tools for it should be a public good: the
-            organizations made here keep their own records, hold their own
-            money, and can host their own copy of everything.{" "}
+            Poa because we believe worker and community ownership is how a
+            better future gets made, and that the tools for it should be a
+            public good: the organizations made here keep their own records,
+            hold their own money, and can host their own copy of everything.{" "}
             <Box as="em" fontStyle="italic" color="ochre.400">
               Good institutions outlast their founders. We think the tools
               should too.
