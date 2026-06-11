@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Grid, Text } from "@chakra-ui/react";
+import { Box, Flex, Grid, Text } from "@chakra-ui/react";
 import { Wrap, SectionRule, SectionHeading, SECTION_PY } from "./Bones";
 
 // Every row is a real surface of the product, one line each, annotated in
@@ -39,25 +39,35 @@ const WhatsInside = () => {
     <Box as="section" aria-labelledby="inside-heading" pb={SECTION_PY}>
       <Wrap>
         <SectionRule number="03" label="The articles" />
-        <SectionHeading numeral="3" id="inside-heading" mb={{ base: 10, md: 14 }}>
+        <SectionHeading numeral="3" numeralColor="ochre.600" id="inside-heading" mb={{ base: 10, md: 14 }}>
           What an organization gets
         </SectionHeading>
 
         <Box as="ul" listStyleType="none" m={0} p={0}>
-          {SURFACES.map((s) => (
+          {SURFACES.map((s, idx) => (
             <Grid
               as="li"
               key={s.name}
-              templateColumns={{ base: "1fr", md: "180px 1fr 220px" }}
+              templateColumns={{ base: "1fr", md: "200px 1fr 220px" }}
               gap={{ base: 1, md: 8 }}
               alignItems="baseline"
               py={{ base: 5, md: 6 }}
               borderBottom="1px solid"
               borderColor="ink.300"
             >
-              <Text fontFamily="charter" fontWeight="540" fontSize={{ base: "1.375rem", md: "1.5rem" }} lineHeight="1.2" color="ink.900">
-                {s.name}
-              </Text>
+              <Flex align="baseline" gap={3}>
+                <Box
+                  aria-hidden="true"
+                  w="11px"
+                  h="11px"
+                  flexShrink={0}
+                  bg={["meadow.600", "oxblood.600", "ochre.600", "ink.900", "meadow.600"][idx]}
+                  transform="translateY(-1px)"
+                />
+                <Text fontFamily="charter" fontWeight="540" fontSize={{ base: "1.375rem", md: "1.5rem" }} lineHeight="1.2" color="ink.900">
+                  {s.name}
+                </Text>
+              </Flex>
               <Text fontFamily="charter" fontSize={{ base: "1.0625rem", md: "1.125rem" }} lineHeight="1.55" color="ink.500">
                 {s.line}
               </Text>

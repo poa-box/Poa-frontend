@@ -135,6 +135,34 @@ All claims still trace to the audit; the vocabulary lint, heading
 hierarchy, reduced motion, and contrast checks were re-run clean against
 the rebuilt page (plate text is 9.5:1).
 
+## Pass 4 (Hudson: "not colorful, too minimal, like a Google Slides
+## template; first impressions must be impactful; poa is lowercase; this
+## work secures public and worker ownership and is a public good")
+
+Three directives, three responses:
+
+1. **Color and impact.** The genre reference moved from university press
+   to union broadside / WPA poster. New inks (oxblood, ochre) joined the
+   green; the tri-color ribbon frames the hero and closes the footer; the
+   vignettes print as three color plates; buttons and the specimen carry
+   solid letterpress offset shadows; the footer is the poster's ink-black
+   base. Every combination was contrast-checked (all text AA or better;
+   ochre-on-paper is restricted to large decorative numerals at 3.6:1).
+   The original brief's bans (gradients, glass, photos, motion) all still
+   hold.
+2. **Lowercase poa.** The visible uppercase came from the mono label's
+   `textTransform` hitting the `poa.box` folio (rendering POA.BOX) plus
+   capitalized "Poa" in running copy. The brand is now `poa` lowercase in
+   all rendered text, the title tag, meta description, JSON-LD names, alt
+   text, the © line, and the regenerated OG image. "Poa" remains only as a
+   JSON-LD alternateName so search engines connect both spellings. A
+   case-check script now guards this alongside the vocabulary lint.
+3. **The mission.** The hero gained "Built for worker and community
+   ownership."; the ethos now reads: "We built poa because worker and
+   community ownership is how a better future gets made, and the tools for
+   it should be a public good." Both verifiable (the templates are worker
+   and community governance; the code is AGPL and free to use).
+
 ## TODO(hudson)
 
 1. **Featured founding org.** If you want a real ledger entry on the page

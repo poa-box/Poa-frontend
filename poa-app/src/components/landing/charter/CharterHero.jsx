@@ -1,10 +1,11 @@
 import React from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
-import { Wrap, MonoLabel, CharterButton, CharterLink } from "./Bones";
+import { Wrap, MonoLabel, CharterButton, CharterLink, TriRule } from "./Bones";
 
-// The frontispiece, built the way the logo is built: a name between two
-// heavy rules. Entrance is the repo's pure-CSS .poa-fade (opacity only):
-// visible at first paint even before hydration, honest under reduced motion.
+// The masthead, built the way the logo is built: a name between rules,
+// here in the banner colors. Entrance is the repo's pure-CSS .poa-fade
+// (opacity only): visible at first paint even before hydration, honest
+// under reduced motion.
 const CharterHero = () => {
   return (
     <Box as="section" aria-label="Introduction">
@@ -12,54 +13,69 @@ const CharterHero = () => {
         <Box
           className="poa-fade"
           textAlign="center"
-          maxW="900px"
+          maxW="980px"
           mx="auto"
-          pt={{ base: 14, md: 24 }}
+          pt={{ base: 12, md: 20 }}
           pb={{ base: 16, md: 24 }}
         >
           <Flex justify="space-between" align="baseline" mb={3} px={1}>
-            <MonoLabel color="ink.500">est. 2024</MonoLabel>
-            <MonoLabel color="ink.500">poa.box</MonoLabel>
+            <MonoLabel color="oxblood.600">est. 2024</MonoLabel>
+            <MonoLabel color="oxblood.600" textTransform="none">
+              poa.box
+            </MonoLabel>
           </Flex>
 
-          {/* rule — headline — rule, like the mark */}
-          <Box borderTop="3px solid" borderColor="ink.900" />
+          {/* rules — headline — rules, like the mark */}
+          <TriRule />
           <Text
             as="h1"
             fontFamily="charter"
-            fontWeight="450"
-            fontSize={{ base: "3rem", sm: "3.75rem", md: "5.25rem" }}
-            lineHeight="1.05"
-            letterSpacing="-0.018em"
+            fontWeight="470"
+            fontSize={{ base: "3.25rem", sm: "4.25rem", md: "6.25rem" }}
+            lineHeight="1.02"
+            letterSpacing="-0.02em"
             color="ink.900"
-            py={{ base: 6, md: 9 }}
+            py={{ base: 7, md: 10 }}
           >
             Start something
             <Box as="br" display={{ base: "none", sm: "inline" }} />{" "}
-            <Box as="em" fontStyle="italic" fontWeight="430">
+            <Box as="em" fontStyle="italic" fontWeight="440" color="oxblood.600">
               that lasts.
             </Box>
           </Text>
-          <Box borderBottom="3px solid" borderColor="ink.900" />
+          <TriRule transform="scaleY(-1)" />
 
           <Text
             fontFamily="charter"
-            fontSize={{ base: "1.1875rem", md: "1.375rem" }}
-            lineHeight="1.55"
-            color="ink.500"
-            maxW="640px"
+            fontSize={{ base: "1.25rem", md: "1.5rem" }}
+            lineHeight="1.5"
+            color="ink.900"
+            maxW="780px"
             mx="auto"
-            mt={{ base: 8, md: 10 }}
+            mt={{ base: 8, md: 11 }}
+            mb={4}
+          >
+            poa turns a group into an organization: rules you choose together,
+            members who vouch for each other, and a treasury that pays people
+            in dollars.
+          </Text>
+          <Text
+            fontFamily="charter"
+            fontStyle="italic"
+            fontSize={{ base: "1.125rem", md: "1.25rem" }}
+            color="ink.500"
             mb={10}
           >
-            Poa turns a group into an organization: rules you choose together,
-            members who vouch for each other, and a treasury that pays people
-            in dollars. Nothing to install.
+            Built for worker and community ownership. Nothing to install.
           </Text>
 
-          <Flex justify="center" align="center" gap={8} wrap="wrap">
-            <CharterButton href="/create">Start an organization</CharterButton>
-            <CharterLink href="/docs">Read how it works</CharterLink>
+          <Flex justify="center" align="center" gap={9} wrap="wrap">
+            <CharterButton href="/create" fontSize="1.0625rem" px={9} py={7}>
+              Start an organization
+            </CharterButton>
+            <CharterLink href="/docs" fontSize="1.0625rem">
+              Read how it works
+            </CharterLink>
           </Flex>
 
           <Text
@@ -67,9 +83,9 @@ const CharterHero = () => {
             fontSize="0.8125rem"
             letterSpacing="0.02em"
             color="ink.500"
-            mt={9}
+            mt={10}
           >
-            An account is a username and a passkey. Poa charges nothing.
+            An account is a username and a passkey. poa charges nothing.
           </Text>
         </Box>
       </Wrap>

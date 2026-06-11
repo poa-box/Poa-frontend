@@ -29,6 +29,13 @@ The page never mentions the substrate except one sentence in the footer.
 A reader who knows the underlying technology will recognize it from the
 properties described; a reader who does not will never notice an absence.
 
+## Brand casing (pass 4)
+
+The name is `poa`, lowercase, including at sentence starts: "poa turns a
+group into an organization", "poa charges nothing", "© 2026 poa". Never
+"Poa" or "POA" in rendered text, meta, alt text, or the OG image. "Poa"
+survives only as a JSON-LD alternateName for search.
+
 ## Page copy, final
 
 ### Meta
@@ -183,12 +190,16 @@ Link: `Browse the organizations` (→ /explore)
 
 Label: `06`  Heading: `Why we built it`
 
-`Most software is rented. An institution should not be. The organizations
-made here keep their own records, hold their own money, and can host their
-own copy of the tools. Good institutions outlast their founders. We think
-the tools should too.`
-(Trimmed in review pass 2 from a longer draft; the substrate phrasing moved
-out so it appears only in the footer.)
+`Most software is rented. An institution should not be. We built poa
+because worker and community ownership is how a better future gets made,
+and the tools for it should be a public good: the organizations made here
+keep their own records, hold their own money, and can host their own copy
+of everything. Good institutions outlast their founders. We think the
+tools should too.`
+(Pass 4 put the mission in plain words at Hudson's direction; "public
+good" is verifiable: AGPL, free to use. The substrate sentence still
+appears only in the footer. The hero also carries "Built for worker and
+community ownership.")
 
 ### Colophon (between the plate and the footer, added in pass 3)
 

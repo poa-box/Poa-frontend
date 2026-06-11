@@ -45,7 +45,7 @@ const CharterNav = ({ mounted, isPasskeyUser, isConnected, isAuthenticated, acco
             alignItems="center"
             _focusVisible={{ outline: "2px solid", outlineColor: "meadow.600", outlineOffset: "3px", boxShadow: "none" }}
           >
-            <Image src="/images/poa_logo.webp" alt="Poa" h={{ base: "30px", md: "34px" }} />
+            <Image src="/images/poa_logo.webp" alt="poa" h={{ base: "30px", md: "34px" }} />
           </Link>
 
           <HStack spacing={{ base: 4, md: 7 }}>
@@ -89,7 +89,7 @@ const CharterNav = ({ mounted, isPasskeyUser, isConnected, isAuthenticated, acco
                 {accountMenuItem.text}
               </Button>
             ) : null}
-            <CharterButton href="/create" px={4} py={2} h="auto" minH="2.25rem" fontSize="0.8125rem">
+            <CharterButton href="/create" px={4} py={2} h="auto" minH="2.25rem" fontSize="0.8125rem" boxShadow="3px 3px 0 #211D15">
               Start
             </CharterButton>
           </HStack>

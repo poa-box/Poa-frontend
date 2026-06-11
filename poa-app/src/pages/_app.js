@@ -173,7 +173,15 @@ const theme = extendTheme({
     },
     meadow: {
       600: '#33523B',  // accent: links, labels, primary button
-      700: '#2A4431',  // hover / active
+      700: '#2A4431',  // hover / active, the ethos plate
+    },
+    oxblood: {
+      600: '#76322B',  // text accent on paper (8.3:1)
+      700: '#5E2722',  // color plate (paper text on it: 10.5:1)
+    },
+    ochre: {
+      400: '#D9A84E',  // gold on dark plates (4.9:1 on meadow.700)
+      600: '#A8741F',  // large/decorative only on paper (3.6:1)
     },
     // Neutral - Warm Gray (not blue-gray)
     warmGray: {

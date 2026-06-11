@@ -28,7 +28,7 @@ const Specimen = () => {
       border="1px solid"
       borderColor="paper.300"
       borderRadius="2px"
-      boxShadow="0 1px 0 rgba(33, 29, 21, 0.06)"
+      boxShadow="6px 6px 0 rgba(33, 29, 21, 0.9)"
       px={{ base: 6, md: 8 }}
       py={{ base: 6, md: 7 }}
     >
@@ -37,7 +37,7 @@ const Specimen = () => {
         <MonoLabel color="ink.500">exhibit a</MonoLabel>
       </Flex>
 
-      <Box borderTop="3px solid" borderColor="ink.900" pt={5} pb={4} textAlign="center">
+      <Box borderTop="3px solid" borderColor="oxblood.600" pt={5} pb={4} textAlign="center">
         <Text fontFamily="charter" fontWeight="500" fontSize={{ base: "1.625rem", md: "1.75rem" }} lineHeight="1.2" color="ink.900">
           Hill Street Bakery
         </Text>
@@ -86,10 +86,10 @@ const Specimen = () => {
         ))}
       </Box>
 
-      <Box borderBottom="3px solid" borderColor="ink.900" pt={2} />
+      <Box borderBottom="3px solid" borderColor="oxblood.600" pt={2} />
 
       <Text as="figcaption" srOnly>
-        An illustrative example of an organization charter as it appears on Poa.
+        An illustrative example of an organization charter as it appears on poa.
       </Text>
     </Box>
   );

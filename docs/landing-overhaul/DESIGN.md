@@ -159,6 +159,45 @@ paper, ink, one accent, serif, mono, rules.
   closing line extended ("The group stayed a group chat, and everything it
   built stayed borrowed.").
 
+## Pass 4: the broadside (after Hudson: "not colorful, too minimal, like a
+## Google Slides template; the landing page is a first impression")
+
+The reference moved from "university press charter" to **union broadside /
+WPA poster**: the same letterpress DNA, printed with a full set of spot
+colors. The brief's bans still hold (no gradients, no glassmorphism, no
+photography, no parallax); the restraint now lives in the *materials*, not
+the volume.
+
+- **Palette grew to a print shop's ink rack**: meadow green, oxblood
+  (`#76322B` text 8.3:1, `#5E2722` plate 10.5:1), ochre (`#D9A84E` gold on
+  dark plates 4.9:1+, `#A8741F` large-size-only on paper 3.6:1). Paper and
+  ink unchanged.
+- **The ribbon (TriRule)**: green/oxblood/ochre rules stacked, the page's
+  signature device — hero frame (mirrored below the headline), colophon
+  ornament, footer rule. The logo is a name between rules; the ribbon is
+  those rules in banner colors.
+- **Hero at broadsheet scale**: display to 6.25rem, `that lasts.` in
+  oxblood italic, lowercase `poa.box` folio, and a mission line: "Built
+  for worker and community ownership."
+- **Vignettes became three color plates** (meadow.700 / oxblood.700 /
+  ink.900) with paper italic and gold numerals: the broadside's panels.
+- **Letterpress offset shadows** (solid, never blurred) on buttons and the
+  specimen card: a misregistered second impression.
+- **Color stations rotate** through numerals, step numbers, pillar rules,
+  and ledger bullets (green → oxblood → ochre).
+- **The footer is the ink-black base of the poster**, with the mark pasted
+  on as a paper label, ochre column heads, and the ribbon above the
+  substrate line.
+- **Brand casing**: the name is `poa`, lowercase, everywhere — including
+  sentence starts, the title tag, JSON-LD `name` fields, alt text, and the
+  OG image (the uppercase `POA.BOX` folio came from a mono label's
+  text-transform and is gone). "Poa" survives only as a JSON-LD
+  alternateName for search.
+- **Mission copy**: the ethos now says it plainly: "We built poa because
+  worker and community ownership is how a better future gets made, and the
+  tools for it should be a public good." (Open-source + free: the claim is
+  verifiable.)
+
 ## Deviations from the brief's section 4, with reasons
 
 1. Accent is deep green, not brass: named above (botany, ledgers, AA at

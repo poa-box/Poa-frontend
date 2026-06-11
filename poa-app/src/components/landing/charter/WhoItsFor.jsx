@@ -34,7 +34,7 @@ const WhoItsFor = () => {
     <Box as="section" id="who-its-for" aria-labelledby="who-heading" pb={SECTION_PY}>
       <Wrap>
         <SectionRule number="05" label="The members" />
-        <SectionHeading numeral="5" id="who-heading" mb={{ base: 10, md: 14 }}>
+        <SectionHeading numeral="5" numeralColor="meadow.600" id="who-heading" mb={{ base: 10, md: 14 }}>
           Who it is for
         </SectionHeading>
 
@@ -54,7 +54,7 @@ const WhoItsFor = () => {
               <Text fontFamily="charter" fontSize={{ base: "1.125rem", md: "1.1875rem" }} lineHeight="1.5" color="ink.900" maxW="640px">
                 {row.line}
               </Text>
-              <Text fontFamily="ledger" fontSize="0.8125rem" color="meadow.600" flexShrink={0}>
+              <Text fontFamily="ledger" fontSize="0.8125rem" color="oxblood.600" flexShrink={0}>
                 template: {row.template}
               </Text>
             </Flex>
@@ -62,7 +62,7 @@ const WhoItsFor = () => {
         </Box>
 
         <Prose mt={{ base: 8, md: 10 }} color="ink.500">
-          Every organization on Poa is public: its rules, its decisions, its
+          Every organization on poa is public: its rules, its decisions, its
           books.{" "}
           <CharterLink href="/explore" fontSize="1rem">
             Browse the organizations

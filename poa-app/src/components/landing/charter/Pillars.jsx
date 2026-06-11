@@ -23,13 +23,18 @@ const Pillars = () => {
     <Box as="section" aria-labelledby="pillars-heading" pb={SECTION_PY}>
       <Wrap>
         <SectionRule number="04" label="The properties" />
-        <SectionHeading numeral="4" id="pillars-heading" mb={{ base: 10, md: 14 }}>
+        <SectionHeading numeral="4" numeralColor="oxblood.600" id="pillars-heading" mb={{ base: 10, md: 14 }}>
           What makes it different
         </SectionHeading>
 
         <SimpleGrid columns={{ base: 1, lg: 3 }} spacing={{ base: 10, lg: 14 }}>
-          {PILLARS.map((pillar) => (
-            <Box key={pillar.title} borderTop="1px solid" borderColor="ink.300" pt={5}>
+          {PILLARS.map((pillar, idx) => (
+            <Box
+              key={pillar.title}
+              borderTop="5px solid"
+              borderColor={["meadow.600", "oxblood.600", "ochre.600"][idx]}
+              pt={5}
+            >
               <Text as="h3" fontFamily="charter" fontWeight="540" fontSize={{ base: "1.375rem", md: "1.5rem" }} lineHeight="1.25" color="ink.900" mb={3}>
                 {pillar.title}
               </Text>

@@ -46,6 +46,19 @@ export function DoubleRule({ inverted, ...rest }) {
   );
 }
 
+// The ribbon: three spot-color rules stacked, the page's signature device.
+// The logo is a name between rules; the ribbon is those rules in the
+// union-banner colors.
+export function TriRule(props) {
+  return (
+    <Box aria-hidden="true" {...props}>
+      <Box borderTop="6px solid" borderColor="meadow.600" />
+      <Box borderTop="3px solid" borderColor="oxblood.600" mt="4px" />
+      <Box borderTop="2px solid" borderColor="ochre.600" mt="3px" />
+    </Box>
+  );
+}
+
 // Section opener: double rule with the exhibit number and a running label,
 // then a large serif numeral beside the heading. The big numeral carries
 // the scale contrast letterpress pages live on.
@@ -63,8 +76,9 @@ export function SectionRule({ number, label, inverted }) {
   );
 }
 
-// Section heading with the large serif numeral hanging beside it.
-export function SectionHeading({ numeral, children, ...rest }) {
+// Section heading with the large serif numeral hanging beside it. The
+// numeral color rotates per section (poster ink stations).
+export function SectionHeading({ numeral, numeralColor = "meadow.600", children, ...rest }) {
   return (
     <Flex align="baseline" gap={{ base: 4, md: 6 }} {...rest}>
       {numeral && (
@@ -73,9 +87,9 @@ export function SectionHeading({ numeral, children, ...rest }) {
           aria-hidden="true"
           fontFamily="charter"
           fontWeight="430"
-          fontSize={{ base: "3rem", md: "4.25rem" }}
+          fontSize={{ base: "3.25rem", md: "5rem" }}
           lineHeight="1"
-          color="meadow.600"
+          color={numeralColor}
           transform="translateY(0.06em)"
         >
           {numeral}
@@ -84,10 +98,10 @@ export function SectionHeading({ numeral, children, ...rest }) {
       <Text
         as="h2"
         fontFamily="charter"
-        fontWeight="470"
-        fontSize={{ base: "2.1rem", md: "2.75rem" }}
-        lineHeight="1.12"
-        letterSpacing="-0.015em"
+        fontWeight="490"
+        fontSize={{ base: "2.25rem", md: "3.25rem" }}
+        lineHeight="1.08"
+        letterSpacing="-0.018em"
         color="ink.900"
       >
         {children}
@@ -112,7 +126,8 @@ export function Prose({ children, ...rest }) {
   );
 }
 
-// Primary action. Mono, square, one color.
+// Primary action. Mono, square, one color, with the letterpress offset
+// shadow: a solid misregistered second impression, never a blur.
 export function CharterButton({ href, children, ...rest }) {
   return (
     <Button
@@ -127,9 +142,10 @@ export function CharterButton({ href, children, ...rest }) {
       px={7}
       py={6}
       borderRadius="2px"
+      boxShadow="4px 4px 0 #211D15"
       _hover={{ bg: "meadow.700", textDecoration: "none" }}
-      _active={{ bg: "meadow.700" }}
-      _focusVisible={{ outline: "2px solid", outlineColor: "meadow.600", outlineOffset: "3px", boxShadow: "none" }}
+      _active={{ bg: "meadow.700", transform: "translate(2px, 2px)", boxShadow: "2px 2px 0 #211D15" }}
+      _focusVisible={{ outline: "2px solid", outlineColor: "meadow.600", outlineOffset: "3px" }}
       {...rest}
     >
       {children}

@@ -26,17 +26,18 @@ const COLUMNS = [
 
 const footerLink = {
   fontFamily: "charter",
-  fontSize: "1rem",
-  color: "ink.900",
+  fontSize: "1.0625rem",
+  color: "paper.100",
   textDecoration: "none",
-  _hover: { color: "meadow.700", textDecoration: "underline", textUnderlineOffset: "4px" },
-  _focusVisible: { outline: "2px solid", outlineColor: "meadow.600", outlineOffset: "3px", boxShadow: "none" },
+  _hover: { color: "ochre.400", textDecoration: "underline", textUnderlineOffset: "4px" },
+  _focusVisible: { outline: "2px solid", outlineColor: "ochre.400", outlineOffset: "3px", boxShadow: "none" },
 };
 
-// The footer carries the one permitted sentence about the substrate.
+// The bottom of the broadside: ink, the mark pasted on like a label, and
+// the one permitted sentence about the substrate.
 const CharterFooter = () => {
   return (
-    <Box as="footer" borderTop="1px solid" borderColor="ink.300" pt={{ base: 12, md: 16 }} pb={{ base: 10, md: 12 }}>
+    <Box as="footer" bg="ink.900" pt={{ base: 12, md: 16 }} pb={{ base: 10, md: 12 }}>
       <Wrap>
         <Flex
           direction={{ base: "column", md: "row" }}
@@ -44,20 +45,22 @@ const CharterFooter = () => {
           gap={{ base: 12, md: 8 }}
           mb={{ base: 12, md: 16 }}
         >
-          <Box maxW="320px">
-            <Image src="/images/poa_logo.webp" alt="Poa" h="34px" mb={4} />
-            <Text fontFamily="charter" fontStyle="italic" fontSize="1.0625rem" lineHeight="1.5" color="ink.500">
+          <Box maxW="340px">
+            <Box display="inline-block" bg="paper.100" px={3} py={2} borderRadius="2px" mb={5}>
+              <Image src="/images/poa_logo.webp" alt="poa" h="32px" />
+            </Box>
+            <Text fontFamily="charter" fontStyle="italic" fontSize="1.1875rem" lineHeight="1.5" color="paper.100">
               Organizations owned by the people in them.
             </Text>
           </Box>
 
-          <SimpleGrid columns={2} spacing={{ base: 8, md: 16 }}>
+          <SimpleGrid columns={2} spacing={{ base: 8, md: 20 }}>
             {COLUMNS.map((col) => (
               <Box key={col.heading}>
-                <MonoLabel as="h2" color="ink.500" display="block" mb={4}>
+                <MonoLabel as="h2" color="ochre.400" display="block" mb={4}>
                   {col.heading}
                 </MonoLabel>
-                <Flex as="ul" direction="column" gap={2.5} listStyleType="none" m={0} p={0}>
+                <Flex as="ul" direction="column" gap={3} listStyleType="none" m={0} p={0}>
                   {col.links.map((link) => (
                     <Box as="li" key={link.label}>
                       <Link
@@ -76,18 +79,22 @@ const CharterFooter = () => {
           </SimpleGrid>
         </Flex>
 
-        <Box borderTop="1px solid" borderColor="ink.300" pt={6}>
+        <Box>
+          <Box borderTop="6px solid" borderColor="meadow.600" />
+          <Box borderTop="3px solid" borderColor="oxblood.600" mt="4px" />
+          <Box borderTop="2px solid" borderColor="ochre.600" mt="3px" />
           <Flex
             direction={{ base: "column", md: "row" }}
             justify="space-between"
             align={{ base: "flex-start", md: "baseline" }}
             gap={3}
+            pt={6}
           >
-            <Text fontFamily="ledger" fontSize="0.8125rem" color="ink.500">
-              Poa runs on open public infrastructure, and all of it is open-source.
+            <Text fontFamily="ledger" fontSize="0.8125rem" color="paper.300">
+              poa runs on open public infrastructure, and all of it is open-source.
             </Text>
-            <Text fontFamily="ledger" fontSize="0.8125rem" color="ink.500">
-              © {new Date().getFullYear()} Poa
+            <Text fontFamily="ledger" fontSize="0.8125rem" color="paper.300">
+              © {new Date().getFullYear()} poa
             </Text>
           </Flex>
         </Box>

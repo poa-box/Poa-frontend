@@ -2,33 +2,33 @@ import React from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { Wrap, MonoLabel } from "./Bones";
 
-// Section 06. The quiet manifesto, set as the page's one color plate:
-// paper type on the deep green, like the cloth cover of the book the rest
-// of the page is printed in.
+// Section 06. The reason, set as the page's deepest plate: paper and gold
+// on the green, like a union banner. This is where the mission speaks
+// plainly.
 const Ethos = () => {
   return (
     <Box as="section" aria-labelledby="ethos-heading" bg="meadow.700" py={{ base: 16, md: 24 }}>
       <Wrap>
         <Box mb={{ base: 8, md: 10 }}>
-          <Box borderTop="3px solid" borderColor="paper.100" />
-          <Box borderTop="1px solid" borderColor="rgba(247, 242, 232, 0.35)" mt="4px" />
+          <Box borderTop="6px solid" borderColor="ochre.400" />
+          <Box borderTop="2px solid" borderColor="rgba(247, 242, 232, 0.45)" mt="4px" />
           <Flex justify="space-between" align="baseline" gap={4} pt={3}>
-            <MonoLabel color="paper.200">06</MonoLabel>
-            <MonoLabel color="paper.200" textAlign="right">
+            <MonoLabel color="ochre.400">06</MonoLabel>
+            <MonoLabel color="ochre.400" textAlign="right">
               The reason
             </MonoLabel>
           </Flex>
         </Box>
 
-        <Box maxW="820px">
+        <Box maxW="860px">
           <Text
             as="h2"
             id="ethos-heading"
             fontFamily="charter"
-            fontWeight="470"
-            fontSize={{ base: "2.1rem", md: "2.75rem" }}
-            lineHeight="1.12"
-            letterSpacing="-0.015em"
+            fontWeight="490"
+            fontSize={{ base: "2.25rem", md: "3.25rem" }}
+            lineHeight="1.08"
+            letterSpacing="-0.018em"
             color="paper.50"
             mb={{ base: 7, md: 9 }}
           >
@@ -40,10 +40,12 @@ const Ethos = () => {
             lineHeight="1.55"
             color="paper.100"
           >
-            Most software is rented. An institution should not be. The
+            Most software is rented. An institution should not be. We built
+            poa because worker and community ownership is how a better future
+            gets made, and the tools for it should be a public good: the
             organizations made here keep their own records, hold their own
-            money, and can host their own copy of the tools.{" "}
-            <Box as="em" fontStyle="italic">
+            money, and can host their own copy of everything.{" "}
+            <Box as="em" fontStyle="italic" color="ochre.400">
               Good institutions outlast their founders. We think the tools
               should too.
             </Box>

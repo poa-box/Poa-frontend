@@ -29,7 +29,7 @@ const HowItWorks = () => {
     <Box as="section" id="how-it-works" aria-labelledby="how-heading" pb={SECTION_PY}>
       <Wrap>
         <SectionRule number="02" label="The mechanism" />
-        <SectionHeading numeral="2" id="how-heading" mb={{ base: 10, md: 14 }}>
+        <SectionHeading numeral="2" numeralColor="meadow.600" id="how-heading" mb={{ base: 10, md: 14 }}>
           Three steps to an organization
         </SectionHeading>
 
@@ -51,11 +51,11 @@ const HowItWorks = () => {
                   aria-hidden="true"
                   fontFamily="charter"
                   fontWeight="430"
-                  fontSize={{ base: "2.25rem", md: "2.75rem" }}
+                  fontSize={{ base: "2.5rem", md: "3.25rem" }}
                   lineHeight="1"
-                  color="meadow.600"
+                  color={["meadow.600", "oxblood.600", "ochre.600"][idx]}
                   flexShrink={0}
-                  w={{ base: "2.5rem", md: "3rem" }}
+                  w={{ base: "2.75rem", md: "3.5rem" }}
                   transform="translateY(0.04em)"
                 >
                   {step.numeral}
