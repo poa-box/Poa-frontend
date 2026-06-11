@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { Wrap, SectionRule, SectionHeading, CharterLink, SECTION_PY } from "./Bones";
+import useLandingRegistry from "./useLandingRegistry";
 
 // The template tags are the real template names from the deployment flow
 // (src/features/deployer/templates/definitions/).
@@ -27,9 +28,11 @@ const AUDIENCES = [
   },
 ];
 
-// Section 04. Who it is for, set as ledger rows, with the proof line at the
-// end: no invented numbers, just the public record.
+// Who it is for, set as ledger rows, with the proof band at the end: no
+// invented numbers, just the public record (and a live count of it).
 const WhoItsFor = () => {
+  const { isLoading, counts } = useLandingRegistry();
+  const showCount = !isLoading && counts.orgs > 0;
   return (
     <Box as="section" id="who-its-for" aria-labelledby="who-heading" pb={SECTION_PY}>
       <Wrap>
@@ -86,6 +89,19 @@ const WhoItsFor = () => {
               its rules, its decisions, its books.
             </Box>
           </Text>
+          {/* Height-reserved slot: fills with the live registry count once
+              the fetch answers; stays quietly empty if it never does. */}
+          <Box minH="1.75rem" mb={3}>
+            {showCount && (
+              <Text fontFamily="ledger" fontSize="0.875rem" letterSpacing="0.06em" color="meadow.600">
+                {counts.orgs} organization{counts.orgs === 1 ? "" : "s"}
+                {counts.members > 0
+                  ? ` and ${counts.members} member${counts.members === 1 ? "" : "s"}`
+                  : ""}{" "}
+                keep their books here.
+              </Text>
+            )}
+          </Box>
           <CharterLink href="/explore" fontSize="1.0625rem">
             Read the books for yourself
           </CharterLink>
