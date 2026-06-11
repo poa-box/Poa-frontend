@@ -29,12 +29,13 @@ The page never mentions the substrate except one sentence in the footer.
 A reader who knows the underlying technology will recognize it from the
 properties described; a reader who does not will never notice an absence.
 
-## Brand casing (pass 4)
+## Brand casing (clarified in pass 5)
 
-The name is `poa`, lowercase, including at sentence starts: "poa turns a
-group into an organization", "poa charges nothing", "© 2026 poa". Never
-"Poa" or "POA" in rendered text, meta, alt text, or the OG image. "Poa"
-survives only as a JSON-LD alternateName for search.
+"Poa" in normal prose is correct ("Poa turns a group into an organization",
+"© 2026 Poa"); lowercase "poa" belongs to the mark and the domain
+(poa.box). "POA" in all caps is never acceptable anywhere: watch
+text-transform on mono labels (the original offender rendered POA.BOX) and
+SEOHead's title suffix. The lint guard targets all-caps POA.
 
 ## Page copy, final
 
@@ -165,7 +166,7 @@ posts/ docs, caveats softened by omission per Hudson:
 
 ### Section 05, what makes it different
 
-Label: `04`  Heading: `What makes it different`
+Label: `05`  Heading: `What makes it different`
 
 Pillar one. `Owned by the members.`
 `Voting power is earned by participating, not bought. There are no shares
