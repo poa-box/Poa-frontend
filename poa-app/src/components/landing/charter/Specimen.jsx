@@ -1,8 +1,7 @@
 import React from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { MonoLabel, CharterLink } from "./Bones";
-import { getVisitUrlForOrg } from "@/config/hostDefaultOrg";
-import useLandingRegistry from "./useLandingRegistry";
+import useLandingRegistry, { internalOrgUrl } from "./useLandingRegistry";
 
 const FICTIONAL_ROWS = [
   ["founded", "9 October 2024"],
@@ -44,7 +43,7 @@ const Specimen = () => {
       ]
     : null;
 
-  const liveUrl = live ? getVisitUrlForOrg(live.id) : null;
+  const liveUrl = live ? internalOrgUrl(live.id) : null;
 
   return (
     <Box
@@ -101,12 +100,7 @@ const Specimen = () => {
         {live ? (
           <Text fontFamily="charter" fontSize="1rem" color="ink.900" mb={2.5}>
             Every decision this organization makes is on the public ledger.{" "}
-            <CharterLink
-              href={liveUrl}
-              external={liveUrl?.startsWith("http")}
-              fontSize="0.9375rem"
-              whiteSpace="nowrap"
-            >
+            <CharterLink href={liveUrl} fontSize="0.9375rem" whiteSpace="nowrap">
               read its books
             </CharterLink>
           </Text>

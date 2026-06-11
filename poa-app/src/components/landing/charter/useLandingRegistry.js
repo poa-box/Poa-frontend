@@ -11,6 +11,12 @@ const PREFERRED_FEATURED = ["kubi", "poa"];
 const isPresentableName = (name) =>
   typeof name === "string" && name.trim().length > 0 && name.length <= 40;
 
+// The landing always links orgs through the internal route. Some orgs have
+// external white-label domains (getVisitUrlForOrg would prefer those), but
+// the banned-vocabulary rule is absolute INCLUDING URLs, and external
+// domains are outside our control (e.g. one contains "dao.").
+export const internalOrgUrl = (orgId) => `/home?org=${encodeURIComponent(orgId)}`;
+
 // Live data for the landing page, from the same public registry /explore
 // reads. Calling useprofileHubContext() is the lazy opt-in that triggers
 // the (deduped) cross-chain fetch; during static export and first paint it

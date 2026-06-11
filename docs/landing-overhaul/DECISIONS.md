@@ -238,7 +238,11 @@ caveats softened (softening done by omission, never by false claims).
   to the live org only when the registry confirms it exists (it does:
   org "Poa" on Gnosis). The /about page makes the same claim.
 - The card's "network: Gnosis" row was cut before shipping: a substrate
-  tell the rest of the page deliberately avoids.
+  tell the rest of the page deliberately avoids. For the same reason the
+  landing links orgs through the internal route only (`/home?org=...`):
+  the banned-vocabulary rule covers URLs, and KUBI's external white-label
+  domain contains "dao." — caught live by the lint, fixed by a local
+  `internalOrgUrl` helper instead of `getVisitUrlForOrg`.
 - profileHub fetches gained an 8s abort so a hung gateway degrades like a
   failed one (also fixes /explore skeletons hanging forever).
 - Sections renumbered: 05 principles, 06 members, 07 reason. Pillar three

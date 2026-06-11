@@ -1,8 +1,7 @@
 import React from "react";
 import { Box, Flex, Link, Text } from "@chakra-ui/react";
 import { Wrap, MonoLabel } from "./Bones";
-import { getVisitUrlForOrg } from "@/config/hostDefaultOrg";
-import useLandingRegistry from "./useLandingRegistry";
+import useLandingRegistry, { internalOrgUrl } from "./useLandingRegistry";
 
 // Section 07. The reason, set as the page's deepest plate: paper and gold
 // on the green, like a union banner. This is where the mission speaks
@@ -69,7 +68,7 @@ const Ethos = () => {
             Poa itself runs as an organization on Poa.{" "}
             {poaOrg ? (
               <Link
-                href={getVisitUrlForOrg(poaOrg.id)}
+                href={internalOrgUrl(poaOrg.id)}
                 fontFamily="ledger"
                 fontSize="0.9375rem"
                 color="ochre.400"
