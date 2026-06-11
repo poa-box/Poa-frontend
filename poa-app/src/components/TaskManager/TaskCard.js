@@ -16,13 +16,19 @@ import {
   isOverdueSoft,
   formatRemaining,
   formatDeadlineDate,
+  formatWindow,
+  toSec,
   deadlineSeverity,
   SEVERITY_SCHEME,
 } from '@/util/deadlineUtils';
 import { useNow } from '@/hooks/useNow';
 import { darkCardStyle } from '@/components/shared/glassStyles';
 
-const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) => {
+// `isTakeoverGhost`: render-only mirror of an expired-claimed task shown in the
+// Open column. Not draggable and mounts NO modal of its own — clicking routes to
+// the task URL, which opens the real In Progress card's modal (mounting a second
+// modal for the same task id would double-open, since modals watch router.query).
+const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile, isTakeoverGhost = false }) => {
   const poContext = usePOContext();
   const tokenLabel = poContext?.tokenLabel || 'Shares';
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, requiresApplication, applicants } = task;
@@ -57,7 +63,7 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
   const [{ isDragging }, drag] = useDrag(() => ({
     type: 'task',
     item: { id, columnId, name, description, difficulty, estHours, claimedBy, claimerUsername, Payout, submission: task.submission, projectId, dueDate: task.dueDate, absoluteDeadline: task.absoluteDeadline, completionWindow: task.completionWindow, claimDeadline: task.claimDeadline, assignedAt: task.assignedAt },
-    canDrag: () => !task.isIndexing,
+    canDrag: () => !task.isIndexing && !isTakeoverGhost,
     collect: (monitor) => ({
       isDragging: monitor.isDragging(),
     }),
@@ -140,6 +146,8 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
         sx={isCardMobile ? mobileCardStyle : desktopCardStyle}
         onClick={openTask}
         role="group"
+        border={isTakeoverGhost ? '1.5px dashed' : undefined}
+        borderColor={isTakeoverGhost ? 'orange.300' : undefined}
       >
         {/* Task title with better typography */}
         <Text
@@ -288,6 +296,20 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
                 </Tooltip>
               )}
 
+              {/* Time-limit chip: surfaced BEFORE claiming so people can judge the
+                  commitment (the countdown takes over once it's claimed). */}
+              {columnId === 'open' && toSec(task.completionWindow) !== null && (
+                <Tooltip
+                  label="Once claimed, you must submit within this time or the task opens up for takeover"
+                  placement="top"
+                >
+                  <Badge colorScheme="purple" {...badgeStyle}>
+                    <TimeIcon mr={1} boxSize={2} />
+                    {formatWindow(task.completionWindow)} limit
+                  </Badge>
+                </Tooltip>
+              )}
+
               {/* Deadline chip (v6) — one max: takeover > countdown > due date */}
               {claimExpired ? (
                 <Tooltip
@@ -333,12 +355,14 @@ const TaskCard = ({ task, columnId, onEditTask, onEditTaskMetadata, isMobile }) 
         </Flex>
       </Box>
 
-      <TaskCardModal
-        task={task}
-        columnId={columnId}
-        onEditTask={onEditTask}
-        onEditTaskMetadata={onEditTaskMetadata}
-      />
+      {!isTakeoverGhost && (
+        <TaskCardModal
+          task={task}
+          columnId={columnId}
+          onEditTask={onEditTask}
+          onEditTaskMetadata={onEditTaskMetadata}
+        />
+      )}
     </>
   );
 };

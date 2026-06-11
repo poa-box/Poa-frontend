@@ -7,6 +7,8 @@ import {
   isOverdueSoft,
   formatRemaining,
   formatDeadlineDate,
+  formatWindow,
+  toSec,
   deadlineSeverity,
   SEVERITY_SCHEME,
 } from '@/util/deadlineUtils';
@@ -97,6 +99,11 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
   const enforcedDeadline = task.columnId === 'inProgress' ? effectiveDeadlineSec(task) : null;
   const due = dueDateSec(task);
   const softOverdue = isOverdueSoft(task, now);
+  // Pre-claim commitment info: the time limit is visible before anyone claims.
+  const windowChip =
+    task.columnId === 'open' && toSec(task.completionWindow) !== null
+      ? `${formatWindow(task.completionWindow)} limit`
+      : null;
   const deadlineChip = claimExpired
     ? { label: 'Open to takeover', scheme: 'orange', tip: 'The claim window expired — anyone can take this task over.' }
     : enforcedDeadline !== null
@@ -205,6 +212,14 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
                   {estLabel}
                 </Text>
               </HStack>
+              {windowChip && (
+                <Tooltip label="Once claimed, submit within this time or the task opens up for takeover" placement="top">
+                  <Badge colorScheme="purple" fontSize="0.65rem" textTransform="none" borderRadius="full" px={2}>
+                    <TimeIcon mr={1} boxSize={2.5} />
+                    {windowChip}
+                  </Badge>
+                </Tooltip>
+              )}
               {deadlineChip && (
                 <Tooltip label={deadlineChip.tip} placement="top">
                   <Badge colorScheme={deadlineChip.scheme} fontSize="0.65rem" textTransform="none" borderRadius="full" px={2}>
@@ -309,6 +324,25 @@ const TaskRow = ({ task, isMobile = false, showProject = false }) => {
               {estLabelShort}
             </Text>
           </HStack>
+
+          {/* Time-limit chip (open rows): commitment info before claiming */}
+          {windowChip && (
+            <Tooltip label="Once claimed, submit within this time or the task opens up for takeover" placement="top">
+              <Badge
+                colorScheme="purple"
+                fontSize="0.65rem"
+                textTransform="none"
+                borderRadius="full"
+                px={2}
+                flexShrink={0}
+                display={{ base: 'none', md: 'inline-flex' }}
+                alignItems="center"
+              >
+                <TimeIcon mr={1} boxSize={2.5} />
+                {windowChip}
+              </Badge>
+            </Tooltip>
+          )}
 
           {/* Deadline chip (v6) */}
           {deadlineChip && (
