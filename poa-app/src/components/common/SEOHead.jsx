@@ -13,7 +13,9 @@ export default function SEOHead({
   jsonLd,
   keywords,
 }) {
-  const fullTitle = title.includes("Poa") || title.includes("poa.box")
+  // Brand presence check is case-insensitive ("Poa", "poa", "poa.box" all
+  // count) so lowercase-brand titles don't get a redundant suffix.
+  const fullTitle = title.toLowerCase().includes("poa")
     ? title
     : `${title} | Poa`;
   // next.config has `trailingSlash: true`, so the site canonical for any

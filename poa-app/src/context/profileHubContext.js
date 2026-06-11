@@ -50,6 +50,9 @@ async function fetchOrgsFromSource(endpoint, networkConfig) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ query: ALL_ORGS_QUERY }),
+            // A hung gateway must degrade like a failed one ([] from the
+            // catch below) instead of stranding isLoading=true forever.
+            signal: AbortSignal.timeout(8000),
         });
         const json = await res.json();
         const orgs = json?.data?.organizations || [];
