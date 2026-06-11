@@ -24,9 +24,11 @@ import CharterNav from "@/components/landing/charter/CharterNav";
 import CharterHero from "@/components/landing/charter/CharterHero";
 import ProblemSection from "@/components/landing/charter/ProblemSection";
 import HowItWorks from "@/components/landing/charter/HowItWorks";
+import WhatsInside from "@/components/landing/charter/WhatsInside";
 import Pillars from "@/components/landing/charter/Pillars";
 import WhoItsFor from "@/components/landing/charter/WhoItsFor";
 import Ethos from "@/components/landing/charter/Ethos";
+import ClosingInvite from "@/components/landing/charter/ClosingInvite";
 import CharterFooter from "@/components/landing/charter/CharterFooter";
 
 export default function Home() {
@@ -237,9 +239,11 @@ export default function Home() {
           <CharterHero />
           <ProblemSection />
           <HowItWorks />
+          <WhatsInside />
           <Pillars />
           <WhoItsFor />
           <Ethos />
+          <ClosingInvite />
         </Box>
 
         <CharterFooter />

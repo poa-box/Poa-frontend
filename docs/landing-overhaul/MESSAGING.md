@@ -59,8 +59,10 @@ data; the page's first patina mark.)
 Headline: `Start something that lasts.`
 
 Subline: `Poa turns a group into an organization: rules you choose together,
-membership built on vouching, and a treasury that pays people in dollars.
-Nothing to install.`
+members who vouch for each other, and a treasury that pays people in
+dollars. Nothing to install.`
+("members who vouch for each other" replaced the more abstract "membership
+built on vouching" in pass 3.)
 
 Primary button: `Start an organization` (→ /create)
 Secondary link: `Read how it works` (→ /docs/)
@@ -94,7 +96,8 @@ Three vignettes, set like ledger lines:
    rules in an afternoon.`
 
 Closing line: `None of this is anyone's fault. Becoming a real institution
-used to take months and lawyers, so almost nobody did it.`
+used to take months and lawyers, so almost nobody did it. The group stayed
+a group chat, and everything it built stayed borrowed.`
 
 ### Section 02, how it works
 
@@ -112,22 +115,40 @@ vouches it takes, and which roles stay open to anyone. Trust is the
 membership system.`
 
 Step three. `Run it together.`
-`Proposals, votes, tasks, and money, all in one place. Work gets paid in
-dollars. Every decision is recorded with its reasoning and stays readable
-for as long as the organization exists.`
+`Propose, vote, assign the work, and pay for it in dollars, all in one
+place. Every decision is recorded with its reasoning and stays readable for
+as long as the organization exists.`
 
-### Section 03, what makes it different
+### Section 03, what an organization gets (added in pass 3)
 
-Label: `03`  Heading: `What makes it different`
+Label: `03`  Heading: `What an organization gets`
+Running label: `The articles`
+
+Ledger rows, every one a real product surface:
+- `Votes` · `One person one vote, weight earned by participation, or a
+  hybrid your group tunes.` · mono: `recorded, permanently`
+- `Tasks` · `Post the work, claim it, review it, pay it.` · mono:
+  `paid in dollars`
+- `Treasury` · `The books in the open, spendable only by the rules.` ·
+  mono: `every transfer public`
+- `Members` · `Vouches, roles, and exactly what each role may do.` · mono:
+  `trust, written down`
+- `Learning` · `Courses where new members earn their standing by learning
+  how it all works.` · mono: `participation, earned`
+
+### Section 04, what makes it different
+
+Label: `04`  Heading: `What makes it different`
 
 Pillar one. `Owned by the members.`
-`Voting power is earned by participating, not bought. The people who do the
-work decide what happens next, and the organization answers to no one else.`
+`Voting power is earned by participating, not bought. There are no shares
+to sell and no investors to please. The people who do the work decide what
+happens next.`
 
 Pillar two. `A memory.`
 `Every proposal is kept with its reasoning, in a record no one can quietly
-rewrite. Organizations here accumulate precedent, character, and proof of
-what they are.`
+rewrite. Ten years from now, a new member can read what was decided and
+why.`
 
 Pillar three. `The door is open.`
 `What you earn lands in your own account and cashes out to the payment app
@@ -136,9 +157,9 @@ copy of the tools. Built so no one can lock you in, including us.`
 (The word "open-source" was cut here in build so the substrate is named
 exactly once on the page, in the footer, as the brief directs.)
 
-### Section 04, who it is for
+### Section 05, who it is for
 
-Label: `04`  Heading: `Who it is for`
+Label: `05`  Heading: `Who it is for`
 
 - `Student organizations. Officers change every spring. The organization
   keeps its memory.`
@@ -151,14 +172,14 @@ Each line ends with the named template it maps to, set in mono, e.g.
 `template: worker cooperative` (these are the real template names from the
 deployment flow).
 
-### Section 05, proof
+### Proof (closes section 05)
 
 No invented numbers. One ledger style line:
 
 `Every organization on Poa is public: its rules, its decisions, its books.`
 Link: `Browse the organizations` (→ /explore)
 
-### Section 06, ethos
+### Section 06, ethos (set as the page's one color plate)
 
 Label: `06`  Heading: `Why we built it`
 
@@ -168,6 +189,11 @@ own copy of the tools. Good institutions outlast their founders. We think
 the tools should too.`
 (Trimmed in review pass 2 from a longer draft; the substrate phrasing moved
 out so it appears only in the footer.)
+
+### Colophon (between the plate and the footer, added in pass 3)
+
+`Starting takes minutes. Lasting is the point.` (the second clause in
+italic), then the primary button again and `Browse the organizations`.
 
 ### Footer
 

@@ -124,6 +124,41 @@ UseCaseShowcase, FeatureCards, ClosingCTA, HowItWorks) are deleted once the
 new page lands. `Navbar.jsx` and `Footer.jsx` stay untouched because
 /u, /protocol, /about, /explore import them.
 
+## Pass 3 additions (after Hudson's review: "too basic, not visually appealing")
+
+The first build was so restrained it read as a wireframe. Pass 3 added
+typographic drama without leaving the system; every element below is still
+paper, ink, one accent, serif, mono, rules.
+
+- **The hero is built like the logo**: a 3px rule above and below the
+  headline (the mark is "poa" between two rules; the page now is too).
+  Display size up to 5.25rem, with `that lasts.` set in italic. Eyebrow
+  splits into `est. 2024` / `poa.box` corner folios.
+- **Large serif section numerals** (4.25rem, meadow.600) hang beside each
+  H2; the tiny mono `01` stays on the rule line. Letterpress pages live on
+  scale contrast; the first build had none.
+- **Double rules** (3px over 1px hairline) open every section: the classic
+  fine-print device.
+- **Section 02 is two columns at lg**: numbered steps left (large serif
+  `1. 2. 3.`), the specimen sticky on the right, so the steps are read
+  against the thing they produce. The specimen gained a treasury row and a
+  two-entry decision record.
+- **New section 03, "What an organization gets"**: the product enumerated
+  as ledger rows (Votes, Tasks, Treasury, Members, Learning), each with a
+  one-line description and a mono annotation. The page now shows the
+  product's surface, which the first build never did.
+- **Ethos is an inverted plate**: paper type on meadow.700, the page's one
+  color moment, like the cloth cover of the book. Contrast paper.100 on
+  meadow.700 is 9.5:1.
+- **A colophon close**: "Starting takes minutes. Lasting is the point."
+  with the primary action repeated once, quietly, for readers who reach
+  the end.
+- **Nav gains a compact `Start` button** so the action persists while
+  reading.
+- Vignettes scaled up (to 1.875rem italic) and the problem section's
+  closing line extended ("The group stayed a group chat, and everything it
+  built stayed borrowed.").
+
 ## Deviations from the brief's section 4, with reasons
 
 1. Accent is deep green, not brass: named above (botany, ledgers, AA at

@@ -105,6 +105,36 @@ production static export) at 375, 768, and 1440.
   Final lint re-run clean against the production static export, including
   the E2E leakage guard (`yarn e2e:check`).
 
+## Pass 3 (Hudson: "too basic, review flow and wording, not visually appealing")
+
+The honest reading of the feedback: pass 2's deletion instinct overshot.
+The system was right; the execution was timid. Pass 3 kept every rule
+(paper/ink/one accent, serif/mono, no gradients, no stock anything) and
+added the drama the genre actually has:
+
+- Hero rebuilt on the logo's construction (rule, headline, rule), display
+  size up, `that lasts.` in italic, corner folios (`est. 2024` / `poa.box`).
+- Large green serif numerals beside every section heading; double rules
+  (3px + hairline) at every opener; vignettes scaled to pull-quote size.
+- Section 02 became steps-beside-specimen (sticky) so the mechanism is read
+  against its result; the specimen gained a treasury row and a two-decision
+  record.
+- New section 03 "What an organization gets" (Votes/Tasks/Treasury/
+  Members/Learning as annotated ledger rows): the page now demonstrates the
+  product surface instead of only philosophizing about it. Flow became:
+  problem → mechanism → product → properties → audience → ethos.
+- Ethos inverted to a deep-green plate (the one color moment), with a
+  colophon close ("Starting takes minutes. Lasting is the point.") and the
+  action repeated once.
+- Nav gained a compact Start button; wording sharpened throughout
+  ("members who vouch for each other", "no shares to sell and no investors
+  to please", "Ten years from now, a new member can read what was decided
+  and why", "everything it built stayed borrowed").
+
+All claims still trace to the audit; the vocabulary lint, heading
+hierarchy, reduced motion, and contrast checks were re-run clean against
+the rebuilt page (plate text is 9.5:1).
+
 ## TODO(hudson)
 
 1. **Featured founding org.** If you want a real ledger entry on the page

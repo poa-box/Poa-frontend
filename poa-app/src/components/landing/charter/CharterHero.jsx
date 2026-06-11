@@ -2,9 +2,9 @@ import React from "react";
 import { Box, Flex, Text } from "@chakra-ui/react";
 import { Wrap, MonoLabel, CharterButton, CharterLink } from "./Bones";
 
-// The frontispiece. One sentence, one action, set like a title page.
-// Entrance is the repo's pure-CSS .poa-fade (opacity only): visible at
-// first paint even before hydration, honest under reduced motion.
+// The frontispiece, built the way the logo is built: a name between two
+// heavy rules. Entrance is the repo's pure-CSS .poa-fade (opacity only):
+// visible at first paint even before hydration, honest under reduced motion.
 const CharterHero = () => {
   return (
     <Box as="section" aria-label="Introduction">
@@ -12,41 +12,49 @@ const CharterHero = () => {
         <Box
           className="poa-fade"
           textAlign="center"
-          pt={{ base: 20, md: 32 }}
+          maxW="900px"
+          mx="auto"
+          pt={{ base: 14, md: 24 }}
           pb={{ base: 16, md: 24 }}
         >
-          <MonoLabel as="p" color="ink.500">
-            est. 2024
-          </MonoLabel>
+          <Flex justify="space-between" align="baseline" mb={3} px={1}>
+            <MonoLabel color="ink.500">est. 2024</MonoLabel>
+            <MonoLabel color="ink.500">poa.box</MonoLabel>
+          </Flex>
 
+          {/* rule — headline — rule, like the mark */}
+          <Box borderTop="3px solid" borderColor="ink.900" />
           <Text
             as="h1"
             fontFamily="charter"
-            fontWeight="460"
-            fontSize={{ base: "2.75rem", sm: "3.25rem", md: "4.5rem" }}
-            lineHeight="1.06"
-            letterSpacing="-0.015em"
+            fontWeight="450"
+            fontSize={{ base: "3rem", sm: "3.75rem", md: "5.25rem" }}
+            lineHeight="1.05"
+            letterSpacing="-0.018em"
             color="ink.900"
-            mt={6}
-            mb={7}
+            py={{ base: 6, md: 9 }}
           >
             Start something
             <Box as="br" display={{ base: "none", sm: "inline" }} />{" "}
-            that lasts.
+            <Box as="em" fontStyle="italic" fontWeight="430">
+              that lasts.
+            </Box>
           </Text>
+          <Box borderBottom="3px solid" borderColor="ink.900" />
 
           <Text
             fontFamily="charter"
-            fontSize={{ base: "1.125rem", md: "1.25rem" }}
-            lineHeight="1.6"
+            fontSize={{ base: "1.1875rem", md: "1.375rem" }}
+            lineHeight="1.55"
             color="ink.500"
-            maxW="620px"
+            maxW="640px"
             mx="auto"
+            mt={{ base: 8, md: 10 }}
             mb={10}
           >
             Poa turns a group into an organization: rules you choose together,
-            membership built on vouching, and a treasury that pays people in
-            dollars. Nothing to install.
+            members who vouch for each other, and a treasury that pays people
+            in dollars. Nothing to install.
           </Text>
 
           <Flex justify="center" align="center" gap={8} wrap="wrap">

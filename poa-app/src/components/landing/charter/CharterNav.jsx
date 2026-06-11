@@ -1,12 +1,12 @@
 import React, { useCallback, startTransition } from "react";
 import NextLink from "next/link";
 import { Box, Button, Flex, HStack, Image, Link } from "@chakra-ui/react";
-import { Wrap } from "./Bones";
+import { Wrap, CharterButton } from "./Bones";
 
 const NAV_LINKS = [
-  { label: "How it works", href: "/#how-it-works", anchor: true },
+  { label: "How it works", href: "/#how-it-works", anchor: true, fromMd: true },
   { label: "Docs", href: "/docs" },
-  { label: "Browse", href: "/explore" },
+  { label: "Browse", href: "/explore", fromSm: true },
 ];
 
 const linkStyles = {
@@ -54,7 +54,13 @@ const CharterNav = ({ mounted, isPasskeyUser, isConnected, isAuthenticated, acco
                 key={link.href}
                 as={link.anchor ? undefined : NextLink}
                 href={link.href}
-                display={{ base: link.anchor ? "none" : "inline", md: "inline" }}
+                display={
+                  link.fromMd
+                    ? { base: "none", md: "inline" }
+                    : link.fromSm
+                      ? { base: "none", sm: "inline" }
+                      : "inline"
+                }
                 {...linkStyles}
               >
                 {link.label}
@@ -83,6 +89,9 @@ const CharterNav = ({ mounted, isPasskeyUser, isConnected, isAuthenticated, acco
                 {accountMenuItem.text}
               </Button>
             ) : null}
+            <CharterButton href="/create" px={4} py={2} h="auto" minH="2.25rem" fontSize="0.8125rem">
+              Start
+            </CharterButton>
           </HStack>
         </Flex>
       </Wrap>

@@ -33,8 +33,8 @@ const WhoItsFor = () => {
   return (
     <Box as="section" id="who-its-for" aria-labelledby="who-heading" pb={SECTION_PY}>
       <Wrap>
-        <SectionRule number="04" label="The members" />
-        <SectionHeading id="who-heading" mb={{ base: 10, md: 14 }}>
+        <SectionRule number="05" label="The members" />
+        <SectionHeading numeral="5" id="who-heading" mb={{ base: 10, md: 14 }}>
           Who it is for
         </SectionHeading>
 
