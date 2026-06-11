@@ -143,7 +143,27 @@ Ledger rows, every one a real product surface:
 - `Learning` · `Courses where new members earn their standing by learning
   how it all works.` · mono: `participation, earned`
 
-### Section 04, what makes it different
+### Section 04, where the money lives (added in pass 6)
+
+Label: `04`  Heading: `Where the money lives`
+Running label: `The fine print`. Q&A ledger rows, all verified against
+posts/ docs, caveats softened by omission per Hudson:
+
+- `Who holds the money?` · `The organization does, under its own rules.
+  Poa never holds it and cannot move it.`
+- `How does money come in?` · `Anyone can fund the treasury: members,
+  supporters, revenue from what you do. Giving requires no vote.`
+- `How does it go out?` · `Spending follows the rules the group chose.
+  Work gets paid, and payouts land in the member's own account, not in a
+  pile someone guards.`
+- `Can I turn it into cash?` · `Yes. Cash out to Cash App, Venmo, Revolut,
+  or a bank account in a few minutes. The rate and any small marketplace
+  fee are shown upfront. Poa charges nothing.`
+- `What if Poa disappears?` · `The treasury keeps working exactly the same
+  way. The records stay readable, and any organization can run its own
+  copy of the tools.`
+
+### Section 05, what makes it different
 
 Label: `04`  Heading: `What makes it different`
 
@@ -164,9 +184,9 @@ copy of the tools. Built so no one can lock you in, including us.`
 (The word "open-source" was cut here in build so the substrate is named
 exactly once on the page, in the footer, as the brief directs.)
 
-### Section 05, who it is for
+### Section 06, who it is for
 
-Label: `05`  Heading: `Who it is for`
+Label: `06`  Heading: `Who it is for`
 
 - `Student organizations. Officers change every spring. The organization
   keeps its memory.`
@@ -179,16 +199,16 @@ Each line ends with the named template it maps to, set in mono, e.g.
 `template: worker cooperative` (these are the real template names from the
 deployment flow).
 
-### Proof (closes section 05)
+### Proof (closes section 06, with a live registry count)
 
 No invented numbers. One ledger style line:
 
 `Every organization on Poa is public: its rules, its decisions, its books.`
 Link: `Browse the organizations` (→ /explore)
 
-### Section 06, ethos (set as the page's one color plate)
+### Section 07, ethos (set as the page's one color plate)
 
-Label: `06`  Heading: `Why we built it`
+Label: `07`  Heading: `Why we built it`
 
 `Most software is rented. An institution should not be. We built poa
 because worker and community ownership is how a better future gets made,

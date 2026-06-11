@@ -40,8 +40,7 @@ const Specimen = () => {
     ? [
         ["founded", formatFounded(live.deployedAt) || "on the public record"],
         ["members", String(live.totalMembers ?? 0)],
-        ["network", live.networkName || "public"],
-        ["charter", "public"],
+        ["charter", "public, in full"],
       ]
     : null;
 

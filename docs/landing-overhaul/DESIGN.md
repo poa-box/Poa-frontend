@@ -217,3 +217,17 @@ the volume.
 6. OG image: regenerated in the new system (paper, ink serif, the mark) at
    1200x630. The default `/images/poa_og.webp` used by every other page is
    left untouched; the landing passes its own `ogImage` prop.
+
+## Pass 6: receipts (live registry + the money band)
+
+- The charter card is no longer fiction-first in spirit: it renders the
+  fictional specimen only as first-paint fallback and swaps to a live
+  organization from the public registry (label flips to
+  `from the registry / live`). Same figure dimensions, no animation, no
+  skeleton, zero hydration mismatch.
+- The proof band carries a live count line in a height-reserved slot.
+- New section 04 "Where the money lives": dl/dt/dd Q&A rows on the page's
+  single paper.200 full-bleed band, breaking the long paper run the cold
+  review called the "mid-page flatline". Sections renumbered 05/06/07.
+- Ethos plate closes with the skin-in-the-game line ("Poa itself runs as
+  an organization on Poa"), linked live when the registry confirms it.

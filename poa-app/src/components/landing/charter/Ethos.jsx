@@ -1,11 +1,17 @@
 import React from "react";
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Flex, Link, Text } from "@chakra-ui/react";
 import { Wrap, MonoLabel } from "./Bones";
+import { getVisitUrlForOrg } from "@/config/hostDefaultOrg";
+import useLandingRegistry from "./useLandingRegistry";
 
-// Section 06. The reason, set as the page's deepest plate: paper and gold
+// Section 07. The reason, set as the page's deepest plate: paper and gold
 // on the green, like a union banner. This is where the mission speaks
-// plainly.
+// plainly, and where "we" gets a structural answer: Poa itself runs as an
+// organization on Poa (the /about page makes the same claim), so the line
+// renders with a live link only when the registry confirms the org exists.
 const Ethos = () => {
+  const { isLoading, orgs } = useLandingRegistry();
+  const poaOrg = !isLoading ? orgs.find((po) => po.id?.toLowerCase() === "poa") : null;
   return (
     <Box as="section" aria-labelledby="ethos-heading" bg="meadow.700" py={{ base: 16, md: 24 }}>
       <Wrap>
@@ -49,6 +55,37 @@ const Ethos = () => {
               Good institutions outlast their founders. We think the tools
               should too.
             </Box>
+          </Text>
+
+          {/* The structural answer to "who is we": skin in the game.
+              Linked only once the live registry confirms the org exists. */}
+          <Text
+            fontFamily="charter"
+            fontSize={{ base: "1.0625rem", md: "1.1875rem" }}
+            lineHeight="1.6"
+            color="paper.200"
+            mt={{ base: 7, md: 9 }}
+          >
+            Poa itself runs as an organization on Poa.{" "}
+            {poaOrg ? (
+              <Link
+                href={getVisitUrlForOrg(poaOrg.id)}
+                fontFamily="ledger"
+                fontSize="0.9375rem"
+                color="ochre.400"
+                textDecoration="underline"
+                textDecorationThickness="1px"
+                textUnderlineOffset="4px"
+                whiteSpace="nowrap"
+                _hover={{ color: "paper.50", textDecorationThickness: "2px" }}
+                _focusVisible={{ outline: "2px solid", outlineColor: "ochre.400", outlineOffset: "3px", boxShadow: "none" }}
+              >
+                Our books are public too
+              </Link>
+            ) : (
+              <Box as="span">Our books are public too</Box>
+            )}
+            .
           </Text>
         </Box>
       </Wrap>

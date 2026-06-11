@@ -202,6 +202,48 @@ on dues-in, passkey recovery, wind-down), signing the ethos with real
 names, live counts at the fold, and replacing the specimen with a real
 organization (the reviewer's #1; already a TODO below).
 
+## Pass 6 (receipts and candor — executing the blank-slate review)
+
+Hudson had no stats or info to provide; none were needed. The repo's own
+public data layer and docs contained everything. His three calls: live
+real-org card yes; honest counts yes however small; money section yes with
+caveats softened (softening done by omission, never by false claims).
+
+- **The specimen is now live.** The card swaps to a real organization from
+  the public registry (the same cross-chain query /explore uses, via the
+  lazy ProfileHubContext opt-in): real name, founded date, member count,
+  and a "read its books" link through the existing `getVisitUrlForOrg`
+  helper (external for white-label orgs). Verified live: KUBI, founded
+  31 March 2026, 24 members, linking to dao.kublockchain.com. The
+  fictional Hill Street Bakery remains the clearly labeled fallback for
+  first paint and registry failure; verified by blocking the registry in
+  Playwright. Featured selection prefers kubi, then poa (the repo's
+  known-real orgs), else the most-membered presentable name. Proposal
+  titles stay off the front door: unmoderated user content.
+- **Honest live counts.** The proof band fills a height-reserved slot with
+  "4 organizations and 41 members keep their books here" (live values at
+  verification time), filtered of test orgs via a new shared
+  `HIDDEN_ORG_IDS` module that /explore now imports too. If the registry
+  is down, the line simply never appears; nothing breaks, nothing lies.
+- **Section 04, "Where the money lives."** Q&A fine-print on the page's
+  one paper.200 band, every answer verified against posts/ docs: Poa never
+  holds the money; anyone can fund the treasury; spending follows the
+  rules; cashout to ordinary payment apps in minutes with the marketplace
+  fee shown upfront; the treasury keeps working if Poa disappears.
+  Omitted per Hudson: the device-only passkey backup caveat and the
+  solidarity-fund-empty fallback fee. Omission, not denial: nothing
+  printed contradicts them.
+- **"Who is we" answered structurally**: the ethos plate closes with "Poa
+  itself runs as an organization on Poa. Our books are public too," linked
+  to the live org only when the registry confirms it exists (it does:
+  org "Poa" on Gnosis). The /about page makes the same claim.
+- The card's "network: Gnosis" row was cut before shipping: a substrate
+  tell the rest of the page deliberately avoids.
+- profileHub fetches gained an 8s abort so a hung gateway degrades like a
+  failed one (also fixes /explore skeletons hanging forever).
+- Sections renumbered: 05 principles, 06 members, 07 reason. Pillar three
+  dropped its cashout mechanics (now section 04's job).
+
 ## TODO(hudson)
 
 1. **Featured founding org.** If you want a real ledger entry on the page

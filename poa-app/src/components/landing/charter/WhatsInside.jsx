@@ -8,7 +8,7 @@ const SURFACES = [
   {
     name: "Votes",
     line: "One person one vote, weight earned by participation, or a hybrid your group tunes.",
-    note: "recorded, permanently",
+    note: "kept forever",
   },
   {
     name: "Tasks",
@@ -28,7 +28,7 @@ const SURFACES = [
   {
     name: "Learning",
     line: "Onboarding courses your organization writes; passing them earns voting weight.",
-    note: "participation, earned",
+    note: "earned, not bought",
   },
 ];
 
