@@ -13,7 +13,7 @@ const Ethos = () => {
           <Box borderTop="6px solid" borderColor="ochre.400" />
           <Box borderTop="2px solid" borderColor="rgba(247, 242, 232, 0.45)" mt="4px" />
           <Flex justify="space-between" align="baseline" gap={4} pt={3}>
-            <MonoLabel color="ochre.400">06</MonoLabel>
+            <MonoLabel color="ochre.400">07</MonoLabel>
             <MonoLabel color="ochre.400" textAlign="right">
               The reason
             </MonoLabel>

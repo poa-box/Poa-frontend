@@ -13,17 +13,17 @@ const PILLARS = [
   },
   {
     title: "The door is open.",
-    body: "What you earn lands in your own account and cashes out to the payment app you already use. The record is public, and any organization can run its own copy of the tools. Built so no one can lock you in, including us.",
+    body: "What you earn is always yours. The record is public, and any organization can run its own copy of the tools. Built so no one can lock you in, including us.",
   },
 ];
 
-// Section 04. The three properties that make this different, stated plainly.
+// Section 05. The three principles that make this different, stated plainly.
 const Pillars = () => {
   return (
     <Box as="section" aria-labelledby="pillars-heading" pb={SECTION_PY}>
       <Wrap>
-        <SectionRule number="04" label="The principles" />
-        <SectionHeading numeral="4" numeralColor="oxblood.600" id="pillars-heading" mb={{ base: 10, md: 14 }}>
+        <SectionRule number="05" label="The principles" />
+        <SectionHeading numeral="5" numeralColor="oxblood.600" id="pillars-heading" mb={{ base: 10, md: 14 }}>
           What makes it different
         </SectionHeading>
 
