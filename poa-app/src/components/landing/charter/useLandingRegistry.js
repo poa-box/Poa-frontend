@@ -15,7 +15,10 @@ const isPresentableName = (name) =>
 // external white-label domains (getVisitUrlForOrg would prefer those), but
 // the banned-vocabulary rule is absolute INCLUDING URLs, and external
 // domains are outside our control (e.g. one contains "dao.").
-export const internalOrgUrl = (orgId) => `/home?org=${encodeURIComponent(orgId)}`;
+// Trailing slash matches next.config's trailingSlash:true, so the link
+// never takes a 308 on static hosting (and NextLink and plain anchors
+// produce the same URL).
+export const internalOrgUrl = (orgId) => `/home/?org=${encodeURIComponent(orgId)}`;
 
 // Live data for the landing page, from the same public registry /explore
 // reads. Calling useprofileHubContext() is the lazy opt-in that triggers

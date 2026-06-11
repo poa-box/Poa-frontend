@@ -101,7 +101,7 @@ const Specimen = () => {
           <Text fontFamily="charter" fontSize="1rem" color="ink.900" mb={2.5}>
             Every decision this organization makes is on the public ledger.{" "}
             <CharterLink href={liveUrl} fontSize="0.9375rem" whiteSpace="nowrap">
-              read its books
+              Read its books
             </CharterLink>
           </Text>
         ) : (
