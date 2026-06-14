@@ -42,9 +42,12 @@ SEOHead's title suffix. The lint guard targets all-caps POA.
 ### Meta
 
 - Title: `Poa: start an organization your group owns`
-- Description: `Poa is the simplest way for a group to become a real
-  organization: rules you choose together, membership built on vouching, and
-  a treasury that pays people in dollars. Nothing to install.`
+- Description (revised pass 8): `An organization your group owns together:
+  the rules you make, the votes you run, the money you share, paid in
+  dollars. Open and free.` (Kept under 160 chars so SEOHead does not
+  truncate it; the pass-7 draft "Joining makes you an owner; the work makes
+  you a bigger one" was dropped here because it overstates the model for
+  one-member-one-vote orgs.)
 - OG image: regenerated paper and ink specimen, text "poa" and "Start
   something that lasts." (no banned words; alt text: "Poa")
 - JSON-LD: keep WebSite, Organization, SoftwareApplication; strip every
@@ -211,16 +214,20 @@ Link: `Browse the organizations` (→ /explore)
 
 Label: `07`  Heading: `Why we built it`
 
-`Most software is rented. An institution should not be. We built poa
-because worker and community ownership is how a better future gets made,
-and the tools for it should be a public good: the organizations made here
-keep their own records, hold their own money, and can host their own copy
-of everything. Good institutions outlast their founders. We think the
+`Most software is rented. Walk away and it is gone. Poa is different. Your
+group owns the whole thing, for real, the rules and the money and all of
+it. The people who do the work own the most, and no one can take it from
+you, including us. Good institutions outlast their founders. We think the
 tools should too.`
-(Pass 4 put the mission in plain words at Hudson's direction; "public
-good" is verifiable: AGPL, free to use. The substrate sentence still
-appears only in the footer. The hero also carries "Built for worker and
-community ownership.")
+(Pass 8, Hudson's direction: pass 7's mechanism-forward copy read like a
+governance spec and was rejected as confusing and not exciting. This
+version is dead simple and benefit-first, a Steve Jobs register: it sells
+the feeling of a group owning something real that lasts, names the
+doers-own-it truth plainly ("the people who do the work own the most"), and
+lands the unstoppable fact warmly ("no one can take it from you, including
+us"). "decentralized" remains permitted (unbanned in pass 7). The hero
+tagline still reads "Built for worker and community ownership. Open,
+decentralized, impossible to shut down. Nothing to install.")
 
 ### Colophon (between the plate and the footer, added in pass 3)
 
@@ -247,12 +254,14 @@ to an AGPL license and dies here).
 Banned by the brief (must appear nowhere in rendered page, meta, OG, alt,
 URLs): blockchain, crypto, web3, DAO, token, tokens, on-chain, onchain,
 wallet, smart contract, gas, mint, airdrop, NFT, DeFi, multisig, dapp,
-decentralized, protocol fee, stablecoin.
+protocol fee, stablecoin. ("decentralized" was unbanned in pass 7 at
+Hudson's direction and may now be used where it earns its place.)
 
 Found in the current page and also linted out:
 - "DAO", "no-code DAO", "DAO platform", "DAO builder" (meta keywords)
 - "decentralized governance", "decentralized treasury", "on-chain voting"
-  (meta keywords and JSON-LD)
+  (meta keywords and JSON-LD; the bare word "decentralized" is permitted
+  again as of pass 7, but these crypto-coded phrases stay out)
 - "Connect Wallet" (navbar button)
 - "deploy / deployment" (crypto coded; replaced with "start", "set up")
 - "governance model" (jargon; replaced with "rules")

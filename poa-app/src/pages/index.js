@@ -100,7 +100,7 @@ export default function Home() {
     "alternateName": ["poa", "poa.box", "poa box", "Poa.box"],
     "url": "https://poa.box",
     "description":
-      "Poa (poa.box) is the simplest way for a group to become a real organization the members own together: rules, membership, and money in one place.",
+      "Poa (poa.box) turns a group into an organization the members own together: rules they choose, membership built on vouching, and a shared treasury that pays people in dollars, in one place.",
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
@@ -144,7 +144,7 @@ export default function Home() {
       "Open-source governance tools",
     ],
     "description":
-      "Poa (poa.box) is the simplest way for a group to start an organization its members own: rules chosen from named templates, membership built on vouching, and a treasury that pays people in dollars.",
+      "Poa (poa.box) lets a group become an organization it owns together: rules chosen and rewritten by members, membership built on vouching, and a treasury that pays people in dollars. Open-source, decentralized, and free.",
   };
 
   const softwareLD = {
@@ -157,7 +157,7 @@ export default function Home() {
     "operatingSystem": "Web",
     "url": "https://poa.box",
     "description":
-      "Start an organization your group owns: voting, membership, tasks, and a shared treasury in one place. Voting power is earned by participating. Free to use on poa.box.",
+      "Start an organization your group owns: voting, membership, tasks, and a shared treasury in one place. Voting power is earned by participating. Open-source and free to use on poa.box.",
     "offers": {
       "@type": "Offer",
       "price": "0",
@@ -179,7 +179,7 @@ export default function Home() {
     <>
       <SEOHead
         title="Poa: start an organization your group owns"
-        description="Poa is the simplest way for a group to become a real organization: rules you choose together, membership built on vouching, and a treasury that pays people in dollars. Nothing to install."
+        description="An organization your group owns together: the rules you make, the votes you run, the money you share, paid in dollars. Open and free."
         path="/"
         ogImage="/images/poa-og-charter.png"
         keywords={[

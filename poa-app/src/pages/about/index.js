@@ -39,7 +39,7 @@ const PRINCIPLES = [
     icon: HiShieldCheck,
     title: "Unstoppable Infrastructure",
     description:
-      "Once deployed, no one can shut down or alter your organization. Not even us. It belongs entirely to your community.",
+      "Once it is live, no one can shut down or alter your organization. Not even us. It belongs entirely to your community.",
   },
   {
     icon: HiSparkles,
@@ -51,7 +51,7 @@ const PRINCIPLES = [
     icon: HiLightningBolt,
     title: "Radical Transparency",
     description:
-      "Every vote, every transaction, every decision lives on-chain. Trust isn't something we promise. It's baked into the system.",
+      "Every vote, every transaction, every decision is recorded in the open. Trust isn't something we promise. It's baked into the system.",
   },
 ];
 
@@ -60,13 +60,13 @@ const STEPS = [
     number: "1",
     title: "Describe your community",
     description:
-      "Tell Poa what you're building. You'll choose from governance models like direct democracy, contribution-weighted voting, or a hybrid, with Poa walking you through what each one means for your community.",
+      "Tell Poa what you're building. You'll choose how decisions get made, from one member one vote to contribution-weighted voting or a hybrid, and Poa walks you through what each choice means for your community.",
   },
   {
     number: "2",
-    title: "Deploy on-chain",
+    title: "Live in minutes",
     description:
-      "Poa deploys your governance contracts, treasury, and organization dashboard to the blockchain. Everything is live and verifiable in minutes. Nothing to install, nothing to host.",
+      "Your rules, treasury, and dashboard go live in minutes, decentralized and public from the first day. Nothing to install, nothing to host.",
   },
   {
     number: "3",
@@ -83,15 +83,15 @@ const AboutPage = () => {
     <>
       <SEOHead
         title="About Poa. The Mission Behind a Community-Owned Organization Builder"
-        description="Why Poa exists. Every community deserves infrastructure it owns. The story behind poa.box, a no-code platform where voting power is earned by contributing, not bought with capital."
+        description="Why Poa exists. Your group owns the whole thing, the rules you make, the votes you run, the money you share. Open and free."
         path="/about"
         keywords={[
           "about poa",
-          "community-owned organization mission",
-          "no-code DAO mission",
+          "community owned organization",
+          "contribution based ownership",
           "earned governance",
-          "decentralized infrastructure",
-          "worker-owned platform",
+          "worker owned platform",
+          "open-source governance tools",
           "poa.box",
         ]}
         jsonLd={{
@@ -99,7 +99,7 @@ const AboutPage = () => {
           "@type": "AboutPage",
           "name": "About Poa",
           "description":
-            "Poa is a no-code DAO platform for community-owned organizations. Voting power is earned through contribution, not purchased with capital.",
+            "Poa lets a group become an organization it owns together: rules chosen by members, membership built on vouching, and a treasury that pays in dollars. Groups choose how votes are weighed, from one member one vote to weight earned by contribution, or a hybrid. Open-source, decentralized, and free.",
           "url": "https://poa.box/about/",
           "mainEntity": {
             "@type": "Organization",
@@ -174,12 +174,26 @@ const AboutPage = () => {
                 lineHeight="1.7"
                 fontWeight="500"
               >
-                Poa is a no-code platform for people who don&apos;t think of themselves
-                as crypto users. Student officers. Worker-cooperative members. Open-source
-                maintainers. Every contributor holds a real stake in the community they
-                help build. No investors. No middlemen. No admins. Just people building
-                together, with the accountability and the durability of a real
-                infrastructure underneath, and none of the crypto overhead on top of it.
+                Most software is rented. Walk away and it is gone. Poa is different.
+                Your group owns the whole thing, for real: the rules you make, the
+                votes you run, the money you share. The people who do the work own
+                the most, and no one can take it from you, including us.
+              </Text>
+              <Text
+                fontSize={["md", "lg", "xl"]}
+                color="warmGray.400"
+                maxW="640px"
+                lineHeight="1.7"
+                fontWeight="500"
+                mt={[5, 6]}
+              >
+                It is open-source, decentralized, and free. Anyone can run their own
+                copy. Poa charges nothing and runs as an organization on Poa, built
+                by the people who use it.{" "}
+                <Text as="span" fontStyle="italic" color="warmGray.200">
+                  Good institutions outlast their founders. We think the tools should
+                  too.
+                </Text>
               </Text>
             </MotionBox>
           </Container>
@@ -269,7 +283,7 @@ const AboutPage = () => {
                 { label: "Shared treasury", detail: "Pool and manage funds together. Every transaction is transparent and governed by your community." },
                 { label: "Roles and permissions", detail: "Define who can do what. Set up trust levels, vouching, and role-based access for your members." },
                 { label: "Contribution tracking", detail: "Members earn influence based on what they actually do. The more someone contributes, the more say they have." },
-                { label: "On-chain and permanent", detail: "Everything runs on smart contracts. Your org can't be shut down or changed by anyone outside your community." },
+                { label: "Permanent and public", detail: "Once it is live, no one outside your community can shut it down or change it." },
               ].map((item, i) => (
                 <MotionBox
                   key={i}
@@ -331,7 +345,7 @@ const AboutPage = () => {
                 fontWeight="700"
                 letterSpacing="-0.02em"
               >
-                Three steps. Zero code. Fully yours.
+                Three steps. Nothing to install. Fully yours.
               </Heading>
             </MotionBox>
 
@@ -555,8 +569,8 @@ const AboutPage = () => {
                     Open source
                   </Text>
                   <Text color="warmGray.600" fontSize={["md", "lg"]} lineHeight="1.7" fontWeight="500">
-                    Every line of Poa&apos;s code is public. The smart contracts, the frontend, the
-                    subgraph. Anyone can audit it, fork it, or contribute to it.
+                    Every line of Poa&apos;s code is public. Anyone can audit it, fork it,
+                    or contribute to it.
                   </Text>
                 </Box>
                 <Box>
@@ -564,8 +578,8 @@ const AboutPage = () => {
                     Multi-chain
                   </Text>
                   <Text color="warmGray.600" fontSize={["md", "lg"]} lineHeight="1.7" fontWeight="500">
-                    Deploy your organization on the network that makes sense for your community.
-                    Poa supports multiple EVM-compatible chains and is expanding to more.
+                    Start your organization on the network that makes sense for your community.
+                    Poa supports multiple networks and is expanding to more.
                   </Text>
                 </Box>
                 <Box>
