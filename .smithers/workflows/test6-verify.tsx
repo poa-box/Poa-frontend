@@ -4,7 +4,7 @@
 // smithers-description: Implement a poa-app change, then gate on yarn build + a Playwright verification (fast read-only UI by default, full on-chain Test6 opt-in) + independent code review + independent design review of the screenshots. Loops until all pass.
 // smithers-tags: poa, frontend, verify, test6, loop
 /** @jsxImportSource smithers-orchestrator */
-import { Sequence, Loop, Task } from "smithers-orchestrator";
+import { Sequence, Parallel, Loop, Task } from "smithers-orchestrator";
 import { createSmithers } from "smithers-orchestrator";
 import { z } from "zod/v4";
 import { providers } from "../agents";
@@ -61,8 +61,7 @@ const HEARTBEAT = 600_000;
 // Verify boots a dev server (cold compile) + (onchain) waits on tx + subgraph
 // re-index, so long quiet stretches are normal — give it a longer heartbeat.
 const VERIFY_HEARTBEAT = 1_200_000; // 20 min
-
-const FFMPEG = `ffmpeg -i video.webm -vf "fps=10,scale=800:-1" out.gif`;
+const DEV_PORT = 3100; // fixed port so dev servers are reused, not stacked
 
 export default smithers((ctx) => {
   const prompt = ctx.input.prompt;
@@ -128,7 +127,15 @@ If any E2E-intercepted file changed (AuthContext.js, _app.js, passkeySign.js, pa
 
 Set passed=true ONLY if \`yarn build\` exits 0 (and e2e:check passes when it was required). On failure, put the tail of the error output in failingLog so the next iteration can fix it.`;
 
-  const verifyCommon = `See CLAUDE.md "Frontend changes: verify on Test6" for the repo facts (dev command, Test6 authorization, gif convention). Start the dev server with: cd poa-app && yarn dev:e2e-passkey (passkey identity, full perms, auto-connects — no wallet popup). Use the Playwright MCP (browser_navigate / browser_snapshot / browser_take_screenshot / browser_click / browser_fill_form). Capture screenshots of every important state with browser_take_screenshot (files land under .playwright-mcp/, gitignored) and return their absolute paths in screenshotPaths so the design-review step can read them. A gif is optional but nice: Playwright video -> \`${FFMPEG}\`, path in gifPath.
+  const verifyCommon = `See CLAUDE.md "Frontend changes: verify on Test6" for repo facts (Test6 authorization, identities).
+
+DEV SERVER — follow this EXACTLY or the task hangs and times out:
+1. If http://localhost:${DEV_PORT} already responds (\`curl -s -o /dev/null -w '%{http_code}' http://localhost:${DEV_PORT}\` == 200), REUSE it — skip to the browser steps. Do not start another.
+2. Otherwise start it DETACHED / IN THE BACKGROUND — never in the foreground. A foreground or blocked dev server keeps your own process alive and makes this task hang forever. Use the Bash tool's run_in_background (or \`nohup ... >/tmp/poa-dev.log 2>&1 & disown\`): \`cd poa-app && PORT=${DEV_PORT} yarn dev:e2e-passkey\` (passkey identity, full perms, auto-connects — no wallet popup). Then poll until it answers 200 (up to ~120s; first compile is slow).
+3. Drive ALL Playwright navigation against http://localhost:${DEV_PORT} (browser_navigate / browser_snapshot / browser_take_screenshot / browser_click / browser_fill_form).
+4. Save screenshots with browser_take_screenshot into the .playwright-mcp/ directory (NEVER the repo root) and return their absolute paths in screenshotPaths for the design-review step.
+5. Do NOT kill the dev server when you finish — leave it running for reuse. Just make sure nothing you started is still attached to your foreground/stdout, so your process can exit cleanly.
+6. Your FINAL message must be ONLY the JSON object — no prose, no code fences, no trailing text.
 
 CHANGE TO VERIFY:
 ${prompt}`;
@@ -176,10 +183,15 @@ Set reviewer to "design-reviewer". Approve ONLY if the UI looks good AND fits ex
           <Task id="t6:build" output={buildOutputSchema} agent={[providers.claudeSonnet]} timeoutMs={LONG} heartbeatTimeoutMs={HEARTBEAT}>
             {buildPrompt}
           </Task>
-          <Task id="t6:verify" output={verifyOutputSchema} agent={[providers.claude]} timeoutMs={LONG} heartbeatTimeoutMs={VERIFY_HEARTBEAT}>
-            {verifyPrompt}
-          </Task>
-          <Review idPrefix="t6:review" prompt={prompt} agents={[providers.claudeSonnet]} />
+          {/* verify (browser) and the code review (reads the diff) are independent —
+              run them concurrently to overlap the two slow steps. */}
+          <Parallel>
+            <Task id="t6:verify" output={verifyOutputSchema} agent={[providers.claude]} timeoutMs={LONG} heartbeatTimeoutMs={VERIFY_HEARTBEAT}>
+              {verifyPrompt}
+            </Task>
+            <Review idPrefix="t6:review" prompt={prompt} agents={[providers.claudeSonnet]} />
+          </Parallel>
+          {/* design review reads verify's screenshots, so it stays after the Parallel */}
           <Task id="t6:design-review" output={designReviewOutputSchema} agent={[providers.claudeSonnet]} continueOnFail timeoutMs={LONG} heartbeatTimeoutMs={HEARTBEAT}>
             {designReviewPrompt}
           </Task>
