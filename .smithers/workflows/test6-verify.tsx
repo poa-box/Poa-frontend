@@ -10,6 +10,8 @@ import { z } from "zod/v4";
 import { providers } from "../agents";
 import { implementOutputSchema } from "../components/ValidationLoop";
 import { Review, reviewOutputSchema } from "../components/Review";
+import { execFileSync } from "node:child_process";
+import { join } from "node:path";
 
 const buildOutputSchema = z.object({
   passed: z.boolean(),
@@ -40,6 +42,9 @@ const designReviewOutputSchema = z.object({
   })).default([]),
 });
 
+const devUpSchema = z.object({ baseUrl: z.string(), started: z.boolean().default(false) });
+const diffSchema = z.object({ diff: z.string() });
+
 const inputSchema = z.object({
   prompt: z.string().default("Implement and verify the requested poa-app change."),
   // "ui" (default) = fast read-only browser check, no tx. "onchain" = full Test6 flow with real tx.
@@ -54,6 +59,8 @@ const { Workflow, smithers } = createSmithers({
   verify: verifyOutputSchema,
   review: reviewOutputSchema,
   designReview: designReviewOutputSchema,
+  devUp: devUpSchema,
+  diff: diffSchema,
 });
 
 const LONG = 1_800_000; // 30 min cap — dev server + Playwright runs are slow
@@ -62,6 +69,8 @@ const HEARTBEAT = 600_000;
 // re-index, so long quiet stretches are normal — give it a longer heartbeat.
 const VERIFY_HEARTBEAT = 1_200_000; // 20 min
 const DEV_PORT = 3100; // fixed port so dev servers are reused, not stacked
+const repoRoot = join(import.meta.dir, "..", "..");
+const ensureDevScript = join(import.meta.dir, "..", "scripts", "ensure-dev.sh");
 
 export default smithers((ctx) => {
   const prompt = ctx.input.prompt;
@@ -172,6 +181,13 @@ ${prompt}
 
 Set reviewer to "design-reviewer". Approve ONLY if the UI looks good AND fits existing patterns. Otherwise reject (approved=false) with specific, actionable visual fixes in feedback/issues.`;
 
+  // HARDENING 1: feed the reviewer the actual diff so it reviews changed lines
+  // instead of re-exploring the whole repo (the slow part of the run).
+  const diffRow = ctx.outputMaybe("diff", { nodeId: "t6:diff" });
+  const reviewPrompt = diffRow?.diff
+    ? `${prompt}\n\n--- REVIEW THIS DIFF (focus ONLY on the changed lines below; do not re-audit unrelated code or re-explore the whole repo) ---\n${diffRow.diff}`
+    : prompt;
+
   return (
     <Workflow name="test6-verify">
       <Loop id="t6:loop" until={done} maxIterations={ctx.input.maxIterations} onMaxReached="return-last">
@@ -179,8 +195,29 @@ Set reviewer to "design-reviewer". Approve ONLY if the UI looks good AND fits ex
           <Task id="t6:implement" output={implementOutputSchema} agent={[providers.claude]} timeoutMs={LONG} heartbeatTimeoutMs={HEARTBEAT}>
             {implementPrompt}
           </Task>
+          {/* capture implement's diff (uncommitted, else branch-vs-main) for the reviewer */}
+          <Task id="t6:diff" output={diffSchema}>
+            {() => {
+              let d = "";
+              const args = (range: string) => ["--no-pager", "diff", range, "--", "poa-app/src"];
+              try {
+                d = execFileSync("git", args("HEAD"), { cwd: repoRoot, encoding: "utf8", maxBuffer: 20_000_000 });
+                if (!d.trim()) d = execFileSync("git", args("origin/main...HEAD"), { cwd: repoRoot, encoding: "utf8", maxBuffer: 20_000_000 });
+              } catch { /* git unavailable — reviewer falls back to the prompt */ }
+              return { diff: d.slice(0, 60_000) || "(no diff captured — review the change described in the prompt)" };
+            }}
+          </Task>
           <Task id="t6:build" output={buildOutputSchema} agent={[providers.claudeSonnet]} timeoutMs={LONG} heartbeatTimeoutMs={HEARTBEAT}>
             {buildPrompt}
+          </Task>
+          {/* HARDENING 2: deterministically ensure exactly ONE clean node-20.10 dev
+              server (reuse if healthy, else kill stale + clear .next + start one).
+              Removes the agent from server lifecycle entirely. */}
+          <Task id="t6:dev-up" output={devUpSchema}>
+            {() => {
+              execFileSync("bash", [ensureDevScript, String(DEV_PORT)], { stdio: "inherit", timeout: 400_000 });
+              return { baseUrl: `http://localhost:${DEV_PORT}`, started: true };
+            }}
           </Task>
           {/* verify (browser) and the code review (reads the diff) are independent —
               run them concurrently to overlap the two slow steps. */}
@@ -188,7 +225,7 @@ Set reviewer to "design-reviewer". Approve ONLY if the UI looks good AND fits ex
             <Task id="t6:verify" output={verifyOutputSchema} agent={[providers.claude]} timeoutMs={LONG} heartbeatTimeoutMs={VERIFY_HEARTBEAT}>
               {verifyPrompt}
             </Task>
-            <Review idPrefix="t6:review" prompt={prompt} agents={[providers.claudeSonnet]} />
+            <Review idPrefix="t6:review" prompt={reviewPrompt} agents={[providers.claudeSonnet]} />
           </Parallel>
           {/* design review reads verify's screenshots, so it stays after the Parallel */}
           <Task id="t6:design-review" output={designReviewOutputSchema} agent={[providers.claudeSonnet]} continueOnFail timeoutMs={LONG} heartbeatTimeoutMs={HEARTBEAT}>
