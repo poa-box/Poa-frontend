@@ -65,7 +65,8 @@ const CharterHero = () => {
             color="ink.500"
             mb={10}
           >
-            Built for worker and community ownership. Nothing to install.
+            Built for worker and community ownership. Open, decentralized,
+            impossible to shut down. Nothing to install.
           </Text>
 
           <Flex justify="center" align="center" gap={9} wrap="wrap">
