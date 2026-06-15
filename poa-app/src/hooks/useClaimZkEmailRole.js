@@ -64,11 +64,9 @@ export function useClaimZkEmailRole() {
         // 1. Prove client-side. The connected address is bound into the command, so the proof can
         //    only ever be redeemed to this account.
         setStep(ZK_CLAIM_STEPS.PROVING);
-        const blueprintSlug = process.env.NEXT_PUBLIC_ZKEMAIL_BLUEPRINT || '';
         const { proof, meta: proofMeta } = await generateEmailProof({
           emlText,
           claimer: accountAddress,
-          blueprintSlug,
         });
         setMeta(proofMeta);
 

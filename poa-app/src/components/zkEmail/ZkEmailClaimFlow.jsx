@@ -26,7 +26,7 @@ const CLAIM_INBOX = process.env.NEXT_PUBLIC_ZKEMAIL_INBOX || '';
  */
 export default function ZkEmailClaimFlow() {
   const { accountAddress, isAuthenticated } = useAuth();
-  const { claimByDomain, step, error, meta, reset } = useClaimZkEmailRole();
+  const { claimByDomain, step, error, reset } = useClaimZkEmailRole();
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState('');
 
@@ -117,17 +117,11 @@ export default function ZkEmailClaimFlow() {
         <HStack>
           <Spinner size="sm" />
           <Text>
-            {step === ZK_CLAIM_STEPS.PROVING ? 'Verifying your email (this can take a moment)…' : 'Submitting your claim…'}
+            {step === ZK_CLAIM_STEPS.PROVING
+              ? 'Proving your email in your browser — this can take up to a minute (plus a one-time download the first time)…'
+              : 'Submitting your claim…'}
           </Text>
         </HStack>
-      )}
-
-      {meta?.isMock && (
-        <Alert status="warning" borderRadius="lg" fontSize="sm">
-          <AlertIcon />
-          Dev mode: a placeholder proof was generated (it will not verify on-chain). Register the POP blueprint and wire
-          @zk-email/sdk for real proving.
-        </Alert>
       )}
 
       {step === ZK_CLAIM_STEPS.ERROR && error && (

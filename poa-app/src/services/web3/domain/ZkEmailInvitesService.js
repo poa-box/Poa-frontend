@@ -5,10 +5,10 @@
  * ZkEmailInvites is an OPTIONAL per-org module: only orgs that opted in (on a chain with ZK Email
  * infra wired) have one. Callers must gate on `zkEmailInvitesEnabled` from POContext before using this.
  *
- * The `proof` arg is the email-tx-builder EmailProof tuple produced by the client-side prover
- * (src/lib/zkemail/prover.js): { domainName, publicKeyHash, timestamp, maskedCommand, emailNullifier,
- * accountSalt, isCodeExist, proof }. The claim is permissionless — anyone may submit it for the
- * address bound inside proof.maskedCommand — so it works from a passkey UserOp (gasless) or an EOA tx.
+ * The `proof` arg is the `ZkEmailProof` tuple produced by the client-side prover
+ * (src/lib/zkemail/prover.js): { pA, pB, pC, pubkeyHash, emailNullifier, domainName }. The claim is
+ * permissionless — anyone may submit it for the address bound in-circuit — so it works from a passkey
+ * UserOp (gasless) or an EOA tx.
  */
 
 import ZkEmailInvitesABI from '../../../../abi/ZkEmailInvites.json';
@@ -39,23 +39,6 @@ export class ZkEmailInvitesService {
 
     const contract = this.factory.createWritable(contractAddress, ZkEmailInvitesABI);
     return this.txManager.execute(contract, 'claimRoleByDomain', [proof, claimer], options);
-  }
-
-  /**
-   * Claim role hats by a SPECIFIC allowlisted email (accountSalt-keyed rule).
-   * @param {string} contractAddress - ZkEmailInvites proxy
-   * @param {Object} proof - EmailProof struct
-   * @param {string} claimer - address the hats mint to
-   * @param {Object} [options={}]
-   * @returns {Promise<TransactionResult>}
-   */
-  async claimRoleByEmail(contractAddress, proof, claimer, options = {}) {
-    requireAddress(contractAddress, 'ZkEmailInvites contract address');
-    requireAddress(claimer, 'Claimer address');
-    if (!proof) throw new Error('Email proof is required');
-
-    const contract = this.factory.createWritable(contractAddress, ZkEmailInvitesABI);
-    return this.txManager.execute(contract, 'claimRoleByEmail', [proof, claimer], options);
   }
 
   /**

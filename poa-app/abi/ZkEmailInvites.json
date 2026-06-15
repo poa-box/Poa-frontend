@@ -37,27 +37,27 @@
       {
         "name": "proof",
         "type": "tuple",
-        "internalType": "struct EmailProof",
+        "internalType": "struct ZkEmailProof",
         "components": [
           {
-            "name": "domainName",
-            "type": "string",
-            "internalType": "string"
+            "name": "pA",
+            "type": "uint256[2]",
+            "internalType": "uint256[2]"
           },
           {
-            "name": "publicKeyHash",
+            "name": "pB",
+            "type": "uint256[2][2]",
+            "internalType": "uint256[2][2]"
+          },
+          {
+            "name": "pC",
+            "type": "uint256[2]",
+            "internalType": "uint256[2]"
+          },
+          {
+            "name": "pubkeyHash",
             "type": "bytes32",
             "internalType": "bytes32"
-          },
-          {
-            "name": "timestamp",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maskedCommand",
-            "type": "string",
-            "internalType": "string"
           },
           {
             "name": "emailNullifier",
@@ -65,79 +65,9 @@
             "internalType": "bytes32"
           },
           {
-            "name": "accountSalt",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "isCodeExist",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "proof",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
-      },
-      {
-        "name": "claimer",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "claimRoleByEmail",
-    "inputs": [
-      {
-        "name": "proof",
-        "type": "tuple",
-        "internalType": "struct EmailProof",
-        "components": [
-          {
             "name": "domainName",
             "type": "string",
             "internalType": "string"
-          },
-          {
-            "name": "publicKeyHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "timestamp",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maskedCommand",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "emailNullifier",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "accountSalt",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "isCodeExist",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "proof",
-            "type": "bytes",
-            "internalType": "bytes"
           }
         ]
       },
@@ -210,7 +140,7 @@
     "name": "getEmailRule",
     "inputs": [
       {
-        "name": "accountSalt",
+        "name": "emailHash",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -233,30 +163,6 @@
       },
       {
         "name": "claimed",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "hasEmailClaimedDomain",
-    "inputs": [
-      {
-        "name": "accountSalt",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "domainHash",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
         "type": "bool",
         "internalType": "bool"
       }
@@ -320,7 +226,7 @@
         "internalType": "struct ZkEmailInvites.InitEmailRule[]",
         "components": [
           {
-            "name": "accountSalt",
+            "name": "emailHash",
             "type": "bytes32",
             "internalType": "bytes32"
           },
@@ -445,27 +351,27 @@
       {
         "name": "proof",
         "type": "tuple",
-        "internalType": "struct EmailProof",
+        "internalType": "struct ZkEmailProof",
         "components": [
           {
-            "name": "domainName",
-            "type": "string",
-            "internalType": "string"
+            "name": "pA",
+            "type": "uint256[2]",
+            "internalType": "uint256[2]"
           },
           {
-            "name": "publicKeyHash",
+            "name": "pB",
+            "type": "uint256[2][2]",
+            "internalType": "uint256[2][2]"
+          },
+          {
+            "name": "pC",
+            "type": "uint256[2]",
+            "internalType": "uint256[2]"
+          },
+          {
+            "name": "pubkeyHash",
             "type": "bytes32",
             "internalType": "bytes32"
-          },
-          {
-            "name": "timestamp",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maskedCommand",
-            "type": "string",
-            "internalType": "string"
           },
           {
             "name": "emailNullifier",
@@ -473,159 +379,9 @@
             "internalType": "bytes32"
           },
           {
-            "name": "accountSalt",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "isCodeExist",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "proof",
-            "type": "bytes",
-            "internalType": "bytes"
-          }
-        ]
-      }
-    ],
-    "outputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "registerAndClaimByEmailWithPasskey",
-    "inputs": [
-      {
-        "name": "passkey",
-        "type": "tuple",
-        "internalType": "struct ZkEmailInvites.PasskeyEnrollment",
-        "components": [
-          {
-            "name": "credentialId",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "publicKeyX",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "publicKeyY",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "salt",
-            "type": "uint256",
-            "internalType": "uint256"
-          }
-        ]
-      },
-      {
-        "name": "username",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "deadline",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "nonce",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "auth",
-        "type": "tuple",
-        "internalType": "struct WebAuthnLib.WebAuthnAuth",
-        "components": [
-          {
-            "name": "authenticatorData",
-            "type": "bytes",
-            "internalType": "bytes"
-          },
-          {
-            "name": "clientDataJSON",
-            "type": "bytes",
-            "internalType": "bytes"
-          },
-          {
-            "name": "challengeIndex",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "typeIndex",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "r",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "s",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          }
-        ]
-      },
-      {
-        "name": "proof",
-        "type": "tuple",
-        "internalType": "struct EmailProof",
-        "components": [
-          {
             "name": "domainName",
             "type": "string",
             "internalType": "string"
-          },
-          {
-            "name": "publicKeyHash",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "timestamp",
-            "type": "uint256",
-            "internalType": "uint256"
-          },
-          {
-            "name": "maskedCommand",
-            "type": "string",
-            "internalType": "string"
-          },
-          {
-            "name": "emailNullifier",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "accountSalt",
-            "type": "bytes32",
-            "internalType": "bytes32"
-          },
-          {
-            "name": "isCodeExist",
-            "type": "bool",
-            "internalType": "bool"
-          },
-          {
-            "name": "proof",
-            "type": "bytes",
-            "internalType": "bytes"
           }
         ]
       }
@@ -657,7 +413,7 @@
     "name": "removeEmailRule",
     "inputs": [
       {
-        "name": "accountSalt",
+        "name": "emailHash",
         "type": "bytes32",
         "internalType": "bytes32"
       }
@@ -719,7 +475,7 @@
     "name": "setEmailRule",
     "inputs": [
       {
-        "name": "accountSalt",
+        "name": "emailHash",
         "type": "bytes32",
         "internalType": "bytes32"
       },
@@ -784,7 +540,7 @@
       {
         "name": "",
         "type": "address",
-        "internalType": "contract IVerifier"
+        "internalType": "contract IZkEmailGroth16Verifier"
       }
     ],
     "stateMutability": "view"
@@ -858,7 +614,7 @@
     "name": "EmailRuleRemoved",
     "inputs": [
       {
-        "name": "accountSalt",
+        "name": "emailHash",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -871,7 +627,7 @@
     "name": "EmailRuleSet",
     "inputs": [
       {
-        "name": "accountSalt",
+        "name": "emailHash",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -962,43 +718,6 @@
   },
   {
     "type": "event",
-    "name": "RegisteredAndClaimedByEmail",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "credentialId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "username",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      },
-      {
-        "name": "accountSalt",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "hatIds",
-        "type": "uint256[]",
-        "indexed": false,
-        "internalType": "uint256[]"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "RoleClaimedByDomain",
     "inputs": [
       {
@@ -1009,37 +728,6 @@
       },
       {
         "name": "domainHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "hatIds",
-        "type": "uint256[]",
-        "indexed": false,
-        "internalType": "uint256[]"
-      },
-      {
-        "name": "nullifier",
-        "type": "bytes32",
-        "indexed": false,
-        "internalType": "bytes32"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "RoleClaimedByEmail",
-    "inputs": [
-      {
-        "name": "claimer",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "accountSalt",
         "type": "bytes32",
         "indexed": true,
         "internalType": "bytes32"
@@ -1087,27 +775,7 @@
   },
   {
     "type": "error",
-    "name": "AccountCodeMissing",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "AddressMismatch",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "AlreadyClaimed",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "DomainNotAllowed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "EmailNotAllowed",
     "inputs": []
   },
   {
@@ -1118,11 +786,6 @@
   {
     "type": "error",
     "name": "EmptyHats",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "InvalidCommand",
     "inputs": []
   },
   {
