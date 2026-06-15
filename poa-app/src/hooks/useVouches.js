@@ -3,7 +3,7 @@
  * Provides vouch status, progress, and helper functions for the vouching UI
  */
 
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAccount } from 'wagmi';
 import { FETCH_VOUCHES_FOR_ORG, FETCH_ALL_ROLE_APPLICATIONS } from '../util/queries';
@@ -79,6 +79,14 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
     refetch();
     refetchApplications();
   }, [refetch, refetchApplications]);
+
+  // Role applications are supplementary — if that query fails, keep showing
+  // vouches rather than erroring the whole section (see `error` in the return).
+  useEffect(() => {
+    if (applicationsError) {
+      console.warn('useVouches: role applications query failed; pending on-chain applicants hidden until it recovers.', applicationsError);
+    }
+  }, [applicationsError]);
 
   // Refetch immediately — executeWithNotification already waited for the
   // subgraph to index the transaction block before emitting these events.
@@ -372,7 +380,9 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
 
     // State
     loading: loading || applicationsLoading,
-    error: error || applicationsError,
+    // applicationsError must NOT hide the vouches list — it degrades to "no
+    // applicants shown" and is logged via the warn effect above.
+    error,
     refetch: refetchAll,
 
     // Utilities
