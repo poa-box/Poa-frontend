@@ -129,13 +129,12 @@ Set passed=true ONLY if \`yarn build\` exits 0 (and e2e:check passes when it was
 
   const verifyCommon = `See CLAUDE.md "Frontend changes: verify on Test6" for repo facts (Test6 authorization, identities).
 
-DEV SERVER — follow this EXACTLY or the task hangs and times out:
-1. If http://localhost:${DEV_PORT} already responds (\`curl -s -o /dev/null -w '%{http_code}' http://localhost:${DEV_PORT}\` == 200), REUSE it — skip to the browser steps. Do not start another.
-2. Otherwise start it DETACHED / IN THE BACKGROUND — never in the foreground. A foreground or blocked dev server keeps your own process alive and makes this task hang forever. Use the Bash tool's run_in_background (or \`nohup ... >/tmp/poa-dev.log 2>&1 & disown\`): \`cd poa-app && PORT=${DEV_PORT} yarn dev:e2e-passkey\` (passkey identity, full perms, auto-connects — no wallet popup). Then poll until it answers 200 (up to ~120s; first compile is slow).
-3. Drive ALL Playwright navigation against http://localhost:${DEV_PORT} (browser_navigate / browser_snapshot / browser_take_screenshot / browser_click / browser_fill_form).
+DEV SERVER (operator-managed — do NOT start, restart, or kill one):
+1. A single clean dev server is expected at http://localhost:${DEV_PORT}. Check it first: \`curl -s -o /dev/null -w '%{http_code}' http://localhost:${DEV_PORT}\`.
+2. If it returns 200, drive ALL Playwright navigation against http://localhost:${DEV_PORT} (browser_navigate / browser_snapshot / browser_take_screenshot / browser_click / browser_fill_form).
+3. If it does NOT return 200, STOP and report: set verified=false and issues="dev server on ${DEV_PORT} not healthy (HTTP <code>) — operator must start one clean node dev server". Do NOT start your own: this repo's next dev servers share poa-app/.next/, so a second one races and corrupts webpack chunks (Cannot find module .../react-icons.js) — which is exactly what breaks pages in Chromium. Never spawn a competing server.
 4. Save screenshots with browser_take_screenshot into the .playwright-mcp/ directory (NEVER the repo root) and return their absolute paths in screenshotPaths for the design-review step.
-5. Do NOT kill the dev server when you finish — leave it running for reuse. Just make sure nothing you started is still attached to your foreground/stdout, so your process can exit cleanly.
-6. Your FINAL message must be ONLY the JSON object — no prose, no code fences, no trailing text.
+5. Your FINAL message must be ONLY the JSON object — no prose, no code fences, no trailing text.
 
 CHANGE TO VERIFY:
 ${prompt}`;

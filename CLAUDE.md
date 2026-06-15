@@ -32,6 +32,11 @@ hand. Either way these repo facts hold:
   auto-connects). Use `yarn dev:e2e` (burner EOA) only to test as an unvouched /
   minimal-permission user or the direct-EOA tx path. Never plain `yarn dev` for agent
   work. `yarn e2e:setup` is one-time per laptop (writes `~/.poa/e2e.env`).
+- **Run ONE dev server, under node 20.10 (not bun).** Multiple `next dev` processes
+  share `poa-app/.next/` and corrupt each other's webpack chunks → `Cannot find
+  module ./chunks/vendor-chunks/react-icons.js` → pages 500 in the browser (this is
+  what breaks Playwright/Chromium). If chunks break: `lsof -ti:<port> | xargs kill -9`,
+  `rm -rf poa-app/.next`, then start a single server.
 - Browser testing uses the Playwright MCP (`.mcp.json`). Share a **gif** (gitignored:
   `/*.gif`, `/poa-app/*.gif`), not PNGs.
 - Before a PR touching E2E-intercepted files (`AuthContext.js`, `_app.js`,
