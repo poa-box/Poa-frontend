@@ -23,11 +23,23 @@ import {
   Link,
   Tooltip,
 } from '@chakra-ui/react';
-import { CheckIcon, WarningIcon, ExternalLinkIcon, InfoOutlineIcon, CloseIcon } from '@chakra-ui/icons';
+import { CheckIcon, WarningIcon, ExternalLinkIcon, InfoOutlineIcon, CloseIcon, TimeIcon } from '@chakra-ui/icons';
 import { hasBounty as checkHasBounty, getTokenByAddress } from '../../util/tokens';
 import EditTaskModal from './EditTaskModal';
 import TaskApplicationModal from './TaskApplicationModal';
 import { useTaskBoard } from '../../context/TaskBoardContext';
+import {
+  dueDateSec,
+  effectiveDeadlineSec,
+  isClaimExpired,
+  formatRemaining,
+  formatDeadlineDate,
+  formatWindow,
+  deadlineSeverity,
+  SEVERITY_SCHEME,
+  toSec,
+} from '@/util/deadlineUtils';
+import { useNow } from '@/hooks/useNow';
 import { useDataBaseContext } from '@/context/dataBaseContext';
 import { useUserContext } from '@/context/UserContext';
 import { useIPFScontext } from '@/context/ipfsContext';
@@ -88,7 +100,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
   const [selectedAssignee, setSelectedAssignee] = useState(null);
   const [isAssigning, setIsAssigning] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-  const { moveTask, deleteTask, applyForTask, approveApplication, assignTask, rejectTask } = useTaskBoard();
+  const { moveTask, deleteTask, applyForTask, approveApplication, assignTask, takeOverTask, rejectTask } = useTaskBoard();
   const { hasExecRole, hasMemberRole, address: account, fetchUserDetails, userData } = useUserContext();
   const { projectsData } = useProjectContext();
   const { getUsernameByAddress, setSelectedProject, projects } = useDataBaseContext();
@@ -169,6 +181,15 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
       a => a.address?.toLowerCase() === account?.toLowerCase()
     );
   }, [task?.applicants, account]);
+
+  // Deadlines (v6)
+  const now = useNow(15000);
+  const isClaimer = !!account && task?.claimedBy?.toLowerCase() === account?.toLowerCase();
+  const claimExpired = columnId === 'inProgress' && isClaimExpired(task, now);
+  const enforcedDeadline = columnId === 'inProgress' ? effectiveDeadlineSec(task) : null;
+  const taskDue = dueDateSec(task);
+  const taskAbs = toSec(task?.absoluteDeadline);
+  const taskWindow = toSec(task?.completionWindow);
   const hasApplied = !!userApplication;
 
   // Ref to prevent re-opening modal during intentional close
@@ -507,6 +528,52 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
     }
 
     if (columnId === 'inProgress') {
+      // Takeover path (v6): a non-claimer acting on an expired claim claims the
+      // task over instead of submitting. Application-gated tasks route through
+      // the application modal — approval performs the takeover on-chain.
+      if (!isClaimer && claimExpired) {
+        if (!hasMemberRole) {
+          toast({
+            title: 'Membership Required',
+            description: 'You must be a member to take over this task. Go to user page to join.',
+            status: 'warning',
+            duration: 4000,
+            isClosable: true,
+            position: 'top',
+          });
+          return;
+        }
+        if (task.requiresApplication) {
+          if (hasApplied) {
+            toast({
+              title: 'Already Applied',
+              description: 'You have already applied — an assigner can approve you to take this task over.',
+              status: 'info',
+              duration: 4000,
+              isClosable: true,
+            });
+            return;
+          }
+          onOpenApplicationModal();
+          return;
+        }
+        await handleCloseModal();
+        takeOverTask(task, account, userData?.username || '').catch(error => {
+          console.error('Error taking over task:', error);
+        });
+        return;
+      }
+      if (!isClaimer) {
+        toast({
+          title: 'Not your task',
+          description: `Only ${task.claimerUsername || 'the current claimer'} can submit this task.`,
+          status: 'info',
+          duration: 4000,
+          isClosable: true,
+          position: 'top',
+        });
+        return;
+      }
       if (submission === "") {
         toast({
           title: "Invalid Submission",
@@ -602,6 +669,9 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
         }
         return 'Claim';
       case 'inProgress':
+        if (!isClaimer && claimExpired) {
+          return task.requiresApplication ? (hasApplied ? 'Applied' : 'Apply to take over') : 'Take over task';
+        }
         return 'Submit';
       case 'inReview':
         return 'Complete Review';
@@ -747,6 +817,28 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                           ? formatEstTime(task.estHours || taskMetadata?.estHours || 0)
                           : `${task.estHours || taskMetadata?.estHours || '0'} hrs`}
                       </Badge>
+                      {taskDue !== null && (
+                        <Tooltip label={taskAbs !== null ? 'Hard deadline — enforced on-chain' : 'Due date (display-only)'} placement="top">
+                          <Badge colorScheme={taskAbs !== null ? 'pink' : 'gray'}>
+                            {taskAbs !== null ? 'Hard due' : 'Due'} {formatDeadlineDate(taskDue)}
+                          </Badge>
+                        </Tooltip>
+                      )}
+                      {taskDue === null && taskAbs !== null && (
+                        <Tooltip label="Hard deadline — enforced on-chain" placement="top">
+                          <Badge colorScheme="pink">Hard due {formatDeadlineDate(taskAbs)}</Badge>
+                        </Tooltip>
+                      )}
+                      {taskWindow !== null && (
+                        <Tooltip label="Each claimer must submit within this time of claiming" placement="top">
+                          <Badge colorScheme="purple">{formatWindow(taskWindow)} limit</Badge>
+                        </Tooltip>
+                      )}
+                      {columnId === 'inProgress' && enforcedDeadline !== null && !claimExpired && (
+                        <Badge colorScheme={SEVERITY_SCHEME[deadlineSeverity(enforcedDeadline, now)] || 'gray'}>
+                          {formatRemaining(enforcedDeadline, now)}
+                        </Badge>
+                      )}
                       <Spacer />
                       {task.claimedBy && (
                         <Text fontSize="sm" color="gray.400">
@@ -763,8 +855,41 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                     </HStack>
                   </Box>
 
-                  {/* Submission Input (In Progress) */}
-                  {columnId === 'inProgress' && (
+                  {/* Expired-claim banners (v6) */}
+                  {claimExpired && isClaimer && (
+                    <Box w="100%" p={4} bg="rgba(124, 45, 18, 0.35)" borderRadius="lg" borderLeft="4px solid" borderColor="orange.400">
+                      <HStack mb={1}>
+                        <TimeIcon color="orange.300" />
+                        <Text fontWeight="bold" color="orange.200" fontSize="md">
+                          Your claim window has expired
+                        </Text>
+                      </HStack>
+                      <Text fontSize="sm" color="gray.200">
+                        You can still submit — but until you do, anyone can take this task over.
+                      </Text>
+                    </Box>
+                  )}
+                  {claimExpired && !isClaimer && (
+                    <Box w="100%" p={4} bg="rgba(124, 45, 18, 0.35)" borderRadius="lg" borderLeft="4px solid" borderColor="orange.400">
+                      <HStack mb={1}>
+                        <TimeIcon color="orange.300" />
+                        <Text fontWeight="bold" color="orange.200" fontSize="md">
+                          Claim expired — open to others
+                        </Text>
+                      </HStack>
+                      <Text fontSize="sm" color="gray.200">
+                        {task.claimerUsername || 'The current claimer'} hasn't submitted within the
+                        deadline. The task is still in progress, but you can take it over now —
+                        you'd become the new assignee and their claim is replaced.
+                        {task.requiresApplication
+                          ? ' This task requires an application: apply below and an assigner can hand it over.'
+                          : ''}
+                      </Text>
+                    </Box>
+                  )}
+
+                  {/* Submission Input (In Progress) — claimer only */}
+                  {columnId === 'inProgress' && isClaimer && (
                     <Box>
                       <SectionHeader>Submission</SectionHeader>
                       <Textarea
@@ -1126,14 +1251,25 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                     Reject
                   </Button>
                 )}
-                <Button
-                  onClick={handleButtonClick}
-                  colorScheme="teal"
-                  isDisabled={task.isIndexing || (columnId === 'open' && task.requiresApplication && hasApplied)}
-                  size="sm"
+                <Tooltip
+                  label={`Only ${task.claimerUsername || 'the current claimer'} can submit this task.`}
+                  isDisabled={!(columnId === 'inProgress' && !isClaimer && !claimExpired)}
+                  placement="top"
                 >
-                  {buttonText()}
-                </Button>
+                  <Button
+                    onClick={handleButtonClick}
+                    colorScheme={columnId === 'inProgress' && !isClaimer && claimExpired ? 'orange' : 'teal'}
+                    isDisabled={
+                      task.isIndexing ||
+                      (columnId === 'open' && task.requiresApplication && hasApplied) ||
+                      (columnId === 'inProgress' && !isClaimer && !claimExpired) ||
+                      (columnId === 'inProgress' && !isClaimer && claimExpired && task.requiresApplication && hasApplied)
+                    }
+                    size="sm"
+                  >
+                    {buttonText()}
+                  </Button>
+                </Tooltip>
               </HStack>
             </HStack>
           </ModalFooter>

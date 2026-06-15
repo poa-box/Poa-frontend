@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import DeadlineFields from './DeadlineFields';
+import { localDateStrToEndOfDaySec, secToLocalDateStr } from '@/util/deadlineUtils';
 import {
   Button,
   ButtonGroup,
@@ -186,6 +188,11 @@ const AddTaskModal = ({
   const [bountyToken, setBountyToken] = useState('');
   const [bountyAmount, setBountyAmount] = useState('');
   const [requiresApplication, setRequiresApplication] = useState(false);
+  // Deadlines (v6): soft due date + optional on-chain enforcement + claim window
+  const [hasDeadlines, setHasDeadlines] = useState(false);
+  const [dueDateStr, setDueDateStr] = useState('');
+  const [enforceOnChain, setEnforceOnChain] = useState(false);
+  const [completionWindowSec, setCompletionWindowSec] = useState(0);
   const [selectedUser, setSelectedUser] = useState(null);
   const [loading, setLoading] = useState(false);
   const [editingDraftId, setEditingDraftId] = useState(initialEditingDraftId);
@@ -227,6 +234,11 @@ const AddTaskModal = ({
         setBountyAmount('');
       }
       setRequiresApplication(!!draft.requiresApplication);
+      // Old drafts predate deadlines and simply lack these keys.
+      setHasDeadlines(!!(draft.dueDate || draft.completionWindow));
+      setDueDateStr(draft.dueDate ? secToLocalDateStr(draft.dueDate) : '');
+      setEnforceOnChain(!!draft.absoluteDeadline);
+      setCompletionWindowSec(Number(draft.completionWindow) || 0);
       setSelectedUser(null);
     },
     [tokenOptions]
@@ -279,6 +291,10 @@ const AddTaskModal = ({
     setBountyToken(tokenOptions[0]?.address || '');
     setBountyAmount('');
     setRequiresApplication(false);
+    setHasDeadlines(false);
+    setDueDateStr('');
+    setEnforceOnChain(false);
+    setCompletionWindowSec(0);
     setSelectedUser(null);
     setEditingDraftId(null);
   }, [tokenOptions]);
@@ -308,6 +324,14 @@ const AddTaskModal = ({
     bountyToken: hasBounty ? bountyToken : BOUNTY_TOKENS.NONE.address,
     bountyAmount: hasBounty ? bountyAmount : '0',
     requiresApplication,
+    // Deadlines: a due date defaults to soft-only (metadata); enforcing also
+    // writes absoluteDeadline (end-of-day local). Window = per-claim seconds.
+    dueDate: hasDeadlines && dueDateStr ? localDateStrToEndOfDaySec(dueDateStr) : null,
+    absoluteDeadline:
+      hasDeadlines && enforceOnChain && dueDateStr
+        ? localDateStrToEndOfDaySec(dueDateStr)
+        : 0,
+    completionWindow: hasDeadlines ? completionWindowSec : 0,
     assignTo: showAssign ? selectedUser?.address || null : null,
   });
 
@@ -662,6 +686,19 @@ const AddTaskModal = ({
           </Box>
         )}
       </Box>
+
+      {/* Deadlines Section (v6) */}
+      <DeadlineFields
+        hasDeadlines={hasDeadlines}
+        setHasDeadlines={setHasDeadlines}
+        dueDateStr={dueDateStr}
+        setDueDateStr={setDueDateStr}
+        enforceOnChain={enforceOnChain}
+        setEnforceOnChain={setEnforceOnChain}
+        completionWindowSec={completionWindowSec}
+        setCompletionWindowSec={setCompletionWindowSec}
+        assigneeSelected={!!(showAssign && selectedUser)}
+      />
 
       {/* Assignment Section */}
       <Box>

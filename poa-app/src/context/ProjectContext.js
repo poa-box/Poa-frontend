@@ -177,6 +177,16 @@ export const ProjectProvider = ({ children }) => {
                         assignedAt: task.assignedAt,
                         submittedAt: task.submittedAt,
                         completedAt: task.completedAt,
+                        // ---- Deadlines (TaskManager v6) ----
+                        // Raw subgraph passthrough (string seconds or null); consumers
+                        // normalize via deadlineUtils.toSec (0/'0' also mean unset).
+                        completionWindow: task.completionWindow ?? null,
+                        absoluteDeadline: task.absoluteDeadline ?? null,
+                        claimDeadline: task.claimDeadline ?? null,
+                        reclaimCount: task.reclaimCount || 0,
+                        claimExpiries: task.claimExpiries || [],
+                        // Soft due date lives in the IPFS metadata (unix seconds).
+                        dueDate: task.metadata?.dueDate != null ? Number(task.metadata.dueDate) : null,
                     };
 
                     const columnTitle = STATUS_TO_COLUMN[task.status] || 'Open';

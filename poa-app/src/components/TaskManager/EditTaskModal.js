@@ -28,6 +28,8 @@ import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { getBountyTokenOptions, BOUNTY_TOKENS, hasBounty as checkHasBounty } from '../../util/tokens';
 import { usePOContext } from '../../context/POContext';
 import EstTimePicker from './EstTimePicker';
+import DeadlineFields from './DeadlineFields';
+import { localDateStrToEndOfDaySec, secToLocalDateStr, toSec } from '@/util/deadlineUtils';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -97,7 +99,19 @@ const EditTaskModal = ({
     taskHasBounty ? task.bountyPayout : ''
   );
 
+  // Deadlines (v6) — initialize from the task's current values.
+  const taskWindowSec = toSec(task.completionWindow) || 0;
+  const taskAbsSec = toSec(task.absoluteDeadline);
+  const taskDueSec = toSec(task.dueDate);
+  const [hasDeadlines, setHasDeadlines] = useState(!!(taskDueSec || taskAbsSec || taskWindowSec));
+  const [dueDateStr, setDueDateStr] = useState(
+    taskDueSec ? secToLocalDateStr(taskDueSec) : taskAbsSec ? secToLocalDateStr(taskAbsSec) : ''
+  );
+  const [enforceOnChain, setEnforceOnChain] = useState(taskAbsSec !== null);
+  const [completionWindowSec, setCompletionWindowSec] = useState(taskWindowSec);
+
   const handleEditTask = () => {
+    const dueSec = hasDeadlines && dueDateStr ? localDateStrToEndOfDaySec(dueDateStr) : null;
     onEditTask({
       ...task,
       name,
@@ -106,6 +120,11 @@ const EditTaskModal = ({
       estHours,
       bountyToken: hasBounty ? bountyToken : BOUNTY_TOKENS.NONE.address,
       bountyAmount: hasBounty ? bountyAmount : '0',
+      dueDate: dueSec,
+      // metadataOnly callers route to updateTaskMetadata — on-chain knobs stay
+      // whatever they were (the service never sees these fields on that path).
+      absoluteDeadline: hasDeadlines && enforceOnChain && dueSec ? dueSec : 0,
+      completionWindow: hasDeadlines ? completionWindowSec : 0,
     });
     onClose();
   };
@@ -341,6 +360,20 @@ const EditTaskModal = ({
               )}
             </Box>
             )}
+            {/* Deadlines Section (v6). EDIT_META callers can change only the soft due
+                date (metadata); the on-chain knobs need EDIT_FULL via updateTask. */}
+            <DeadlineFields
+              hasDeadlines={hasDeadlines}
+              setHasDeadlines={setHasDeadlines}
+              dueDateStr={dueDateStr}
+              setDueDateStr={setDueDateStr}
+              enforceOnChain={enforceOnChain}
+              setEnforceOnChain={setEnforceOnChain}
+              completionWindowSec={completionWindowSec}
+              setCompletionWindowSec={setCompletionWindowSec}
+              metadataOnly={metadataOnly}
+            />
+
             {metadataOnly && (
               <Box
                 px={4}
@@ -351,8 +384,9 @@ const EditTaskModal = ({
                 borderColor="whiteAlpha.200"
               >
                 <Text fontSize="xs" color="gray.400">
-                  Editing metadata only. Payout and bounty are locked — this hat has EDIT_META
-                  permission but not EDIT_FULL.
+                  Editing metadata only. The display due date can be changed; payout, bounty
+                  and on-chain deadlines are locked — this hat has EDIT_META permission but
+                  not EDIT_FULL.
                 </Text>
               </Box>
             )}

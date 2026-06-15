@@ -127,20 +127,22 @@ function UserIdentity({
     </HStack>
   );
 
-  // Wrap in tooltip showing the truncated address when displaying a username
-  // (helps users disambiguate similarly-named accounts).
-  const wrapped =
-    username && lowerAddress ? (
-      <Tooltip label={truncateAddress(lowerAddress)} hasArrow openDelay={400}>
-        <Box display="inline-flex" minW={0}>
-          {content}
-        </Box>
-      </Tooltip>
-    ) : (
+  // Hover tooltip identifies the user by username — never the raw wallet
+  // address (so a bare avatar with showName={false} still resolves to a
+  // human-readable name on hover). When there's no username there's nothing
+  // human-readable to surface, so we skip the tooltip rather than fall back to
+  // the address.
+  const wrapped = username ? (
+    <Tooltip label={username} hasArrow openDelay={400}>
       <Box display="inline-flex" minW={0}>
         {content}
       </Box>
-    );
+    </Tooltip>
+  ) : (
+    <Box display="inline-flex" minW={0}>
+      {content}
+    </Box>
+  );
 
   if (link && username) {
     return (

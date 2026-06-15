@@ -64,6 +64,8 @@ function mergeColumnsPreservingMetadata(serverColumns, optimisticColumns) {
           estHours: optimistic.estHours,
           name: optimistic.name || task.name,
           title: optimistic.title || task.title,
+          // metadata-borne due date lags re-indexing the same way
+          dueDate: optimistic.dueDate ?? task.dueDate,
         };
       }
 
@@ -189,7 +191,7 @@ export const TaskBoardProvider = ({
   /**
    * Helper to create task IPFS metadata
    */
-  const createTaskMetadata = useCallback(async (taskName, taskDescription, location, difficulty, estHours, submission) => {
+  const createTaskMetadata = useCallback(async (taskName, taskDescription, location, difficulty, estHours, submission, dueDate = null) => {
     const data = {
       name: taskName,
       description: taskDescription,
@@ -197,6 +199,9 @@ export const TaskBoardProvider = ({
       difficulty: difficulty,
       estHours: estHours,
       submission: submission,
+      // The subgraph re-points task.metadata at the submission JSON on submit —
+      // every upload must carry the soft due date or it vanishes after submission.
+      ...(dueDate ? { dueDate: Math.floor(Number(dueDate)) } : {}),
     };
     const result = await addToIpfs(JSON.stringify(data));
     return result;
@@ -284,7 +289,8 @@ export const TaskBoardProvider = ({
           'In Review',
           draggedTask.difficulty,
           draggedTask.estHours,
-          submissionData
+          submissionData,
+          draggedTask.dueDate
         );
 
         const result = await taskService.submitTask(
@@ -394,6 +400,9 @@ export const TaskBoardProvider = ({
         bountyToken: task.bountyToken,
         bountyPayout: task.bountyAmount,
         requiresApplication: task.requiresApplication || false,
+        dueDate: task.dueDate ?? null,
+        absoluteDeadline: task.absoluteDeadline || 0,
+        completionWindow: task.completionWindow || 0,
       };
 
       let result;
@@ -488,6 +497,9 @@ export const TaskBoardProvider = ({
         bountyToken: d.bountyToken,
         bountyAmount: d.bountyAmount,
         requiresApplication: !!d.requiresApplication,
+        dueDate: d.dueDate ?? null,
+        absoluteDeadline: d.absoluteDeadline || 0,
+        completionWindow: d.completionWindow || 0,
         kubixPayout,
         isIndexing: true,
       };
@@ -517,6 +529,9 @@ export const TaskBoardProvider = ({
         bountyToken: d.bountyToken,
         bountyPayout: d.bountyAmount,
         requiresApplication: !!d.requiresApplication,
+        dueDate: d.dueDate ?? null,
+        absoluteDeadline: d.absoluteDeadline || 0,
+        completionWindow: d.completionWindow || 0,
       }));
 
       const result = await taskService.createTasksBatch(
@@ -614,6 +629,9 @@ export const TaskBoardProvider = ({
         estHours: updatedTask.estHours,
         bountyToken: updatedTask.bountyToken,
         bountyPayout: updatedTask.bountyAmount,
+        dueDate: updatedTask.dueDate ?? null,
+        absoluteDeadline: updatedTask.absoluteDeadline || 0,
+        completionWindow: updatedTask.completionWindow || 0,
       });
 
       if (result.success) {
@@ -681,6 +699,7 @@ export const TaskBoardProvider = ({
         location: 'Open',
         difficulty: updatedTask.difficulty,
         estHours: updatedTask.estHours,
+        dueDate: updatedTask.dueDate ?? null,
       });
 
       if (result.success) {
@@ -923,7 +942,10 @@ export const TaskBoardProvider = ({
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    // Optimistically move task from open to inProgress — immutable
+    // Optimistically move task from open to inProgress — immutable. A v6 takeover
+    // reassignment finds the task already IN inProgress: replace the assignee in
+    // place (never splice, so the card can't duplicate) and restart the local window.
+    const nowSec = Math.floor(Date.now() / 1000);
     let movedTask = null;
     const newTaskColumns = taskColumnsRef.current.map(col => {
       if (col.id === 'open') {
@@ -938,8 +960,25 @@ export const TaskBoardProvider = ({
         }
         return { ...col, tasks: col.tasks.filter(t => t.id !== taskId) };
       }
-      if (col.id === 'inProgress' && movedTask) {
-        return { ...col, tasks: [...col.tasks, movedTask] };
+      if (col.id === 'inProgress') {
+        const existing = col.tasks.some(t => t.id === taskId);
+        if (existing) {
+          return {
+            ...col,
+            tasks: col.tasks.map(t => t.id !== taskId ? t : ({
+              ...t,
+              claimedBy: assigneeAddress,
+              claimerUsername: assigneeUsername || '',
+              assignedAt: String(nowSec),
+              claimDeadline: Number(t.completionWindow) > 0
+                ? String(nowSec + Number(t.completionWindow))
+                : null,
+            })),
+          };
+        }
+        if (movedTask) {
+          return { ...col, tasks: [...col.tasks, movedTask] };
+        }
       }
       return col;
     });
@@ -978,6 +1017,64 @@ export const TaskBoardProvider = ({
       return { success: false, error };
     }
   }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
+
+
+  /**
+   * Take over an expired claim (TaskManager v6). The contract handles the takeover
+   * inside claimTask itself — same call as a normal claim. Optimistically the
+   * assignee is REPLACED in place in the inProgress column (never spliced, so the
+   * card cannot duplicate) and the local claim window restarts; the subgraph
+   * refetch then flips the assignee server-side, which removes the task from the
+   * previous claimer's "in progress" everywhere.
+   */
+  const takeOverTask = useCallback(async (task, newAssigneeAddress, newAssigneeUsername) => {
+    if (!isReady || !taskService) {
+      addNotification('Web3 not ready. Please connect your wallet.', 'error');
+      return { success: false };
+    }
+
+    const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
+    optimisticLockRef.current = Date.now();
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    setTaskColumns(cols => cols.map(col => col.id !== 'inProgress' ? col : ({
+      ...col,
+      tasks: col.tasks.map(t => t.id !== task.id ? t : ({
+        ...t,
+        claimedBy: newAssigneeAddress,
+        claimerUsername: newAssigneeUsername || '',
+        assignedAt: String(nowSec), // restart the countdown locally
+        claimDeadline: Number(t.completionWindow) > 0
+          ? String(nowSec + Number(t.completionWindow))
+          : null,
+      })),
+    })));
+
+    const notifId = addNotification('Taking over task...', 'loading');
+
+    try {
+      const result = await taskService.claimTask(taskManagerContractAddress, task.id);
+      if (result.success) {
+        updateNotification(notifId, "Task taken over — it's yours now!", 'success');
+        emit(RefreshEvent.TASK_CLAIMED, { taskId: task.id });
+
+        let confirmedColumns;
+        setTaskColumns(prev => { confirmedColumns = prev; return prev; });
+        if (onUpdateColumns && confirmedColumns) {
+          onUpdateColumns(confirmedColumns, selectedProject?.id);
+        }
+        scheduleLockClear();
+        return { success: true };
+      }
+      throw new Error(result.error?.userMessage || 'Failed to take over task');
+    } catch (error) {
+      console.error('Error taking over task:', error);
+      updateNotification(notifId, error.message || 'Error taking over task', 'error');
+      optimisticLockRef.current = null;
+      setTaskColumns(previousTaskColumns);
+      return { success: false, error };
+    }
+  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear, selectedProject?.id]);
 
   /**
    * Reject a submitted task, moving it back to inProgress
@@ -1070,8 +1167,9 @@ export const TaskBoardProvider = ({
     applyForTask,
     approveApplication,
     assignTask,
+    takeOverTask,
     rejectTask,
-  }), [taskColumns, moveTask, addTask, addTaskBatch, editTask, editTaskMetadata, deleteTask, applyForTask, approveApplication, assignTask, rejectTask]);
+  }), [taskColumns, moveTask, addTask, addTaskBatch, editTask, editTaskMetadata, deleteTask, applyForTask, approveApplication, assignTask, takeOverTask, rejectTask]);
 
   return (
     <TaskBoardContext.Provider value={value}>

@@ -421,6 +421,7 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
               estimatedHours
               submission
               rejection
+              dueDate
             }
             rejections(orderBy: rejectedAt, orderDirection: desc, first: 10) {
               rejectorUsername
@@ -438,6 +439,16 @@ export const FETCH_PROJECTS_DATA_NEW = gql`
             completer
             completerUsername
             requiresApplication
+            completionWindow
+            absoluteDeadline
+            claimDeadline
+            reclaimCount
+            claimExpiries(orderBy: expiredAt, orderDirection: desc, first: 5) {
+              previousClaimer
+              previousClaimerUsername
+              newClaimer
+              expiredAt
+            }
             createdAt
             assignedAt
             submittedAt

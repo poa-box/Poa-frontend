@@ -14,6 +14,8 @@ import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
 import { usePOContext } from '@/context/POContext';
 import { userCanCreateTask, ROLE_INDICES } from '@/util/permissions';
+import { isClaimExpired } from '@/util/deadlineUtils';
+import { useNow } from '@/hooks/useNow';
 
 const normalizeHatId = (id) => String(id).trim();
 
@@ -78,6 +80,14 @@ const TaskBoardMobile = forwardRef(({
   const columnTitle = currentColumn?.title || '';
   const columnId = currentColumn?.id || '';
 
+  // Expired claims also surface in the Open tab as claimable "reclaim" cards (v6).
+  const now = useNow(30000);
+  const takeoverTasks = useMemo(() => {
+    if (columnId !== 'open') return [];
+    const inProgress = (taskColumns || []).find((c) => c.id === 'inProgress');
+    return (inProgress?.tasks || []).filter((t) => isClaimExpired(t, now));
+  }, [taskColumns, columnId, now]);
+
   const handleAddTask = () => {
     taskColumnsRef.current[activeIndex]?.handleOpenAddTaskModal?.();
   };
@@ -126,6 +136,7 @@ const TaskBoardMobile = forwardRef(({
               title={columnTitle}
               tasks={currentColumn?.tasks || []}
               columnId={columnId}
+              takeoverTasks={takeoverTasks}
               projectName={projectName}
               zIndex={1}
               isMobile={true}

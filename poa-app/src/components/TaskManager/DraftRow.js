@@ -9,6 +9,7 @@ import {
 } from '@chakra-ui/react';
 import { CloseIcon, EditIcon } from '@chakra-ui/icons';
 import { calculatePayout, formatEstTime } from '@/util/taskUtils';
+import { formatDeadlineDate, formatWindow } from '@/util/deadlineUtils';
 import { getTokenByAddress, hasBounty } from '@/util/tokens';
 import { usePOContext } from '@/context/POContext';
 
@@ -59,6 +60,17 @@ const DraftRow = ({ draft, onEdit, onDelete, compact = false, isActive = false }
           {draft.requiresApplication && (
             <Badge colorScheme="orange" variant="subtle" fontSize="2xs">
               app
+            </Badge>
+          )}
+          {draft.dueDate && (
+            <Badge colorScheme="yellow" variant="subtle" fontSize="2xs">
+              due {formatDeadlineDate(draft.dueDate)}
+              {draft.absoluteDeadline ? ' · hard' : ''}
+            </Badge>
+          )}
+          {Number(draft.completionWindow) > 0 && (
+            <Badge colorScheme="cyan" variant="subtle" fontSize="2xs">
+              {formatWindow(draft.completionWindow)} limit
             </Badge>
           )}
         </HStack>

@@ -180,6 +180,9 @@ export class TaskService {
       bountyToken = ethers.constants.AddressZero,
       bountyPayout = 0,
       requiresApplication = false,
+      dueDate = null, // soft due date (unix seconds) — metadata only
+      absoluteDeadline = 0, // on-chain calendar cutoff (unix seconds, 0 = none)
+      completionWindow = 0, // on-chain per-claim window (seconds, 0 = none)
     } = taskData;
 
     // Upload metadata to IPFS if service available
@@ -192,6 +195,8 @@ export class TaskService {
         difficulty,
         estHours,
         submission: '',
+        // Omit the key entirely when unset so undated tasks keep the legacy JSON shape.
+        ...(dueDate ? { dueDate: Math.floor(Number(dueDate)) } : {}),
       };
       const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(ipfsData));
       metadataHash = ipfsCidToBytes32(ipfsResult.path);
@@ -215,7 +220,17 @@ export class TaskService {
     return this.txManager.execute(
       contract,
       'createTask',
-      [payoutWei, titleBytes, metadataHash, pid, bountyToken, bountyPayoutWei, requiresApplication],
+      [
+        payoutWei,
+        titleBytes,
+        metadataHash,
+        pid,
+        bountyToken,
+        bountyPayoutWei,
+        requiresApplication,
+        Math.floor(Number(absoluteDeadline)) || 0,
+        Math.floor(Number(completionWindow)) || 0,
+      ],
       options
     );
   }
@@ -248,6 +263,7 @@ export class TaskService {
           difficulty: t.difficulty ?? 'medium',
           estHours: t.estHours ?? 0,
           submission: '',
+          ...(t.dueDate ? { dueDate: Math.floor(Number(t.dueDate)) } : {}),
         };
         const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(ipfsData));
         metadataHash = ipfsCidToBytes32(ipfsResult.path);
@@ -267,12 +283,16 @@ export class TaskService {
       }
 
       return {
+        // Field names must match the v6 CreateTaskInput components exactly
+        // (ethers v5 encodes named tuples by component name).
         payout: payoutWei,
         title: stringToBytes(t.name),
         metadataHash,
         bountyToken,
         bountyPayout: bountyPayoutWei,
         requiresApplication: !!t.requiresApplication,
+        absoluteDeadline: Math.floor(Number(t.absoluteDeadline)) || 0,
+        completionWindow: Math.floor(Number(t.completionWindow)) || 0,
       };
     };
 
@@ -390,6 +410,8 @@ export class TaskService {
       metadataHash,
       bountyToken = ethers.constants.AddressZero,
       bountyPayout = 0,
+      absoluteDeadline = 0,
+      completionWindow = 0,
     } = updateData;
 
     const contract = this.factory.createWritable(contractAddress, TaskManagerABI);
@@ -410,7 +432,16 @@ export class TaskService {
     return this.txManager.execute(
       contract,
       'updateTask',
-      [parsedTaskId, payoutWei, titleBytes, metaHash, bountyToken, bountyPayoutWei],
+      [
+        parsedTaskId,
+        payoutWei,
+        titleBytes,
+        metaHash,
+        bountyToken,
+        bountyPayoutWei,
+        Math.floor(Number(absoluteDeadline)) || 0,
+        Math.floor(Number(completionWindow)) || 0,
+      ],
       options
     );
   }
@@ -437,6 +468,11 @@ export class TaskService {
       estHours = 0,
       bountyToken = ethers.constants.AddressZero,
       bountyPayout = 0,
+      dueDate = null,
+      // Callers must pass the task's CURRENT on-chain values when not editing
+      // deadlines — defaulting to 0 here would silently clear them.
+      absoluteDeadline = 0,
+      completionWindow = 0,
     } = taskData;
 
     // Upload new metadata to IPFS if service available
@@ -449,6 +485,7 @@ export class TaskService {
         difficulty,
         estHours,
         submission: '',
+        ...(dueDate ? { dueDate: Math.floor(Number(dueDate)) } : {}),
       };
       const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(ipfsData));
       metadataHash = ipfsCidToBytes32(ipfsResult.path);
@@ -471,7 +508,16 @@ export class TaskService {
     return this.txManager.execute(
       contract,
       'updateTask',
-      [parsedTaskId, payoutWei, titleBytes, metadataHash, bountyToken, bountyPayoutWei],
+      [
+        parsedTaskId,
+        payoutWei,
+        titleBytes,
+        metadataHash,
+        bountyToken,
+        bountyPayoutWei,
+        Math.floor(Number(absoluteDeadline)) || 0,
+        Math.floor(Number(completionWindow)) || 0,
+      ],
       options
     );
   }
@@ -498,6 +544,7 @@ export class TaskService {
       location = '',
       difficulty = 'medium',
       estHours = 0,
+      dueDate = null,
     } = metadata;
 
     let metadataHash = ethers.constants.HashZero;
@@ -509,6 +556,7 @@ export class TaskService {
         difficulty,
         estHours,
         submission: '',
+        ...(dueDate ? { dueDate: Math.floor(Number(dueDate)) } : {}),
       };
       const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(ipfsData));
       metadataHash = ipfsCidToBytes32(ipfsResult.path);
@@ -835,6 +883,9 @@ export class TaskService {
       bountyToken = ethers.constants.AddressZero,
       bountyPayout = 0,
       requiresApplication = false,
+      dueDate = null, // soft due date (unix seconds) — metadata only
+      absoluteDeadline = 0, // on-chain calendar cutoff (unix seconds, 0 = none)
+      completionWindow = 0, // on-chain per-claim window (seconds, 0 = none)
     } = taskData;
 
     // Upload metadata to IPFS if service available
@@ -847,6 +898,8 @@ export class TaskService {
         difficulty,
         estHours,
         submission: '',
+        // Omit the key entirely when unset so undated tasks keep the legacy JSON shape.
+        ...(dueDate ? { dueDate: Math.floor(Number(dueDate)) } : {}),
       };
       const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(ipfsData));
       metadataHash = ipfsCidToBytes32(ipfsResult.path);
@@ -870,7 +923,18 @@ export class TaskService {
     return this.txManager.execute(
       contract,
       'createAndAssignTask',
-      [payoutWei, titleBytes, metadataHash, pid, assigneeAddress, bountyToken, bountyPayoutWei, requiresApplication],
+      [
+        payoutWei,
+        titleBytes,
+        metadataHash,
+        pid,
+        assigneeAddress,
+        bountyToken,
+        bountyPayoutWei,
+        requiresApplication,
+        Math.floor(Number(absoluteDeadline)) || 0,
+        Math.floor(Number(completionWindow)) || 0,
+      ],
       options
     );
   }
