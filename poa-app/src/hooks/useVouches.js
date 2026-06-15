@@ -6,22 +6,30 @@
 import { useMemo, useCallback } from 'react';
 import { useQuery } from '@apollo/client';
 import { useAccount } from 'wagmi';
-import { FETCH_VOUCHES_FOR_ORG } from '../util/queries';
+import { FETCH_VOUCHES_FOR_ORG, FETCH_ALL_ROLE_APPLICATIONS } from '../util/queries';
 import { useRefreshSubscription } from '../context/RefreshContext';
 import { usePOContext } from '../context/POContext';
 import { useSubgraphClient } from '../util/apolloClient';
 
 /**
- * Normalize a hat ID to a string for consistent comparison
- * Handles BigInt, numbers, hex strings, etc.
+ * Normalize a hat ID to a canonical decimal string for consistent comparison.
+ *
+ * The subgraph emits hatId as a decimal string across the role, vouch, and
+ * roleApplication entities alike (verified against live Gnosis data), so the
+ * merge in this hook lines up today. We still route through BigInt so a
+ * future hex-encoded source collapses to the same canonical key instead of
+ * silently failing to match a quorum bucket or de-dup against vouched users.
  */
 function normalizeHatId(id) {
   if (id === null || id === undefined) return '';
   const str = String(id).trim();
-  if (str.startsWith('0x') || str.startsWith('0X')) {
+  if (str === '') return '';
+  try {
+    return BigInt(str).toString();
+  } catch {
+    // Non-numeric hatId should never happen; fall back to a lowercased string.
     return str.toLowerCase();
   }
-  return str;
 }
 
 /**
@@ -53,11 +61,36 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
     client,
   });
 
+  // Fetch on-chain role applications too — fresh applicants sit at 0 vouches and
+  // therefore have no Vouch entity, so they only surface via roleApplications.
+  const {
+    data: applicationsData,
+    loading: applicationsLoading,
+    error: applicationsError,
+    refetch: refetchApplications,
+  } = useQuery(FETCH_ALL_ROLE_APPLICATIONS, {
+    variables: { eligibilityModuleId: eligibilityModuleAddress },
+    skip: !eligibilityModuleAddress,
+    fetchPolicy: 'cache-first',
+    client,
+  });
+
+  const refetchAll = useCallback(() => {
+    refetch();
+    refetchApplications();
+  }, [refetch, refetchApplications]);
+
   // Refetch immediately — executeWithNotification already waited for the
   // subgraph to index the transaction block before emitting these events.
   useRefreshSubscription(
-    ['role:vouched', 'role:vouch-revoked', 'role:claimed'],
-    useCallback(() => refetch(), [refetch])
+    [
+      'role:vouched',
+      'role:vouch-revoked',
+      'role:claimed',
+      'role:application-submitted',
+      'role:application-withdrawn',
+    ],
+    useCallback(() => refetchAll(), [refetchAll])
   );
 
   // Create a map of quorums by hatId for quick lookup
@@ -118,6 +151,32 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
     return grouped;
   }, [data?.vouches]);
 
+  // Group active role applications by hatId -> applicant. These are users who
+  // applied on-chain but may have 0 vouches (no Vouch entity exists for them).
+  const applicationsByHatAndApplicant = useMemo(() => {
+    if (!applicationsData?.roleApplications) return {};
+
+    const grouped = {};
+
+    applicationsData.roleApplications.forEach(application => {
+      const normalizedHatId = normalizeHatId(application.hatId);
+      const normalizedApplicant = normalizeAddress(application.applicant);
+
+      if (!grouped[normalizedHatId]) {
+        grouped[normalizedHatId] = {};
+      }
+
+      grouped[normalizedHatId][normalizedApplicant] = {
+        wearer: application.applicant,
+        wearerUsername: application.applicantUsername,
+        hatId: application.hatId,
+        appliedAt: application.appliedAt,
+      };
+    });
+
+    return grouped;
+  }, [applicationsData?.roleApplications]);
+
   // Create a map of membershipHatId by hatId for quick lookup
   const membershipHatIdsByHatId = useMemo(() => {
     const map = {};
@@ -130,7 +189,10 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
 
   /**
    * Get pending vouch requests grouped by role
-   * Returns users who have at least one vouch but haven't reached quorum
+   * Returns:
+   *  - users who have at least one vouch but haven't reached quorum, AND
+   *  - users who applied on-chain but sit at 0 vouches (no Vouch entity yet)
+   * De-duped by (normalized hatId, applicant/wearer address).
    */
   const pendingVouchRequests = useMemo(() => {
     const requests = [];
@@ -160,9 +222,40 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
       });
     });
 
-    // Sort by most vouches first (closest to quorum)
-    return requests.sort((a, b) => b.vouchCount - a.vouchCount);
-  }, [vouchesByHatAndWearer, quorumsByHatId, roleNamesByHatId, membershipHatIdsByHatId]);
+    // Merge in on-chain applicants with 0 vouches. Only consider roles we know
+    // are vouching-enabled (present in quorumsByHatId); de-dupe against anyone
+    // who already has a Vouch entity above.
+    Object.entries(applicationsByHatAndApplicant).forEach(([normalizedHatId, applicantMap]) => {
+      if (!(normalizedHatId in quorumsByHatId)) return;
+
+      const quorum = quorumsByHatId[normalizedHatId] || 0;
+      const roleName = roleNamesByHatId[normalizedHatId] || 'Unknown Role';
+      const membershipHatId = membershipHatIdsByHatId[normalizedHatId] || null;
+
+      Object.entries(applicantMap).forEach(([normalizedApplicant, applicantData]) => {
+        // Skip if this applicant already surfaced through the vouches loop
+        if (vouchesByHatAndWearer[normalizedHatId]?.[normalizedApplicant]) return;
+
+        requests.push({
+          ...applicantData,
+          vouchers: [],
+          vouchCount: 0,
+          normalizedHatId,
+          quorum,
+          roleName,
+          membershipHatId, // Required for canVouch check
+          progress: 0,
+        });
+      });
+    });
+
+    // Sort by most vouches first (closest to quorum); break ties between
+    // fresh 0-vouch applicants by newest application first.
+    return requests.sort((a, b) => {
+      if (b.vouchCount !== a.vouchCount) return b.vouchCount - a.vouchCount;
+      return (Number(b.appliedAt) || 0) - (Number(a.appliedAt) || 0);
+    });
+  }, [vouchesByHatAndWearer, applicationsByHatAndApplicant, quorumsByHatId, roleNamesByHatId, membershipHatIdsByHatId]);
 
   /**
    * Group pending requests by role for display
@@ -278,9 +371,9 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
     canUserVouchForRole,
 
     // State
-    loading,
-    error,
-    refetch,
+    loading: loading || applicationsLoading,
+    error: error || applicationsError,
+    refetch: refetchAll,
 
     // Utilities
     normalizeHatId,
