@@ -60,6 +60,13 @@ export function getDayRange(tasks, zoom = '30d') {
       const e = toMs(t.completedAt) || toMs(t.submittedAt) || toMs(t.assignedAt);
       if (Number.isFinite(c) && c < min) min = c;
       if (Number.isFinite(e) && e > max) max = e;
+      // Deadlines (v6): keep due dates / hard deadlines / claim deadlines inside
+      // the range so their markers are never silently clipped. All are unix
+      // seconds (or null); toMs normalizes.
+      for (const dl of [t.dueDate, t.absoluteDeadline, t.claimDeadline]) {
+        const d = toMs(dl);
+        if (Number.isFinite(d) && d > max) max = d;
+      }
     }
     return [startOfDayMs(addDays(min, -3)), startOfDayMs(addDays(Math.max(max, todayStart), 3))];
   }

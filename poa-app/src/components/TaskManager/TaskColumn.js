@@ -29,7 +29,7 @@ const glassLayerStyle = {
 
 
 
-const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile = false, isEmpty = false, hideTitleInMobile = false }, ref) => {
+const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile = false, isEmpty = false, hideTitleInMobile = false, takeoverTasks = [] }, ref) => {
   const router = useRouter();
   const userDAO = useOrgName();
   const { moveTask, addTask, addTaskBatch, editTask, editTaskMetadata } = useTaskBoard();
@@ -471,7 +471,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
         bg="transparent"
         p={isMobile ? 1 : 2}
         style={columnStyle}
-        overflowY={tasks && tasks.length > 0 ? "auto" : "hidden"}
+        overflowY={(tasks && tasks.length > 0) || takeoverTasks.length > 0 ? "auto" : "hidden"}
         flex="1"
         width="100%"
         css={{
@@ -488,17 +488,33 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
           },
         }}
       >
-        {tasks && tasks.length > 0 ? (
-          tasks.map((task, index) => (
-            <TaskCard
-              key={task.id}
-              task={task}
-              columnId={columnId}
-              onEditTask={(updatedTask) => handleEditTask(updatedTask, index)}
-              onEditTaskMetadata={(updatedTask) => handleEditTaskMetadata(updatedTask, index)}
-              isMobile={isMobile}
-            />
-          ))
+        {(tasks && tasks.length > 0) || takeoverTasks.length > 0 ? (
+          <>
+            {(tasks || []).map((task, index) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                columnId={columnId}
+                onEditTask={(updatedTask) => handleEditTask(updatedTask, index)}
+                onEditTaskMetadata={(updatedTask) => handleEditTaskMetadata(updatedTask, index)}
+                isMobile={isMobile}
+              />
+            ))}
+            {/* Expired claims surfaced as claimable from Open (v6 takeover): render-only
+                mirrors — the task also remains in In Progress for its current holder.
+                columnId is the task's REAL column so the chip/modal logic stays truthful. */}
+            {takeoverTasks.map((task) => (
+              <TaskCard
+                key={`takeover-${task.id}`}
+                task={task}
+                columnId="inProgress"
+                isTakeoverGhost
+                onEditTask={() => {}}
+                onEditTaskMetadata={() => {}}
+                isMobile={isMobile}
+              />
+            ))}
+          </>
         ) : (
           <Flex 
             justify="center" 

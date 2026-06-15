@@ -18,6 +18,7 @@ import {
 } from './timeAxis';
 import TaskBar from './TaskBar';
 import GanttControls from './GanttControls';
+import { useNow } from '@/hooks/useNow';
 import { ChevronRightIcon, ChevronDownIcon } from '@chakra-ui/icons';
 
 // Apply the dark glass directly to the container (matching the Board's
@@ -58,6 +59,9 @@ const GanttView = ({ projectName, tasks: tasksOverride }) => {
       if (typeof window !== 'undefined') window.localStorage.setItem(ZOOM_KEY, z);
     } catch {}
   };
+
+  // Ticking now (60s) so overdue tints / takeover hatches update without interaction.
+  const now = useNow(60000);
 
   // Range + per-day width
   const [startMs, endMs] = useMemo(() => getDayRange(tasks, zoom), [tasks, zoom]);
@@ -457,6 +461,8 @@ const GanttView = ({ projectName, tasks: tasksOverride }) => {
                                 anchorMs={startMs}
                                 perDayPx={PER_DAY}
                                 rowHeight={ROW_HEIGHT}
+                                rangeEndMs={endMs}
+                                nowMsValue={now}
                               />
                             </Box>
                           </Flex>
@@ -485,6 +491,35 @@ const GanttView = ({ projectName, tasks: tasksOverride }) => {
             <LegendSwatch color="#9F7AEA" label="In Progress" />
             <LegendSwatch color="#F6E05E" label="In Review" />
             <LegendSwatch color="#A0AEC0" label="Completed" />
+            <Flex align="center" gap={1.5}>
+              <Box w="7px" h="7px" transform="rotate(45deg)" bg="whiteAlpha.800" borderRadius="1px" />
+              <Text>Due date</Text>
+            </Flex>
+            <Flex align="center" gap={1.5}>
+              <Box w="2px" h="14px" bg="#FF8FA8" />
+              <Text>Hard deadline</Text>
+            </Flex>
+            <Flex align="center" gap={1.5}>
+              <Box
+                w="14px"
+                h="10px"
+                borderRadius="2px"
+                bg="repeating-linear-gradient(45deg, #9F7AEA 0 3px, transparent 3px 6px)"
+                opacity={0.7}
+              />
+              <Text>Claim window</Text>
+            </Flex>
+            <Flex align="center" gap={1.5}>
+              <Box
+                w="14px"
+                h="10px"
+                borderRadius="2px"
+                border="1px solid #F6AD55"
+                bg="repeating-linear-gradient(45deg, #F6AD55 0 3px, transparent 3px 6px)"
+                opacity={0.8}
+              />
+              <Text>Expired — open to takeover</Text>
+            </Flex>
             <Box ml="auto" display="flex" alignItems="center" gap={1.5}>
               <Box w="2px" h="14px" bg="red.400" opacity={0.7} />
               <Text>Today</Text>

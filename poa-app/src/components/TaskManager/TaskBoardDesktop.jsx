@@ -3,16 +3,26 @@
  * Desktop view for TaskBoard with grid layout
  */
 
-import { useRef, forwardRef, useImperativeHandle } from 'react';
+import { useRef, useMemo, forwardRef, useImperativeHandle } from 'react';
 import { Box, SimpleGrid } from '@chakra-ui/react';
 import TaskColumn from './TaskColumn';
 import { glassLayerStyle } from './styles/taskBoardStyles';
+import { isClaimExpired } from '@/util/deadlineUtils';
+import { useNow } from '@/hooks/useNow';
 
 const TaskBoardDesktop = forwardRef(({
   taskColumns,
   projectName,
 }, ref) => {
   const taskColumnsRef = useRef([]);
+
+  // Expired claims also surface in the Open column as claimable "reclaim" cards
+  // (v6 takeover) — people hunting for work browse Open, not In Progress.
+  const now = useNow(30000);
+  const takeoverTasks = useMemo(() => {
+    const inProgress = (taskColumns || []).find((c) => c.id === 'inProgress');
+    return (inProgress?.tasks || []).filter((t) => isClaimExpired(t, now));
+  }, [taskColumns, now]);
 
   // Expose column refs to parent
   useImperativeHandle(ref, () => ({
@@ -62,6 +72,7 @@ const TaskBoardDesktop = forwardRef(({
                 zIndex={1}
                 isMobile={false}
                 isEmpty={column.tasks?.length === 0}
+                takeoverTasks={column.id === 'open' ? takeoverTasks : []}
               />
             </Box>
           ))}
