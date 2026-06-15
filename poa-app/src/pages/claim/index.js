@@ -25,7 +25,12 @@ const ClaimByEmail = () => {
 
   return (
     <>
-      <SEOHead title="Claim a role by email" />
+      <SEOHead
+        title="Claim a role by email"
+        description="Claim a role in your organization by proving control of an allowlisted email."
+        path="/claim"
+        noIndex
+      />
       <Navbar />
       <Container maxW="container.md" py={8}>
         {poContextLoading ? (
