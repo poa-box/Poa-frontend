@@ -39,6 +39,7 @@ import { VotingService, VotingType, createVotingService } from '../services/web3
 import { TaskService, createTaskService } from '../services/web3/domain/TaskService';
 import { EducationService, createEducationService } from '../services/web3/domain/EducationService';
 import { EligibilityService, createEligibilityService } from '../services/web3/domain/EligibilityService';
+import { ZkEmailInvitesService, createZkEmailInvitesService } from '../services/web3/domain/ZkEmailInvitesService';
 import { TokenRequestService, createTokenRequestService } from '../services/web3/domain/TokenRequestService';
 import { TreasuryService, createTreasuryService } from '../services/web3/domain/TreasuryService';
 
@@ -278,6 +279,7 @@ export function useWeb3Services(options = {}) {
         task: null,
         education: null,
         eligibility: null,
+        zkEmailInvites: null,
         tokenRequest: null,
         treasury: null,
       };
@@ -290,6 +292,7 @@ export function useWeb3Services(options = {}) {
       task: createTaskService(factory, txManager, ipfsService),
       education: createEducationService(factory, txManager, ipfsService),
       eligibility: createEligibilityService(factory, txManager),
+      zkEmailInvites: createZkEmailInvitesService(factory, txManager),
       tokenRequest: createTokenRequestService(factory, txManager, ipfsService),
       treasury: createTreasuryService(factory, txManager),
     };
