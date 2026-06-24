@@ -24,9 +24,27 @@ function fileUrl(gateway, cid) {
   return gateway.includes('{cid}') ? gateway.replace('{cid}', cid) : `${gateway.replace(/\/$/, '')}/${cid}`;
 }
 
-async function fetchBytes(url) {
+// Read-side resilience: if a part isn't served by the primary gateway (The Graph's free IPFS is
+// best-effort — it can GC unpinned content or rate-limit), fall through to public gateways by CID.
+// Content addressing makes this safe: any gateway that resolves the CID returns the same bytes, and
+// loadZkey still sha256-verifies the reassembled key. (The durable fix is dual-pinning on the write side.)
+// Path-form gateways (work for the CIDv0 'Qm...' CIDs this system produces — subdomain gateways like
+// {cid}.ipfs.dweb.link require lowercase base32 CIDv1 and would silently never resolve a Qm CID).
+const FALLBACK_GATEWAYS = [
+  'https://ipfs.io/ipfs/{cid}',
+  'https://dweb.link/ipfs/{cid}',
+  'https://gateway.pinata.cloud/ipfs/{cid}',
+];
+
+function candidateUrls(primaryGateway, cid) {
+  return [fileUrl(primaryGateway, cid), ...FALLBACK_GATEWAYS.map((g) => fileUrl(g, cid))];
+}
+
+async function fetchCidBytes(primaryGateway, cid) {
+  const urls = candidateUrls(primaryGateway, cid);
   let lastErr;
   for (let attempt = 0; attempt < RETRIES; attempt++) {
+    const url = urls[Math.min(attempt, urls.length - 1)]; // primary first, then rotate through fallbacks
     try {
       const res = await fetch(url, { cache: 'force-cache' });
       if (!res.ok) throw new Error(`${url} -> HTTP ${res.status}`);
@@ -46,7 +64,7 @@ async function fetchParts(gateway, cids, onProgress) {
   async function worker() {
     while (next < cids.length) {
       const i = next++;
-      parts[i] = await fetchBytes(fileUrl(gateway, cids[i]));
+      parts[i] = await fetchCidBytes(gateway, cids[i]);
       done += 1;
       if (onProgress) onProgress({ phase: 'download', done, total: cids.length });
     }
@@ -62,9 +80,8 @@ async function fetchParts(gateway, cids, onProgress) {
 export async function loadZkey(gateway, manifestCid, onProgress) {
   if (!gateway || !manifestCid) throw new Error('ZK artifacts gateway/manifest CID not configured.');
 
-  const manifestRes = await fetch(fileUrl(gateway, manifestCid), { cache: 'force-cache' });
-  if (!manifestRes.ok) throw new Error(`zkey manifest ${manifestCid} -> HTTP ${manifestRes.status}`);
-  const manifest = await manifestRes.json();
+  const manifestBytes = await fetchCidBytes(gateway, manifestCid);
+  const manifest = JSON.parse(new TextDecoder().decode(manifestBytes));
   const wasmUrl = fileUrl(gateway, manifest.wasmCid);
   const cacheKey = `${manifest.name}:${manifest.sha256 || manifest.totalSize}`;
 
