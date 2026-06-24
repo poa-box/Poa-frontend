@@ -1,11 +1,17 @@
 /**
  * Chunked zkey loader for in-browser proving.
  *
- * The proving key (~400-650 MB) is split into fixed-size parts (see circuits/scripts/split-zkey.mjs)
- * hosted under NEXT_PUBLIC_ZKEMAIL_ARTIFACTS_URL. This fetches the parts in parallel (resumable +
- * cacheable), reassembles them into one Uint8Array, caches it in IndexedDB (localforage) keyed by the
- * manifest sha256, and returns it as snarkjs's `{ type: 'mem', data }` fastfile — so proving uses
- * standard snarkjs with no fork and no fastfile chunk-format coupling.
+ * The proving key (~400-650 MB) is split into ~8 MB parts (circuits/scripts/split-zkey.mjs), each pinned
+ * individually on IPFS (The Graph's free endpoint caps uploads at ~10 MB, so per-part CIDs rather than a
+ * directory). A per-circuit MANIFEST (JSON, its own CID) lists the part CIDs + the wasm CID + sha256.
+ *
+ * This fetches the manifest, then the parts in parallel (with retries) via a gateway, reassembles them
+ * byte-perfectly into one Uint8Array, caches it in IndexedDB (localforage, keyed by sha256), and returns
+ * it as snarkjs's `{ type: 'mem', data }` fastfile — standard snarkjs 0.7.6, no fork.
+ *
+ * `gateway` is a URL template with a `{cid}` placeholder, e.g.
+ *   https://api.thegraph.com/ipfs/api/v0/cat?arg={cid}   (default; CORS-enabled, serves Graph-pinned CIDs)
+ *   https://ipfs.io/ipfs/{cid}
  */
 import localforage from 'localforage';
 
@@ -14,7 +20,11 @@ const RETRIES = 4;
 
 const store = localforage.createInstance({ name: 'pop-zkey-cache', storeName: 'zkeys' });
 
-async function fetchBytes(url, onRetry) {
+function fileUrl(gateway, cid) {
+  return gateway.includes('{cid}') ? gateway.replace('{cid}', cid) : `${gateway.replace(/\/$/, '')}/${cid}`;
+}
+
+async function fetchBytes(url) {
   let lastErr;
   for (let attempt = 0; attempt < RETRIES; attempt++) {
     try {
@@ -23,59 +33,54 @@ async function fetchBytes(url, onRetry) {
       return new Uint8Array(await res.arrayBuffer());
     } catch (e) {
       lastErr = e;
-      if (onRetry) onRetry(attempt + 1, e);
       await new Promise((r) => setTimeout(r, 250 * (attempt + 1)));
     }
   }
   throw lastErr;
 }
 
-/** Fetch parts [0..numParts) with a bounded concurrency pool. */
-async function fetchParts(baseUrl, name, numParts, onProgress) {
-  const parts = new Array(numParts);
+async function fetchParts(gateway, cids, onProgress) {
+  const parts = new Array(cids.length);
   let next = 0;
   let done = 0;
   async function worker() {
-    while (next < numParts) {
+    while (next < cids.length) {
       const i = next++;
-      parts[i] = await fetchBytes(`${baseUrl}/${name}.zkey.part${i}`);
+      parts[i] = await fetchBytes(fileUrl(gateway, cids[i]));
       done += 1;
-      if (onProgress) onProgress({ phase: 'download', done, total: numParts });
+      if (onProgress) onProgress({ phase: 'download', done, total: cids.length });
     }
   }
-  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, numParts) }, worker));
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, cids.length) }, worker));
   return parts;
 }
 
 /**
- * Load a chunked zkey from `baseUrl` for circuit `name` (e.g. "PopRoleClaim", "PopRoleClaimV2").
- * @param {string} baseUrl  NEXT_PUBLIC_ZKEMAIL_ARTIFACTS_URL (no trailing slash)
- * @param {string} name     circuit name (the split-zkey manifest `name`)
- * @param {(p:{phase:string,done?:number,total?:number})=>void} [onProgress]
- * @returns {Promise<{ type: 'mem', data: Uint8Array }>}
+ * Load a chunked zkey from `gateway` given its `manifestCid`.
+ * @returns {Promise<{ zkey: { type: 'mem', data: Uint8Array }, wasmUrl: string }>}
  */
-export async function loadZkey(baseUrl, name, onProgress) {
-  if (!baseUrl) throw new Error('Artifacts URL not configured.');
+export async function loadZkey(gateway, manifestCid, onProgress) {
+  if (!gateway || !manifestCid) throw new Error('ZK artifacts gateway/manifest CID not configured.');
 
-  const manifestRes = await fetch(`${baseUrl}/${name}.zkey.manifest.json`, { cache: 'force-cache' });
-  if (!manifestRes.ok) throw new Error(`zkey manifest for ${name} -> HTTP ${manifestRes.status}`);
+  const manifestRes = await fetch(fileUrl(gateway, manifestCid), { cache: 'force-cache' });
+  if (!manifestRes.ok) throw new Error(`zkey manifest ${manifestCid} -> HTTP ${manifestRes.status}`);
   const manifest = await manifestRes.json();
-  const cacheKey = `${name}:${manifest.sha256 || manifest.totalSize}`;
+  const wasmUrl = fileUrl(gateway, manifest.wasmCid);
+  const cacheKey = `${manifest.name}:${manifest.sha256 || manifest.totalSize}`;
 
-  // Cached reassembled zkey?
   try {
     const cached = await store.getItem(cacheKey);
     if (cached) {
       if (onProgress) onProgress({ phase: 'cache-hit' });
-      return { type: 'mem', data: new Uint8Array(cached) };
+      return { zkey: { type: 'mem', data: new Uint8Array(cached) }, wasmUrl };
     }
   } catch (_) {
-    /* cache unavailable — fall through to download */
+    /* cache unavailable — re-download */
   }
 
-  const parts = await fetchParts(baseUrl, name, manifest.numParts, onProgress);
-
+  const parts = await fetchParts(gateway, manifest.parts, onProgress);
   if (onProgress) onProgress({ phase: 'assemble' });
+
   const data = new Uint8Array(manifest.totalSize);
   let offset = 0;
   for (const part of parts) {
@@ -83,13 +88,26 @@ export async function loadZkey(baseUrl, name, onProgress) {
     offset += part.length;
   }
   if (offset !== manifest.totalSize) {
-    throw new Error(`chunked zkey size mismatch for ${name}: got ${offset}, expected ${manifest.totalSize}`);
+    throw new Error(`chunked zkey size mismatch for ${manifest.name}: got ${offset}, expected ${manifest.totalSize}`);
+  }
+
+  // Integrity: verify the reassembled key against the manifest sha256. A flaky gateway (or a host that
+  // silently corrupts binary — e.g. UTF-8-mangled uploads) can return same-size-but-wrong bytes that the
+  // length check misses; feeding those to snarkjs fails with a cryptic witness error. Fail loudly instead.
+  if (manifest.sha256 && globalThis.crypto && globalThis.crypto.subtle) {
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', data);
+    const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+    if (hex !== manifest.sha256) {
+      throw new Error(
+        `chunked zkey sha256 mismatch for ${manifest.name}: got ${hex.slice(0, 12)}…, expected ${manifest.sha256.slice(0, 12)}…`,
+      );
+    }
   }
 
   try {
     await store.setItem(cacheKey, data.buffer);
   } catch (_) {
-    /* IndexedDB quota exceeded — proceed without caching */
+    /* IndexedDB quota — proceed uncached */
   }
-  return { type: 'mem', data };
+  return { zkey: { type: 'mem', data }, wasmUrl };
 }

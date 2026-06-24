@@ -10,7 +10,14 @@
  * prove time (host on IPFS/CDN; never bundled).
  */
 
-const ARTIFACTS_URL = (process.env.NEXT_PUBLIC_ZKEMAIL_ARTIFACTS_URL || '').replace(/\/$/, '');
+// Proving artifacts are hosted free on The Graph's IPFS: each ~8MB zkey part is pinned individually
+// and a per-circuit MANIFEST (its own CID) lists the part CIDs + the wasm CID. `GATEWAY` is a URL
+// template (`{cid}` placeholder). Override any of these via env when re-hosting (e.g. on Pinata).
+const GATEWAY = process.env.NEXT_PUBLIC_ZKEMAIL_GATEWAY || 'https://api.thegraph.com/ipfs/api/v0/cat?arg={cid}';
+const MANIFEST = {
+  PopRoleClaim: process.env.NEXT_PUBLIC_ZKEMAIL_V1_MANIFEST || 'Qmbe9p35ZAVgxxMQJL43CJLtTbmc8dmVJEat3f9vfCaqxM',
+  PopRoleClaimV2: process.env.NEXT_PUBLIC_ZKEMAIL_V2_MANIFEST || 'QmUrEdu9CEkJBmWBNz7qwSVgkS1gobknWR3m7RdfLnEvZA',
+};
 const MAX_HEADERS_LENGTH = 1024;
 const FROM_WINDOW = 256; // == FROM_WINDOW in PopRoleClaimV2.circom
 const COMMAND_PREFIX = 'Claim POP role for 0x';
@@ -46,11 +53,11 @@ export function parseEml(emlText) {
 const u256 = (s) => '0x' + BigInt(s).toString(16);
 const b32 = (s) => '0x' + BigInt(s).toString(16).padStart(64, '0');
 
-function _requireArtifacts() {
-  if (!ARTIFACTS_URL) {
-    throw new Error(
-      'ZK proving is not configured: set NEXT_PUBLIC_ZKEMAIL_ARTIFACTS_URL to the hosted artifact location.',
-    );
+function _requireManifest(name) {
+  const cid = MANIFEST[name];
+  if (!GATEWAY || !cid || cid.startsWith('__')) {
+    const v = name === 'PopRoleClaim' ? 'V1' : 'V2';
+    throw new Error(`ZK proving artifacts are not configured for ${name} (set NEXT_PUBLIC_ZKEMAIL_${v}_MANIFEST).`);
   }
 }
 
@@ -72,7 +79,6 @@ const _bytesOf = (s) => Array.from(s, (c) => c.charCodeAt(0));
 
 /** DKIM-verify + derive base circuit inputs + the bound commandIndex. Shared by both circuits. */
 async function _baseInputs(emlText, claimer) {
-  _requireArtifacts();
   const { generateEmailVerifierInputs } = await import('@zk-email/helpers/dist/input-generators');
   const inputs = await generateEmailVerifierInputs(emlText, {
     ignoreBodyHashCheck: true,
@@ -107,14 +113,11 @@ function _formatProof(proof) {
  * @returns {Promise<{ proof: Object, meta: { domain: string, fromEmail: string, nullifier: string } }>}
  */
 export async function generateDomainProof({ emlText, claimer }) {
+  _requireManifest('PopRoleClaim');
   const { inputs } = await _baseInputs(emlText, claimer);
   const [{ loadZkey }, snarkjs] = await Promise.all([import('./zkeyLoader'), import('snarkjs')]);
-  const zkey = await loadZkey(ARTIFACTS_URL, 'PopRoleClaim'); // chunked download -> in-memory zkey
-  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-    inputs,
-    `${ARTIFACTS_URL}/PopRoleClaim.wasm`,
-    zkey,
-  );
+  const { zkey, wasmUrl } = await loadZkey(GATEWAY, MANIFEST.PopRoleClaim); // chunked -> in-memory zkey
+  const { proof, publicSignals } = await snarkjs.groth16.fullProve(inputs, wasmUrl, zkey);
   // publicSignals = [pubkeyHash, emailNullifier, claimerAddress]
   if (BigInt(publicSignals[2]) !== BigInt(claimer)) {
     throw new Error('This proof is bound to a different address than your connected account.');
@@ -139,6 +142,7 @@ export async function generateDomainProof({ emlText, claimer }) {
  * @returns {Promise<{ proof: Object, meta: { domain: string, fromEmail: string, emailHash: string, nullifier: string } }>}
  */
 export async function generateEmailAddressProof({ emlText, claimer }) {
+  _requireManifest('PopRoleClaimV2');
   const { inputs, header } = await _baseInputs(emlText, claimer);
   const { dkimDomain, fromEmail } = parseEml(emlText);
   if (!fromEmail) throw new Error('Could not read the From email address from the email.');
@@ -159,12 +163,8 @@ export async function generateEmailAddressProof({ emlText, claimer }) {
   inputs.emailIndexInWindow = String(emailIdx - fromWindowIndex);
 
   const [{ loadZkey }, snarkjs] = await Promise.all([import('./zkeyLoader'), import('snarkjs')]);
-  const zkey = await loadZkey(ARTIFACTS_URL, 'PopRoleClaimV2'); // chunked download -> in-memory zkey
-  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-    inputs,
-    `${ARTIFACTS_URL}/PopRoleClaimV2.wasm`,
-    zkey,
-  );
+  const { zkey, wasmUrl } = await loadZkey(GATEWAY, MANIFEST.PopRoleClaimV2); // chunked -> in-memory zkey
+  const { proof, publicSignals } = await snarkjs.groth16.fullProve(inputs, wasmUrl, zkey);
   // publicSignals = [pubkeyHash, emailNullifier, claimerAddress, emailHash]
   if (BigInt(publicSignals[2]) !== BigInt(claimer)) {
     throw new Error('This proof is bound to a different address than your connected account.');
