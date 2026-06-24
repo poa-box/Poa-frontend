@@ -108,11 +108,12 @@ function _formatProof(proof) {
  */
 export async function generateDomainProof({ emlText, claimer }) {
   const { inputs } = await _baseInputs(emlText, claimer);
-  const snarkjs = await import('snarkjs');
+  const [{ loadZkey }, snarkjs] = await Promise.all([import('./zkeyLoader'), import('snarkjs')]);
+  const zkey = await loadZkey(ARTIFACTS_URL, 'PopRoleClaim'); // chunked download -> in-memory zkey
   const { proof, publicSignals } = await snarkjs.groth16.fullProve(
     inputs,
     `${ARTIFACTS_URL}/PopRoleClaim.wasm`,
-    `${ARTIFACTS_URL}/PopRoleClaim.zkey`,
+    zkey,
   );
   // publicSignals = [pubkeyHash, emailNullifier, claimerAddress]
   if (BigInt(publicSignals[2]) !== BigInt(claimer)) {
@@ -157,11 +158,12 @@ export async function generateEmailAddressProof({ emlText, claimer }) {
   inputs.fromWindowIndex = String(fromWindowIndex);
   inputs.emailIndexInWindow = String(emailIdx - fromWindowIndex);
 
-  const snarkjs = await import('snarkjs');
+  const [{ loadZkey }, snarkjs] = await Promise.all([import('./zkeyLoader'), import('snarkjs')]);
+  const zkey = await loadZkey(ARTIFACTS_URL, 'PopRoleClaimV2'); // chunked download -> in-memory zkey
   const { proof, publicSignals } = await snarkjs.groth16.fullProve(
     inputs,
     `${ARTIFACTS_URL}/PopRoleClaimV2.wasm`,
-    `${ARTIFACTS_URL}/PopRoleClaimV2.zkey`,
+    zkey,
   );
   // publicSignals = [pubkeyHash, emailNullifier, claimerAddress, emailHash]
   if (BigInt(publicSignals[2]) !== BigInt(claimer)) {
