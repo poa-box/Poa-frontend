@@ -1,14 +1,14 @@
 /**
  * ZkEmailInvitesService
- * Submits ZK Email role claims to a per-org ZkEmailInvites module.
+ * Submits ZK Email role claims to a per-org ZkEmailInvites module (merkle-allowlist model).
  *
  * ZkEmailInvites is an OPTIONAL per-org module: only orgs that opted in (on a chain with ZK Email
- * infra wired) have one. Callers must gate on `zkEmailInvitesEnabled` from POContext before using this.
+ * infra wired) have one. Callers gate on `zkEmailInvitesEnabled` from POContext.
  *
- * The `proof` arg is the `ZkEmailProof` tuple produced by the client-side prover
- * (src/lib/zkemail/prover.js): { pA, pB, pC, pubkeyHash, emailNullifier, domainName }. The claim is
- * permissionless — anyone may submit it for the address bound in-circuit — so it works from a passkey
- * UserOp (gasless) or an EOA tx.
+ * Claims carry a merkle proof that the claimer's entry is in the active allowlist, plus the entry's
+ * `hatIds`. Domain claims use a `ZkEmailProof` (3-signal circuit); specific-address claims use a
+ * `ZkEmailProofV2` (4-signal circuit, exposes emailHash). The claim is permissionless — anyone may
+ * submit it for the in-circuit-bound address — so it works from a passkey UserOp (gasless) or an EOA tx.
  */
 
 import ZkEmailInvitesABI from '../../../../abi/ZkEmailInvites.json';
@@ -25,33 +25,43 @@ export class ZkEmailInvitesService {
   }
 
   /**
-   * Claim role hats by proving control of an email at an allowlisted DOMAIN.
-   * @param {string} contractAddress - ZkEmailInvites proxy
-   * @param {Object} proof - EmailProof struct (see module header)
-   * @param {string} claimer - address the hats mint to (must equal the address bound in proof.maskedCommand)
-   * @param {Object} [options={}] - tx options (paymasterHatIds for gasless sponsorship)
-   * @returns {Promise<TransactionResult>}
+   * Claim role hats for a whole-DOMAIN allowlist entry.
+   * @param {string} contractAddress ZkEmailInvites proxy
+   * @param {Object} proof ZkEmailProof { pA, pB, pC, pubkeyHash, emailNullifier, domainName }
+   * @param {string} claimer address the hats mint to (must equal the in-circuit-bound address)
+   * @param {Array<string>} hatIds the entry's hat IDs (must match the merkle leaf)
+   * @param {Array<string>} merkleProof proof that (domain, hatIds) is in the active allowlist root
+   * @param {Object} [options={}] tx options (paymasterHatIds for gasless sponsorship)
    */
-  async claimRoleByDomain(contractAddress, proof, claimer, options = {}) {
+  async claimRoleByDomain(contractAddress, proof, claimer, hatIds, merkleProof, options = {}) {
     requireAddress(contractAddress, 'ZkEmailInvites contract address');
     requireAddress(claimer, 'Claimer address');
     if (!proof) throw new Error('Email proof is required');
-
     const contract = this.factory.createWritable(contractAddress, ZkEmailInvitesABI);
-    return this.txManager.execute(contract, 'claimRoleByDomain', [proof, claimer], options);
+    return this.txManager.execute(contract, 'claimRoleByDomain', [proof, claimer, hatIds, merkleProof], options);
   }
 
   /**
-   * Read the domain rule (granted hat IDs + expiry) for a domain hash — used to show the org's
-   * invite policy and which role(s) a claim would grant.
-   * @param {string} contractAddress
-   * @param {string} domainHash - keccak256 of the lowercased ASCII domain
-   * @returns {Promise<{hatIds: bigint[], expiry: bigint, exists: boolean}>}
+   * Claim role hats for a SPECIFIC-address allowlist entry (v2 proof carries emailHash).
+   * @param {Object} proof ZkEmailProofV2 { ..., emailHash }
    */
-  async getDomainRule(contractAddress, domainHash) {
+  async claimRoleByEmail(contractAddress, proof, claimer, hatIds, merkleProof, options = {}) {
+    requireAddress(contractAddress, 'ZkEmailInvites contract address');
+    requireAddress(claimer, 'Claimer address');
+    if (!proof) throw new Error('Email proof is required');
+    const contract = this.factory.createWritable(contractAddress, ZkEmailInvitesABI);
+    return this.txManager.execute(contract, 'claimRoleByEmail', [proof, claimer, hatIds, merkleProof], options);
+  }
+
+  /**
+   * Read the active allowlist commitment.
+   * @returns {Promise<{ root: string, cid: string }>} both bytes32; `root == 0x0…0` means dormant.
+   */
+  async getActiveAllowlist(contractAddress) {
     requireAddress(contractAddress, 'ZkEmailInvites contract address');
     const contract = this.factory.createReadOnly(contractAddress, ZkEmailInvitesABI);
-    return contract.getDomainRule(domainHash);
+    const [root, cid] = await Promise.all([contract.merkleRoot(), contract.allowlistCid()]);
+    return { root, cid };
   }
 
   /** Whether an email nullifier has already been consumed at this org (prevents double-claim). */

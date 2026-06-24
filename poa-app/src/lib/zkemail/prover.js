@@ -1,24 +1,18 @@
 /**
- * Client-side ZK Email prover.
+ * Client-side ZK Email prover (domain + specific-address).
  *
- * Produces the `ZkEmailProof` tuple that `ZkEmailInvites.claimRoleByDomain` verifies, from a raw
- * `.eml` the user controls — entirely in the browser (no relayer, no server). The heavy Groth16
- * proving runs via snarkjs WASM.
+ * Produces the proof tuples that `ZkEmailInvites` verifies, from a raw `.eml` the user controls —
+ * entirely in the browser (no relayer). Two circuits:
+ *   - PopRoleClaim   (v1, 3 signals) -> ZkEmailProof   -> claimRoleByDomain (lighter, ~17s).
+ *   - PopRoleClaimV2 (v2, 4 signals, adds emailHash) -> ZkEmailProofV2 -> claimRoleByEmail (~25-40s).
  *
- * Pipeline:
- *   .eml ──▶ @zk-email/helpers (DKIM verify + circuit inputs) ──▶ snarkjs.groth16.fullProve
- *        ──▶ ZkEmailProof { pA, pB, pC, pubkeyHash, emailNullifier, domainName }
- *
- * The circuit (`circuits/PopRoleClaim.circom`) has 3 public signals: [pubkeyHash, emailNullifier,
- * claimerAddress]. The claimer is bound in-circuit from the signed subject "Claim POP role for
- * 0x<addr>", so a proof can only ever be redeemed to that address.
- *
- * Proving artifacts (`PopRoleClaim.wasm` + `PopRoleClaim.zkey`, the latter ~hundreds of MB) are
- * fetched from `NEXT_PUBLIC_ZKEMAIL_ARTIFACTS_URL` at prove time (host on IPFS/CDN; never bundled).
+ * Artifacts (`PopRoleClaim{,V2}.wasm/.zkey`) are fetched from `NEXT_PUBLIC_ZKEMAIL_ARTIFACTS_URL` at
+ * prove time (host on IPFS/CDN; never bundled).
  */
 
 const ARTIFACTS_URL = (process.env.NEXT_PUBLIC_ZKEMAIL_ARTIFACTS_URL || '').replace(/\/$/, '');
 const MAX_HEADERS_LENGTH = 1024;
+const FROM_WINDOW = 256; // == FROM_WINDOW in PopRoleClaimV2.circom
 const COMMAND_PREFIX = 'Claim POP role for 0x';
 
 /** The on-chain command the email subject must contain, binding the claim to `claimer`. */
@@ -28,14 +22,10 @@ export function buildCommand(claimer) {
 
 /** A `mailto:` link that pre-fills the verification email (subject carries the bound address). */
 export function buildMailto({ to = '', claimer }) {
-  const subject = encodeURIComponent(buildCommand(claimer));
-  return `mailto:${to}?subject=${subject}`;
+  return `mailto:${to}?subject=${encodeURIComponent(buildCommand(claimer))}`;
 }
 
-/**
- * Parse a raw RFC822 .eml header block. We only need the signing domain (the DKIM `d=` tag), which is
- * the domain the on-chain registry binds to `pubkeyHash`. Returns { from, fromEmail, dkimDomain }.
- */
+/** Parse the .eml header block — the signing domain (DKIM `d=`) + the From email address. */
 export function parseEml(emlText) {
   if (!emlText || typeof emlText !== 'string') throw new Error('Empty email file');
   const headerBlock = emlText.split(/\r?\n\r?\n/)[0].replace(/\r?\n[ \t]+/g, ' ');
@@ -56,71 +46,52 @@ export function parseEml(emlText) {
 const u256 = (s) => '0x' + BigInt(s).toString(16);
 const b32 = (s) => '0x' + BigInt(s).toString(16).padStart(64, '0');
 
-/**
- * Generate the `ZkEmailProof` for `claimer` from a raw `.eml`. Fully client-side.
- * @param {{ emlText: string, claimer: string }} args
- * @returns {Promise<{ proof: Object, meta: { domain: string, nullifier: string } }>}
- */
-export async function generateEmailProof({ emlText, claimer }) {
+function _requireArtifacts() {
   if (!ARTIFACTS_URL) {
     throw new Error(
-      'ZK proving is not configured: set NEXT_PUBLIC_ZKEMAIL_ARTIFACTS_URL to the hosted PopRoleClaim.wasm/.zkey location.',
+      'ZK proving is not configured: set NEXT_PUBLIC_ZKEMAIL_ARTIFACTS_URL to the hosted artifact location.',
     );
   }
+}
 
-  // Lazy-load so snarkjs + @zk-email/helpers stay out of the main/SSG bundle (only the /claim prove
-  // path pulls them in).
-  const [{ generateEmailVerifierInputs }, snarkjs] = await Promise.all([
-    import('@zk-email/helpers/dist/input-generators'),
-    import('snarkjs'),
-  ]);
-
-  // 1. DKIM-verify the email and derive the circuit inputs (fetches the sender's DKIM pubkey via DoH).
-  const inputs = await generateEmailVerifierInputs(emlText, {
-    ignoreBodyHashCheck: true,
-    maxHeadersLength: MAX_HEADERS_LENGTH,
-  });
-
-  // 2. Locate the command in the canonicalized signed header (the circuit's `commandIndex` input).
-  const headerBytes = inputs.emailHeader.map(Number);
-  const prefix = Array.from(COMMAND_PREFIX, (c) => c.charCodeAt(0));
-  let commandIndex = -1;
-  for (let i = 0; i + prefix.length <= headerBytes.length; i++) {
+/** Find a byte subsequence in the canonicalized header (returns start index or -1). */
+function _find(header, bytes, from = 0) {
+  for (let i = from; i + bytes.length <= header.length; i++) {
     let ok = true;
-    for (let j = 0; j < prefix.length; j++) {
-      if (headerBytes[i + j] !== prefix[j]) {
+    for (let j = 0; j < bytes.length; j++) {
+      if (header[i + j] !== bytes[j]) {
         ok = false;
         break;
       }
     }
-    if (ok) {
-      commandIndex = i;
-      break;
-    }
+    if (ok) return i;
   }
+  return -1;
+}
+const _bytesOf = (s) => Array.from(s, (c) => c.charCodeAt(0));
+
+/** DKIM-verify + derive base circuit inputs + the bound commandIndex. Shared by both circuits. */
+async function _baseInputs(emlText, claimer) {
+  _requireArtifacts();
+  const { generateEmailVerifierInputs } = await import('@zk-email/helpers/dist/input-generators');
+  const inputs = await generateEmailVerifierInputs(emlText, {
+    ignoreBodyHashCheck: true,
+    maxHeadersLength: MAX_HEADERS_LENGTH,
+  });
+  const header = inputs.emailHeader.map(Number);
+
+  const commandIndex = _find(header, _bytesOf(COMMAND_PREFIX));
   if (commandIndex < 0) {
     throw new Error(
       'The signed email must contain "Claim POP role for 0x<your address>" in its subject — send it from the address you want to verify.',
     );
   }
   inputs.commandIndex = String(commandIndex);
+  return { inputs, header };
+}
 
-  // 3. Prove in-browser (snarkjs WASM). One-time artifact download (~hundreds of MB) + ~30s prove.
-  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-    inputs,
-    `${ARTIFACTS_URL}/PopRoleClaim.wasm`,
-    `${ARTIFACTS_URL}/PopRoleClaim.zkey`,
-  );
-
-  // publicSignals = [pubkeyHash, emailNullifier, claimerAddress]
-  if (BigInt(publicSignals[2]) !== BigInt(claimer)) {
-    throw new Error('This proof is bound to a different address than your connected account.');
-  }
-
-  const { dkimDomain } = parseEml(emlText);
-  if (!dkimDomain) throw new Error('Could not read the signing domain from the email.');
-
-  const proofStruct = {
+function _formatProof(proof) {
+  return {
     pA: [u256(proof.pi_a[0]), u256(proof.pi_a[1])],
     // snarkjs returns G2 coordinates in the reverse order the Solidity verifier expects — swap each pair.
     pB: [
@@ -128,10 +99,83 @@ export async function generateEmailProof({ emlText, claimer }) {
       [u256(proof.pi_b[1][1]), u256(proof.pi_b[1][0])],
     ],
     pC: [u256(proof.pi_c[0]), u256(proof.pi_c[1])],
-    pubkeyHash: b32(publicSignals[0]),
-    emailNullifier: b32(publicSignals[1]),
-    domainName: dkimDomain,
   };
+}
 
-  return { proof: proofStruct, meta: { domain: dkimDomain, nullifier: proofStruct.emailNullifier } };
+/**
+ * Generate a DOMAIN proof (`ZkEmailProof`) for `claimer`. Used for whole-domain allowlist entries.
+ * @returns {Promise<{ proof: Object, meta: { domain: string, fromEmail: string, nullifier: string } }>}
+ */
+export async function generateDomainProof({ emlText, claimer }) {
+  const { inputs } = await _baseInputs(emlText, claimer);
+  const snarkjs = await import('snarkjs');
+  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+    inputs,
+    `${ARTIFACTS_URL}/PopRoleClaim.wasm`,
+    `${ARTIFACTS_URL}/PopRoleClaim.zkey`,
+  );
+  // publicSignals = [pubkeyHash, emailNullifier, claimerAddress]
+  if (BigInt(publicSignals[2]) !== BigInt(claimer)) {
+    throw new Error('This proof is bound to a different address than your connected account.');
+  }
+  const { dkimDomain, fromEmail } = parseEml(emlText);
+  if (!dkimDomain) throw new Error('Could not read the signing domain from the email.');
+  return {
+    proof: {
+      ..._formatProof(proof),
+      pubkeyHash: b32(publicSignals[0]),
+      emailNullifier: b32(publicSignals[1]),
+      domainName: dkimDomain,
+    },
+    meta: { domain: dkimDomain, fromEmail, nullifier: b32(publicSignals[1]) },
+  };
+}
+
+/**
+ * Generate a SPECIFIC-ADDRESS proof (`ZkEmailProofV2`) for `claimer`. Used for individual-email
+ * allowlist entries; exposes `emailHash` (Poseidon commitment to the From address). The From-window
+ * inputs are computed identically to `circuits/scripts/gen-inputs.mjs`.
+ * @returns {Promise<{ proof: Object, meta: { domain: string, fromEmail: string, emailHash: string, nullifier: string } }>}
+ */
+export async function generateEmailAddressProof({ emlText, claimer }) {
+  const { inputs, header } = await _baseInputs(emlText, claimer);
+  const { dkimDomain, fromEmail } = parseEml(emlText);
+  if (!fromEmail) throw new Error('Could not read the From email address from the email.');
+
+  // Locate the From field + the email within a 256-byte window (matches PopRoleClaimV2 + gen-inputs).
+  const fromIdx = _find(header, _bytesOf('from:'));
+  if (fromIdx < 0) throw new Error('From field not found in the signed header.');
+  let fromWindowIndex;
+  if (fromIdx === 0) fromWindowIndex = 0;
+  else if (header[fromIdx - 2] === 13 && header[fromIdx - 1] === 10) fromWindowIndex = fromIdx - 2;
+  else throw new Error('From field not preceded by CRLF (unexpected canonicalization).');
+
+  const emailIdx = _find(header, _bytesOf(fromEmail), fromWindowIndex);
+  if (emailIdx < 0 || emailIdx + fromEmail.length > fromWindowIndex + FROM_WINDOW) {
+    throw new Error('From email address is not within the signed From window.');
+  }
+  inputs.fromWindowIndex = String(fromWindowIndex);
+  inputs.emailIndexInWindow = String(emailIdx - fromWindowIndex);
+
+  const snarkjs = await import('snarkjs');
+  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
+    inputs,
+    `${ARTIFACTS_URL}/PopRoleClaimV2.wasm`,
+    `${ARTIFACTS_URL}/PopRoleClaimV2.zkey`,
+  );
+  // publicSignals = [pubkeyHash, emailNullifier, claimerAddress, emailHash]
+  if (BigInt(publicSignals[2]) !== BigInt(claimer)) {
+    throw new Error('This proof is bound to a different address than your connected account.');
+  }
+  if (!dkimDomain) throw new Error('Could not read the signing domain from the email.');
+  return {
+    proof: {
+      ..._formatProof(proof),
+      pubkeyHash: b32(publicSignals[0]),
+      emailNullifier: b32(publicSignals[1]),
+      domainName: dkimDomain,
+      emailHash: b32(publicSignals[3]),
+    },
+    meta: { domain: dkimDomain, fromEmail, emailHash: b32(publicSignals[3]), nullifier: b32(publicSignals[1]) },
+  };
 }

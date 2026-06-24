@@ -30,7 +30,8 @@ export default function ZkEmailClaimFlow() {
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState('');
 
-  const busy = step === ZK_CLAIM_STEPS.PROVING || step === ZK_CLAIM_STEPS.SUBMITTING;
+  const busy =
+    step === ZK_CLAIM_STEPS.CHECKING || step === ZK_CLAIM_STEPS.PROVING || step === ZK_CLAIM_STEPS.SUBMITTING;
 
   const onFile = useCallback(
     async (e) => {
@@ -117,9 +118,11 @@ export default function ZkEmailClaimFlow() {
         <HStack>
           <Spinner size="sm" />
           <Text>
-            {step === ZK_CLAIM_STEPS.PROVING
-              ? 'Proving your email in your browser — this can take up to a minute (plus a one-time download the first time)…'
-              : 'Submitting your claim…'}
+            {step === ZK_CLAIM_STEPS.CHECKING
+              ? 'Checking the organization’s allowlist…'
+              : step === ZK_CLAIM_STEPS.PROVING
+                ? 'Proving your email in your browser — this can take up to a minute (plus a one-time download the first time)…'
+                : 'Submitting your claim…'}
           </Text>
         </HStack>
       )}

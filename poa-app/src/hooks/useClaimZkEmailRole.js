@@ -1,31 +1,41 @@
 /**
  * useClaimZkEmailRole
- * Orchestrates a client-side ZK Email role claim: prove the email in-browser, then submit the claim
- * (gasless via the PaymasterHub when the connected account is a smart wallet).
+ * Orchestrates a client-side ZK Email role claim against the merkle-allowlist model:
+ *   1. read the org's active allowlist (root + CID) on-chain,
+ *   2. fetch the allowlist file from IPFS and assert it matches the on-chain root,
+ *   3. decide the claimer's entry — a SPECIFIC-address entry for their From email if present, else a
+ *      whole-DOMAIN entry for their sending domain,
+ *   4. prove the matching circuit in-browser (v2 for email, v1 for domain),
+ *   5. submit the claim with the entry's hatIds + merkle proof (gasless via PaymasterHub on a passkey).
  *
  * ZkEmailInvites is OPTIONAL — this hook refuses to run unless `zkEmailInvitesEnabled` (POContext).
  */
 
 import { useCallback, useState } from 'react';
-import { keccak256, toBytes } from 'viem';
 import { useWeb3Services, useTransactionWithNotification } from './useWeb3Services';
 import { usePOContext } from '../context/POContext';
 import { useAuth } from '../context/AuthContext';
-import { generateEmailProof } from '../lib/zkemail/prover';
+import { useIPFScontext } from '../context/ipfsContext';
+import { generateDomainProof, generateEmailAddressProof, parseEml } from '../lib/zkemail/prover';
+import { emailHash, assertRootMatches, proofForDomain, proofForEmailHash } from '../lib/zkemail/allowlist';
 
 export const ZK_CLAIM_STEPS = {
   IDLE: 'idle',
+  CHECKING: 'checking',
   PROVING: 'proving',
   SUBMITTING: 'submitting',
   DONE: 'done',
   ERROR: 'error',
 };
 
+const ZERO_ROOT = '0x0000000000000000000000000000000000000000000000000000000000000000';
+
 export function useClaimZkEmailRole() {
   const { zkEmailInvites } = useWeb3Services();
   const { executeWithNotification } = useTransactionWithNotification();
   const { zkEmailInvitesAddress, zkEmailInvitesEnabled } = usePOContext();
   const { accountAddress, isAuthenticated } = useAuth();
+  const { safeFetchFromIpfs, bytes32ToIpfsCid } = useIPFScontext();
 
   const [step, setStep] = useState(ZK_CLAIM_STEPS.IDLE);
   const [error, setError] = useState(null);
@@ -38,16 +48,17 @@ export function useClaimZkEmailRole() {
   }, []);
 
   const fail = useCallback((e) => {
-    setError(e);
+    setError(e instanceof Error ? e : new Error(String(e)));
     setStep(ZK_CLAIM_STEPS.ERROR);
     return { success: false, error: e };
   }, []);
 
   /**
-   * @param {string} emlText - raw .eml contents the user controls
-   * @returns {Promise<{success: boolean, error?: Error}>}
+   * Claim a role by proving control of an email the org's allowlist invites.
+   * @param {string} emlText raw .eml the user controls (sent from the address being verified)
+   * @returns {Promise<{ success: boolean, error?: Error }>}
    */
-  const claimByDomain = useCallback(
+  const claim = useCallback(
     async (emlText) => {
       setError(null);
       if (!zkEmailInvitesEnabled || !zkEmailInvitesAddress) {
@@ -61,38 +72,64 @@ export function useClaimZkEmailRole() {
       }
 
       try {
-        // 1. Prove client-side. The connected address is bound into the command, so the proof can
-        //    only ever be redeemed to this account.
-        setStep(ZK_CLAIM_STEPS.PROVING);
-        const { proof, meta: proofMeta } = await generateEmailProof({
-          emlText,
-          claimer: accountAddress,
-        });
-        setMeta(proofMeta);
+        // 1-2. Read the active allowlist and fetch + verify the file.
+        setStep(ZK_CLAIM_STEPS.CHECKING);
+        const { root, cid } = await zkEmailInvites.getActiveAllowlist(zkEmailInvitesAddress);
+        if (!root || root === ZERO_ROOT) {
+          return fail(new Error('This organization has not activated an email allowlist yet.'));
+        }
+        const cidStr = bytes32ToIpfsCid(cid);
+        const doc = await safeFetchFromIpfs(cidStr);
+        if (!doc) return fail(new Error('Could not load the allowlist file from IPFS — try again.'));
+        const tree = assertRootMatches(doc, root); // throws if the file does not match the on-chain root
 
-        // 2. Best-effort: read which role(s) this domain grants, to scope the gasless paymaster
-        //    budget to those hats (mirrors useClaimRole's paymasterHatIds).
-        const domainHash = keccak256(toBytes((proofMeta.domain || '').toLowerCase()));
-        let paymasterHatIds = [];
-        try {
-          const rule = await zkEmailInvites.getDomainRule(zkEmailInvitesAddress, domainHash);
-          const hatIds = rule?.hatIds || rule?.[0] || [];
-          paymasterHatIds = Array.from(hatIds).map((h) => h.toString());
-        } catch (_) {
-          // Rule read is best-effort; the claim still submits (just without a hat-scoped budget hint).
+        // 3. Pick the claimer's entry: a specific-address entry for their From email wins, else domain.
+        const { fromEmail, dkimDomain } = parseEml(emlText);
+        let mode = null;
+        let entry = null;
+        if (fromEmail) {
+          const eHash = await emailHash(fromEmail);
+          entry = proofForEmailHash(tree, eHash);
+          if (entry) mode = 'email';
+        }
+        if (!entry && dkimDomain) {
+          entry = proofForDomain(tree, dkimDomain);
+          if (entry) mode = 'domain';
+        }
+        if (!entry) {
+          return fail(
+            new Error(
+              `Neither your address (${fromEmail || '?'}) nor your domain (@${dkimDomain || '?'}) is on this organization's allowlist.`,
+            ),
+          );
         }
 
-        // 3. Submit. Gasless when the connected account is a smart wallet (passkey); EOA pays gas.
+        // 4. Prove the matching circuit (v2 for a specific address, v1 for a domain).
+        setStep(ZK_CLAIM_STEPS.PROVING);
+        const { proof, meta: proofMeta } =
+          mode === 'email'
+            ? await generateEmailAddressProof({ emlText, claimer: accountAddress })
+            : await generateDomainProof({ emlText, claimer: accountAddress });
+        setMeta({ mode, hatIds: entry.hatIds, ...proofMeta });
+
+        // 5. Submit with the entry's hatIds + merkle proof; scope the gasless budget to those hats.
         setStep(ZK_CLAIM_STEPS.SUBMITTING);
-        const result = await executeWithNotification(
-          () => zkEmailInvites.claimRoleByDomain(zkEmailInvitesAddress, proof, accountAddress, { paymasterHatIds }),
-          {
-            pendingMessage: 'Claiming your role…',
-            successMessage: 'Role claimed!',
-            errorMessage: 'Claim failed',
-            refreshEvent: 'role:claimed',
-          },
-        );
+        const submit =
+          mode === 'email'
+            ? () =>
+                zkEmailInvites.claimRoleByEmail(zkEmailInvitesAddress, proof, accountAddress, entry.hatIds, entry.proof, {
+                  paymasterHatIds: entry.hatIds,
+                })
+            : () =>
+                zkEmailInvites.claimRoleByDomain(zkEmailInvitesAddress, proof, accountAddress, entry.hatIds, entry.proof, {
+                  paymasterHatIds: entry.hatIds,
+                });
+        const result = await executeWithNotification(submit, {
+          pendingMessage: 'Claiming your role…',
+          successMessage: 'Role claimed!',
+          errorMessage: 'Claim failed',
+          refreshEvent: 'role:claimed',
+        });
 
         if (result?.success) {
           setStep(ZK_CLAIM_STEPS.DONE);
@@ -111,10 +148,13 @@ export function useClaimZkEmailRole() {
       zkEmailInvitesEnabled,
       accountAddress,
       isAuthenticated,
+      safeFetchFromIpfs,
+      bytes32ToIpfsCid,
       executeWithNotification,
       fail,
     ],
   );
 
-  return { claimByDomain, reset, step, error, meta };
+  // Back-compat alias: the existing flow component calls `claimByDomain`.
+  return { claim, claimByDomain: claim, reset, step, error, meta };
 }
