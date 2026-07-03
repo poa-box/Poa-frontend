@@ -328,7 +328,12 @@ export function useVouches(eligibilityModuleAddress, rolesWithVouching = []) {
       current,
       quorum,
       percentage: quorum > 0 ? Math.min((current / quorum) * 100, 100) : 0,
-      isComplete: current >= quorum,
+      // Require a KNOWN, positive quorum. quorum === 0 is the "unknown / not yet
+      // loaded" sentinel (quorumsByHatId[...] || 0) — without this guard a brand-new
+      // applicant with 0 vouches reads `0 >= 0` → isComplete:true, surfacing a
+      // misleading "0 / 0 (Complete!)" while the Complete-Join button (which itself
+      // requires quorum > 0) stays hidden, stranding the user mid-join.
+      isComplete: quorum > 0 && current >= quorum,
     };
   }, [vouchesByHatAndWearer, quorumsByHatId]);
 
