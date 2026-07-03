@@ -58,8 +58,8 @@ export function VouchRequestCard({
   const getButtonConfig = () => {
     if (!isConnected) {
       return {
-        label: 'Connect Wallet',
-        tooltip: 'Connect your wallet to vouch',
+        label: 'Sign in to vouch',
+        tooltip: 'Sign in to vouch for this member.',
         disabled: true,
         isLoading: false,
         colorScheme: 'gray',
