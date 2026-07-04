@@ -138,6 +138,7 @@ not the abstract noun.
 - no superlatives
 - "worker owned" / "community owned" / "member owned" / "vouch based" unhyphenated; "open-source" keeps its hyphen as an established technical term
 - brand casing: "Poa" in prose, lowercase "poa" only for the mark and domain (poa.box), "POA" never
+- sanctioned exception (Direction A): mono LABELS may render sentence-case DOM text in uppercase via `text-transform` (screen readers and the lint see sentence case). Any such label containing "Poa" must use the `.pa-nocaps` guard so the brand never displays as POA. Keep-verbatim strings keep their exact DOM text.
 
 ---
 

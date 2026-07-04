@@ -1,5 +1,5 @@
 // Bake-off control copy (P1). All three direction prototypes import this module
-// verbatim — identical copy is the controlled variable so judges score design,
+// verbatim - identical copy is the controlled variable so judges score design,
 // not words. Direction-specific wording is allowed ONLY in microcopy (figure
 // labels, plate captions, data-chip labels), never in these strings.
 // Vocab: obeys docs/landing-overhaul-v2/BRIEF.md §3 (checked with check-vocab.mjs --src).
