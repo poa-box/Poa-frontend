@@ -349,3 +349,33 @@ Fable synthesis → **Hudson Gate 1** picks the direction (or requests a hybrid/
 - Between every phase: `yarn build && node poa-app/scripts/marketing/check-vocab.mjs`, plus Playwright screenshots (1440 + 390) against the static `out/` (catches baked `opacity:0` regressions).
 - Never touch: `src/components/landing/{Navbar,Footer}.jsx`, `src/services/e2e/**`, app-route pages. Run `yarn build && yarn e2e:check` before a PR only if the diff touches E2E-intercepted files.
 - Two human gates only: direction (Gate 1) and copy (Gate 2). Everything else is autonomous.
+
+---
+
+## 12. Product evidence (P0, captured 2026-07-04)
+
+Real, logged-out captures of live organizations on the public registry — no seeded or
+fabricated data. Captured from the static export by
+`poa-app/scripts/marketing/capture-product-shots.mjs` (re-runnable; proxies subgraph
+requests through node fetch because the gateway API key is domain-locked). Files in
+`poa-app/public/images/product/`; manifest with ship-ready alt/captions in
+`src/components/marketing/productShots.js`; full-res PNG originals in `/tmp/poa-shots-review/`.
+
+| Shot | Org / surface | Arc section | What it proves |
+|------|---------------|-------------|----------------|
+| `task-detail` | Decentral Park, completed task modal | 1 Hero | "Reward: 50 Shares", claimed by a real member, human submission text. Work → ownership in one card. |
+| `tasks-board` | Decentral Park, "Initial Basement Set-up" board | 3 The work | All four columns populated with real community tasks, payouts in shares, avatars. |
+| `vote-tally` | KUBI, "Director of Education" results | 4 The say | A real election: five candidates, real member votes, weighted results, clear winner. |
+| `treasury` | Argus, Active Profit Shares panel | 5 The money (PEAK) | **Claim N1 VERIFIED**: three real revenue distributions, multi-claimant, 100% claimed. The product's own noun is "Profit Share". |
+| `treasury-stats` | Argus, treasury header trio | 5 The money | "Transparent finances for all members. Major spending requires a vote." + live stats. |
+| `team-matrix` | KUBI, permissions table | 6 The people | Roles × exact written powers (Join/Approve/Shares/Vote/…). |
+| `team-members` | KUBI, members grouped by role | 6 The people | 10 real Executives with activity stats; 19 Members. |
+| `explore-stats` | registry stats trio | 7 Proof band | 10 organizations / 54 members / 100% community owned (network pills cropped out). |
+| `tasks-board-mobile` | Decentral Park, 390px list | mobile proof | The board survives a phone. |
+
+Notes for build/copy agents:
+- **N1 is confirmed** (real production distributions + Test6's own live PaymentManager). Use the strong revenue-share claims; the fallback swap in §4 is NOT needed.
+- The product UI's own vocabulary in-frame: "Shares" (payouts), "Profit Share" (distributions), "kubix" (KUBI's participation credit). All vocab-safe; prefer echoing "profit share" in section 5 copy.
+- Screenshot plates are predominantly dark navy/purple app chrome except team/* and explore-stats (light). Frame treatments must plan for both.
+- Do NOT screenshot: KUBI org header/description ("...DAO..."), KUBI Research project, the /explore org-card grid (banned words baked into a logo + descriptions), Argus task boards (dense jargon).
+- Real member usernames appear in-frame (public pages; Hudson is a member of Decentral Park + KUBI). Hudson sign-off on this is bundled into Gate 1.
