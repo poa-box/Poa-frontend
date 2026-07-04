@@ -275,12 +275,22 @@ export function useClaimZkEmailRole() {
         // "downloads" (Gmail/Spark mobile), forwards, and PDF/screenshot exports lack it, and the
         // prover's own error for that case is cryptic.
         if (!/^DKIM-Signature:/im.test(emlText)) {
+          // Third-party composer (Spark/Readdle etc. over SMTP): the provider stores the SUBMITTED
+          // copy, which is unsigned — the DKIM signature is only added on outbound delivery. No
+          // export of this copy can ever verify; the message must be COMPOSED in the provider's own
+          // website/app and re-sent.
+          const thirdParty = /@Spark>|X-Readdle|X-Mailer:(?!.*(Gmail|Outlook))/im.test(emlText);
           return fail(
             new Error(
-              'This file doesn’t contain the email’s cryptographic signature. Download the ORIGINAL raw ' +
-                'message from your mail provider’s WEBSITE — Gmail: mail.google.com → open the message → ' +
-                '⋮ → Show original → Download original. Mobile apps and most mail apps (Spark, etc.) ' +
-                'cannot produce this file.',
+              thirdParty
+                ? 'This email was composed in a third-party app (e.g. Spark), so the saved copy has no ' +
+                  'cryptographic signature — no export of it will work. Re-send the message from your ' +
+                  'provider’s own website (e.g. mail.google.com) with the same subject, then download ' +
+                  'that one via ⋮ → Show original → Download original.'
+                : 'This file doesn’t contain the email’s cryptographic signature. Download the ORIGINAL raw ' +
+                  'message from your mail provider’s WEBSITE — Gmail: mail.google.com → open the message → ' +
+                  '⋮ → Show original → Download original. Mobile apps and most mail apps (Spark, etc.) ' +
+                  'cannot produce this file.',
             ),
           );
         }

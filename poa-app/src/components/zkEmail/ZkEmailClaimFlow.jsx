@@ -296,15 +296,30 @@ export default function ZkEmailClaimFlow() {
             <Code p={2} borderRadius="md" w="full" whiteSpace="pre-wrap" display="block">
               {buildCommand(claimerAddress)}
             </Code>
-            <HStack mt={3}>
+            <Alert status="warning" borderRadius="md" fontSize="xs" mt={2} py={2}>
+              <AlertIcon boxSize={3} />
+              Compose it in your provider’s <b>own website or official app</b> (e.g. mail.google.com).
+              Messages sent through third-party apps like Spark are stored <b>without</b> the signature
+              this claim needs.
+            </Alert>
+            <HStack mt={3} spacing={3} flexWrap="wrap">
               <Button
                 as={ChakraLink}
-                href={buildMailto({ to: CLAIM_INBOX, claimer: claimerAddress })}
+                href={`https://mail.google.com/mail/?view=cm&fs=1${CLAIM_INBOX ? `&to=${encodeURIComponent(CLAIM_INBOX)}` : ''}&su=${encodeURIComponent(buildCommand(claimerAddress))}`}
                 isExternal
                 colorScheme="blue"
                 size="sm"
               >
-                Open pre-filled email
+                Compose in Gmail (web)
+              </Button>
+              <Button
+                as={ChakraLink}
+                href={buildMailto({ to: CLAIM_INBOX, claimer: claimerAddress })}
+                isExternal
+                variant="outline"
+                size="sm"
+              >
+                Other provider…
               </Button>
             </HStack>
           </Box>
@@ -337,7 +352,9 @@ export default function ZkEmailClaimFlow() {
               Forwarded copies, screenshots, or PDFs won’t verify.{' '}
               {!isAuthenticated && 'Your account, username, and role are all created in this one step.'}
             </Text>
-            <input ref={fileRef} type="file" accept=".eml,message/rfc822" hidden onChange={onFile} />
+            {/* No `accept` filter: some platform pickers grey out valid .eml files with it; the
+                upload is content-validated (DKIM header pre-flight) instead. */}
+            <input ref={fileRef} type="file" hidden onChange={onFile} />
             <Button onClick={() => fileRef.current?.click()} isDisabled={busy} size="sm">
               {fileName || 'Choose .eml file'}
             </Button>
