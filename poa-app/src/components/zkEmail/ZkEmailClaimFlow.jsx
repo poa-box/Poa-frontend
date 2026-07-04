@@ -290,8 +290,10 @@ export default function ZkEmailClaimFlow() {
           <Box p={4} borderWidth="1px" borderRadius="lg">
             <Text fontWeight="semibold">1. Send the verification email</Text>
             <Text fontSize="sm" color="gray.600" mb={2}>
-              From the <b>invited email address</b>, send a message with this exact subject — to anyone
-              (sending it to yourself is fine). The body doesn’t matter.
+              From the <b>invited email address</b>, send a message with this exact subject to{' '}
+              <b>another inbox you can open</b> — a work email, a second account, etc. The body doesn’t
+              matter. (Don’t send it to the same address: your own Sent copy is saved <i>before</i> the
+              provider signs it, so it can never verify.)
             </Text>
             <Code p={2} borderRadius="md" w="full" whiteSpace="pre-wrap" display="block">
               {buildCommand(claimerAddress)}
@@ -325,11 +327,11 @@ export default function ZkEmailClaimFlow() {
           </Box>
 
           <Box p={4} borderWidth="1px" borderRadius="lg">
-            <Text fontWeight="semibold">2. Download the raw email and upload it here</Text>
+            <Text fontWeight="semibold">2. Download the raw email from the inbox that RECEIVED it</Text>
             <Text fontSize="sm" color="gray.600" mt={1}>
-              The file must be the <b>original message with its full headers</b> (the cryptographic
-              signature lives there). Mobile apps and most third-party mail apps (Spark, etc.){' '}
-              <b>cannot</b> export this — use your provider’s <b>website</b>:
+              Open the <b>received copy</b> (not your Sent folder — that copy is unsigned) and export the{' '}
+              <b>original message with its full headers</b>. Mobile apps and most third-party mail apps
+              (Spark, etc.) <b>cannot</b> export this — use the provider’s <b>website</b>:
             </Text>
             <Box fontSize="sm" color="gray.600" pl={4} my={2}>
               <Text>

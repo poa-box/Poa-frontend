@@ -280,17 +280,26 @@ export function useClaimZkEmailRole() {
           // export of this copy can ever verify; the message must be COMPOSED in the provider's own
           // website/app and re-sent.
           const thirdParty = /@Spark>|X-Readdle|X-Mailer:(?!.*(Gmail|Outlook))/im.test(emlText);
+          // No Received chain at all = the SENT-folder copy, stored at composition BEFORE the
+          // provider's outbound server adds the DKIM signature. Only the DELIVERED copy is signed.
+          const sentCopy = !/^Received:/im.test(emlText);
           return fail(
             new Error(
               thirdParty
                 ? 'This email was composed in a third-party app (e.g. Spark), so the saved copy has no ' +
                   'cryptographic signature — no export of it will work. Re-send the message from your ' +
                   'provider’s own website (e.g. mail.google.com) with the same subject, then download ' +
-                  'that one via ⋮ → Show original → Download original.'
-                : 'This file doesn’t contain the email’s cryptographic signature. Download the ORIGINAL raw ' +
-                  'message from your mail provider’s WEBSITE — Gmail: mail.google.com → open the message → ' +
-                  '⋮ → Show original → Download original. Mobile apps and most mail apps (Spark, etc.) ' +
-                  'cannot produce this file.',
+                  'the copy from the inbox that RECEIVED it.'
+                : sentCopy
+                  ? 'This is your SENT copy — it was saved before the signature was added, so it can ' +
+                    'never verify. Download the message from the inbox that RECEIVED it instead. If you ' +
+                    'sent it to your own address in the same account, re-send it (same subject) to a ' +
+                    'DIFFERENT inbox you can open — a work email or second account — and export it there ' +
+                    'via ⋮ → Show original → Download original.'
+                  : 'This file doesn’t contain the email’s cryptographic signature. Download the ORIGINAL raw ' +
+                    'message from the RECEIVING inbox via the provider’s WEBSITE — Gmail: mail.google.com → ' +
+                    'open the message → ⋮ → Show original → Download original. Mobile apps and most mail ' +
+                    'apps (Spark, etc.) cannot produce this file.',
             ),
           );
         }
