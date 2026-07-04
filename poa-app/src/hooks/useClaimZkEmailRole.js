@@ -112,6 +112,9 @@ export function useClaimZkEmailRole() {
   // "The document is not focused". `ready` drives the "Finish" button in the UI.
   const readyRef = useRef(null);
   const [ready, setReady] = useState(false);
+  // Synchronous in-flight lock so a double-click on "Finish" can't fire a second passkey ceremony /
+  // submission before the async setStep(SIGNING) re-renders the button away.
+  const submittingRef = useRef(false);
 
   const onboardingService = useMemo(() => {
     if (!newAccountReady) return null;
@@ -141,6 +144,7 @@ export function useClaimZkEmailRole() {
     setError(null);
     setMeta(null);
     readyRef.current = null;
+    proofCacheRef.current = null;
     setReady(false);
   }, []);
 
@@ -402,6 +406,8 @@ export function useClaimZkEmailRole() {
     async () => {
       const r = readyRef.current;
       if (!r) return fail(new Error('Upload your verification email first.'));
+      if (submittingRef.current) return { success: false }; // already in flight — ignore double-click
+      submittingRef.current = true;
       const { proof, entry, mode, claimer, oneStep, credential } = r;
       try {
         // ONE-STEP: single UserOp — deploy account + register username + claim. Wrapped in
@@ -499,6 +505,8 @@ export function useClaimZkEmailRole() {
         return result;
       } catch (e) {
         return fail(e);
+      } finally {
+        submittingRef.current = false;
       }
     },
     [

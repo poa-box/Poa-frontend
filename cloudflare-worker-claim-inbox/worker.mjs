@@ -55,7 +55,10 @@ async function streamToString(stream, maxBytes) {
     merged.set(c, off);
     off += c.length;
   }
-  return new TextDecoder('utf-8').decode(merged);
+  // latin1 (not utf-8): a 1:1 byte<->codepoint map that round-trips EVERY octet losslessly. utf-8
+  // would replace any 8bit non-ASCII byte in the DKIM-signed header block with U+FFFD, corrupting
+  // the bytes the proof is computed over. The client reads it back as a raw string the same way.
+  return new TextDecoder('latin1').decode(merged);
 }
 
 export default {
