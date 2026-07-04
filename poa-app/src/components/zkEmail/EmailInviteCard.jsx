@@ -73,14 +73,13 @@ export default function EmailInviteCard({ bg, textColor, subtextColor, accentCol
                       </Badge>
                     </WrapItem>
                   )}
-                  {emailCount > 0 && (
-                    <WrapItem>
-                      <Badge px={2} py={1} borderRadius="md" colorScheme="purple" textTransform="none">
-                        {emailCount} invited address{emailCount > 1 ? 'es' : ''}
-                      </Badge>
-                    </WrapItem>
-                  )}
                 </Wrap>
+              )}
+              {emailCount > 0 && (
+                <Text color={subtextColor} fontSize="xs">
+                  Some people are invited by their personal email address too — if you received an
+                  invite, you can claim even if your domain isn’t listed.
+                </Text>
               )}
               <Text color={subtextColor} fontSize="xs">
                 {grantsLine}

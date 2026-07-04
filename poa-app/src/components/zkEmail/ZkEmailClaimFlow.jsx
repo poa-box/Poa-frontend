@@ -86,14 +86,13 @@ function InviteSummary({ summary }) {
             </Badge>
           </WrapItem>
         ))}
-        {emailCount > 0 && (
-          <WrapItem>
-            <Badge px={2} py={1} borderRadius="md" colorScheme="purple" textTransform="none">
-              {emailCount} invited address{emailCount > 1 ? 'es' : ''}
-            </Badge>
-          </WrapItem>
-        )}
       </Wrap>
+      {emailCount > 0 && (
+        <Text fontSize="xs" color="gray.600" mt={2}>
+          Some people are also invited by their personal email address — those invites aren’t listed
+          here. If you were told you’re invited, your email works even if your domain isn’t shown.
+        </Text>
+      )}
     </Box>
   );
 }
@@ -291,7 +290,8 @@ export default function ZkEmailClaimFlow() {
           <Box p={4} borderWidth="1px" borderRadius="lg">
             <Text fontWeight="semibold">1. Send the verification email</Text>
             <Text fontSize="sm" color="gray.600" mb={2}>
-              From the email you want to verify, send a message with this exact subject:
+              From the <b>invited email address</b>, send a message with this exact subject — to anyone
+              (sending it to yourself is fine). The body doesn’t matter.
             </Text>
             <Code p={2} borderRadius="md" w="full" whiteSpace="pre-wrap" display="block">
               {buildCommand(claimerAddress)}
@@ -310,10 +310,32 @@ export default function ZkEmailClaimFlow() {
           </Box>
 
           <Box p={4} borderWidth="1px" borderRadius="lg">
-            <Text fontWeight="semibold">2. Upload the sent email</Text>
+            <Text fontWeight="semibold">2. Download the raw email and upload it here</Text>
+            <Text fontSize="sm" color="gray.600" mt={1}>
+              The file must be the <b>original message with its full headers</b> (the cryptographic
+              signature lives there). Mobile apps and most third-party mail apps (Spark, etc.){' '}
+              <b>cannot</b> export this — use your provider’s <b>website</b>:
+            </Text>
+            <Box fontSize="sm" color="gray.600" pl={4} my={2}>
+              <Text>
+                • <b>Gmail</b> — open <b>mail.google.com</b> in a browser → open the message (your sent
+                copy works) → ⋮ More → <b>Show original</b> → <b>Download original</b>
+              </Text>
+              <Text mt={1}>
+                • <b>Outlook</b> — outlook.com → open the message → ⋯ → <b>Save as</b> (.eml)
+              </Text>
+              <Text mt={1}>
+                • <b>Apple Mail</b> (Mac) — select the message → File → Save As… → format{' '}
+                <b>Raw Message Source</b>
+              </Text>
+              <Text mt={1}>
+                • <b>Spark / other apps</b> — no raw export; open the account’s website instead (e.g.
+                mail.google.com for a Gmail address) and export from there
+              </Text>
+            </Box>
             <Text fontSize="sm" color="gray.600" mb={2}>
-              Export it as a <Code>.eml</Code> (in Gmail: ⋮ → Show original → Download Original) and choose it
-              here. {!isAuthenticated && 'Your account, username, and role are all created in this one step.'}
+              Forwarded copies, screenshots, or PDFs won’t verify.{' '}
+              {!isAuthenticated && 'Your account, username, and role are all created in this one step.'}
             </Text>
             <input ref={fileRef} type="file" accept=".eml,message/rfc822" hidden onChange={onFile} />
             <Button onClick={() => fileRef.current?.click()} isDisabled={busy} size="sm">

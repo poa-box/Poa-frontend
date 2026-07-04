@@ -138,6 +138,13 @@ export function useClaimZkEmailRole() {
     let err = e instanceof Error ? e : new Error(String(e));
     if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
       err = new Error('Passkey prompt was cancelled — try again when you are ready.');
+    } else if (/dkim.*(not found|fail|invalid|mismatch)|no (dkim|signature)/i.test(err.message || '')) {
+      err = new Error(
+        'The email’s signature couldn’t be verified from this file. Download the ORIGINAL raw message ' +
+          'from your provider’s website (Gmail: mail.google.com → open the message → ⋮ → Show original → ' +
+          'Download original) — mobile apps, Spark, forwards, and PDFs won’t work. ' +
+          `(${err.message})`,
+      );
     }
     setError(err);
     setStep(ZK_CLAIM_STEPS.ERROR);
@@ -263,6 +270,20 @@ export function useClaimZkEmailRole() {
         const doc = await safeFetchFromIpfs(cidStr);
         if (!doc) return fail(new Error('Could not load the allowlist file from IPFS — try again.'));
         const tree = assertRootMatches(doc, root); // throws if the file does not match the on-chain root
+
+        // Pre-flight: the upload must be a RAW RFC-822 message carrying its DKIM signature. App
+        // "downloads" (Gmail/Spark mobile), forwards, and PDF/screenshot exports lack it, and the
+        // prover's own error for that case is cryptic.
+        if (!/^DKIM-Signature:/im.test(emlText)) {
+          return fail(
+            new Error(
+              'This file doesn’t contain the email’s cryptographic signature. Download the ORIGINAL raw ' +
+                'message from your mail provider’s WEBSITE — Gmail: mail.google.com → open the message → ' +
+                '⋮ → Show original → Download original. Mobile apps and most mail apps (Spark, etc.) ' +
+                'cannot produce this file.',
+            ),
+          );
+        }
 
         // Fast-fail on a stale subject BEFORE the expensive prove: the email must bind THIS claimer.
         const boundMatch = emlText.match(/Claim POP role for (0x[0-9a-fA-F]{40})/);
