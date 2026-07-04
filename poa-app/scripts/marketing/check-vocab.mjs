@@ -416,6 +416,10 @@ function scanHtmlFile(absPath, relPath, isDocsArticle, errors, warnings) {
 
   for (const href of extractAnchorHrefs(html)) {
     // URLs: word-check only (no em-dash/exclamation/POA-caps checks on paths).
+    // Exemption inheritance: hrefs pointing INTO docs article routes carry the
+    // article-body exemption (the slug is derived from the exempt article, e.g.
+    // /docs/gas-sponsor). Visible link TEXT is still fully checked above.
+    if (/^\/?docs\/[^/]+\/?$/i.test(href.replace(/^https?:\/\/[^/]+/i, ""))) continue;
     scanString({ text: href, where: `${relPath} a[href]`, errors, warnings, checkExclamation: false, checkExtras: false });
   }
 
