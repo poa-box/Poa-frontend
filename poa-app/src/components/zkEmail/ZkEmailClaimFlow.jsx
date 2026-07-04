@@ -2,6 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import {
   Alert,
   AlertIcon,
+  Badge,
   Box,
   Button,
   Code,
@@ -11,9 +12,12 @@ import {
   Spinner,
   Text,
   VStack,
+  Wrap,
+  WrapItem,
 } from '@chakra-ui/react';
 import { useAuth } from '@/context/AuthContext';
 import { useClaimZkEmailRole, ZK_CLAIM_STEPS } from '@/hooks/useClaimZkEmailRole';
+import { useZkEmailInviteSummary } from '@/hooks/useZkEmailInviteSummary';
 import { buildCommand, buildMailto } from '@/lib/zkemail/prover';
 
 // Optional inbox to receive the verification email (e.g. a Cloudflare Email Worker). Empty = the
@@ -24,9 +28,80 @@ const CLAIM_INBOX = process.env.NEXT_PUBLIC_ZKEMAIL_INBOX || '';
  * The client-side ZK Email claim flow: send a DKIM-signed email containing the bound command, upload
  * it, prove it in-browser, and submit the (gasless) claim. Render only when `zkEmailInvitesEnabled`.
  */
+/** Verified who-can-join summary (domains + roles from the root-matched allowlist file). */
+function InviteSummary({ summary }) {
+  const { status, domains, emailCount, refresh } = summary;
+
+  if (status === 'loading') {
+    return (
+      <HStack fontSize="sm" color="gray.500">
+        <Spinner size="xs" />
+        <Text>Checking this organization’s invite list…</Text>
+      </HStack>
+    );
+  }
+  if (status === 'unknown') {
+    // Chain read failed: liveness is NOT known (could be dormant) — don't claim invites are active.
+    return (
+      <Alert status="warning" borderRadius="lg" fontSize="sm">
+        <AlertIcon />
+        <HStack justify="space-between" w="full">
+          <Text>Couldn’t check this organization’s invite list right now (network hiccup).</Text>
+          <Button size="xs" onClick={refresh} flexShrink={0}>
+            Re-check
+          </Button>
+        </HStack>
+      </Alert>
+    );
+  }
+  if (status === 'degraded') {
+    return (
+      <Alert status="warning" borderRadius="lg" fontSize="sm">
+        <AlertIcon />
+        <HStack justify="space-between" w="full">
+          <Text>
+            Email invites are active, but the invite list couldn’t be loaded right now. You can still try
+            to claim — your eligibility is checked against the on-chain list when you upload your email.
+          </Text>
+          <Button size="xs" onClick={refresh} flexShrink={0}>
+            Re-check
+          </Button>
+        </HStack>
+      </Alert>
+    );
+  }
+  if (status !== 'active') return null;
+
+  return (
+    <Box p={4} borderWidth="1px" borderRadius="lg" bg="blackAlpha.50">
+      <Text fontWeight="semibold" fontSize="sm" mb={2}>
+        Who can claim here:
+      </Text>
+      <Wrap spacing={2}>
+        {domains.map(({ domain, roleNames }) => (
+          <WrapItem key={domain}>
+            <Badge px={2} py={1} borderRadius="md" colorScheme="teal" textTransform="none">
+              @{domain}
+              {roleNames.length > 0 ? ` → ${roleNames.join(', ')}` : ''}
+            </Badge>
+          </WrapItem>
+        ))}
+        {emailCount > 0 && (
+          <WrapItem>
+            <Badge px={2} py={1} borderRadius="md" colorScheme="purple" textTransform="none">
+              {emailCount} invited address{emailCount > 1 ? 'es' : ''}
+            </Badge>
+          </WrapItem>
+        )}
+      </Wrap>
+    </Box>
+  );
+}
+
 export default function ZkEmailClaimFlow() {
   const { accountAddress, isAuthenticated } = useAuth();
   const { claimByDomain, step, error, reset } = useClaimZkEmailRole();
+  const summary = useZkEmailInviteSummary();
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState('');
 
@@ -44,12 +119,45 @@ export default function ZkEmailClaimFlow() {
     [claimByDomain],
   );
 
+  // Module deployed but no allowlist activated: every claim would revert AllowlistNotActive —
+  // say so instead of walking the user through steps that cannot succeed.
+  if (summary.status === 'dormant') {
+    return (
+      <VStack spacing={4} align="stretch">
+        <Box>
+          <Heading size="md">Claim a role with your email</Heading>
+        </Box>
+        <Alert status="info" borderRadius="lg">
+          <AlertIcon />
+          <HStack justify="space-between" w="full">
+            <Text>
+              This organization has email invites set up but hasn’t activated an invite list yet. Check
+              back once governance activates it.
+            </Text>
+            <Button size="xs" onClick={summary.refresh} flexShrink={0}>
+              Re-check
+            </Button>
+          </HStack>
+        </Alert>
+      </VStack>
+    );
+  }
+
   if (!isAuthenticated || !accountAddress) {
     return (
-      <Alert status="info" borderRadius="lg">
-        <AlertIcon />
-        Connect your wallet or passkey to claim a role by email.
-      </Alert>
+      <VStack spacing={4} align="stretch">
+        <Box>
+          <Heading size="md">Claim a role with your email</Heading>
+          <Text mt={1} color="gray.600">
+            Prove you control an invited email — entirely in your browser. No password, no relayer.
+          </Text>
+        </Box>
+        <InviteSummary summary={summary} />
+        <Alert status="info" borderRadius="lg">
+          <AlertIcon />
+          Connect your wallet or passkey to claim a role by email.
+        </Alert>
+      </VStack>
     );
   }
 
@@ -82,37 +190,47 @@ export default function ZkEmailClaimFlow() {
         </Text>
       </Box>
 
-      <Box p={4} borderWidth="1px" borderRadius="lg">
-        <Text fontWeight="semibold">1. Send the verification email</Text>
-        <Text fontSize="sm" color="gray.600" mb={2}>
-          From the email you want to verify, send a message with this exact subject:
-        </Text>
-        <Code p={2} borderRadius="md" w="full" whiteSpace="pre-wrap" display="block">
-          {buildCommand(accountAddress)}
-        </Code>
-        <HStack mt={3}>
-          <Button
-            as={ChakraLink}
-            href={buildMailto({ to: CLAIM_INBOX, claimer: accountAddress })}
-            isExternal
-            colorScheme="blue"
-            size="sm"
-          >
-            Open pre-filled email
-          </Button>
-        </HStack>
-      </Box>
+      <InviteSummary summary={summary} />
 
-      <Box p={4} borderWidth="1px" borderRadius="lg">
-        <Text fontWeight="semibold">2. Upload the sent email</Text>
-        <Text fontSize="sm" color="gray.600" mb={2}>
-          Export it as a <Code>.eml</Code> (in Gmail: ⋮ → Show original → Download Original) and choose it here.
-        </Text>
-        <input ref={fileRef} type="file" accept=".eml,message/rfc822" hidden onChange={onFile} />
-        <Button onClick={() => fileRef.current?.click()} isDisabled={busy} size="sm">
-          {fileName || 'Choose .eml file'}
-        </Button>
-      </Box>
+      {/* Actionable steps only when the allowlist is verifiably live ('active') or provably live but
+          temporarily unreadable ('degraded' — the claim path re-verifies). Never during 'loading' or
+          'unknown', where a dormant module would otherwise flash a claim UI that cannot succeed. */}
+      {(summary.status === 'active' || summary.status === 'degraded') && (
+        <>
+          <Box p={4} borderWidth="1px" borderRadius="lg">
+            <Text fontWeight="semibold">1. Send the verification email</Text>
+            <Text fontSize="sm" color="gray.600" mb={2}>
+              From the email you want to verify, send a message with this exact subject:
+            </Text>
+            <Code p={2} borderRadius="md" w="full" whiteSpace="pre-wrap" display="block">
+              {buildCommand(accountAddress)}
+            </Code>
+            <HStack mt={3}>
+              <Button
+                as={ChakraLink}
+                href={buildMailto({ to: CLAIM_INBOX, claimer: accountAddress })}
+                isExternal
+                colorScheme="blue"
+                size="sm"
+              >
+                Open pre-filled email
+              </Button>
+            </HStack>
+          </Box>
+
+          <Box p={4} borderWidth="1px" borderRadius="lg">
+            <Text fontWeight="semibold">2. Upload the sent email</Text>
+            <Text fontSize="sm" color="gray.600" mb={2}>
+              Export it as a <Code>.eml</Code> (in Gmail: ⋮ → Show original → Download Original) and choose it
+              here.
+            </Text>
+            <input ref={fileRef} type="file" accept=".eml,message/rfc822" hidden onChange={onFile} />
+            <Button onClick={() => fileRef.current?.click()} isDisabled={busy} size="sm">
+              {fileName || 'Choose .eml file'}
+            </Button>
+          </Box>
+        </>
+      )}
 
       {busy && (
         <HStack>

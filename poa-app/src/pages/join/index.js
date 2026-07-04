@@ -54,6 +54,7 @@ import PasskeyOnboardingModal from '@/components/passkey/PasskeyOnboardingModal'
 import SignInModal from '@/components/passkey/SignInModal';
 import { BsFillLightningChargeFill } from 'react-icons/bs';
 import { RoleApplicationForm, VouchLinkHandler, VouchProgressBar } from '@/components/orgStructure';
+import EmailInviteCard from '@/components/zkEmail/EmailInviteCard';
 import ConnectedAccountBadge from '@/components/common/ConnectedAccountBadge';
 import { VouchFirstPhase } from '@/hooks/useVouchFirstOnboarding';
 import { getAllCredentials } from '@/services/web3/passkey/passkeyStorage';
@@ -729,6 +730,14 @@ const User = () => {
                           </SlideFade>
                         ))}
                       </VStack>
+
+                      {/* Email-invite fast path — self-hides unless the org's allowlist is live. */}
+                      <EmailInviteCard
+                        bg={inputBg}
+                        textColor={textColor}
+                        subtextColor={subtextColor}
+                        accentColor={accentColor}
+                      />
 
                       {!isAuthenticated && (
                         <>
