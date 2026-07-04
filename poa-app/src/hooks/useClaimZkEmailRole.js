@@ -8,14 +8,39 @@
  *   4. prove the matching circuit in-browser (v2 for email, v1 for domain),
  *   5. submit the claim with the entry's hatIds + merkle proof (gasless via PaymasterHub on a passkey).
  *
+ * TWO submission paths:
+ *   - EXISTING account (EOA or passkey signed in): plain claimRoleBy{Domain,Email} via the tx manager.
+ *   - BRAND-NEW user (no account at all): ONE-STEP onboarding — `prepareNewPasskey(username)` creates
+ *     a local credential (no transaction) and computes the counterfactual account address the email
+ *     subject binds to; the claim then submits registerAndClaimBy{Domain,Email}WithPasskey as a single
+ *     gasless UserOp that deploys the account + registers the username + mints the role, atomically —
+ *     the exact analog of the join page's vouch-first "Create Account & Get Vouch Link" flow.
+ *     The pending credential persists in localStorage so a refresh between "send the email" and
+ *     "upload the .eml" cannot strand the address the user already emailed.
+ *
  * ZkEmailInvites is OPTIONAL — this hook refuses to run unless `zkEmailInvitesEnabled` (POContext).
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@apollo/client';
+import { useAccount, useSwitchChain } from 'wagmi';
+import { getClient } from '@/util/apolloClient';
 import { useWeb3Services, useTransactionWithNotification } from './useWeb3Services';
 import { usePOContext } from '../context/POContext';
 import { useAuth } from '../context/AuthContext';
 import { useIPFScontext } from '../context/ipfsContext';
+import { useOrgName } from './useOrgName';
+import { DEFAULT_CHAIN_ID } from '../config/networks';
+import { createChainClients } from '../services/web3/utils/chainClients';
+import { createZkEmailOnboardingService } from '../services/web3/domain/ZkEmailOnboardingService';
+import {
+  savePendingCredential,
+  getPendingCredentialForOrg,
+  removePendingCredential,
+} from '../services/web3/passkey/passkeyStorage';
+import UniversalAccountRegistryABI from '../../abi/UniversalAccountRegistry.json';
+import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
+import { FETCH_PASSKEY_FACTORY_ADDRESS } from '../util/passkeyQueries';
 import { generateDomainProof, generateEmailAddressProof, parseEml } from '../lib/zkemail/prover';
 import { emailHash, assertRootMatches, proofForDomain, proofForEmailHash } from '../lib/zkemail/allowlist';
 
@@ -23,6 +48,7 @@ export const ZK_CLAIM_STEPS = {
   IDLE: 'idle',
   CHECKING: 'checking',
   PROVING: 'proving',
+  SIGNING: 'signing', // biometric prompts for the one-step passkey path
   SUBMITTING: 'submitting',
   DONE: 'done',
   ERROR: 'error',
@@ -33,13 +59,74 @@ const ZERO_ROOT = '0x00000000000000000000000000000000000000000000000000000000000
 export function useClaimZkEmailRole() {
   const { zkEmailInvites } = useWeb3Services();
   const { executeWithNotification } = useTransactionWithNotification();
-  const { zkEmailInvitesAddress, zkEmailInvitesEnabled } = usePOContext();
-  const { accountAddress, isAuthenticated } = useAuth();
+  const { zkEmailInvitesAddress, zkEmailInvitesEnabled, orgId, orgChainId, subgraphUrl } = usePOContext();
+  const {
+    accountAddress,
+    isAuthenticated,
+    isPasskeyUser,
+    publicClient: homePublicClient,
+    bundlerClient: homeBundlerClient,
+    activatePasskey,
+  } = useAuth();
+  const { chain: connectedChain } = useAccount();
+  const { switchChainAsync } = useSwitchChain();
   const { safeFetchFromIpfs, bytes32ToIpfsCid } = useIPFScontext();
+  const orgName = useOrgName();
 
   const [step, setStep] = useState(ZK_CLAIM_STEPS.IDLE);
   const [error, setError] = useState(null);
   const [meta, setMeta] = useState(null);
+  const [pendingAccount, setPendingAccount] = useState(null);
+
+  /* ── Infra for the one-step path (org-chain clients + addresses, same sourcing as onboarding) ── */
+  const isCrossChain = orgChainId && orgChainId !== DEFAULT_CHAIN_ID;
+  const { publicClient, bundlerClient, chainId } = useMemo(() => {
+    if (!isCrossChain) {
+      return { publicClient: homePublicClient, bundlerClient: homeBundlerClient, chainId: DEFAULT_CHAIN_ID };
+    }
+    const clients = createChainClients(orgChainId);
+    if (!clients) return { publicClient: homePublicClient, bundlerClient: homeBundlerClient, chainId: DEFAULT_CHAIN_ID };
+    return { publicClient: clients.publicClient, bundlerClient: clients.bundlerClient, chainId: orgChainId };
+  }, [isCrossChain, orgChainId, homePublicClient, homeBundlerClient]);
+
+  const orgClient = useMemo(() => getClient(subgraphUrl), [subgraphUrl]);
+  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, { client: orgClient, skip: !subgraphUrl });
+  const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, { client: orgClient, skip: !subgraphUrl });
+  const registryAddress = infraData?.universalAccountRegistries?.[0]?.id || null;
+  const paymasterAddress = infraData?.poaManagerContracts?.[0]?.paymasterHubProxy || null;
+  const factoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
+
+  const newAccountReady = Boolean(
+    publicClient && bundlerClient && factoryAddress && registryAddress && paymasterAddress && orgId && zkEmailInvitesAddress && orgName,
+  );
+
+  // Cache the last successful proof so a failure AFTER proving (biometric cancel, bundler timeout,
+  // paymaster rejection) retries in seconds instead of re-running the 17-60s prove. Nothing on-chain
+  // is consumed by a failed submission (the nullifier is only marked on success).
+  const proofCacheRef = useRef(null);
+
+  const onboardingService = useMemo(() => {
+    if (!newAccountReady) return null;
+    return createZkEmailOnboardingService({
+      publicClient,
+      bundlerClient,
+      factoryAddress,
+      registryAddress,
+      zkEmailInvitesAddress,
+      paymasterAddress,
+      orgId,
+      chainId,
+    });
+  }, [newAccountReady, publicClient, bundlerClient, factoryAddress, registryAddress, zkEmailInvitesAddress, paymasterAddress, orgId, chainId]);
+
+  // Restore a pending zk-email credential (survives refresh between sending the email and uploading).
+  useEffect(() => {
+    if (isAuthenticated || pendingAccount || !orgName) return;
+    const pending = getPendingCredentialForOrg(orgName);
+    if (pending?.flow === 'zkemail' && pending.accountAddress) {
+      setPendingAccount(pending);
+    }
+  }, [isAuthenticated, pendingAccount, orgName]);
 
   const reset = useCallback(() => {
     setStep(ZK_CLAIM_STEPS.IDLE);
@@ -48,15 +135,84 @@ export function useClaimZkEmailRole() {
   }, []);
 
   const fail = useCallback((e) => {
-    setError(e instanceof Error ? e : new Error(String(e)));
+    let err = e instanceof Error ? e : new Error(String(e));
+    if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
+      err = new Error('Passkey prompt was cancelled — try again when you are ready.');
+    }
+    setError(err);
     setStep(ZK_CLAIM_STEPS.ERROR);
-    return { success: false, error: e };
+    return { success: false, error: err };
   }, []);
 
   /**
+   * ONE-STEP path, part 1 (no transaction): create the passkey credential locally and compute the
+   * counterfactual account address the verification email must bind to. Persisted per-org.
+   */
+  const prepareNewPasskey = useCallback(
+    async (username) => {
+      setError(null);
+      const name = (username || '').trim();
+      if (name.length < 3) return fail(new Error('Pick a username (at least 3 characters) first.'));
+      if (!onboardingService || !orgName) {
+        return fail(new Error('Account infrastructure is still loading — try again in a moment.'));
+      }
+      // One pending slot per org: never clobber an in-progress vouch application (its credential —
+      // and any vouches already collected for its address — would be unrecoverable).
+      const existing = getPendingCredentialForOrg(orgName);
+      if (existing && existing.flow !== 'zkemail') {
+        return fail(
+          new Error('You have an in-progress join application for this organization — finish or discard it on the Join page first.'),
+        );
+      }
+      try {
+        // Fail BEFORE the biometric prompt if the username is taken — a collision surfacing inside
+        // the final claim transaction would invalidate the already-emailed subject address.
+        const owner = await publicClient.readContract({
+          address: registryAddress,
+          abi: UniversalAccountRegistryABI,
+          functionName: 'getAddressOfUsername',
+          args: [name],
+        });
+        if (owner && owner !== '0x0000000000000000000000000000000000000000') {
+          return fail(new Error(`The username "${name}" is already taken — pick another.`));
+        }
+        const { credential, accountAddress: addr } = await onboardingService.createPendingCredential(name);
+        const pending = {
+          credentialId: credential.credentialId,
+          rawCredentialId: credential.rawCredentialId,
+          publicKeyX: credential.publicKeyX,
+          publicKeyY: credential.publicKeyY,
+          salt: credential.salt.toString(),
+          accountAddress: addr,
+          orgName,
+          username: name,
+          flow: 'zkemail',
+        };
+        savePendingCredential(pending);
+        setPendingAccount(pending);
+        return { success: true, accountAddress: addr };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+    [onboardingService, orgName, publicClient, registryAddress, fail],
+  );
+
+  /** Abandon the pending credential (e.g. the user wants a different username). */
+  const discardPendingPasskey = useCallback(() => {
+    if (pendingAccount?.accountAddress) removePendingCredential(pendingAccount.accountAddress);
+    setPendingAccount(null);
+    reset();
+  }, [pendingAccount, reset]);
+
+  // The address the email subject must bind to: the signed-in account, or the pending one.
+  const claimerAddress = isAuthenticated && accountAddress ? accountAddress : pendingAccount?.accountAddress || null;
+
+  /**
    * Claim a role by proving control of an email the org's allowlist invites.
+   * Existing accounts submit a plain claim; a pending passkey submits the one-step
+   * register-and-claim UserOp (account deploy + username + role, atomically).
    * @param {string} emlText raw .eml the user controls (sent from the address being verified)
-   * @returns {Promise<{ success: boolean, error?: Error }>}
    */
   const claim = useCallback(
     async (emlText) => {
@@ -64,17 +220,42 @@ export function useClaimZkEmailRole() {
       if (!zkEmailInvitesEnabled || !zkEmailInvitesAddress) {
         return fail(new Error('This organization does not have ZK Email invites enabled.'));
       }
-      if (!isAuthenticated || !accountAddress) {
-        return fail(new Error('Connect your wallet or passkey first.'));
+      const oneStep = !(isAuthenticated && accountAddress);
+      if (oneStep && !pendingAccount) {
+        return fail(new Error('Create your passkey first (or sign in) so the claim has an account to land in.'));
       }
-      if (!zkEmailInvites) {
+      if (!oneStep && !zkEmailInvites) {
         return fail(new Error('Web3 services are not ready yet — try again in a moment.'));
       }
+      if (oneStep && !onboardingService) {
+        return fail(new Error('Account infrastructure is still loading — try again in a moment.'));
+      }
+      const claimer = oneStep ? pendingAccount.accountAddress : accountAddress;
 
       try {
         // 1-2. Read the active allowlist and fetch + verify the file.
         setStep(ZK_CLAIM_STEPS.CHECKING);
-        const { root, cid } = await zkEmailInvites.getActiveAllowlist(zkEmailInvitesAddress);
+        let root;
+        let cid;
+        if (oneStep) {
+          // Read directly (no tx manager for a not-yet-signed-in user).
+          const [r, c] = await Promise.all([
+            publicClient.readContract({
+              address: zkEmailInvitesAddress,
+              abi: [{ name: 'merkleRoot', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'bytes32' }] }],
+              functionName: 'merkleRoot',
+            }),
+            publicClient.readContract({
+              address: zkEmailInvitesAddress,
+              abi: [{ name: 'allowlistCid', type: 'function', stateMutability: 'view', inputs: [], outputs: [{ type: 'bytes32' }] }],
+              functionName: 'allowlistCid',
+            }),
+          ]);
+          root = r;
+          cid = c;
+        } else {
+          ({ root, cid } = await zkEmailInvites.getActiveAllowlist(zkEmailInvitesAddress));
+        }
         if (!root || root === ZERO_ROOT) {
           return fail(new Error('This organization has not activated an email allowlist yet.'));
         }
@@ -82,6 +263,19 @@ export function useClaimZkEmailRole() {
         const doc = await safeFetchFromIpfs(cidStr);
         if (!doc) return fail(new Error('Could not load the allowlist file from IPFS — try again.'));
         const tree = assertRootMatches(doc, root); // throws if the file does not match the on-chain root
+
+        // Fast-fail on a stale subject BEFORE the expensive prove: the email must bind THIS claimer.
+        const boundMatch = emlText.match(/Claim POP role for (0x[0-9a-fA-F]{40})/);
+        if (boundMatch && boundMatch[1].toLowerCase() !== claimer.toLowerCase()) {
+          return fail(
+            new Error(
+              `This email is bound to ${boundMatch[1]}, but you are claiming as ${claimer}. ` +
+                (oneStep
+                  ? 'Re-send the verification email with the exact subject shown above.'
+                  : 'It was probably sent for a previous pending account — sign out to resume it, or re-send the email with the subject shown above.'),
+            ),
+          );
+        }
 
         // 3. Pick the claimer's entry: a specific-address entry for their From email wins, else domain.
         const { fromEmail, dkimDomain } = parseEml(emlText);
@@ -104,24 +298,88 @@ export function useClaimZkEmailRole() {
           );
         }
 
-        // 4. Prove the matching circuit (v2 for a specific address, v1 for a domain).
-        setStep(ZK_CLAIM_STEPS.PROVING);
-        const { proof, meta: proofMeta } =
-          mode === 'email'
-            ? await generateEmailAddressProof({ emlText, claimer: accountAddress })
-            : await generateDomainProof({ emlText, claimer: accountAddress });
+        // 4. Prove the matching circuit (v2 for a specific address, v1 for a domain) — or reuse the
+        //    cached proof if this exact (email, claimer, mode) already proved and only submission failed.
+        let proof;
+        let proofMeta;
+        const cache = proofCacheRef.current;
+        if (cache && cache.emlText === emlText && cache.claimer === claimer && cache.mode === mode) {
+          ({ proof, proofMeta } = cache);
+        } else {
+          setStep(ZK_CLAIM_STEPS.PROVING);
+          ({ proof, meta: proofMeta } =
+            mode === 'email'
+              ? await generateEmailAddressProof({ emlText, claimer })
+              : await generateDomainProof({ emlText, claimer }));
+          proofCacheRef.current = { emlText, claimer, mode, proof, proofMeta };
+        }
         setMeta({ mode, hatIds: entry.hatIds, ...proofMeta });
 
-        // 5. Submit with the entry's hatIds + merkle proof; scope the gasless budget to those hats.
+        // 5a. ONE-STEP: single UserOp — deploy account + register username + claim. Wrapped in
+        //     executeWithNotification so the subgraph-sync + 'role:claimed' refresh fires exactly like
+        //     the tx-manager path (otherwise the fresh member's UI stays locked until a hard reload).
+        if (oneStep) {
+          setStep(ZK_CLAIM_STEPS.SIGNING);
+          const result = await executeWithNotification(
+            async () => {
+              const r = await onboardingService.registerAndClaim({
+                credential: pendingAccount,
+                accountAddress: claimer,
+                username: pendingAccount.username,
+                mode,
+                proof,
+                hatIds: entry.hatIds,
+                merkleProof: entry.proof,
+                sponsorHatId: entry.hatIds[0],
+                onStep: (s) =>
+                  setStep(s === 'submitting' || s === 'confirming' ? ZK_CLAIM_STEPS.SUBMITTING : ZK_CLAIM_STEPS.SIGNING),
+              });
+              return { success: true, blockNumber: r.blockNumber, txHash: r.transactionHash };
+            },
+            {
+              pendingMessage: 'Creating your account and claiming your role…',
+              successMessage: 'Account created and role claimed!',
+              errorMessage: 'Claim failed',
+              refreshEvent: 'role:claimed',
+            },
+          );
+          if (!result?.success) {
+            setStep(ZK_CLAIM_STEPS.ERROR);
+            if (result?.error) setError(result.error);
+            return result;
+          }
+          // Sign the new account in and clear the pending slot.
+          activatePasskey({
+            credentialId: pendingAccount.credentialId,
+            rawCredentialId: pendingAccount.rawCredentialId,
+            publicKeyX: pendingAccount.publicKeyX,
+            publicKeyY: pendingAccount.publicKeyY,
+            salt: pendingAccount.salt,
+            accountAddress: claimer,
+            username: pendingAccount.username,
+          });
+          removePendingCredential(claimer);
+          setPendingAccount(null);
+          proofCacheRef.current = null;
+          setStep(ZK_CLAIM_STEPS.DONE);
+          return { success: true };
+        }
+
+        // 5b. Existing account: plain claim via the tx manager (gasless on a passkey). EOA wallets
+        //     must be on the ORG's chain first — a tx sent on the wrong chain targets an address with
+        //     no code there and "succeeds" as a silent no-op.
+        if (!isPasskeyUser && orgChainId && connectedChain?.id !== orgChainId) {
+          await switchChainAsync({ chainId: orgChainId });
+        }
         setStep(ZK_CLAIM_STEPS.SUBMITTING);
         const submit =
           mode === 'email'
             ? () =>
-                zkEmailInvites.claimRoleByEmail(zkEmailInvitesAddress, proof, accountAddress, entry.hatIds, entry.proof, {
+                zkEmailInvites.claimRoleByEmail(zkEmailInvitesAddress, proof, claimer, entry.hatIds, entry.proof, {
                   paymasterHatIds: entry.hatIds,
                 })
             : () =>
-                zkEmailInvites.claimRoleByDomain(zkEmailInvitesAddress, proof, accountAddress, entry.hatIds, entry.proof, {
+                zkEmailInvites.claimRoleByDomain(zkEmailInvitesAddress, proof, claimer, entry.hatIds, entry.proof, {
                   paymasterHatIds: entry.hatIds,
                 });
         const result = await executeWithNotification(submit, {
@@ -132,6 +390,13 @@ export function useClaimZkEmailRole() {
         });
 
         if (result?.success) {
+          // A stale zk-email pending (user ended up claiming with an existing account instead) would
+          // otherwise resurrect its banner after a later sign-out.
+          if (pendingAccount?.accountAddress) {
+            removePendingCredential(pendingAccount.accountAddress);
+            setPendingAccount(null);
+          }
+          proofCacheRef.current = null;
           setStep(ZK_CLAIM_STEPS.DONE);
         } else {
           setStep(ZK_CLAIM_STEPS.ERROR);
@@ -148,6 +413,14 @@ export function useClaimZkEmailRole() {
       zkEmailInvitesEnabled,
       accountAddress,
       isAuthenticated,
+      pendingAccount,
+      onboardingService,
+      publicClient,
+      activatePasskey,
+      isPasskeyUser,
+      orgChainId,
+      connectedChain,
+      switchChainAsync,
       safeFetchFromIpfs,
       bytes32ToIpfsCid,
       executeWithNotification,
@@ -156,5 +429,18 @@ export function useClaimZkEmailRole() {
   );
 
   // Back-compat alias: the existing flow component calls `claimByDomain`.
-  return { claim, claimByDomain: claim, reset, step, error, meta };
+  return {
+    claim,
+    claimByDomain: claim,
+    reset,
+    step,
+    error,
+    meta,
+    // one-step onboarding surface
+    pendingAccount,
+    prepareNewPasskey,
+    discardPendingPasskey,
+    newAccountReady,
+    claimerAddress,
+  };
 }

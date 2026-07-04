@@ -8,6 +8,7 @@ import {
   Code,
   Heading,
   HStack,
+  Input,
   Link as ChakraLink,
   Spinner,
   Text,
@@ -16,21 +17,17 @@ import {
   Wrap,
   WrapItem,
 } from '@chakra-ui/react';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useAuth } from '@/context/AuthContext';
 import { useClaimZkEmailRole, ZK_CLAIM_STEPS } from '@/hooks/useClaimZkEmailRole';
 import { useZkEmailInviteSummary } from '@/hooks/useZkEmailInviteSummary';
 import { buildCommand, buildMailto } from '@/lib/zkemail/prover';
-import PasskeyOnboardingModal from '@/components/passkey/PasskeyOnboardingModal';
 import SignInModal from '@/components/passkey/SignInModal';
 
 // Optional inbox to receive the verification email (e.g. a Cloudflare Email Worker). Empty = the
 // user mails it to themselves; either way the proof is over the DKIM-signed message they sent.
 const CLAIM_INBOX = process.env.NEXT_PUBLIC_ZKEMAIL_INBOX || '';
 
-/**
- * The client-side ZK Email claim flow: send a DKIM-signed email containing the bound command, upload
- * it, prove it in-browser, and submit the (gasless) claim. Render only when `zkEmailInvitesEnabled`.
- */
 /** Verified who-can-join summary (domains + roles from the root-matched allowlist file). */
 function InviteSummary({ summary }) {
   const { status, domains, emailCount, refresh } = summary;
@@ -101,30 +98,62 @@ function InviteSummary({ summary }) {
   );
 }
 
+/**
+ * The client-side ZK Email claim flow. Two entry paths, both ending in the same steps UI:
+ *  - EXISTING account (EOA/passkey signed in): steps bind to the connected address.
+ *  - BRAND-NEW user: pick a username → a passkey is created locally (no transaction) and the steps
+ *    bind to the new account's counterfactual address; the final upload submits ONE gasless UserOp
+ *    that creates the account, registers the username, and mints the role — nothing to do first.
+ * Render only when `zkEmailInvitesEnabled`.
+ */
 export default function ZkEmailClaimFlow() {
-  const { accountAddress, isAuthenticated } = useAuth();
-  const { claimByDomain, step, error, reset } = useClaimZkEmailRole();
+  const { isAuthenticated, accountAddress } = useAuth();
+  const {
+    claim,
+    step,
+    error,
+    reset,
+    pendingAccount,
+    prepareNewPasskey,
+    discardPendingPasskey,
+    newAccountReady,
+    claimerAddress,
+  } = useClaimZkEmailRole();
   const summary = useZkEmailInviteSummary();
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState('');
-  // First-time visitors may have NO account at all — the claim gate offers inline passkey
-  // onboarding (declared before the early returns per rules of hooks).
-  const createDisclosure = useDisclosure();
+  const [username, setUsername] = useState('');
+  const [creating, setCreating] = useState(false);
   const signInDisclosure = useDisclosure();
 
   const busy =
-    step === ZK_CLAIM_STEPS.CHECKING || step === ZK_CLAIM_STEPS.PROVING || step === ZK_CLAIM_STEPS.SUBMITTING;
+    step === ZK_CLAIM_STEPS.CHECKING ||
+    step === ZK_CLAIM_STEPS.PROVING ||
+    step === ZK_CLAIM_STEPS.SIGNING ||
+    step === ZK_CLAIM_STEPS.SUBMITTING;
 
   const onFile = useCallback(
     async (e) => {
       const file = e.target.files?.[0];
+      // Clear the value immediately: browsers suppress onChange for an unchanged value, which would
+      // otherwise kill the natural retry path (re-picking the same .eml after an error).
+      e.target.value = '';
       if (!file) return;
       setFileName(file.name);
       const emlText = await file.text();
-      await claimByDomain(emlText);
+      await claim(emlText);
     },
-    [claimByDomain],
+    [claim],
   );
+
+  const onCreatePasskey = useCallback(async () => {
+    setCreating(true);
+    try {
+      await prepareNewPasskey(username);
+    } finally {
+      setCreating(false);
+    }
+  }, [prepareNewPasskey, username]);
 
   // Module deployed but no allowlist activated: every claim would revert AllowlistNotActive —
   // say so instead of walking the user through steps that cannot succeed.
@@ -146,56 +175,21 @@ export default function ZkEmailClaimFlow() {
             </Button>
           </HStack>
         </Alert>
-      </VStack>
-    );
-  }
-
-  if (!isAuthenticated || !accountAddress) {
-    return (
-      <VStack spacing={4} align="stretch">
-        <Box>
-          <Heading size="md">Claim a role with your email</Heading>
-          <Text mt={1} color="gray.600">
-            Prove you control an invited email — entirely in your browser. No password, no relayer.
-          </Text>
-        </Box>
-        <InviteSummary summary={summary} />
-
-        {/* No dead ends for brand-new users: the role is granted to an account, so offer to CREATE
-            one right here (passkey — gasless, no wallet needed), sign in, or connect a wallet. On
-            success AuthContext updates and this gate re-renders straight into the claim steps. */}
-        <Box p={4} borderWidth="1px" borderRadius="lg">
-          <Text fontWeight="semibold">First, set up the account that will receive your role</Text>
-          <Text fontSize="sm" color="gray.600" mt={1} mb={3}>
-            New here? Create an account with a passkey — no wallet, no seed phrase, and claiming is
-            gas-free. Already have one? Sign in or connect your wallet.
-          </Text>
-          <HStack spacing={3} flexWrap="wrap">
-            <Button colorScheme="teal" size="sm" onClick={createDisclosure.onOpen}>
-              Create account with a passkey
-            </Button>
-            <Button variant="outline" size="sm" onClick={signInDisclosure.onOpen}>
-              Sign in
-            </Button>
-          </HStack>
-        </Box>
-
-        <PasskeyOnboardingModal
-          isOpen={createDisclosure.isOpen}
-          onClose={createDisclosure.onClose}
-          onSuccess={() => {}}
-          showWalletOption
-          paymasterHatId={summary.firstClaimableHatKey || undefined}
-        />
-        <SignInModal
-          isOpen={signInDisclosure.isOpen}
-          onClose={signInDisclosure.onClose}
-          onSuccess={() => {}}
-          onCreateAccount={() => {
-            signInDisclosure.onClose();
-            createDisclosure.onOpen();
-          }}
-        />
+        {!isAuthenticated && pendingAccount && (
+          <Alert status="info" borderRadius="lg" fontSize="sm">
+            <AlertIcon />
+            <HStack justify="space-between" w="full" align="start">
+              <Text>
+                You have a pending claim account (<b>{pendingAccount.username}</b>,{' '}
+                <Code fontSize="xs">{pendingAccount.accountAddress}</Code>) — it stays usable once the
+                invite list is activated.
+              </Text>
+              <Button size="xs" variant="outline" onClick={discardPendingPasskey} flexShrink={0}>
+                Start over
+              </Button>
+            </HStack>
+          </Alert>
+        )}
       </VStack>
     );
   }
@@ -205,7 +199,7 @@ export default function ZkEmailClaimFlow() {
       <VStack spacing={4} align="stretch">
         <Alert status="success" borderRadius="lg">
           <AlertIcon />
-          Role claimed! Your new hats will appear shortly.
+          Role claimed! You’re signed in and your new role will appear shortly.
         </Alert>
         <Button
           alignSelf="start"
@@ -220,6 +214,9 @@ export default function ZkEmailClaimFlow() {
     );
   }
 
+  const hasClaimTarget = Boolean(claimerAddress); // signed-in address OR freshly-created passkey account
+  const stepsLive = summary.status === 'active' || summary.status === 'degraded';
+
   return (
     <VStack spacing={5} align="stretch">
       <Box>
@@ -231,10 +228,65 @@ export default function ZkEmailClaimFlow() {
 
       <InviteSummary summary={summary} />
 
-      {/* Actionable steps only when the allowlist is verifiably live ('active') or provably live but
-          temporarily unreadable ('degraded' — the claim path re-verifies). Never during 'loading' or
-          'unknown', where a dormant module would otherwise flash a claim UI that cannot succeed. */}
-      {(summary.status === 'active' || summary.status === 'degraded') && (
+      {/* Brand-new user, allowlist live: ONE-STEP setup — a username is all that's needed. The
+          passkey is created locally (no transaction); account + username + role all land together
+          in the single claim transaction at the end. */}
+      {stepsLive && !isAuthenticated && !pendingAccount && (
+        <Box p={4} borderWidth="1px" borderRadius="lg">
+          <Text fontWeight="semibold">New here? Pick a username to get started</Text>
+          <Text fontSize="sm" color="gray.600" mt={1} mb={3}>
+            Your passkey is created with your fingerprint — no wallet, no seed phrase, no gas. Your
+            account and role are created together when you upload your email in the final step.
+          </Text>
+          <HStack spacing={3} align="stretch" flexWrap="wrap">
+            <Input
+              placeholder="Choose a username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              size="sm"
+              maxW="240px"
+            />
+            <Button
+              colorScheme="teal"
+              size="sm"
+              onClick={onCreatePasskey}
+              isLoading={creating}
+              isDisabled={!newAccountReady || username.trim().length < 3}
+            >
+              Create passkey & continue
+            </Button>
+          </HStack>
+          <HStack spacing={3} mt={3}>
+            <Text fontSize="xs" color="gray.500">
+              Already have an account?
+            </Text>
+            <Button variant="link" size="xs" onClick={signInDisclosure.onOpen}>
+              Sign in with passkey
+            </Button>
+            <ConnectButton showBalance={false} chainStatus="none" accountStatus="address" />
+          </HStack>
+        </Box>
+      )}
+
+      {/* Pending passkey banner: the steps below bind to this new account's address. */}
+      {!isAuthenticated && pendingAccount && (
+        <Alert status="info" borderRadius="lg" fontSize="sm">
+          <AlertIcon />
+          <HStack justify="space-between" w="full" align="start">
+            <Text>
+              Claiming as <b>{pendingAccount.username}</b> — your new account{' '}
+              <Code fontSize="xs">{pendingAccount.accountAddress}</Code> is created the moment your claim
+              lands (no separate setup).
+            </Text>
+            <Button size="xs" variant="outline" onClick={discardPendingPasskey} flexShrink={0}>
+              Start over
+            </Button>
+          </HStack>
+        </Alert>
+      )}
+
+      {/* Actionable steps: allowlist verifiably live AND we know which address the email must bind to. */}
+      {stepsLive && hasClaimTarget && (
         <>
           <Box p={4} borderWidth="1px" borderRadius="lg">
             <Text fontWeight="semibold">1. Send the verification email</Text>
@@ -242,12 +294,12 @@ export default function ZkEmailClaimFlow() {
               From the email you want to verify, send a message with this exact subject:
             </Text>
             <Code p={2} borderRadius="md" w="full" whiteSpace="pre-wrap" display="block">
-              {buildCommand(accountAddress)}
+              {buildCommand(claimerAddress)}
             </Code>
             <HStack mt={3}>
               <Button
                 as={ChakraLink}
-                href={buildMailto({ to: CLAIM_INBOX, claimer: accountAddress })}
+                href={buildMailto({ to: CLAIM_INBOX, claimer: claimerAddress })}
                 isExternal
                 colorScheme="blue"
                 size="sm"
@@ -261,7 +313,7 @@ export default function ZkEmailClaimFlow() {
             <Text fontWeight="semibold">2. Upload the sent email</Text>
             <Text fontSize="sm" color="gray.600" mb={2}>
               Export it as a <Code>.eml</Code> (in Gmail: ⋮ → Show original → Download Original) and choose it
-              here.
+              here. {!isAuthenticated && 'Your account, username, and role are all created in this one step.'}
             </Text>
             <input ref={fileRef} type="file" accept=".eml,message/rfc822" hidden onChange={onFile} />
             <Button onClick={() => fileRef.current?.click()} isDisabled={busy} size="sm">
@@ -279,7 +331,9 @@ export default function ZkEmailClaimFlow() {
               ? 'Checking the organization’s allowlist…'
               : step === ZK_CLAIM_STEPS.PROVING
                 ? 'Proving your email in your browser — this can take up to a minute (plus a one-time download the first time)…'
-                : 'Submitting your claim…'}
+                : step === ZK_CLAIM_STEPS.SIGNING
+                  ? 'Confirm with your passkey — your account, username, and role go on-chain together…'
+                  : 'Submitting your claim…'}
           </Text>
         </HStack>
       )}
@@ -290,6 +344,13 @@ export default function ZkEmailClaimFlow() {
           {error.message || 'Something went wrong.'}
         </Alert>
       )}
+
+      <SignInModal
+        isOpen={signInDisclosure.isOpen}
+        onClose={signInDisclosure.onClose}
+        onSuccess={() => {}}
+        onCreateAccount={() => signInDisclosure.onClose()}
+      />
     </VStack>
   );
 }
