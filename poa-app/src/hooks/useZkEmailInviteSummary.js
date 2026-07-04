@@ -37,7 +37,7 @@ const READ_ABI = [
   'function allowlistCid() view returns (bytes32)',
 ];
 
-const EMPTY = { status: 'absent', key: '', rawDomains: [], emailCount: 0 };
+const EMPTY = { status: 'absent', key: '', rawDomains: [], rawEmailHats: [], emailCount: 0 };
 
 /** Normalize any hat-id representation (hex or decimal string) to a canonical decimal string. */
 function hatKey(id) {
@@ -72,7 +72,7 @@ export function useZkEmailInviteSummary() {
 
     // Keep verified data only if it belongs to THIS org+chain — an org switch resets synchronously.
     setState((s) =>
-      s.key === key && s.status === 'active' ? s : { status: 'loading', key, rawDomains: [], emailCount: 0 },
+      s.key === key && s.status === 'active' ? s : { status: 'loading', key, rawDomains: [], rawEmailHats: [], emailCount: 0 },
     );
 
     (async () => {
@@ -87,14 +87,14 @@ export function useZkEmailInviteSummary() {
         // Chain read failed: liveness UNKNOWN (could be dormant) — never advertise claimability.
         if (alive) {
           console.warn('[zkemail] allowlist on-chain read failed:', e?.message);
-          setState({ status: 'unknown', key, rawDomains: [], emailCount: 0 });
+          setState({ status: 'unknown', key, rawDomains: [], rawEmailHats: [], emailCount: 0 });
         }
         return;
       }
       if (!alive) return;
 
       if (!root || root === ZERO_ROOT) {
-        setState({ status: 'dormant', key, rawDomains: [], emailCount: 0 });
+        setState({ status: 'dormant', key, rawDomains: [], rawEmailHats: [], emailCount: 0 });
         return;
       }
 
@@ -103,14 +103,14 @@ export function useZkEmailInviteSummary() {
         const doc = await safeFetchFromIpfs(bytes32ToIpfsCid(cid));
         if (!alive) return;
         if (!doc || !Array.isArray(doc.entries) || doc.entries.length === 0) {
-          setState({ status: 'degraded', key, rawDomains: [], emailCount: 0 });
+          setState({ status: 'degraded', key, rawDomains: [], rawEmailHats: [], emailCount: 0 });
           return;
         }
         try {
           assertRootMatches(doc, root);
         } catch (e) {
           console.warn('[zkemail] allowlist file does not match the on-chain root:', e?.message);
-          setState({ status: 'degraded', key, rawDomains: [], emailCount: 0 });
+          setState({ status: 'degraded', key, rawDomains: [], rawEmailHats: [], emailCount: 0 });
           return;
         }
 
@@ -118,6 +118,7 @@ export function useZkEmailInviteSummary() {
         //    which proves against the FIRST matching leaf, so we never advertise roles a claim
         //    wouldn't actually grant).
         const byDomain = new Map();
+        const rawEmailHats = [];
         let emailCount = 0;
         for (const entry of doc.entries) {
           if (entry.type === 'domain' && entry.identifier) {
@@ -125,13 +126,14 @@ export function useZkEmailInviteSummary() {
             if (!byDomain.has(d)) byDomain.set(d, { domain: d, hatIds: entry.hatIds || [] });
           } else if (entry.type === 'email') {
             emailCount += 1;
+            rawEmailHats.push(...(entry.hatIds || []));
           }
         }
-        setState({ status: 'active', key, rawDomains: [...byDomain.values()], emailCount });
+        setState({ status: 'active', key, rawDomains: [...byDomain.values()], rawEmailHats, emailCount });
       } catch (e) {
         if (!alive) return;
         console.warn('[zkemail] allowlist summary failed:', e?.message);
-        setState({ status: 'degraded', key, rawDomains: [], emailCount: 0 });
+        setState({ status: 'degraded', key, rawDomains: [], rawEmailHats: [], emailCount: 0 });
       }
     })();
 
@@ -155,11 +157,31 @@ export function useZkEmailInviteSummary() {
       names.forEach((n) => allNames.add(n));
       return { domain, roleNames: names };
     });
+    const emailHatKeySet = new Set(state.rawEmailHats.map(hatKey).filter(Boolean));
+    const domainsByHatKey = new Map();
+    state.rawDomains.forEach(({ domain, hatIds }) => {
+      (hatIds || []).forEach((h) => {
+        const k = hatKey(h);
+        if (!k) return;
+        if (!domainsByHatKey.has(k)) domainsByHatKey.set(k, []);
+        domainsByHatKey.get(k).push(domain);
+      });
+    });
+    /** Is a given role hat claimable via the ACTIVE allowlist? -> { claimable, byDomain, byEmail, domains } */
+    const claimableInfoFor = (hatId) => {
+      const k = hatKey(hatId);
+      const ds = (k && domainsByHatKey.get(k)) || [];
+      const byEmail = !!k && emailHatKeySet.has(k);
+      return { claimable: ds.length > 0 || byEmail, byDomain: ds.length > 0, byEmail, domains: ds };
+    };
+    const firstClaimableHatKey = domainsByHatKey.keys().next().value || [...emailHatKeySet][0] || null;
     return {
       status: state.status,
       domains,
       emailCount: state.emailCount,
       roleNames: [...allNames],
+      claimableInfoFor,
+      firstClaimableHatKey,
       refresh,
     };
   }, [state, contextRoleNames, refresh]);

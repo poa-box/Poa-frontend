@@ -55,6 +55,8 @@ import SignInModal from '@/components/passkey/SignInModal';
 import { BsFillLightningChargeFill } from 'react-icons/bs';
 import { RoleApplicationForm, VouchLinkHandler, VouchProgressBar } from '@/components/orgStructure';
 import EmailInviteCard from '@/components/zkEmail/EmailInviteCard';
+import { useZkEmailInviteSummary } from '@/hooks/useZkEmailInviteSummary';
+import { orgUrl } from '@/util/orgUrl';
 import ConnectedAccountBadge from '@/components/common/ConnectedAccountBadge';
 import { VouchFirstPhase } from '@/hooks/useVouchFirstOnboarding';
 import { getAllCredentials } from '@/services/web3/passkey/passkeyStorage';
@@ -107,6 +109,13 @@ const User = () => {
       .map(r => { try { return BigInt(r.hatId); } catch { return null; } })
       .filter(Boolean);
   }, [quickJoinEligibleRoles]);
+  // Email-invite fast path: which roles are instantly claimable via the org's ACTIVE allowlist.
+  // Threaded into every RoleApplicationForm so picking a claimable role surfaces the shortcut inline.
+  const inviteSummary = useZkEmailInviteSummary();
+  const emailClaimProp = useMemo(() => ({
+    infoFor: inviteSummary.claimableInfoFor,
+    onClaim: () => router.push(orgUrl(userDAO, 'claim')),
+  }), [inviteSummary.claimableInfoFor, router, userDAO]);
   // Org has both a quick-join path AND a vouch-gated path (e.g. Decentral Park:
   // Neighbor via quickJoin + Delegate via apply/vouch). Surface both in the UI.
   const hasBothPaths = hasQuickJoinRoles && hasVouchGatedRoles;
@@ -737,6 +746,7 @@ const User = () => {
                         textColor={textColor}
                         subtextColor={subtextColor}
                         accentColor={accentColor}
+                        summary={inviteSummary}
                       />
 
                       {!isAuthenticated && (
@@ -1243,6 +1253,7 @@ const User = () => {
                                 onSelectRole={setSelectedHatId}
                                 notes={applicationNotes}
                                 onNotesChange={(e) => setApplicationNotes(e.target.value)}
+                                emailClaim={emailClaimProp}
                               />
 
                               <Button
@@ -1322,6 +1333,7 @@ const User = () => {
                             onSelectRole={setSelectedHatId}
                             notes={applicationNotes}
                             onNotesChange={(e) => setApplicationNotes(e.target.value)}
+                            emailClaim={emailClaimProp}
                           />
 
                           <Button
@@ -1600,6 +1612,7 @@ const User = () => {
                             onSelectRole={setSelectedHatId}
                             notes={applicationNotes}
                             onNotesChange={(e) => setApplicationNotes(e.target.value)}
+                            emailClaim={emailClaimProp}
                           />
 
                           {vouchFirstHook.error && (
@@ -1674,6 +1687,7 @@ const User = () => {
                         onSelectRole={setSelectedHatId}
                         notes={applicationNotes}
                         onNotesChange={(e) => setApplicationNotes(e.target.value)}
+                        emailClaim={emailClaimProp}
                       />
 
                       {/* Error display */}

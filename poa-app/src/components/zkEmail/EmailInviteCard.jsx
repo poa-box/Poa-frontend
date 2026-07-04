@@ -19,10 +19,11 @@ import { orgUrl } from '@/util/orgUrl';
 
 const MAX_DOMAINS_SHOWN = 4;
 
-export default function EmailInviteCard({ bg, textColor, subtextColor, accentColor }) {
+export default function EmailInviteCard({ bg, textColor, subtextColor, accentColor, summary }) {
   const router = useRouter();
   const org = useOrgName();
-  const { status, domains, emailCount, roleNames } = useZkEmailInviteSummary();
+  const ownSummary = useZkEmailInviteSummary(); // unconditional (rules of hooks); prop wins when provided
+  const { status, domains, emailCount, roleNames } = summary || ownSummary;
 
   if (status !== 'active' && status !== 'degraded') return null;
 

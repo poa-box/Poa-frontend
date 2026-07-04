@@ -11,6 +11,7 @@ import {
   Link as ChakraLink,
   Spinner,
   Text,
+  useDisclosure,
   VStack,
   Wrap,
   WrapItem,
@@ -19,6 +20,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useClaimZkEmailRole, ZK_CLAIM_STEPS } from '@/hooks/useClaimZkEmailRole';
 import { useZkEmailInviteSummary } from '@/hooks/useZkEmailInviteSummary';
 import { buildCommand, buildMailto } from '@/lib/zkemail/prover';
+import PasskeyOnboardingModal from '@/components/passkey/PasskeyOnboardingModal';
+import SignInModal from '@/components/passkey/SignInModal';
 
 // Optional inbox to receive the verification email (e.g. a Cloudflare Email Worker). Empty = the
 // user mails it to themselves; either way the proof is over the DKIM-signed message they sent.
@@ -104,6 +107,10 @@ export default function ZkEmailClaimFlow() {
   const summary = useZkEmailInviteSummary();
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState('');
+  // First-time visitors may have NO account at all — the claim gate offers inline passkey
+  // onboarding (declared before the early returns per rules of hooks).
+  const createDisclosure = useDisclosure();
+  const signInDisclosure = useDisclosure();
 
   const busy =
     step === ZK_CLAIM_STEPS.CHECKING || step === ZK_CLAIM_STEPS.PROVING || step === ZK_CLAIM_STEPS.SUBMITTING;
@@ -153,10 +160,42 @@ export default function ZkEmailClaimFlow() {
           </Text>
         </Box>
         <InviteSummary summary={summary} />
-        <Alert status="info" borderRadius="lg">
-          <AlertIcon />
-          Connect your wallet or passkey to claim a role by email.
-        </Alert>
+
+        {/* No dead ends for brand-new users: the role is granted to an account, so offer to CREATE
+            one right here (passkey — gasless, no wallet needed), sign in, or connect a wallet. On
+            success AuthContext updates and this gate re-renders straight into the claim steps. */}
+        <Box p={4} borderWidth="1px" borderRadius="lg">
+          <Text fontWeight="semibold">First, set up the account that will receive your role</Text>
+          <Text fontSize="sm" color="gray.600" mt={1} mb={3}>
+            New here? Create an account with a passkey — no wallet, no seed phrase, and claiming is
+            gas-free. Already have one? Sign in or connect your wallet.
+          </Text>
+          <HStack spacing={3} flexWrap="wrap">
+            <Button colorScheme="teal" size="sm" onClick={createDisclosure.onOpen}>
+              Create account with a passkey
+            </Button>
+            <Button variant="outline" size="sm" onClick={signInDisclosure.onOpen}>
+              Sign in
+            </Button>
+          </HStack>
+        </Box>
+
+        <PasskeyOnboardingModal
+          isOpen={createDisclosure.isOpen}
+          onClose={createDisclosure.onClose}
+          onSuccess={() => {}}
+          showWalletOption
+          paymasterHatId={summary.firstClaimableHatKey || undefined}
+        />
+        <SignInModal
+          isOpen={signInDisclosure.isOpen}
+          onClose={signInDisclosure.onClose}
+          onSuccess={() => {}}
+          onCreateAccount={() => {
+            signInDisclosure.onClose();
+            createDisclosure.onOpen();
+          }}
+        />
       </VStack>
     );
   }
