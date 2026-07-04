@@ -2,7 +2,7 @@ import Head from 'next/head';
 import { PROTO_COPY } from '@/components/marketing/protoCopy';
 import { PRODUCT_SHOTS } from '@/components/marketing/productShots';
 
-// Direction A — "Public works" (civic standards-manual modernism).
+// Direction A · "Public works" (civic standards-manual modernism).
 // NASA Graphics Standards Manual (1975) / Swiss federal signage / USWDS + Public Sans.
 // Self-contained: plain HTML + styled-jsx only. No Chakra, no theme tokens, no
 // framer-motion. Body copy is rendered verbatim from PROTO_COPY; the only
@@ -16,7 +16,7 @@ export default function ProtoA() {
   return (
     <>
       <Head>
-        <title>Poa — public works prototype</title>
+        <title>Poa · public works prototype</title>
         <meta name="viewport" content="width=device-width, initial-scale=1" />
       </Head>
 
@@ -71,10 +71,6 @@ export default function ProtoA() {
                   <span className="pa-arrow">→</span>
                 </a>
               </div>
-              <p className="pa-quiet">
-                <span className="pa-quiet-bar" aria-hidden="true" />
-                {C.hero.quiet}
-              </p>
             </div>
 
             {/* Hero spec plate: the task-detail payout card, annotated. */}
@@ -98,7 +94,7 @@ export default function ProtoA() {
                 {/* annotation leader line pointing into the reward figure */}
                 <div className="pa-anno pa-anno-hero" aria-hidden="true">
                   <span className="pa-anno-label">
-                    fig 00 — work approved, ownership issued
+                    work approved · ownership issued
                   </span>
                   <span className="pa-anno-leader" />
                   <span className="pa-anno-dot" />
@@ -111,11 +107,66 @@ export default function ProtoA() {
                   claimed by emmaphilosopher
                 </span>
               </figcaption>
+
+              {/* mono data chips · read out of the exact numbers in fig 00,
+                  filling the right column with A-language ledger detail */}
+              <ul className="pa-chips" aria-hidden="true">
+                <li className="pa-chip pa-chip-solid">
+                  <span className="pa-chip-k">reward</span>
+                  <span className="pa-chip-v">50 shares</span>
+                </li>
+                <li className="pa-chip">
+                  <span className="pa-chip-k">status</span>
+                  <span className="pa-chip-v">approved · ownership issued</span>
+                </li>
+                <li className="pa-chip">
+                  <span className="pa-chip-k">claimed by</span>
+                  <span className="pa-chip-v">emmaphilosopher</span>
+                </li>
+                <li className="pa-chip">
+                  <span className="pa-chip-k">difficulty</span>
+                  <span className="pa-chip-v">easy · 1h</span>
+                </li>
+              </ul>
+
+              <p className="pa-plate-note">
+                <span className="pa-plate-note-tick" aria-hidden="true" />
+                ownership cannot be bought, sold, or given away. it is issued
+                only when the work is approved.
+              </p>
             </figure>
           </div>
         </section>
 
-        <div className="pa-hairline" />
+        {/* ============= LEDGER STAT BAND (color at the fold) ============= */}
+        {/* The one full-bleed civic moment brought up under the hero. Styled
+            as A's ledger: big Archivo numerals, mono labels, hairline rules,
+            a solid signal tick masthead. Real capture numbers only. */}
+        <section className="pa-ledger" aria-label="Poa by the numbers">
+          <div className="pa-container">
+            <div className="pa-ledger-head">
+              <span className="pa-ledger-tick" aria-hidden="true" />
+              <span className="pa-ledger-title">the record, in the open</span>
+              <span className="pa-ledger-ref">std. 001 / ledger</span>
+            </div>
+            <dl className="pa-ledger-row">
+              <div className="pa-ledger-cell">
+                <dd className="pa-ledger-num">3</dd>
+                <dt className="pa-ledger-lab">profit shares distributed</dt>
+              </div>
+              <div className="pa-ledger-cell">
+                <dd className="pa-ledger-num">100%</dd>
+                <dt className="pa-ledger-lab">
+                  claimed by the members who earned it
+                </dt>
+              </div>
+              <div className="pa-ledger-cell">
+                <dd className="pa-ledger-num pa-ledger-num-sig">$0</dd>
+                <dt className="pa-ledger-lab pa-nocaps">held by Poa</dt>
+              </div>
+            </dl>
+          </div>
+        </section>
 
         {/* ==================== PAIN / THE UPSIDE ==================== */}
         <section className="pa-section pa-pain">
@@ -125,6 +176,10 @@ export default function ProtoA() {
             </span>
 
             <div className="pa-pain-head poa-reveal">
+              <span className="pa-rulepair" aria-hidden="true">
+                <span className="pa-rulepair-sig" />
+                <span className="pa-rulepair-hair" />
+              </span>
               <p className="pa-kicker">
                 <span className="pa-kicker-no">01</span>
                 {C.pain.kicker}
@@ -176,7 +231,7 @@ export default function ProtoA() {
                   <dd className="pa-stat-v">100%</dd>
                 </div>
                 <div className="pa-stat">
-                  <dt className="pa-stat-k">held by Poa</dt>
+                  <dt className="pa-stat-k pa-nocaps">held by Poa</dt>
                   <dd className="pa-stat-v">0</dd>
                 </div>
               </dl>
@@ -309,7 +364,7 @@ export default function ProtoA() {
 
       <style jsx global>{`
         /* Prototype-scoped fonts. Declared here (not globals) so app routes never
-           download them. Variable fonts — driven with font-variation-settings. */
+           download them. Variable fonts · driven with font-variation-settings. */
         @font-face {
           font-family: 'ProtoArchivo';
           src: url('/fonts/proto/a-archivo-vf.woff2') format('woff2');
@@ -327,14 +382,19 @@ export default function ProtoA() {
       <style jsx>{`
         /* -------------------- palette + type -------------------- */
         .pa-root {
-          --bone: #f7f6f2;
+          --bone: #f4f1e9;
+          --bone-deep: #efeade;
+          --paper: #faf8f2;
           --ink: #16181d;
           --steel: #4a4f58;
           --civic: #10243e;
+          --civic-deep: #0b1a2f;
           --signal: #b45309;
+          --signal-warm: #c2610a;
           --signal-deep: #7c2d12;
-          --hair: #d8d5cc;
-          --hair-inv: rgba(247, 246, 242, 0.22);
+          --hair: #d6d1c3;
+          --hair-strong: #c4bda9;
+          --hair-inv: rgba(244, 241, 233, 0.22);
           --rail: 72px;
           --archivo: 'ProtoArchivo', 'Archivo', system-ui, sans-serif;
           --sans: 'ProtoPublicSans', 'Public Sans', system-ui, sans-serif;
@@ -397,7 +457,7 @@ export default function ProtoA() {
           position: sticky;
           top: 0;
           z-index: 20;
-          background: rgba(247, 246, 242, 0.92);
+          background: rgba(244, 241, 233, 0.92);
           border-bottom: 1px solid transparent;
         }
         .pa-nav-inner {
@@ -481,7 +541,86 @@ export default function ProtoA() {
           padding: 92px 0;
         }
         .pa-hero {
-          padding: 72px 0 84px;
+          padding: 60px 0 56px;
+        }
+
+        /* -------------------- ledger stat band (color at fold) -------- */
+        .pa-ledger {
+          background: var(--civic);
+          color: var(--bone);
+          padding: 30px 0 40px;
+          border-top: 3px solid var(--signal);
+        }
+        .pa-ledger-head {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          padding-bottom: 22px;
+          border-bottom: 1px solid var(--hair-inv);
+        }
+        .pa-ledger-tick {
+          width: 14px;
+          height: 14px;
+          background: var(--signal);
+          flex: none;
+        }
+        .pa-ledger-title {
+          font-family: var(--mono);
+          font-size: 12px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+          color: var(--bone);
+        }
+        .pa-ledger-ref {
+          margin-left: auto;
+          font-family: var(--mono);
+          font-size: 11px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          color: var(--signal);
+        }
+        .pa-ledger-row {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          margin: 0;
+          padding: 0;
+        }
+        .pa-ledger-cell {
+          padding: 26px 32px 4px 0;
+          border-left: 1px solid var(--hair-inv);
+          padding-left: 32px;
+          margin: 0;
+        }
+        .pa-ledger-cell:first-child {
+          border-left: none;
+          padding-left: 0;
+        }
+        .pa-ledger-num {
+          font-family: var(--archivo);
+          font-variation-settings: 'wght' 640;
+          font-size: clamp(2.6rem, 5.5vw, 4rem);
+          line-height: 0.95;
+          letter-spacing: -0.03em;
+          color: var(--bone);
+          margin: 0 0 12px;
+        }
+        .pa-ledger-num-sig {
+          color: var(--signal);
+        }
+        .pa-ledger-lab {
+          font-family: var(--mono);
+          font-size: 11.5px;
+          letter-spacing: 0.03em;
+          line-height: 1.45;
+          text-transform: uppercase;
+          color: rgba(244, 241, 233, 0.72);
+          margin: 0;
+          max-width: 22ch;
+        }
+        /* brand-safe: labels containing the "Poa" mark must not be uppercased,
+           since text-transform would render the banned all-caps brand form. */
+        .pa-nocaps {
+          text-transform: none;
         }
 
         /* -------------------- hero -------------------- */
@@ -541,42 +680,90 @@ export default function ProtoA() {
         .pa-arrow {
           font-family: var(--mono);
         }
-        .pa-quiet {
-          margin: 40px 0 0;
-          font-family: var(--mono);
-          font-size: 12.5px;
-          letter-spacing: 0.02em;
-          color: var(--steel);
-          display: flex;
-          align-items: center;
-          gap: 12px;
-        }
-        .pa-quiet-bar {
-          display: inline-block;
-          width: 26px;
-          height: 1px;
-          background: var(--signal);
-          flex: none;
-        }
-
         .pa-hero-plate {
           grid-column: 8 / 14;
           align-self: start;
           margin-top: 4px;
         }
 
+        /* -------------------- hero data chips -------------------- */
+        .pa-chips {
+          list-style: none;
+          margin: 20px 0 0;
+          padding: 0;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        .pa-chip {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-family: var(--mono);
+          font-size: 11.5px;
+          letter-spacing: 0.01em;
+          line-height: 1;
+          padding: 7px 11px;
+          border: 1px solid var(--hair-strong);
+          background: var(--paper);
+          color: var(--ink);
+        }
+        .pa-chip-k {
+          color: var(--steel);
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          font-size: 10px;
+        }
+        .pa-chip-v {
+          color: var(--ink);
+        }
+        /* the primary chip carries solid signal mass above the fold */
+        .pa-chip-solid {
+          background: var(--signal);
+          border-color: var(--signal);
+          color: #fff;
+        }
+        .pa-chip-solid .pa-chip-k {
+          color: rgba(255, 255, 255, 0.82);
+        }
+        .pa-chip-solid .pa-chip-v {
+          color: #fff;
+        }
+
+        .pa-plate-note {
+          margin: 18px 0 0;
+          padding-left: 18px;
+          position: relative;
+          font-size: 14.5px;
+          line-height: 1.5;
+          color: var(--steel);
+          max-width: 44ch;
+        }
+        .pa-plate-note-tick {
+          position: absolute;
+          left: 0;
+          top: 8px;
+          width: 8px;
+          height: 8px;
+          background: var(--signal);
+          flex: none;
+        }
+
         /* -------------------- spec plate -------------------- */
         .pa-plate {
           position: relative;
           padding: 14px;
+          background: var(--bone-deep);
+          border: 1px solid var(--hair-strong);
         }
         .pa-plate-mat {
-          background: var(--bone);
-          border: 1px solid var(--ink);
-          padding: 8px;
+          background: var(--paper);
+          border: 1.5px solid var(--ink);
+          padding: 10px;
+          box-shadow: 0 1px 0 var(--hair);
         }
         .pa-plate-mat-bone {
-          background: var(--bone);
+          background: var(--paper);
         }
         .pa-plate-frame {
           border: 1px solid var(--ink);
@@ -736,6 +923,28 @@ export default function ProtoA() {
           margin-left: 30px;
         }
 
+        /* -------------------- rule-pair section marker -------------------- */
+        .pa-rulepair {
+          display: block;
+          margin: 0 0 26px;
+        }
+        .pa-rulepair-sig,
+        .pa-rulepair-hair {
+          display: block;
+          height: 3px;
+        }
+        .pa-rulepair-sig {
+          width: 56px;
+          background: var(--signal);
+        }
+        .pa-rulepair-hair {
+          width: 100%;
+          max-width: 340px;
+          height: 1px;
+          background: var(--hair-strong);
+          margin-top: 7px;
+        }
+
         /* -------------------- kickers / headings -------------------- */
         .pa-kicker {
           font-family: var(--mono);
@@ -829,10 +1038,11 @@ export default function ProtoA() {
           max-width: 46ch;
         }
 
-        /* -------------------- civic band -------------------- */
+        /* -------------------- civic band (the money PEAK, deeper navy) --- */
         .pa-band {
-          background: var(--civic);
+          background: var(--civic-deep);
           padding: 96px 0;
+          border-top: 3px solid var(--signal);
         }
         .pa-grid-band {
           align-items: center;
@@ -869,8 +1079,12 @@ export default function ProtoA() {
         .pa-band-plate {
           grid-column: 8 / 14;
         }
-        .pa-plate-onnavy .pa-plate-mat {
+        .pa-plate-onnavy {
+          background: rgba(255, 255, 255, 0.03);
           border-color: var(--hair-inv);
+        }
+        .pa-plate-onnavy .pa-plate-mat {
+          border-color: var(--paper);
         }
 
         /* -------------------- product proof -------------------- */
@@ -1045,6 +1259,33 @@ export default function ProtoA() {
           .pa-band {
             padding: 60px 0;
           }
+          .pa-ledger {
+            padding: 26px 0 30px;
+          }
+          .pa-ledger-row {
+            grid-template-columns: 1fr 1fr;
+            gap: 0 20px;
+          }
+          .pa-ledger-cell {
+            padding: 22px 12px 4px 0;
+          }
+          .pa-ledger-cell,
+          .pa-ledger-cell:first-child {
+            border-left: none;
+            padding-left: 0;
+          }
+          /* the third cell (held by Poa) spans full width beneath the pair */
+          .pa-ledger-cell:last-child {
+            grid-column: 1 / 3;
+            border-top: 1px solid var(--hair-inv);
+            margin-top: 6px;
+          }
+          .pa-ledger-ref {
+            display: none;
+          }
+          .pa-chips {
+            gap: 8px;
+          }
           .pa-nav-links {
             display: none;
           }
@@ -1068,7 +1309,7 @@ export default function ProtoA() {
           .pa-band-plate {
             max-width: 100%;
           }
-          /* annotations are tight on narrow screens — hide the floating callouts,
+          /* annotations are tight on narrow screens · hide the floating callouts,
              the figure bars carry the same information in-flow */
           .pa-anno {
             display: none;
