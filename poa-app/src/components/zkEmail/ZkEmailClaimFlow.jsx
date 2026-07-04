@@ -24,9 +24,13 @@ import { useZkEmailInviteSummary } from '@/hooks/useZkEmailInviteSummary';
 import { buildCommand, buildMailto } from '@/lib/zkemail/prover';
 import SignInModal from '@/components/passkey/SignInModal';
 
-// Optional inbox to receive the verification email (e.g. a Cloudflare Email Worker). Empty = the
-// user mails it to themselves; either way the proof is over the DKIM-signed message they sent.
+// Optional claim inbox (a Cloudflare Email Worker — see cloudflare-worker-claim-inbox/). When BOTH
+// the address and the worker URL are set, the user just sends the email and clicks "fetch" — the
+// page pulls the signed message itself, no manual .eml export. Manual upload always stays as the
+// permissionless fallback. Unset = manual-upload-only.
 const CLAIM_INBOX = process.env.NEXT_PUBLIC_ZKEMAIL_INBOX || '';
+const CLAIM_INBOX_URL = (process.env.NEXT_PUBLIC_ZKEMAIL_INBOX_URL || '').replace(/\/$/, '');
+const INBOX_ENABLED = Boolean(CLAIM_INBOX && CLAIM_INBOX_URL);
 
 /** Verified who-can-join summary (domains + roles from the root-matched allowlist file). */
 function InviteSummary({ summary }) {
@@ -109,6 +113,8 @@ export default function ZkEmailClaimFlow() {
   const { isAuthenticated, accountAddress } = useAuth();
   const {
     claim,
+    finishClaim,
+    ready,
     step,
     error,
     reset,
@@ -123,6 +129,8 @@ export default function ZkEmailClaimFlow() {
   const [fileName, setFileName] = useState('');
   const [username, setUsername] = useState('');
   const [creating, setCreating] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [fetchMsg, setFetchMsg] = useState('');
   const signInDisclosure = useDisclosure();
 
   const busy =
@@ -153,6 +161,38 @@ export default function ZkEmailClaimFlow() {
       setCreating(false);
     }
   }, [prepareNewPasskey, username]);
+
+  // Auto-fetch: poll the claim inbox worker for the received (signed) email, then prove it — no
+  // manual export. Bounded poll; manual upload remains available the whole time.
+  const fetchFromInbox = useCallback(async () => {
+    if (!claimerAddress || !INBOX_ENABLED) return;
+    setFetching(true);
+    setFetchMsg('Waiting for your email to arrive… (send it if you haven’t)');
+    const deadline = Date.now() + 150_000; // ~2.5 min
+    try {
+      while (Date.now() < deadline) {
+        try {
+          const res = await fetch(`${CLAIM_INBOX_URL}/claim-email?claimer=${claimerAddress}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'ready' && data.eml) {
+              setFetchMsg('');
+              setFetching(false);
+              setFileName('(fetched from inbox)');
+              await claim(data.eml);
+              return;
+            }
+          }
+        } catch (_) {
+          /* transient — keep polling */
+        }
+        await new Promise((r) => setTimeout(r, 3000));
+      }
+      setFetchMsg('Didn’t see your email yet. Send it to the address above, then try again — or upload the .eml below.');
+    } finally {
+      setFetching(false);
+    }
+  }, [claimerAddress, claim]);
 
   // Module deployed but no allowlist activated: every claim would revert AllowlistNotActive —
   // say so instead of walking the user through steps that cannot succeed.
@@ -289,12 +329,20 @@ export default function ZkEmailClaimFlow() {
         <>
           <Box p={4} borderWidth="1px" borderRadius="lg">
             <Text fontWeight="semibold">1. Send the verification email</Text>
-            <Text fontSize="sm" color="gray.600" mb={2}>
-              From the <b>invited email address</b>, send a message with this exact subject to{' '}
-              <b>another inbox you can open</b> — a work email, a second account, etc. The body doesn’t
-              matter. (Don’t send it to the same address: your own Sent copy is saved <i>before</i> the
-              provider signs it, so it can never verify.)
-            </Text>
+            {INBOX_ENABLED ? (
+              <Text fontSize="sm" color="gray.600" mb={2}>
+                From the <b>invited email address</b>, send a message with this exact subject to{' '}
+                <Code fontSize="xs">{CLAIM_INBOX}</Code>. The body doesn’t matter — we’ll fetch and
+                verify it for you in the next step.
+              </Text>
+            ) : (
+              <Text fontSize="sm" color="gray.600" mb={2}>
+                From the <b>invited email address</b>, send a message with this exact subject to{' '}
+                <b>another inbox you can open</b> — a work email, a second account, etc. The body doesn’t
+                matter. (Don’t send it to the same address: your own Sent copy is saved <i>before</i> the
+                provider signs it, so it can never verify.)
+              </Text>
+            )}
             <Code p={2} borderRadius="md" w="full" whiteSpace="pre-wrap" display="block">
               {buildCommand(claimerAddress)}
             </Code>
@@ -326,8 +374,33 @@ export default function ZkEmailClaimFlow() {
             </HStack>
           </Box>
 
+          {/* Auto-fetch via the claim inbox worker — no manual export. Feature-flagged. */}
+          {INBOX_ENABLED && (
+            <Box p={4} borderWidth="1px" borderRadius="lg" borderColor="blue.200" bg="blue.50">
+              <Text fontWeight="semibold" color="blue.800">
+                2. Fetch &amp; verify your email
+              </Text>
+              <Text fontSize="sm" color="blue.800" mt={1} mb={3}>
+                Once you’ve sent it, click below — we’ll pick up the signed message from{' '}
+                <Code fontSize="xs">{CLAIM_INBOX}</Code> and prove it automatically. No download needed.
+              </Text>
+              <Button colorScheme="blue" size="sm" onClick={fetchFromInbox} isLoading={fetching} isDisabled={busy}>
+                I sent it — fetch &amp; verify
+              </Button>
+              {fetchMsg && (
+                <Text fontSize="xs" color="blue.800" mt={2}>
+                  {fetchMsg}
+                </Text>
+              )}
+            </Box>
+          )}
+
           <Box p={4} borderWidth="1px" borderRadius="lg">
-            <Text fontWeight="semibold">2. Download the raw email from the inbox that RECEIVED it</Text>
+            <Text fontWeight="semibold">
+              {INBOX_ENABLED
+                ? 'Or upload the raw email yourself'
+                : '2. Download the raw email from the inbox that RECEIVED it'}
+            </Text>
             <Text fontSize="sm" color="gray.600" mt={1}>
               Open the <b>received copy</b> (not your Sent folder — that copy is unsigned) and export the{' '}
               <b>original message with its full headers</b>. Mobile apps and most third-party mail apps
@@ -361,6 +434,27 @@ export default function ZkEmailClaimFlow() {
               {fileName || 'Choose .eml file'}
             </Button>
           </Box>
+
+          {/* Step 3: the proof is done — a SEPARATE click fires the passkey/wallet signature. This is
+              required, not just tidy: WebAuthn refuses to run after the long prove consumed the
+              file-pick's user activation ("The document is not focused"). Gated on `ready && !busy` so
+              a cancelled biometric (step → ERROR) still leaves the button to retry — the cached proof
+              means the retry is instant. */}
+          {ready && !busy && (
+            <Box p={4} borderWidth="1px" borderRadius="lg" borderColor="teal.300" bg="teal.50">
+              <Text fontWeight="semibold" color="teal.800">
+                {step === ZK_CLAIM_STEPS.ERROR ? '3. Almost there — try again' : '3. Email verified ✓ — finish your claim'}
+              </Text>
+              <Text fontSize="sm" color="teal.800" mt={1} mb={3}>
+                Your email proof is ready. {!isAuthenticated
+                  ? 'Tap below and confirm with your passkey — your account, username, and role are created together in one gasless transaction.'
+                  : 'Tap below and confirm to mint your role.'}
+              </Text>
+              <Button colorScheme="teal" size="sm" onClick={finishClaim}>
+                {step === ZK_CLAIM_STEPS.ERROR ? 'Retry — confirm with your passkey' : 'Finish & claim my role'}
+              </Button>
+            </Box>
+          )}
         </>
       )}
 

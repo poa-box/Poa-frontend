@@ -1,0 +1,19 @@
+name = "poa-zkemail-claim-inbox"
+main = "worker.mjs"
+compatibility_date = "2024-11-01"
+
+# Short-lived store for received claim emails (1h TTL). Create it once with:
+#   wrangler kv namespace create CLAIM_EMAILS
+# then paste the returned id below (and a preview_id for `wrangler dev`).
+[[kv_namespaces]]
+binding = "CLAIM_EMAILS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[vars]
+# Lock the fetch endpoint to your app origin(s) to reduce casual scraping of the
+# short-lived sender↔claimer mapping. Use "*" only while testing.
+ALLOWED_ORIGIN = "*"
+
+# Inbound Email Routing is wired in the Cloudflare dashboard, NOT here:
+#   Email → Email Routing → Routes → route  claim@yourdomain  →  Worker: poa-zkemail-claim-inbox
+# (Inbound `email()` handling needs no wrangler trigger binding.)

@@ -48,6 +48,7 @@ export const ZK_CLAIM_STEPS = {
   IDLE: 'idle',
   CHECKING: 'checking',
   PROVING: 'proving',
+  PROOF_READY: 'proof_ready', // proved; waiting for a user click to sign (WebAuthn needs fresh activation)
   SIGNING: 'signing', // biometric prompts for the one-step passkey path
   SUBMITTING: 'submitting',
   DONE: 'done',
@@ -105,6 +106,13 @@ export function useClaimZkEmailRole() {
   // is consumed by a failed submission (the nullifier is only marked on success).
   const proofCacheRef = useRef(null);
 
+  // A proved-but-not-yet-submitted claim, held between `claim()` (prove) and `finishClaim()` (sign +
+  // submit). The split exists because the passkey/wallet signature MUST be triggered by a fresh user
+  // gesture — a 14-40s prove expires the file-pick activation, so auto-firing WebAuthn throws
+  // "The document is not focused". `ready` drives the "Finish" button in the UI.
+  const readyRef = useRef(null);
+  const [ready, setReady] = useState(false);
+
   const onboardingService = useMemo(() => {
     if (!newAccountReady) return null;
     return createZkEmailOnboardingService({
@@ -132,6 +140,8 @@ export function useClaimZkEmailRole() {
     setStep(ZK_CLAIM_STEPS.IDLE);
     setError(null);
     setMeta(null);
+    readyRef.current = null;
+    setReady(false);
   }, []);
 
   const fail = useCallback((e) => {
@@ -355,17 +365,58 @@ export function useClaimZkEmailRole() {
         }
         setMeta({ mode, hatIds: entry.hatIds, ...proofMeta });
 
-        // 5a. ONE-STEP: single UserOp — deploy account + register username + claim. Wrapped in
-        //     executeWithNotification so the subgraph-sync + 'role:claimed' refresh fires exactly like
-        //     the tx-manager path (otherwise the fresh member's UI stays locked until a hard reload).
+        // Proof is ready. STOP before signing: the on-chain step needs a passkey/wallet signature,
+        // which the browser only permits from a FRESH user gesture. The 14-40s prove has expired the
+        // file-pick activation, so auto-firing the ceremony here throws "The document is not focused".
+        // Capture everything the submit needs (incl. the pending credential, so a mid-flow sign-in
+        // can't strand it) and hand off to `finishClaim`, which runs on a button click.
+        readyRef.current = { proof, entry, mode, claimer, oneStep, credential: oneStep ? pendingAccount : null };
+        setReady(true);
+        setStep(ZK_CLAIM_STEPS.PROOF_READY);
+        return { success: true, proofReady: true };
+      } catch (e) {
+        return fail(e);
+      }
+    },
+    [
+      zkEmailInvites,
+      zkEmailInvitesAddress,
+      zkEmailInvitesEnabled,
+      accountAddress,
+      isAuthenticated,
+      pendingAccount,
+      onboardingService,
+      publicClient,
+      safeFetchFromIpfs,
+      bytes32ToIpfsCid,
+      fail,
+    ],
+  );
+
+  /**
+   * Finish a proved claim: sign + submit. MUST be invoked from a user gesture (button click) — the
+   * passkey/wallet ceremony needs the fresh user activation that the long proving step consumed.
+   * Idempotent-safe: the proof is cached, so a failed attempt can be retried by clicking again.
+   */
+  const finishClaim = useCallback(
+    async () => {
+      const r = readyRef.current;
+      if (!r) return fail(new Error('Upload your verification email first.'));
+      const { proof, entry, mode, claimer, oneStep, credential } = r;
+      try {
+        // ONE-STEP: single UserOp — deploy account + register username + claim. Wrapped in
+        // executeWithNotification so subgraph-sync + 'role:claimed' fire like the tx-manager path.
         if (oneStep) {
+          if (!onboardingService || !credential) {
+            return fail(new Error('Account infrastructure is still loading — try again in a moment.'));
+          }
           setStep(ZK_CLAIM_STEPS.SIGNING);
           const result = await executeWithNotification(
             async () => {
-              const r = await onboardingService.registerAndClaim({
-                credential: pendingAccount,
+              const rr = await onboardingService.registerAndClaim({
+                credential,
                 accountAddress: claimer,
-                username: pendingAccount.username,
+                username: credential.username,
                 mode,
                 proof,
                 hatIds: entry.hatIds,
@@ -374,7 +425,7 @@ export function useClaimZkEmailRole() {
                 onStep: (s) =>
                   setStep(s === 'submitting' || s === 'confirming' ? ZK_CLAIM_STEPS.SUBMITTING : ZK_CLAIM_STEPS.SIGNING),
               });
-              return { success: true, blockNumber: r.blockNumber, txHash: r.transactionHash };
+              return { success: true, blockNumber: rr.blockNumber, txHash: rr.transactionHash };
             },
             {
               pendingMessage: 'Creating your account and claiming your role…',
@@ -388,26 +439,29 @@ export function useClaimZkEmailRole() {
             if (result?.error) setError(result.error);
             return result;
           }
-          // Sign the new account in and clear the pending slot.
           activatePasskey({
-            credentialId: pendingAccount.credentialId,
-            rawCredentialId: pendingAccount.rawCredentialId,
-            publicKeyX: pendingAccount.publicKeyX,
-            publicKeyY: pendingAccount.publicKeyY,
-            salt: pendingAccount.salt,
+            credentialId: credential.credentialId,
+            rawCredentialId: credential.rawCredentialId,
+            publicKeyX: credential.publicKeyX,
+            publicKeyY: credential.publicKeyY,
+            salt: credential.salt,
             accountAddress: claimer,
-            username: pendingAccount.username,
+            username: credential.username,
           });
           removePendingCredential(claimer);
           setPendingAccount(null);
           proofCacheRef.current = null;
+          readyRef.current = null;
+          setReady(false);
           setStep(ZK_CLAIM_STEPS.DONE);
           return { success: true };
         }
 
-        // 5b. Existing account: plain claim via the tx manager (gasless on a passkey). EOA wallets
-        //     must be on the ORG's chain first — a tx sent on the wrong chain targets an address with
-        //     no code there and "succeeds" as a silent no-op.
+        // Existing account: plain claim via the tx manager (gasless on a passkey). EOA wallets must be
+        // on the ORG's chain first — a tx on the wrong chain hits a no-code address and no-ops.
+        if (!zkEmailInvites) {
+          return fail(new Error('Web3 services are not ready yet — try again in a moment.'));
+        }
         if (!isPasskeyUser && orgChainId && connectedChain?.id !== orgChainId) {
           await switchChainAsync({ chainId: orgChainId });
         }
@@ -430,13 +484,13 @@ export function useClaimZkEmailRole() {
         });
 
         if (result?.success) {
-          // A stale zk-email pending (user ended up claiming with an existing account instead) would
-          // otherwise resurrect its banner after a later sign-out.
           if (pendingAccount?.accountAddress) {
             removePendingCredential(pendingAccount.accountAddress);
             setPendingAccount(null);
           }
           proofCacheRef.current = null;
+          readyRef.current = null;
+          setReady(false);
           setStep(ZK_CLAIM_STEPS.DONE);
         } else {
           setStep(ZK_CLAIM_STEPS.ERROR);
@@ -448,22 +502,16 @@ export function useClaimZkEmailRole() {
       }
     },
     [
+      onboardingService,
+      executeWithNotification,
+      activatePasskey,
       zkEmailInvites,
       zkEmailInvitesAddress,
-      zkEmailInvitesEnabled,
-      accountAddress,
-      isAuthenticated,
-      pendingAccount,
-      onboardingService,
-      publicClient,
-      activatePasskey,
       isPasskeyUser,
       orgChainId,
       connectedChain,
       switchChainAsync,
-      safeFetchFromIpfs,
-      bytes32ToIpfsCid,
-      executeWithNotification,
+      pendingAccount,
       fail,
     ],
   );
@@ -472,6 +520,8 @@ export function useClaimZkEmailRole() {
   return {
     claim,
     claimByDomain: claim,
+    finishClaim,
+    ready,
     reset,
     step,
     error,
