@@ -104,7 +104,7 @@ export default function Home() {
     "alternateName": ["poa", "poa.box", "poa box", "Poa.box"],
     "url": "https://poa.box",
     "description":
-      "Poa (poa.box) turns a group into an organization the members own together: rules they choose, membership built on vouching, and a shared treasury that pays people in dollars, in one place.",
+      "Poa (poa.box) turns your group into an organization you own together. Finished work earns ownership: a share of the revenue and a real say in the decisions.",
     "potentialAction": {
       "@type": "SearchAction",
       "target": {
@@ -137,18 +137,16 @@ export default function Home() {
       ],
     },
     "knowsAbout": [
-      "Member owned organizations",
-      "Worker cooperatives",
-      "Student organizations",
-      "Community organizations",
-      "Direct democracy",
-      "Participation based voting",
-      "Vouch based membership",
-      "Shared treasuries",
-      "Open-source governance tools",
+      "Worker owned organization",
+      "Community ownership",
+      "Cooperative software",
+      "Revenue sharing",
+      "Group governance",
+      "Task management for communities",
+      "Start a cooperative",
     ],
     "description":
-      "Poa (poa.box) lets a group become an organization it owns together: rules chosen and rewritten by members, membership built on vouching, and a treasury that pays people in dollars. Open-source, decentralized, and free.",
+      "Poa (poa.box) turns your group into an organization you own together. Finished work earns ownership: revenue share and voting power for the tasks you complete. Open-source and free.",
   };
 
   const softwareLD = {
@@ -157,11 +155,11 @@ export default function Home() {
     "name": "Poa",
     "alternateName": ["poa", "poa.box", "Poa Perpetual Organization Architect"],
     "applicationCategory": "BusinessApplication",
-    "applicationSubCategory": "Member owned organization platform",
+    "applicationSubCategory": "Worker owned organization platform",
     "operatingSystem": "Web",
     "url": "https://poa.box",
     "description":
-      "Start an organization your group owns: voting, membership, tasks, and a shared treasury in one place. Voting power is earned by participating. Open-source and free to use on poa.box.",
+      "Start an organization your group owns together: tasks, voting, membership, and a shared treasury in one place. Finished work earns ownership, and voting power is earned by participating. Open-source and free to use on poa.box.",
     "offers": {
       "@type": "Offer",
       "price": "0",
@@ -182,21 +180,21 @@ export default function Home() {
   return (
     <>
       <SEOHead
-        title="Poa: start an organization your group owns"
-        description="An organization your group owns together: the rules you make, the votes you run, the money you share, paid in dollars. Open and free."
+        title="Poa: organizations that pay you with ownership"
+        description="Turn your group into an organization you own together. Finished work earns ownership: revenue share and voting power for the tasks you complete. Free and open."
         path="/"
-        ogImage="/images/poa-og-charter.png"
+        ogImage="/images/poa-og-landing.png"
+        ogImageAlt="Poa"
         keywords={[
-          "member owned organization",
-          "community owned organization",
-          "start an organization",
-          "worker cooperative software",
-          "student organization governance",
-          "creative collective",
-          "club treasury",
+          "worker owned organization",
+          "community ownership",
+          "cooperative software",
+          "revenue sharing",
+          "group governance",
+          "task management for communities",
+          "start a cooperative",
           "vouch based membership",
           "participation based voting",
-          "organization templates",
           "poa.box",
         ]}
         jsonLd={[webSite, organizationLD, softwareLD, breadcrumb]}

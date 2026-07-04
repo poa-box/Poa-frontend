@@ -28,16 +28,16 @@ export default function AboutPage() {
   return (
     <>
       <SEOHead
-        title="About Poa. The Mission Behind a Community-Owned Organization Builder"
-        description="Why Poa exists. Your group owns the whole thing, the rules you make, the votes you run, the money you share. Open and free."
+        title="About Poa: built by the people who own it"
+        description="Why Poa exists: the belief that the people who build a thing should own it, the problem it answers, and how we hold ourselves to it. Poa runs on Poa."
         path="/about"
         keywords={[
           "about poa",
-          "community owned organization",
-          "contribution based ownership",
-          "earned governance",
-          "worker owned platform",
-          "open-source governance tools",
+          "worker owned organization",
+          "community ownership",
+          "cooperative software",
+          "revenue sharing",
+          "group governance",
           "poa.box",
         ]}
         jsonLd={{
@@ -45,7 +45,7 @@ export default function AboutPage() {
           "@type": "AboutPage",
           "name": "About Poa",
           "description":
-            "Poa lets a group become an organization it owns together: rules chosen by members, membership built on vouching, and a treasury that pays in dollars. Groups choose how votes are weighed, from one member one vote to weight earned by contribution, or a hybrid. Open-source, decentralized, and free.",
+            "Why Poa exists: the belief that the people who build a thing should own it. Poa turns a group into an organization it owns together, where finished work earns ownership, a share of the revenue and a real say. Poa runs as an organization on Poa, with its books public. Open-source and free.",
           "url": "https://poa.box/about/",
           "mainEntity": {
             "@type": "Organization",
