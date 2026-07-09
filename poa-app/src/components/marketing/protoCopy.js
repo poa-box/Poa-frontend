@@ -14,9 +14,9 @@ export const PROTO_COPY = {
 
   hero: {
     eyebrow: 'Organizations owned by the people in them',
-    headline: 'Do the work. Own the upside.',
+    headline: 'Do the work. Own what you build.',
     subline:
-      'On Poa, finished work earns you real ownership: a share of the revenue and a say in the decisions. It cannot be bought, only earned.',
+      'On Poa, the work you finish earns you real ownership. A share of the money when your organization distributes revenue, and a real say in the decisions. It is earned, never bought.',
     ctaPrimary: 'Start an organization',
     ctaSecondary: 'See how it works',
     quiet: 'An account is a username and a passkey. Poa charges nothing.',
@@ -26,7 +26,7 @@ export const PROTO_COPY = {
     kicker: 'The upside',
     heading: 'Your work becomes your share',
     lead:
-      'Most groups run on effort that is never written down. The people doing the most own nothing. Poa turns approved work into ownership, in the open, by rules the group chooses.',
+      'Most groups run on effort that is never written down, and the people doing the most own nothing. Poa turns approved work into ownership, in the open, by rules the group sets for itself.',
     items: [
       {
         title: 'Ownership is earned',

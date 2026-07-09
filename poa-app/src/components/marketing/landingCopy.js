@@ -24,7 +24,7 @@ import { PROTO_COPY } from '@/components/marketing/protoCopy';
 
 export const HERO = {
   eyebrow: PROTO_COPY.hero.eyebrow, // "Organizations owned by the people in them"
-  headline: PROTO_COPY.hero.headline, // "Do the work. Own the upside."
+  headline: PROTO_COPY.hero.headline, // "Do the work. Own what you build."
   subline: PROTO_COPY.hero.subline,
   ctaPrimary: PROTO_COPY.hero.ctaPrimary, // "Start an organization"
   ctaSecondary: PROTO_COPY.hero.ctaSecondary, // "See how it works"
@@ -110,7 +110,7 @@ export const PROBLEM = {
   kicker: 'The problem',
   heading: 'From a group chat to an organization',
   lead:
-    'A group forms, the work starts, and it grows on trust and good will. Then it gets big enough that trust alone stops holding it together.',
+    'The group is real. The tools were never built for it. The work starts, trust and good will carry it, and then the group gets big enough that trust alone stops holding it together.',
   items: [
     {
       title: 'The work goes untracked',

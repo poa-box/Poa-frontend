@@ -4,7 +4,7 @@
  *
  * Renders the landing-only Open Graph card (1200x630) in the Direction A
  * "public works" visual system: bone ground, ink Archivo display headline
- * ("Do the work. / Own the upside."), signal-orange accents, IBM Plex Mono
+ * ("Do the work. / Own what you build."), signal-orange accents, IBM Plex Mono
  * eyebrow + subline, the "Poa" mark, corner registration ticks. Purely
  * typographic — no product screenshot.
  *
@@ -118,7 +118,7 @@ function buildHtml() {
     </div>
     <div class="mid">
       <span class="rulepair"><span class="rulepair-sig"></span><span class="rulepair-hair"></span></span>
-      <h1>Do the work.<br /><span class="own">Own the upside.</span></h1>
+      <h1>Do the work.<br /><span class="own">Own what you build.</span></h1>
     </div>
     <div class="bottom">
       <p class="sub">finished work earns <span class="em">ownership</span> &middot; revenue share and a real say</p>
