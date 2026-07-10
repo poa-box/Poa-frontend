@@ -783,6 +783,11 @@ const User = () => {
 
           {/* Join form (primary, left side) */}
           <GridItem order={{ base: 1, lg: 1 }} mb={{ base: 4, lg: 0 }} overflow="hidden">
+            {/* Mobile-only fast path: the full email-invite card lives in the other column, which
+                renders BELOW the form at base — surface a one-line banner above the fold instead. */}
+            <Box display={{ base: 'block', lg: 'none' }} mb={3}>
+              <EmailInviteCard variant="banner" summary={inviteSummary} />
+            </Box>
             <ScaleFade in={animateForm} initialScale={0.95} delay={0.05} transition={{ enter: { duration: 0.3 } }}>
               <Card
                 bg={cardBg}

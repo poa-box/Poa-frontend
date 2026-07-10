@@ -19,13 +19,33 @@ import { orgUrl } from '@/util/orgUrl';
 
 const MAX_DOMAINS_SHOWN = 4;
 
-export default function EmailInviteCard({ bg, textColor, subtextColor, accentColor, summary }) {
+export default function EmailInviteCard({ bg, textColor, subtextColor, accentColor, summary, variant }) {
   const router = useRouter();
   const org = useOrgName();
   const ownSummary = useZkEmailInviteSummary(); // unconditional (rules of hooks); prop wins when provided
   const { status, domains, emailCount, roleNames } = summary || ownSummary;
 
   if (status !== 'active' && status !== 'degraded') return null;
+
+  // Compact one-line banner (mobile: the full card lives below the fold under the join form).
+  if (variant === 'banner') {
+    return (
+      <Button
+        width="100%"
+        size="sm"
+        colorScheme="teal"
+        variant="solid"
+        rightIcon={<FaChevronRight />}
+        leftIcon={<Icon as={FaEnvelopeOpenText} />}
+        onClick={() => router.push(orgUrl(org, 'claim'))}
+        isDisabled={!org}
+        whiteSpace="normal"
+        py={5}
+      >
+        Invited by email? Claim your role instantly
+      </Button>
+    );
+  }
 
   const shown = domains.slice(0, MAX_DOMAINS_SHOWN);
   const moreDomains = domains.length - shown.length;

@@ -26,13 +26,51 @@ const SUBJECT_RE = /Claim POP role for (0x[0-9a-fA-F]{40})/;
 const TTL_SECONDS = 3600; // hold a received email at most 1 hour
 const MAX_BYTES = 1_000_000; // claim emails are tiny; reject anything larger
 
-function corsHeaders(env) {
-  return {
-    'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*',
+/**
+ * Decode RFC 2047 encoded-words (`=?charset?B|Q?...?=`) in a raw header value. Some providers
+ * encode even pure-ASCII subjects; without decoding, a valid claim would bounce as "not a POP
+ * claim". Unknown charsets fall back to latin1 (byte-preserving); undecodable words are left as-is.
+ */
+function decodeRfc2047(value) {
+  if (!value || !value.includes('=?')) return value;
+  return value.replace(/=\?([^?]+)\?([bBqQ])\?([^?]*)\?=/g, (whole, charset, enc, text) => {
+    try {
+      let bytes;
+      if (enc.toLowerCase() === 'b') {
+        const bin = atob(text);
+        bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0));
+      } else {
+        // Q-encoding: underscore = space, =XX = byte
+        const q = text.replace(/_/g, ' ').replace(/=([0-9a-fA-F]{2})/g, (m, h) => String.fromCharCode(parseInt(h, 16)));
+        bytes = Uint8Array.from(q, (c) => c.charCodeAt(0) & 0xff);
+      }
+      try {
+        return new TextDecoder(charset.split('*')[0]).decode(bytes);
+      } catch (_) {
+        return new TextDecoder('latin1').decode(bytes);
+      }
+    } catch (_) {
+      return whole;
+    }
+  });
+}
+
+/**
+ * CORS: `ALLOWED_ORIGIN` is a comma-separated allowlist (or "*"). Echo the request origin only if
+ * allowed; otherwise omit the header. This is scrape-reduction, NOT auth — the endpoint stays
+ * intentionally unauthenticated (see the privacy note above).
+ */
+function corsHeaders(env, request) {
+  const conf = (env.ALLOWED_ORIGIN || '*').split(',').map((s) => s.trim()).filter(Boolean);
+  const origin = request.headers.get('Origin') || '';
+  const allow = conf.includes('*') ? '*' : conf.includes(origin) ? origin : null;
+  const headers = {
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     Vary: 'Origin',
   };
+  if (allow) headers['Access-Control-Allow-Origin'] = allow;
+  return headers;
 }
 
 async function streamToString(stream, maxBytes) {
@@ -65,7 +103,7 @@ export default {
   /** Cloudflare Email Routing delivers inbound mail here. */
   async email(message, env) {
     try {
-      const subject = message.headers.get('subject') || '';
+      const subject = decodeRfc2047(message.headers.get('subject') || '');
       const m = subject.match(SUBJECT_RE);
       if (!m) {
         message.setReject('Not a POP role-claim email (subject must be "Claim POP role for 0x…").');
@@ -90,7 +128,7 @@ export default {
 
   /** The claim page polls this to fetch the received raw email. */
   async fetch(request, env) {
-    const cors = corsHeaders(env);
+    const cors = corsHeaders(env, request);
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
 
     const url = new URL(request.url);
