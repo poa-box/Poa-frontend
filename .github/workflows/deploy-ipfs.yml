@@ -35,7 +35,7 @@ jobs:
           # ZK Email claim inbox (public build-time constants, not secrets) — enables the
           # auto-fetch claim path; unset = manual .eml upload only.
           NEXT_PUBLIC_ZKEMAIL_INBOX: claim@poa.box
-          NEXT_PUBLIC_ZKEMAIL_INBOX_URL: https://poa-zkemail-claim-inbox.poa-box.workers.dev
+          NEXT_PUBLIC_ZKEMAIL_INBOX_URL: https://poa-zkemail-claim-inbox.caffe-jump0d.workers.dev
         run: yarn build
 
       - name: Upload to Pinata
