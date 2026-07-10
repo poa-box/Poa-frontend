@@ -60,8 +60,18 @@ export class ZkEmailInvitesService {
   async getActiveAllowlist(contractAddress) {
     requireAddress(contractAddress, 'ZkEmailInvites contract address');
     const contract = this.factory.createReadOnly(contractAddress, ZkEmailInvitesABI);
-    const [root, cid] = await Promise.all([contract.merkleRoot(), contract.allowlistCid()]);
-    return { root, cid };
+    // Sequential (not Promise.all) + one retry: concurrent eth_calls to a rate-limited public RPC
+    // intermittently return empty for the second call → ethers CALL_EXCEPTION data="0x".
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const root = await contract.merkleRoot();
+        const cid = await contract.allowlistCid();
+        return { root, cid };
+      } catch (e) {
+        if (attempt >= 2) throw e;
+        await new Promise((r) => setTimeout(r, 600));
+      }
+    }
   }
 
   /** Whether an email nullifier has already been consumed at this org (prevents double-claim). */

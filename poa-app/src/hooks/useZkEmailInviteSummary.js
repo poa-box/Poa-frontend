@@ -40,8 +40,11 @@ const READ_ABI = [
 // Public read fallbacks: the primary public RPCs rate-limit browsers (observed live: a single
 // failed merkleRoot() read used to kill the whole claim flow). Order: configured URL first.
 const FALLBACK_RPCS = {
-  100: ['https://gnosis-rpc.publicnode.com', 'https://1rpc.io/gnosis'],
-  42161: ['https://arbitrum-one-rpc.publicnode.com', 'https://1rpc.io/arb'],
+  // Browser-verified (CORS + concurrent-safe): publicnode is far more generous than the default
+  // rpc.gnosischain.com under browser load. drpc/blastapi 400 or CORS-fail in-browser; 1rpc fails
+  // concurrent — all avoided.
+  100: ['https://gnosis-rpc.publicnode.com', 'https://gnosis.publicnode.com'],
+  42161: ['https://arbitrum-one-rpc.publicnode.com', 'https://arbitrum.publicnode.com'],
 };
 
 /** Read root+cid, trying each RPC in turn with a short retry — only throw when ALL fail. */
@@ -52,7 +55,11 @@ async function readCommitment(rpcUrls, address) {
       try {
         const provider = new ethers.providers.JsonRpcProvider(url);
         const contract = new ethers.Contract(address, READ_ABI, provider);
-        const [root, cid] = await Promise.all([contract.merkleRoot(), contract.allowlistCid()]);
+        // SEQUENTIAL, not Promise.all: two concurrent eth_calls double the per-IP rate-limit
+        // pressure on public RPCs, so the second (allowlistCid) intermittently returns empty →
+        // ethers CALL_EXCEPTION data="0x" (observed live). One at a time is far more reliable.
+        const root = await contract.merkleRoot();
+        const cid = await contract.allowlistCid();
         return { root, cid };
       } catch (e) {
         lastErr = e;
