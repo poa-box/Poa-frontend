@@ -486,7 +486,13 @@ export default function ZkEmailClaimFlow() {
                         <Text fontSize="sm" color="orange.600">
                           Haven’t seen your email yet.
                         </Text>
-                        <Button size="xs" onClick={() => setPollTick((t) => t + 1)}>
+                        <Button
+                          size="xs"
+                          onClick={() => {
+                            lastInboxEmlRef.current = null; // re-arm: retry the stored email too
+                            setPollTick((t) => t + 1);
+                          }}
+                        >
                           Keep watching
                         </Button>
                       </>
@@ -552,7 +558,20 @@ export default function ZkEmailClaimFlow() {
               {step === ZK_CLAIM_STEPS.ERROR && error && (
                 <Alert status="error" borderRadius="lg" fontSize="sm" mt={4}>
                   <AlertIcon />
-                  {error.message || 'Something went wrong.'}
+                  <VStack align="start" spacing={2} w="full">
+                    <Text>{error.message || 'Something went wrong.'}</Text>
+                    {INBOX_ENABLED && lastInboxEmlRef.current && (
+                      <Button
+                        size="xs"
+                        onClick={() => {
+                          lastInboxEmlRef.current = null;
+                          setPollTick((t) => t + 1);
+                        }}
+                      >
+                        Retry with the received email
+                      </Button>
+                    )}
+                  </VStack>
                 </Alert>
               )}
             </Box>

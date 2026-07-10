@@ -37,6 +37,32 @@ const READ_ABI = [
   'function allowlistCid() view returns (bytes32)',
 ];
 
+// Public read fallbacks: the primary public RPCs rate-limit browsers (observed live: a single
+// failed merkleRoot() read used to kill the whole claim flow). Order: configured URL first.
+const FALLBACK_RPCS = {
+  100: ['https://gnosis-rpc.publicnode.com', 'https://1rpc.io/gnosis'],
+  42161: ['https://arbitrum-one-rpc.publicnode.com', 'https://1rpc.io/arb'],
+};
+
+/** Read root+cid, trying each RPC in turn with a short retry — only throw when ALL fail. */
+async function readCommitment(rpcUrls, address) {
+  let lastErr;
+  for (const url of rpcUrls) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const provider = new ethers.providers.JsonRpcProvider(url);
+        const contract = new ethers.Contract(address, READ_ABI, provider);
+        const [root, cid] = await Promise.all([contract.merkleRoot(), contract.allowlistCid()]);
+        return { root, cid };
+      } catch (e) {
+        lastErr = e;
+        await new Promise((r) => setTimeout(r, 800));
+      }
+    }
+  }
+  throw lastErr;
+}
+
 const EMPTY = { status: 'absent', key: '', rawDomains: [], rawEmailHats: [], emailCount: 0 };
 
 /** Normalize any hat-id representation (hex or decimal string) to a canonical decimal string. */
@@ -75,20 +101,28 @@ export function useZkEmailInviteSummary() {
       s.key === key && s.status === 'active' ? s : { status: 'loading', key, rawDomains: [], rawEmailHats: [], emailCount: 0 },
     );
 
+    let retryTimer;
     (async () => {
       let root;
       let cid;
       try {
-        // 1. Active commitment from the org's chain (public RPC — no wallet needed).
-        const provider = new ethers.providers.JsonRpcProvider(network.rpcUrl);
-        const contract = new ethers.Contract(zkEmailInvitesAddress, READ_ABI, provider);
-        [root, cid] = await Promise.all([contract.merkleRoot(), contract.allowlistCid()]);
+        // 1. Active commitment from the org's chain (public RPCs with fallbacks — no wallet needed).
+        const rpcs = [network.rpcUrl, ...(FALLBACK_RPCS[orgChainId] || [])];
+        ({ root, cid } = await readCommitment(rpcs, zkEmailInvitesAddress));
       } catch (e) {
-        // Chain read failed: liveness UNKNOWN (could be dormant) — never advertise claimability.
-        if (alive) {
-          console.warn('[zkemail] allowlist on-chain read failed:', e?.message);
-          setState({ status: 'unknown', key, rawDomains: [], rawEmailHats: [], emailCount: 0 });
-        }
+        if (!alive) return;
+        console.warn('[zkemail] allowlist on-chain read failed on all RPCs:', e?.message);
+        // Stale-while-error: NEVER downgrade already-verified data for the same org on a transient
+        // failure — hiding the claim flow mid-claim strands the user (observed live). Claims always
+        // re-verify on-chain, so serving the last verified summary is safe.
+        setState((s) => {
+          if (s.key === key && s.status === 'active') return s;
+          return { status: 'unknown', key, rawDomains: [], rawEmailHats: [], emailCount: 0 };
+        });
+        // Self-healing: quietly retry in 15s (each pass itself tries all RPCs twice).
+        retryTimer = setTimeout(() => {
+          if (alive) setTick((t) => t + 1);
+        }, 15_000);
         return;
       }
       if (!alive) return;
@@ -103,7 +137,11 @@ export function useZkEmailInviteSummary() {
         const doc = await safeFetchFromIpfs(bytes32ToIpfsCid(cid));
         if (!alive) return;
         if (!doc || !Array.isArray(doc.entries) || doc.entries.length === 0) {
-          setState({ status: 'degraded', key, rawDomains: [], rawEmailHats: [], emailCount: 0 });
+          setState((s) =>
+            s.key === key && s.status === 'active'
+              ? s
+              : { status: 'degraded', key, rawDomains: [], rawEmailHats: [], emailCount: 0 },
+          );
           return;
         }
         try {
@@ -139,6 +177,7 @@ export function useZkEmailInviteSummary() {
 
     return () => {
       alive = false;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, [zkEmailInvitesEnabled, zkEmailInvitesAddress, orgChainId, tick, safeFetchFromIpfs, bytes32ToIpfsCid]);
 
