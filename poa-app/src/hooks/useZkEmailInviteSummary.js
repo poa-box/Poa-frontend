@@ -1,10 +1,19 @@
 /**
  * useZkEmailInviteSummary — shared state machine for surfacing an org's email-invite allowlist.
  *
- * Reads the ACTIVE allowlist commitment straight from the org's chain (a public read-only RPC, so it
- * works for visitors with no wallet connected — the join page's primary audience), fetches the
- * allowlist file from IPFS, verifies it against the on-chain merkle root, and maps each entry's
- * hatIds to human-readable role names.
+ * Subgraph-first, chain-authoritative: the canonical indexer already has the ACTIVE root + the
+ * parsed allowlist entries (domain/email + hatIds), so a single subgraph query serves the common
+ * case with no wallet, no public-RPC round-trips, and no IPFS fetch — and it works for every org.
+ * But the subgraph is trusted ONLY for the fully-verified 'active' happy path (root committed, file
+ * indexed, declared root matching, entries present); anything ambiguous — an indexer that lags the
+ * activation tx, a file-data-source that hasn't landed, a root mismatch, an error — falls through
+ * to the on-chain path, which alone decides dormant/degraded/unknown. An indexer can lag the chain,
+ * so a subgraph zero-root must never be presented as authoritative dormancy.
+ *
+ * On-chain fallback: reads the ACTIVE allowlist commitment straight from the org's chain (a public
+ * read-only RPC, so it works for visitors with no wallet connected — the join page's primary
+ * audience), fetches the allowlist file from IPFS, verifies it against the on-chain merkle root, and
+ * maps each entry's hatIds to human-readable role names.
  *
  * Status matrix (every consumer must handle all of these):
  *   'absent'   — org has no ZkEmailInvites module (or POContext still loading it). Render nothing.
@@ -70,6 +79,72 @@ async function readCommitment(rpcUrls, address) {
   throw lastErr;
 }
 
+// Graph Node caps unbounded derived collections at first:100 and hard-caps `first` at 1000. We ask
+// for the max; hitting it means the allowlist MIGHT be truncated, so we fall through to the full doc.
+const SUBGRAPH_ENTRIES_MAX = 1000;
+
+/**
+ * Read the active allowlist summary from the subgraph (canonical indexer). Returns
+ * { rawDomains, rawEmailHats, emailCount } ONLY for the fully-verified happy path:
+ * active root committed, allowlist file indexed, its declared root matching the active root, and
+ * the entry list non-empty and under the pagination cap. EVERYTHING else returns null — meaning
+ * "the subgraph is not authoritative here, fall through to the on-chain RPC+IPFS path", which
+ * alone decides dormant/degraded/unknown. Cases that intentionally fall through:
+ *   - schema without the field / module node missing (gateway still syncing an older deployment)
+ *   - activeRoot zero (could be genuine dormancy OR the activation tx not indexed yet — only the
+ *     chain's merkleRoot() can tell them apart; a false "not activated" would dead-end real invitees)
+ *   - allowlist entity null/empty (the file lands via an async IPFS file-data-source that can lag
+ *     or fail permanently — the old path calls this 'degraded', never 'active with nobody invited')
+ *   - declared root != activeRoot (swapped/stale CID; the indexer stores the doc's declared root but
+ *     does not recompute the merkle tree — the fallback path does, via assertRootMatches)
+ *   - entries at the pagination cap (possible silent truncation)
+ *   - any HTTP/GraphQL/parse error, or a gateway hang (6s abort; a stalled fetch must not block the
+ *     fallback the old code reached immediately)
+ * Never throws.
+ */
+async function readSummaryFromSubgraph(subgraphUrl, moduleAddress) {
+  try {
+    const query = `{ zkEmailInvites(id: "${String(moduleAddress).toLowerCase()}") {
+      activeRoot
+      activeAllowlist { root entries(first: ${SUBGRAPH_ENTRIES_MAX}, orderBy: index) { entryType identifier hatIds } }
+    } }`;
+    const res = await fetch(subgraphUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query }),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json.errors || !json.data) return null;
+    const node = json.data.zkEmailInvites;
+    if (!node) return null;
+    if (!node.activeRoot || node.activeRoot === ZERO_ROOT) return null;
+    const list = node.activeAllowlist;
+    const entries = list?.entries || [];
+    if (entries.length === 0 || entries.length >= SUBGRAPH_ENTRIES_MAX) return null;
+    // A MISSING declared root falls through like a mismatched one: the indexer stores entries even
+    // for docs whose root field is absent/malformed, so entries-non-empty does not imply it exists.
+    if (!list.root || String(list.root).toLowerCase() !== String(node.activeRoot).toLowerCase()) return null;
+    // Dedupe domains (first entry wins — mirrors proofForDomain, which proves the FIRST matching leaf).
+    const byDomain = new Map();
+    const rawEmailHats = [];
+    let emailCount = 0;
+    for (const e of entries) {
+      if (e.entryType === 'domain' && e.identifier) {
+        const d = String(e.identifier).toLowerCase();
+        if (!byDomain.has(d)) byDomain.set(d, { domain: d, hatIds: e.hatIds || [] });
+      } else if (e.entryType === 'email') {
+        emailCount += 1;
+        rawEmailHats.push(...(e.hatIds || []));
+      }
+    }
+    return { rawDomains: [...byDomain.values()], rawEmailHats, emailCount };
+  } catch (_) {
+    return null; // network/timeout/parse error → fall through to the resilient on-chain path
+  }
+}
+
 const EMPTY = { status: 'absent', key: '', rawDomains: [], rawEmailHats: [], emailCount: 0 };
 
 /** Normalize any hat-id representation (hex or decimal string) to a canonical decimal string. */
@@ -82,7 +157,8 @@ function hatKey(id) {
 }
 
 export function useZkEmailInviteSummary() {
-  const { zkEmailInvitesAddress, zkEmailInvitesEnabled, orgChainId, roleNames: contextRoleNames } = usePOContext();
+  const { zkEmailInvitesAddress, zkEmailInvitesEnabled, orgChainId, subgraphUrl, roleNames: contextRoleNames } =
+    usePOContext();
   const { safeFetchFromIpfs, bytes32ToIpfsCid } = useIPFScontext();
 
   const [state, setState] = useState(EMPTY);
@@ -98,7 +174,7 @@ export function useZkEmailInviteSummary() {
       return undefined;
     }
     const network = getNetworkByChainId(orgChainId);
-    if (!network?.rpcUrl) {
+    if (!network?.rpcUrl && !subgraphUrl) {
       setState({ ...EMPTY, key });
       return undefined;
     }
@@ -110,10 +186,34 @@ export function useZkEmailInviteSummary() {
 
     let retryTimer;
     (async () => {
+      // 0. Subgraph-first: one query, no wallet, no public-RPC/IPFS round-trips, works for every org.
+      //    Non-null is ONLY the fully-verified active happy path (see readSummaryFromSubgraph);
+      //    every ambiguous state (zero root, missing/empty/mismatched file, errors) returns null and
+      //    the on-chain path below stays the sole authority for dormant/degraded/unknown.
+      if (subgraphUrl) {
+        const sg = await readSummaryFromSubgraph(subgraphUrl, zkEmailInvitesAddress);
+        if (!alive) return;
+        if (sg) {
+          setState({
+            status: 'active',
+            key,
+            rawDomains: sg.rawDomains,
+            rawEmailHats: sg.rawEmailHats,
+            emailCount: sg.emailCount,
+          });
+          return;
+        }
+      }
+
+      // 1. On-chain fallback. Needs a configured RPC; without one, liveness is genuinely unknown.
+      if (!network?.rpcUrl) {
+        setState((s) => (s.key === key && s.status === 'active' ? s : { status: 'unknown', key, rawDomains: [], rawEmailHats: [], emailCount: 0 }));
+        return;
+      }
       let root;
       let cid;
       try {
-        // 1. Active commitment from the org's chain (public RPCs with fallbacks — no wallet needed).
+        // Active commitment from the org's chain (public RPCs with fallbacks — no wallet needed).
         const rpcs = [network.rpcUrl, ...(FALLBACK_RPCS[orgChainId] || [])];
         ({ root, cid } = await readCommitment(rpcs, zkEmailInvitesAddress));
       } catch (e) {
@@ -186,7 +286,7 @@ export function useZkEmailInviteSummary() {
       alive = false;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [zkEmailInvitesEnabled, zkEmailInvitesAddress, orgChainId, tick, safeFetchFromIpfs, bytes32ToIpfsCid]);
+  }, [zkEmailInvitesEnabled, zkEmailInvitesAddress, orgChainId, subgraphUrl, tick, safeFetchFromIpfs, bytes32ToIpfsCid]);
 
   // Render-time role-name mapping: POContext role refreshes update names WITHOUT re-running the
   // network reads (doc hatIds are hex; the subgraph uses decimal strings — bridge via BigInt).
