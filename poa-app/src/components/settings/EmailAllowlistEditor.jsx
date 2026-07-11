@@ -47,7 +47,10 @@ import { getSubgraphUrl, getNetworkByChainId } from '@/config/networks';
 import OrgRegistryABI from '../../../abi/OrgRegistry.json';
 
 const DOMAIN_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// ASCII-only local + domain — matches what the circuit (ASCII From-address regex) and contract can
+// actually match. A non-ASCII address would build a permanently-unclaimable leaf, so reject it here
+// at entry time (the allowlist builder also fail-closes on non-ASCII as a backstop for other callers).
+const EMAIL_RE = /^[\x21-\x7E]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/;
 const ZERO_ROOT = '0x0000000000000000000000000000000000000000000000000000000000000000';
 
 export default function EmailAllowlistEditor({ orgId, orgChainId, currentName }) {

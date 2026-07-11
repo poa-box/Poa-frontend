@@ -21,7 +21,21 @@ export const LEAF_TYPES = ['uint8', 'bytes32', 'uint256[]'];
 const EMAIL_PAD = 192; // == EMAX in PopRoleClaimV2.circom
 const CHUNKS = 7; // ceil(192 / 31)
 
-const norm = (s) => String(s || '').trim().toLowerCase();
+// ASCII-only lowercase — EXACTLY mirrors the circuit's `ToLower` (PopRoleClaimV2.circom) and the
+// contract's `_lower`/`domainHashOf`, both of which transform only bytes 0x41–0x5A. JS
+// String.prototype.toLowerCase() is Unicode-aware and would additionally lowercase non-ASCII letters,
+// producing a leaf the on-chain path can never reproduce — a silent, permanently-unclaimable entry
+// (fail-closed: no security risk, but a broken invite). Trim, then ASCII-lowercase.
+const norm = (s) =>
+  String(s || '')
+    .trim()
+    .replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+
+// A domain/email identifier that isn't pure printable ASCII can never round-trip through the circuit
+// (its From-address regex + PackBytes are ASCII) or the contract (_lower is ASCII), so it would build
+// an unclaimable leaf. Reject at build time so the founder learns immediately, not the claimer later.
+// Applied for EVERY caller of buildAllowlist (editor, CLI, forge tooling), not just the staging UI.
+const isPrintableAscii = (s) => /^[\x20-\x7E]+$/.test(String(s));
 const sortHats = (hatIds) => hatIds.map((h) => BigInt(h)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
 /** keccak256 of the lowercased ASCII domain — the contract's domain-leaf identifier. */
@@ -59,9 +73,17 @@ export async function emailHash(address) {
 export async function buildAllowlist({ orgId, entries }) {
   const rows = [];
   for (const e of entries) {
+    if (!isPrintableAscii(e.identifier)) {
+      throw new Error(
+        `Allowlist identifier "${e.identifier}" contains non-ASCII characters, which can never be ` +
+          'matched by an email proof on-chain. Use the plain ASCII domain/email.',
+      );
+    }
     const hatIds = sortHats(e.hatIds);
     const id = e.type === 'domain' ? domainHash(e.identifier) : await emailHash(e.identifier);
-    rows.push({ ...e, id, hatIds });
+    // Store the canonical (trimmed, ASCII-lowercased) identifier — exactly what was hashed into the
+    // leaf — so the doc's displayed identifier can never drift from its committed id.
+    rows.push({ ...e, identifier: norm(e.identifier), id, hatIds });
   }
   const tree = StandardMerkleTree.of(
     // uint256[] values as decimal strings (BigInt isn't JSON-serializable in the tree dump).
