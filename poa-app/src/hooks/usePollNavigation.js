@@ -41,34 +41,33 @@ export function usePollNavigation({
   const [selectedTab, setSelectedTab] = useState(0);
   const [votingTypeSelected, setVotingTypeSelected] = useState(PTVoteType);
 
+  // Wave-2: ONE detail surface (PollDetail) replaces the old ongoing/completed
+  // modal split. A single disclosure drives it for both lifecycle states.
   const {
-    isOpen: isPollModalOpen,
-    onOpen: onPollModalOpen,
-    onClose: onPollModalCloseBase,
+    isOpen: isDetailOpen,
+    onOpen: onDetailOpen,
+    onClose: onDetailCloseBase,
   } = useDisclosure();
 
-  const {
-    isOpen: isCompletedModalOpen,
-    onOpen: onCompletedModalOpen,
-    onClose: onCompletedModalCloseBase,
-  } = useDisclosure();
-
-  // Wrap the disclosure close handlers to remember which poll was closed, so
-  // the URL-based effect doesn't immediately re-open it while ?poll= lingers.
+  // Wrap the close handler to (1) remember which poll was closed so the
+  // URL-based effect doesn't immediately re-open it while ?poll= lingers, and
+  // (2) strip ?poll from the URL via router.replace while KEEPING userDAO
+  // (replaces the old modals' org= push).
   const rememberClosed = useCallback(() => {
     const current = routerRef.current?.query?.poll;
     if (current) userClosedPollRef.current = current;
   }, []);
 
-  const onPollModalClose = useCallback(() => {
+  const onDetailClose = useCallback(() => {
     rememberClosed();
-    onPollModalCloseBase();
-  }, [rememberClosed, onPollModalCloseBase]);
-
-  const onCompletedModalClose = useCallback(() => {
-    rememberClosed();
-    onCompletedModalCloseBase();
-  }, [rememberClosed, onCompletedModalCloseBase]);
+    onDetailCloseBase();
+    const r = routerRef.current;
+    if (r?.query?.poll) {
+      const dao = userDAORef.current;
+      const query = dao ? { userDAO: dao } : {};
+      r.replace({ pathname: r.pathname, query }, undefined, { shallow: true });
+    }
+  }, [rememberClosed, onDetailCloseBase]);
 
   // Handle tab changes
   // Tab 0 = Hybrid/Participation Voting, Tab 1 = Direct Democracy
@@ -84,16 +83,13 @@ export function usePollNavigation({
     userClosedPollRef.current = null;
     setSelectedPoll(poll);
     setIsPollCompleted(isCompleted);
+    // Resolve the poll's voting type so the detail routes to the right contract.
+    setVotingTypeSelected(poll?.type === 'Direct Democracy' ? 'Direct Democracy' : PTVoteType);
     // Write the canonical `userDAO` query param (useOrgName reads both
     // `userDAO` and legacy `org`, but we standardize on `userDAO` here).
     routerRef.current.push(`/voting?poll=${poll.id}&userDAO=${encodeURIComponent(userDAORef.current)}`);
-
-    if (isCompleted) {
-      onCompletedModalOpen();
-    } else {
-      onPollModalOpen();
-    }
-  }, [onCompletedModalOpen, onPollModalOpen]);
+    onDetailOpen();
+  }, [onDetailOpen, PTVoteType]);
 
   // Find poll by ID or title in proposals array
   const findPollInProposals = useCallback((proposals, pollId) => {
@@ -153,12 +149,8 @@ export function usePollNavigation({
       // Tab 0 = Hybrid/Participation, Tab 1 = Direct Democracy
       setSelectedTab(pollType === "Direct Democracy" ? 1 : 0);
       setIsPollCompleted(isCompleted);
-
-      if (isCompleted) {
-        onCompletedModalOpen();
-      } else {
-        onPollModalOpen();
-      }
+      // ONE detail surface for both ongoing and completed polls.
+      onDetailOpen();
     }
   }, [
     router.query.poll,
@@ -167,8 +159,7 @@ export function usePollNavigation({
     hybridVotingOngoing,
     hybridVotingCompleted,
     findPollInProposals,
-    onPollModalOpen,
-    onCompletedModalOpen,
+    onDetailOpen,
   ]);
 
   // Get the correct contract address based on voting type
@@ -187,14 +178,10 @@ export function usePollNavigation({
     handleTabChange,
     handlePollClick,
     getContractAddressForVotingType,
-    // Poll modal
-    isPollModalOpen,
-    onPollModalOpen,
-    onPollModalClose,
-    // Completed modal
-    isCompletedModalOpen,
-    onCompletedModalOpen,
-    onCompletedModalClose,
+    // Unified PollDetail surface (Wave 2)
+    isDetailOpen,
+    onDetailOpen,
+    onDetailClose,
   };
 }
 
