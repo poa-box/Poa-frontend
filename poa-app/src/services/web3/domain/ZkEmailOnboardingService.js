@@ -33,7 +33,7 @@ const proofTupleDomain = (p) => ({
   pC: p.pC.map(toBig),
   pubkeyHash: p.pubkeyHash,
   emailNullifier: p.emailNullifier,
-  domainName: p.domainName,
+  fromDomainHash: p.fromDomainHash,
 });
 const proofTupleEmail = (p) => ({ ...proofTupleDomain(p), emailHash: p.emailHash });
 

@@ -341,7 +341,7 @@ export function useClaimZkEmailRole() {
           if (entry) mode = 'email';
         }
         if (!entry && dkimDomain) {
-          entry = proofForDomain(tree, dkimDomain);
+          entry = await proofForDomain(tree, dkimDomain);
           if (entry) mode = 'domain';
         }
         if (!entry) {

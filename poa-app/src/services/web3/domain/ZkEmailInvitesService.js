@@ -27,7 +27,7 @@ export class ZkEmailInvitesService {
   /**
    * Claim role hats for a whole-DOMAIN allowlist entry.
    * @param {string} contractAddress ZkEmailInvites proxy
-   * @param {Object} proof ZkEmailProof { pA, pB, pC, pubkeyHash, emailNullifier, domainName }
+   * @param {Object} proof ZkEmailProof { pA, pB, pC, pubkeyHash, emailNullifier, fromDomainHash }
    * @param {string} claimer address the hats mint to (must equal the in-circuit-bound address)
    * @param {Array<string>} hatIds the entry's hat IDs (must match the merkle leaf)
    * @param {Array<string>} merkleProof proof that (domain, hatIds) is in the active allowlist root

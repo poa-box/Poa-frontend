@@ -8,13 +8,13 @@
  * CRITICAL coordination (must match exactly, all verified):
  *   - Merkle leaf == `ZkEmailInvites._leaf` == OpenZeppelin StandardMerkleTree over
  *     `['uint8','bytes32','uint256[]']` = [kind, id, hatIds], kind 0=domain, 1=email.
- *   - domain id = keccak256(utf8(lowercase(domain)))  (== contract `keccak256(bytes(_lower(domain)))`).
+ *   - domain id = Poseidon(packBytes(lowercase(domain), 192))  (== circuit `fromDomainHash` signal /
+ *     `PoaDKIMRegistry` key; Blocker 2 — no longer a caller-supplied keccak of a domain string).
  *   - email  id = emailHash(address) = Poseidon(packBytes(lowercase(address) zero-padded to 192 bytes))
  *     == the `emailHash` public signal of `circuits/PopRoleClaimV2.circom` (verified equal for a real
  *     proof). The 192 + little-endian 31-byte packing here MUST equal `EMAX`/`PackBytes` in the circuit.
  */
 import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
-import { keccak256, stringToBytes } from 'viem';
 
 export const ALLOWLIST_SCHEMA = 'poa.zkemail.allowlist/1';
 export const LEAF_TYPES = ['uint8', 'bytes32', 'uint256[]'];
@@ -38,21 +38,18 @@ const norm = (s) =>
 const isPrintableAscii = (s) => /^[\x20-\x7E]+$/.test(String(s));
 const sortHats = (hatIds) => hatIds.map((h) => BigInt(h)).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
 
-/** keccak256 of the lowercased ASCII domain — the contract's domain-leaf identifier. */
-export function domainHash(domain) {
-  return keccak256(stringToBytes(norm(domain)));
-}
-
 /**
- * emailHash(address) — Poseidon commitment matching `PopRoleClaimV2.circom`'s `emailHash` signal.
- * Lowercase, zero-pad to 192 bytes, pack into 7 little-endian 31-byte field chunks, Poseidon(7).
+ * Poseidon commitment = Poseidon(packBytes(ascii-lower(s) zero-padded to 192), 7). This is the exact
+ * commitment the circuits compute: `emailHash` over the From ADDRESS and `fromDomainHash` over the From
+ * DOMAIN (Blocker 2). So BOTH allowlist leaf ids — domain (kind 0) and email (kind 1) — use it, and each
+ * equals the corresponding on-chain proof signal / DKIM registry key.
  * @returns {Promise<string>} 0x-padded bytes32
  */
-export async function emailHash(address) {
+async function poseidonCommit(str) {
   const { buildPoseidon } = await import('circomlibjs');
   const poseidon = await buildPoseidon();
   const bytes = new Uint8Array(EMAIL_PAD);
-  bytes.set(new TextEncoder().encode(norm(address)).slice(0, EMAIL_PAD));
+  bytes.set(new TextEncoder().encode(norm(str)).slice(0, EMAIL_PAD));
   const chunks = [];
   for (let i = 0; i < CHUNKS; i++) {
     let acc = 0n;
@@ -63,6 +60,23 @@ export async function emailHash(address) {
     chunks.push(acc);
   }
   return '0x' + BigInt(poseidon.F.toString(poseidon(chunks))).toString(16).padStart(64, '0');
+}
+
+/**
+ * domainHash(domain) — the domain-leaf id, == `PopRoleClaim{,V2}.circom`'s proven `fromDomainHash`
+ * signal (Blocker 2) and the `PoaDKIMRegistry` key. Poseidon commitment, NOT keccak.
+ * @returns {Promise<string>} 0x-padded bytes32
+ */
+export function domainHash(domain) {
+  return poseidonCommit(domain);
+}
+
+/**
+ * emailHash(address) — the email-leaf id, == `PopRoleClaimV2.circom`'s `emailHash` signal.
+ * @returns {Promise<string>} 0x-padded bytes32
+ */
+export function emailHash(address) {
+  return poseidonCommit(address);
 }
 
 /**
@@ -80,7 +94,7 @@ export async function buildAllowlist({ orgId, entries }) {
       );
     }
     const hatIds = sortHats(e.hatIds);
-    const id = e.type === 'domain' ? domainHash(e.identifier) : await emailHash(e.identifier);
+    const id = e.type === 'domain' ? await domainHash(e.identifier) : await emailHash(e.identifier);
     // Store the canonical (trimmed, ASCII-lowercased) identifier — exactly what was hashed into the
     // leaf — so the doc's displayed identifier can never drift from its committed id.
     rows.push({ ...e, identifier: norm(e.identifier), id, hatIds });
@@ -124,8 +138,8 @@ export function assertRootMatches(doc, onchainRoot) {
 }
 
 /** Merkle proof + hatIds for a DOMAIN entry, or null if the domain is not in the allowlist. */
-export function proofForDomain(tree, domain) {
-  const dh = domainHash(domain).toLowerCase();
+export async function proofForDomain(tree, domain) {
+  const dh = (await domainHash(domain)).toLowerCase();
   for (const [i, v] of tree.entries()) {
     if (Number(v[0]) === 0 && String(v[1]).toLowerCase() === dh) {
       return { hatIds: v[2].map((h) => h.toString()), proof: tree.getProof(i) };

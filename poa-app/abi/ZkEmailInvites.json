@@ -78,9 +78,9 @@
             "internalType": "bytes32"
           },
           {
-            "name": "domainName",
-            "type": "string",
-            "internalType": "string"
+            "name": "fromDomainHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           }
         ]
       },
@@ -138,12 +138,12 @@
             "internalType": "bytes32"
           },
           {
-            "name": "domainName",
-            "type": "string",
-            "internalType": "string"
+            "name": "emailHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
-            "name": "emailHash",
+            "name": "fromDomainHash",
             "type": "bytes32",
             "internalType": "bytes32"
           }
@@ -414,9 +414,9 @@
             "internalType": "bytes32"
           },
           {
-            "name": "domainName",
-            "type": "string",
-            "internalType": "string"
+            "name": "fromDomainHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           }
         ]
       },
@@ -554,12 +554,12 @@
             "internalType": "bytes32"
           },
           {
-            "name": "domainName",
-            "type": "string",
-            "internalType": "string"
+            "name": "emailHash",
+            "type": "bytes32",
+            "internalType": "bytes32"
           },
           {
-            "name": "emailHash",
+            "name": "fromDomainHash",
             "type": "bytes32",
             "internalType": "bytes32"
           }
@@ -923,6 +923,17 @@
     "type": "error",
     "name": "EmptyHats",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "HatOpenlyClaimable",
+    "inputs": [
+      {
+        "name": "hatId",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ]
   },
   {
     "type": "error",
