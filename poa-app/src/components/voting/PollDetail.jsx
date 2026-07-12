@@ -332,7 +332,14 @@ export function PollDetail({
             <VoteCelebration
               poll={poll}
               userVote={celebration.userVote}
-              totalSharePct={totalSharePct}
+              // Blended polls: the truthful class-weighted share. Direct-democracy
+              // polls: 1-person-1-vote, so the honest number is 1/members — the
+              // blended share would overstate/understate an equal vote.
+              totalSharePct={
+                poll.type === 'Hybrid'
+                  ? totalSharePct
+                  : (poMembers > 0 ? 100 / poMembers : null)
+              }
               status={celebration.status}
               poMembers={poMembers}
               onDone={onClose}
