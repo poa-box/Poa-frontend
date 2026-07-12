@@ -177,22 +177,23 @@ export function PollDetail({
     [poll, userData]
   );
 
-  if (!poll) return null;
-
-  const isBinding = poll.type === 'Hybrid';
-  const isBlended = poll.type === 'Hybrid';
-  const closed = !poll.isOngoing;
+  // NOTE: no early return before this point — every hook above and below must
+  // run on EVERY render (React hooks-order rule). All poll derivations here are
+  // null-tolerant; the single `if (!poll) return null` lives after the last hook.
+  const isBinding = poll?.type === 'Hybrid';
+  const isBlended = poll?.type === 'Hybrid';
+  const closed = !!poll && !poll.isOngoing;
   const awaitingCount = variant === 'awaiting-finalize';
-  const hasVoted = poll.userHasVoted;
+  const hasVoted = !!poll?.userHasVoted;
   const showResults = hasVoted || closed;
-  const canVote = poll.isOngoing && !poll.isExpired && eligible && !hasVoted;
+  const canVote = !!poll?.isOngoing && !poll?.isExpired && eligible && !hasVoted;
 
   const restrictedRolesText =
-    poll.isHatRestricted && (poll.restrictedHatIds || []).length > 0
+    poll?.isHatRestricted && (poll?.restrictedHatIds || []).length > 0
       ? getRoleNamesString(poll.restrictedHatIds)
       : 'All members';
 
-  const descLong = (poll.description || '').length > 280;
+  const descLong = (poll?.description || '').length > 280;
 
   // ── Vote validity ───────────────────────────────────────────────────────────
   const weightedUsed = Object.values(weights).reduce((s, w) => s + (Number(w) || 0), 0);
@@ -200,7 +201,7 @@ export function PollDetail({
 
   // ── Cast: optimistic celebration, no spinner ────────────────────────────────
   const handleCast = useCallback(async () => {
-    if (!voteValid) return;
+    if (!voteValid || !poll) return;
 
     let optionIndexes;
     let optionWeights;
@@ -274,7 +275,7 @@ export function PollDetail({
 
   // ── Finalize (count the votes) ──────────────────────────────────────────────
   const handleFinalize = useCallback(async () => {
-    if (!onFinalize) return;
+    if (!onFinalize || !poll) return;
     const proposalId = poll.proposalId || String(poll.id).split('-')[1];
     setFinalizing(true);
     try {
@@ -286,8 +287,11 @@ export function PollDetail({
   }, [onFinalize, poll, contractAddress, isBinding, finalizeConfirm]);
 
   // ── userVote indexes/weights for result markers ─────────────────────────────
-  const userIndexes = poll.userVote?.optionIndexes || [];
-  const userWeights = poll.userVote?.optionWeights || [];
+  const userIndexes = poll?.userVote?.optionIndexes || [];
+  const userWeights = poll?.userVote?.optionWeights || [];
+
+  // All hooks have run — NOW it's safe to bail when no poll is selected.
+  if (!poll) return null;
 
   const contentSx = isMobile
     ? {

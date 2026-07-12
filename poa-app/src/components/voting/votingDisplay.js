@@ -79,7 +79,9 @@ export function relativeTime(unixSeconds, { pastPrefix = 'closed ', pastSuffix =
   if (d > 0) core = h > 0 ? `${d}d ${h}h` : `${d}d`;
   else if (h > 0) core = m > 0 ? `${h}h ${m}m` : `${h}h`;
   else if (m > 0) core = `${m}m`;
-  else core = future ? 'under 1m' : 'just now';
+  else if (future) core = 'under 1m';
+  // "just now" is already relative — no prefix/suffix ("just now ago" reads broken).
+  else return 'just now';
 
   return future ? `${core}${futureSuffix}` : `${pastPrefix}${core}${pastSuffix}`;
 }
