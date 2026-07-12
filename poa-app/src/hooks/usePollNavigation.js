@@ -29,6 +29,13 @@ export function usePollNavigation({
   const [selectedPoll, setSelectedPoll] = useState(null);
   const [selectedOption, setSelectedOption] = useState("");
   const [isPollCompleted, setIsPollCompleted] = useState(false);
+
+  // Poll id the user explicitly closed while its ?poll= param is still in the
+  // URL. The URL effect below re-runs on every proposal-array refetch (poll
+  // freshness polling / optimistic merges), which would otherwise re-open a
+  // modal the user just dismissed. We suppress re-opening THIS id until the
+  // `poll` query param changes to a DIFFERENT value. (audit data-findings #9)
+  const userClosedPollRef = useRef(null);
   // Tab 0 = Hybrid/Participation Voting (Official governance)
   // Tab 1 = Direct Democracy (Informal polls)
   const [selectedTab, setSelectedTab] = useState(0);
@@ -37,14 +44,31 @@ export function usePollNavigation({
   const {
     isOpen: isPollModalOpen,
     onOpen: onPollModalOpen,
-    onClose: onPollModalClose,
+    onClose: onPollModalCloseBase,
   } = useDisclosure();
 
   const {
     isOpen: isCompletedModalOpen,
     onOpen: onCompletedModalOpen,
-    onClose: onCompletedModalClose,
+    onClose: onCompletedModalCloseBase,
   } = useDisclosure();
+
+  // Wrap the disclosure close handlers to remember which poll was closed, so
+  // the URL-based effect doesn't immediately re-open it while ?poll= lingers.
+  const rememberClosed = useCallback(() => {
+    const current = routerRef.current?.query?.poll;
+    if (current) userClosedPollRef.current = current;
+  }, []);
+
+  const onPollModalClose = useCallback(() => {
+    rememberClosed();
+    onPollModalCloseBase();
+  }, [rememberClosed, onPollModalCloseBase]);
+
+  const onCompletedModalClose = useCallback(() => {
+    rememberClosed();
+    onCompletedModalCloseBase();
+  }, [rememberClosed, onCompletedModalCloseBase]);
 
   // Handle tab changes
   // Tab 0 = Hybrid/Participation Voting, Tab 1 = Direct Democracy
@@ -56,9 +80,13 @@ export function usePollNavigation({
 
   // Handle poll click — uses routerRef to avoid re-creating on every route change
   const handlePollClick = useCallback((poll, isCompleted = false) => {
+    // Explicit user intent to open — clear any prior "closed" suppression.
+    userClosedPollRef.current = null;
     setSelectedPoll(poll);
     setIsPollCompleted(isCompleted);
-    routerRef.current.push(`/voting?poll=${poll.id}&org=${encodeURIComponent(userDAORef.current)}`);
+    // Write the canonical `userDAO` query param (useOrgName reads both
+    // `userDAO` and legacy `org`, but we standardize on `userDAO` here).
+    routerRef.current.push(`/voting?poll=${poll.id}&userDAO=${encodeURIComponent(userDAORef.current)}`);
 
     if (isCompleted) {
       onCompletedModalOpen();
@@ -78,6 +106,17 @@ export function usePollNavigation({
     if (!router.query.poll) return;
 
     const pollId = router.query.poll;
+
+    // The param changed to a different poll — clear the closed-suppression so
+    // the new (or re-selected) poll can open.
+    if (userClosedPollRef.current && userClosedPollRef.current !== pollId) {
+      userClosedPollRef.current = null;
+    }
+
+    // User closed this exact poll while its ?poll= param still lingers — don't
+    // re-open it on subsequent proposal-array refetches.
+    if (userClosedPollRef.current === pollId) return;
+
     let pollFound = null;
     let pollType = "";
     let isCompleted = false;
