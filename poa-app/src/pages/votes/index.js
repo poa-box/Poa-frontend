@@ -117,6 +117,19 @@ const VotingHistoryPage = () => {
     PTVoteType,
   });
 
+  // PollDetail must render LIVE data — selectedPoll is a click-time snapshot;
+  // optimistic votes / 30s polling refreshes only reach the context arrays.
+  const livePoll = useMemo(() => {
+    if (!selectedPoll) return null;
+    const all = [
+      ...hybridVotingOngoing,
+      ...hybridVotingCompleted,
+      ...democracyVotingOngoing,
+      ...democracyVotingCompleted,
+    ];
+    return all.find((p) => p.id === selectedPoll.id) || selectedPoll;
+  }, [selectedPoll, hybridVotingOngoing, hybridVotingCompleted, democracyVotingOngoing, democracyVotingCompleted]);
+
   const processedProposals = useMemo(() => {
     let result = [...completed];
 
@@ -449,7 +462,7 @@ const VotingHistoryPage = () => {
 
       {/* The same PollDetail surface as the board. */}
       <PollDetail
-        poll={selectedPoll}
+        poll={livePoll}
         isOpen={isDetailOpen}
         onClose={onDetailClose}
         onVote={undefined}

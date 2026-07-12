@@ -107,6 +107,21 @@ const VotingPage = () => {
     PTVoteType,
   });
 
+  // PollDetail must render LIVE data — selectedPoll is a click-time snapshot,
+  // so optimistic votes and 30s polling refreshes would never reach an open
+  // detail (celebration bars would exclude the user's own vote). Re-derive the
+  // fresh transformed proposal by id on every context update.
+  const livePoll = useMemo(() => {
+    if (!selectedPoll) return null;
+    const all = [
+      ...hybridVotingOngoing,
+      ...hybridVotingCompleted,
+      ...democracyVotingOngoing,
+      ...democracyVotingCompleted,
+    ];
+    return all.find((p) => p.id === selectedPoll.id) || selectedPoll;
+  }, [selectedPoll, hybridVotingOngoing, hybridVotingCompleted, democracyVotingOngoing, democracyVotingCompleted]);
+
   // Proposal creation
   const handleProposalSubmit = useCallback(async (proposalData) => {
     if (!voting) return;
@@ -295,7 +310,7 @@ const VotingPage = () => {
 
           {/* ONE detail surface for ongoing AND completed polls. */}
           <PollDetail
-            poll={selectedPoll}
+            poll={livePoll}
             isOpen={isDetailOpen}
             onClose={onDetailClose}
             onVote={votingTypeSelected === "Direct Democracy" ? handleDDVote : handleHybridVote}
