@@ -331,6 +331,24 @@ export const VotingProvider = ({ children }) => {
         optimisticTimersRef.current.set(proposalCompositeId, timer);
     }, []);
 
+    // Roll back an optimistic vote (e.g. the cast tx failed). Clears the entry
+    // and its pending expiry timer so the celebration can restore the ballot
+    // without a stale merged vote lingering for the rest of the grace window.
+    const removeOptimisticVote = useCallback((proposalCompositeId) => {
+        if (!proposalCompositeId) return;
+        const timer = optimisticTimersRef.current.get(proposalCompositeId);
+        if (timer) {
+            clearTimeout(timer);
+            optimisticTimersRef.current.delete(proposalCompositeId);
+        }
+        setOptimisticVotes(prev => {
+            if (!prev[proposalCompositeId]) return prev;
+            const next = { ...prev };
+            delete next[proposalCompositeId];
+            return next;
+        });
+    }, []);
+
     // Clear any pending expiry timers on unmount.
     useEffect(() => {
         const timers = optimisticTimersRef.current;
@@ -478,10 +496,11 @@ export const VotingProvider = ({ children }) => {
         error,
         refetch: refetchVoting,
         addOptimisticVote,
+        removeOptimisticVote,
         ongoingPolls: state.ongoingPolls,
         votingType: state.votingType,
         votingClasses: state.votingClasses,
-    }), [state, loading, error, refetchVoting, addOptimisticVote]);
+    }), [state, loading, error, refetchVoting, addOptimisticVote, removeOptimisticVote]);
 
     return (
         <VotingContext.Provider value={contextValue}>

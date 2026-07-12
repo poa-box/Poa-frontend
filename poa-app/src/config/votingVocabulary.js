@@ -69,6 +69,161 @@ export const COMPLETED_ELIGIBILITY_LABEL = 'Who could vote:';
 /** Verb for finalizing / announcing a poll result. */
 export const FINALIZE_VERB = 'Count the votes';
 
+/**
+ * Turnout copy — votes cast vs. eligible denominator, with a quorum aside.
+ * `voted` = distinct voters, `eligible` = eligible denominator (may be the
+ * member count fallback → set `approximate` so the label reads "members"),
+ * `quorum` = minimum voters for the result to count (0 = no quorum).
+ * Returns `{ line, quorumMet, needsMore }`.
+ */
+export function turnoutCopy({ voted = 0, eligible = 0, quorum = 0, approximate = false }) {
+  const noun = approximate ? 'members' : 'eligible';
+  const denom = eligible > 0 ? `${voted} of ${eligible} ${noun}` : `${voted} voted`;
+  const base = eligible > 0 ? `${denom} voted` : denom;
+
+  if (!quorum || quorum <= 0) {
+    return { line: base, quorumMet: true, needsMore: 0 };
+  }
+  if (voted >= quorum) {
+    return { line: `${base} · quorum met ✓`, quorumMet: true, needsMore: 0 };
+  }
+  const needsMore = quorum - voted;
+  return {
+    line: `${base} · needs ${needsMore} more for quorum`,
+    quorumMet: false,
+    needsMore,
+  };
+}
+
+/**
+ * Leading-option support vs. the pass threshold, member-facing.
+ * `supportPct` = leading option's support %, `thresholdPct` = pass line.
+ */
+export function supportCopy(supportPct, thresholdPct) {
+  const s = supportPct == null ? 0 : Math.round(supportPct);
+  if (!thresholdPct || thresholdPct <= 0) {
+    return `Leading option has ${s}% support`;
+  }
+  return `Leading option has ${s}% support · passes over ${Math.round(thresholdPct)}%`;
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle status chips (board cards + detail header).
+// ---------------------------------------------------------------------------
+
+/** Live poll still open (paired with a relative-time countdown by the caller). */
+export const STATUS_LIVE = 'LIVE';
+/** Live poll closing within 24h. */
+export const STATUS_CLOSING_SOON = 'CLOSING SOON';
+/** Voting window ended, result not yet counted on-chain. */
+export const STATUS_AWAITING_COUNT = 'VOTING ENDED — awaiting count';
+
+/** "You already voted" affordance. */
+export const YOU_VOTED_CHIP = 'You voted ✓';
+
+// ---------------------------------------------------------------------------
+// Completed-poll execution-status taxonomy (preserved from CompletedPollModal)
+// with plain-language explanations. `label` is the chip; `explain` is one line.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the execution-status chip for a completed proposal.
+ * @param {object} p - transformed proposal (isValid, wasExecuted,
+ *   executionFailed, executionError, hasExecutableActions)
+ */
+export function executionStatus(p = {}) {
+  const isValid = p.isValid !== false;
+  const hasActions = !!(p.executionBatchId || p.executedCallsCount > 0 || p.hasExecutableActions);
+
+  if (!isValid) {
+    return {
+      key: 'no_quorum',
+      label: 'No quorum',
+      colorScheme: 'gray',
+      explain: 'Not enough people voted, so nothing changed.',
+      canRetry: false,
+    };
+  }
+  if (p.executionFailed === true) {
+    return {
+      key: 'failed',
+      label: 'Execution Failed',
+      colorScheme: 'red',
+      explain: p.executionError
+        ? `The winning action failed on-chain: ${p.executionError}`
+        : "The winning option's on-chain action failed to run — it can be retried.",
+      canRetry: true,
+    };
+  }
+  if (p.wasExecuted) {
+    return {
+      key: 'applied',
+      label: 'Decision Applied',
+      colorScheme: 'green',
+      explain: "The winning option's action was applied on-chain.",
+      canRetry: false,
+    };
+  }
+  if (hasActions) {
+    return {
+      key: 'pending',
+      label: 'Pending Execution',
+      colorScheme: 'yellow',
+      explain: 'This decision has an action waiting to be applied — it can be retried.',
+      canRetry: true,
+    };
+  }
+  return {
+    key: 'signal',
+    label: 'Signal vote',
+    colorScheme: 'blue',
+    explain: 'This was a sentiment check with no on-chain action.',
+    canRetry: false,
+  };
+}
+
+/**
+ * Plain-language pass/fail line for a completed proposal.
+ * @param {object} p - transformed proposal
+ */
+export function outcomeHeadline(p = {}) {
+  if (p.isValid === false) return 'No quorum — not enough people voted';
+  const win = p.options?.[p.winningOption];
+  if (!win) return 'Voting complete';
+  const support = Math.round(win.percentage || 0);
+  const passed = !p.thresholdPct || support >= p.thresholdPct;
+  return passed
+    ? `Passed — "${win.name}" won with ${support}% support`
+    : `Did not pass — "${win.name}" led with ${support}% but fell short`;
+}
+
+// ---------------------------------------------------------------------------
+// Vote-celebration copy (VoteCelebration.jsx).
+// ---------------------------------------------------------------------------
+
+export const CELEBRATION_HEADLINE = 'Your vote is in!';
+/** `pct` = the viewer's total share of this decision. */
+export function celebrationShare(pct) {
+  if (pct == null || Number.isNaN(pct)) return null;
+  return `Counted as ${Number(pct).toFixed(1)}% of this decision`;
+}
+export const CELEBRATION_YOUR_CHOICE = 'You voted:';
+export const CELEBRATION_DONE = 'Done';
+export const CELEBRATION_ERROR_TITLE = "Your vote didn't go through";
+export const CELEBRATION_ERROR_BODY = 'Nothing was recorded. Try again.';
+export const CELEBRATION_RETRY = 'Try again';
+
+// ---------------------------------------------------------------------------
+// Finalize-zone explainer (PollDetail section i).
+// ---------------------------------------------------------------------------
+
+export const FINALIZE_EXPLAINER =
+  "Voting has ended. Counting records the final result on-chain — anyone can " +
+  "do it, it doesn't change the outcome, and it can't be undone.";
+export const FINALIZE_CONFIRM_TITLE = 'Count the votes?';
+export const FINALIZE_CONFIRM_BODY =
+  "This records the final tally on-chain. It doesn't change who won and can't be undone.";
+
 /** Badge on binding (official) polls. */
 export const BINDING_BADGE = 'BINDING';
 
@@ -149,4 +304,22 @@ export default {
   classLabel,
   sliceBadge,
   ineligibleCopy,
+  turnoutCopy,
+  supportCopy,
+  STATUS_LIVE,
+  STATUS_CLOSING_SOON,
+  STATUS_AWAITING_COUNT,
+  YOU_VOTED_CHIP,
+  executionStatus,
+  outcomeHeadline,
+  CELEBRATION_HEADLINE,
+  celebrationShare,
+  CELEBRATION_YOUR_CHOICE,
+  CELEBRATION_DONE,
+  CELEBRATION_ERROR_TITLE,
+  CELEBRATION_ERROR_BODY,
+  CELEBRATION_RETRY,
+  FINALIZE_EXPLAINER,
+  FINALIZE_CONFIRM_TITLE,
+  FINALIZE_CONFIRM_BODY,
 };
