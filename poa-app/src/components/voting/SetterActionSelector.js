@@ -11,7 +11,6 @@ import {
   Box,
   Text,
   Button,
-  ButtonGroup,
   Select,
   SimpleGrid,
   Alert,
@@ -19,6 +18,7 @@ import {
   Badge,
   Divider,
   Icon,
+  Collapse,
 } from '@chakra-ui/react';
 import {
   FiCheckSquare,
@@ -28,6 +28,8 @@ import {
   FiTag,
   FiChevronRight,
   FiArrowLeft,
+  FiChevronDown,
+  FiTerminal,
 } from 'react-icons/fi';
 import SetterParamInputs from './SetterParamInputs';
 import {
@@ -169,6 +171,9 @@ const SetterActionSelector = ({
 }) => {
   const [mode, setMode] = useState('template');
   const [selectedCategory, setSelectedCategory] = useState(null);
+  // "Developer mode" disclosure — the raw-ABI path is a footgun for co-op
+  // members, so it stays collapsed until deliberately opened.
+  const [devModeOpen, setDevModeOpen] = useState(false);
 
   // Get the selected template if in template mode
   const selectedTemplate = useMemo(() => {
@@ -244,33 +249,18 @@ const SetterActionSelector = ({
     });
   };
 
+  // Toggle the Developer-mode disclosure. Opening switches the form into
+  // advanced (raw-ABI) mode; collapsing returns it to the safe template mode so
+  // a stale raw call can't leak into submit.
+  const toggleDevMode = () => {
+    const nextOpen = !devModeOpen;
+    setDevModeOpen(nextOpen);
+    handleModeSwitch(nextOpen ? 'advanced' : 'template');
+  };
+
   return (
     <VStack spacing={4} align="stretch">
-      {/* Mode toggle */}
-      <ButtonGroup size="sm" isAttached variant="outline" w="100%">
-        <Button
-          flex={1}
-          onClick={() => handleModeSwitch('template')}
-          bg={mode === 'template' ? 'purple.600' : 'transparent'}
-          borderColor="purple.500"
-          color="white"
-          _hover={{ bg: mode === 'template' ? 'purple.700' : 'whiteAlpha.200' }}
-        >
-          Templates
-        </Button>
-        <Button
-          flex={1}
-          onClick={() => handleModeSwitch('advanced')}
-          bg={mode === 'advanced' ? 'purple.600' : 'transparent'}
-          borderColor="purple.500"
-          color="white"
-          _hover={{ bg: mode === 'advanced' ? 'purple.700' : 'whiteAlpha.200' }}
-        >
-          Advanced
-        </Button>
-      </ButtonGroup>
-
-      {mode === 'template' ? (
+      {!devModeOpen ? (
         <>
           {/* Template Mode */}
           {!selectedCategory && !proposal.setterTemplate && (
@@ -378,12 +368,40 @@ const SetterActionSelector = ({
             </>
           )}
         </>
-      ) : (
-        <>
-          {/* Advanced Mode */}
-          <Text fontSize="xs" color="gray.400">
-            Advanced mode allows you to call any setter function directly. Use with caution.
-          </Text>
+      ) : null}
+
+      {/* Developer mode — raw contract call, collapsed by default */}
+      <Box borderTop="1px solid" borderColor="whiteAlpha.100" pt={3}>
+        <Button
+          size="sm"
+          variant="ghost"
+          leftIcon={<Icon as={FiTerminal} />}
+          rightIcon={
+            <Icon
+              as={FiChevronDown}
+              transform={devModeOpen ? 'rotate(180deg)' : 'none'}
+              transition="transform 0.2s"
+            />
+          }
+          color="gray.400"
+          _hover={{ color: 'white', bg: 'whiteAlpha.100' }}
+          onClick={toggleDevMode}
+          w="100%"
+          justifyContent="space-between"
+        >
+          Developer mode
+        </Button>
+      </Box>
+
+      <Collapse in={devModeOpen} animateOpacity>
+        <VStack spacing={4} align="stretch">
+          {/* Advanced Mode — raw contract call */}
+          <Alert status="warning" borderRadius="md" bg="rgba(236, 201, 75, 0.15)">
+            <AlertIcon color="yellow.300" />
+            <Text fontSize="sm" color="yellow.200">
+              Calls a contract function directly. Only use this if you know exactly what it does.
+            </Text>
+          </Alert>
 
           <Select
             placeholder="Select contract"
@@ -444,8 +462,8 @@ const SetterActionSelector = ({
               />
             </>
           )}
-        </>
-      )}
+        </VStack>
+      </Collapse>
 
       <Divider borderColor="rgba(148, 115, 220, 0.2)" />
 
