@@ -85,11 +85,11 @@ export function turnoutCopy({ voted = 0, eligible = 0, quorum = 0, approximate =
     return { line: base, quorumMet: true, needsMore: 0 };
   }
   if (voted >= quorum) {
-    return { line: `${base} · quorum met ✓`, quorumMet: true, needsMore: 0 };
+    return { line: `${base} · quorum\u00a0met\u00a0✓`, quorumMet: true, needsMore: 0 };
   }
   const needsMore = quorum - voted;
   return {
-    line: `${base} · needs ${needsMore} more for quorum`,
+    line: `${base} · needs\u00a0${needsMore}\u00a0more\u00a0for\u00a0quorum`,
     quorumMet: false,
     needsMore,
   };

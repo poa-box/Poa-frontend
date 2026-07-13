@@ -185,7 +185,9 @@ export function PollDetail({
   const closed = !!poll && !poll.isOngoing;
   const awaitingCount = variant === 'awaiting-finalize';
   const hasVoted = !!poll?.userHasVoted;
-  const showResults = hasVoted || closed;
+  // "Voting ended" counts as closed for visibility: no bandwagon risk remains,
+  // and hiding standings on an ended-but-uncounted vote reads as broken.
+  const showResults = hasVoted || closed || !!poll?.isExpired;
   const canVote = !!poll?.isOngoing && !poll?.isExpired && eligible && !hasVoted;
 
   const restrictedRolesText =
@@ -485,7 +487,7 @@ export function PollDetail({
               {/* f. Ballot zone (live + eligible + !voted) — NO results here */}
               {canVote && (
                 <VStack align="stretch" spacing={4}>
-                  {isBlended && (
+                  {(poll.options || []).length >= 2 && (
                     <FormControl display="flex" alignItems="center">
                       <FormLabel htmlFor="weighted-mode" mb={0} fontSize="sm" color="gray.200">
                         Split my vote across options
@@ -551,13 +553,18 @@ export function PollDetail({
                     bg={amethyst}
                     color="white"
                     _hover={{ bg: amethystBright }}
-                    _disabled={{ bg: 'whiteAlpha.200', color: 'gray.400', cursor: 'not-allowed' }}
+                    _disabled={{ bg: 'rgba(148,115,220,0.28)', color: 'whiteAlpha.800', cursor: 'not-allowed', opacity: 1 }}
                     fontWeight="700"
                   >
                     {isWeighted && weightedUsed < 100
                       ? `Allocate ${100 - weightedUsed} more points to vote`
                       : 'Cast vote'}
                   </Button>
+                  {!voteValid && !isWeighted && (
+                    <Text fontSize="xs" color="gray.400" textAlign="center" mt={-1}>
+                      Choose an option to cast your vote
+                    </Text>
+                  )}
                 </VStack>
               )}
 
@@ -565,7 +572,7 @@ export function PollDetail({
               {showResults && (
                 <VStack align="stretch" spacing={3}>
                   <Text fontSize="sm" fontWeight="700" color="gray.200">
-                    Results
+                    {awaitingCount ? 'Provisional results' : 'Results'}
                   </Text>
                   <ResultBars
                     options={poll.options}
@@ -625,7 +632,7 @@ export function PollDetail({
               {FINALIZE_CONFIRM_BODY}
             </AlertDialogBody>
             <AlertDialogFooter>
-              <Button ref={cancelRef} onClick={finalizeConfirm.onClose} variant="ghost" isDisabled={finalizing}>
+              <Button ref={cancelRef} onClick={finalizeConfirm.onClose} variant="outline" color="gray.200" borderColor="whiteAlpha.400" _hover={{ bg: 'whiteAlpha.100' }} isDisabled={finalizing}>
                 Cancel
               </Button>
               <Button

@@ -116,6 +116,19 @@ const CreateVoteModal = ({
   // ---- Draft autosave ----
   const draft = useVoteDraft({ isOpen, proposal });
 
+  // ---- Touched gating for inline errors ----
+  // A pristine form must not open covered in red: error styling appears only
+  // after the member has interacted with (blurred/changed) that field. The
+  // Create button still gates on the FULL error set + names the first missing
+  // thing in its tooltip.
+  const [touched, setTouched] = useState({});
+  useEffect(() => {
+    if (isOpen) setTouched({});
+  }, [isOpen]);
+  const markTouched = useCallback((key) => {
+    setTouched((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  }, []);
+
   // ---- Confirm step (normal + transferFunds only) ----
   const [reviewing, setReviewing] = useState(false);
   // Reset review state whenever the modal closes or the type changes away from
@@ -185,6 +198,15 @@ const CreateVoteModal = ({
     }
     return errors;
   }, [proposal]);
+
+  // Errors shown in the UI — only for fields the member has touched.
+  const visibleErrors = useMemo(() => {
+    const out = {};
+    for (const [k, v] of Object.entries(fieldErrors)) {
+      if (touched[k]) out[k] = v;
+    }
+    return out;
+  }, [fieldErrors, touched]);
 
   const firstError = useMemo(() => {
     const order = ['name', 'time', 'options', 'transferAddress', 'transferAmount', 'restrictedHatIds'];
@@ -287,7 +309,7 @@ const CreateVoteModal = ({
         <Box style={glassLayerStyle} />
 
         <ModalHeader color="white" fontSize="xl" fontWeight="bold" pb={2}>
-          Create a Vote
+          Create a vote
         </ModalHeader>
         <ModalCloseButton color="white" />
 
@@ -369,7 +391,7 @@ const CreateVoteModal = ({
                     Vote Details
                   </Text>
                   <VStack spacing={4} align="stretch">
-                    <FormControl isInvalid={Boolean(fieldErrors.name)}>
+                    <FormControl isInvalid={Boolean(visibleErrors.name)}>
                       <FormLabel color="gray.200" fontSize="sm">
                         Vote Title
                       </FormLabel>
@@ -378,9 +400,10 @@ const CreateVoteModal = ({
                         name="name"
                         value={proposal.name}
                         onChange={handleInputChange}
+                        onBlur={() => markTouched('name')}
                         {...inputStyles}
                       />
-                      {fieldErrors.name && <FormErrorMessage>{fieldErrors.name}</FormErrorMessage>}
+                      {visibleErrors.name && <FormErrorMessage>{visibleErrors.name}</FormErrorMessage>}
                     </FormControl>
 
                     <FormControl>
@@ -399,11 +422,12 @@ const CreateVoteModal = ({
 
                     <DurationField
                       value={proposal.time}
-                      onChange={(hours) =>
-                        handleInputChange({ target: { name: 'time', value: hours } })
-                      }
-                      isInvalid={Boolean(fieldErrors.time)}
-                      errorMessage={fieldErrors.time}
+                      onChange={(hours) => {
+                        markTouched('time');
+                        handleInputChange({ target: { name: 'time', value: hours } });
+                      }}
+                      isInvalid={Boolean(visibleErrors.time)}
+                      errorMessage={visibleErrors.time}
                     />
                   </VStack>
                 </Box>
@@ -422,7 +446,7 @@ const CreateVoteModal = ({
                   </Text>
                   <VStack spacing={4} align="stretch">
                     {proposal.type === "normal" && (
-                      <FormControl isInvalid={Boolean(fieldErrors.options)}>
+                      <FormControl isInvalid={Boolean(visibleErrors.options)}>
                         <FormLabel color="gray.200" fontSize="sm">
                           Voting Options
                         </FormLabel>
@@ -433,6 +457,7 @@ const CreateVoteModal = ({
                                 placeholder={`Option ${index + 1}`}
                                 value={option}
                                 onChange={(e) => handleOptionChange(index, e.target.value)}
+                                onBlur={() => markTouched('options')}
                                 {...inputStyles}
                               />
                               <IconButton
@@ -458,8 +483,8 @@ const CreateVoteModal = ({
                           >
                             Add Option
                           </Button>
-                          {fieldErrors.options && (
-                            <FormErrorMessage>{fieldErrors.options}</FormErrorMessage>
+                          {visibleErrors.options && (
+                            <FormErrorMessage>{visibleErrors.options}</FormErrorMessage>
                           )}
                         </VStack>
                       </FormControl>
@@ -487,7 +512,7 @@ const CreateVoteModal = ({
 
                     {proposal.type === "transferFunds" && (
                       <>
-                        <FormControl isInvalid={Boolean(fieldErrors.transferAddress)}>
+                        <FormControl isInvalid={Boolean(visibleErrors.transferAddress)}>
                           <FormLabel color="gray.200" fontSize="sm">
                             Recipient Address
                           </FormLabel>
@@ -495,14 +520,15 @@ const CreateVoteModal = ({
                             placeholder="0x..."
                             value={proposal.transferAddress}
                             onChange={handleTransferAddressChange}
+                            onBlur={() => markTouched('transferAddress')}
                             {...inputStyles}
                           />
-                          {fieldErrors.transferAddress && (
-                            <FormErrorMessage>{fieldErrors.transferAddress}</FormErrorMessage>
+                          {visibleErrors.transferAddress && (
+                            <FormErrorMessage>{visibleErrors.transferAddress}</FormErrorMessage>
                           )}
                         </FormControl>
 
-                        <FormControl isInvalid={Boolean(fieldErrors.transferAmount)}>
+                        <FormControl isInvalid={Boolean(visibleErrors.transferAmount)}>
                           <FormLabel color="gray.200" fontSize="sm">
                             Amount ({nativeCurrencySymbol})
                           </FormLabel>
@@ -510,13 +536,14 @@ const CreateVoteModal = ({
                             placeholder={`Amount in ${nativeCurrencySymbol}`}
                             value={proposal.transferAmount}
                             onChange={handleTransferAmountChange}
+                            onBlur={() => markTouched('transferAmount')}
                             type="number"
                             step="0.001"
                             min="0"
                             {...inputStyles}
                           />
-                          {fieldErrors.transferAmount && (
-                            <FormErrorMessage>{fieldErrors.transferAmount}</FormErrorMessage>
+                          {visibleErrors.transferAmount && (
+                            <FormErrorMessage>{visibleErrors.transferAmount}</FormErrorMessage>
                           )}
                         </FormControl>
 
@@ -589,13 +616,13 @@ const CreateVoteModal = ({
                         <Switch
                           id="restricted-voting"
                           isChecked={proposal.isRestricted}
-                          onChange={(e) => handleRestrictedToggle(e.target.checked)}
+                          onChange={(e) => { markTouched('restrictedHatIds'); handleRestrictedToggle(e.target.checked); }}
                           colorScheme="purple"
                         />
                       </FormControl>
 
                       {proposal.isRestricted && (
-                        <FormControl isInvalid={Boolean(fieldErrors.restrictedHatIds)}>
+                        <FormControl isInvalid={Boolean(visibleErrors.restrictedHatIds)}>
                           <Box
                             p={4}
                             bg="whiteAlpha.50"
@@ -619,8 +646,8 @@ const CreateVoteModal = ({
                                 </WrapItem>
                               ))}
                             </Wrap>
-                            {fieldErrors.restrictedHatIds && (
-                              <FormErrorMessage>{fieldErrors.restrictedHatIds}</FormErrorMessage>
+                            {visibleErrors.restrictedHatIds && (
+                              <FormErrorMessage>{visibleErrors.restrictedHatIds}</FormErrorMessage>
                             )}
                           </Box>
                         </FormControl>
@@ -654,27 +681,31 @@ const CreateVoteModal = ({
                 Cancel
               </Button>
             )}
-            <Tooltip
-              label={isTourStep
-                ? "Demo only — finish the tour to create a real proposal"
-                : firstError || ''}
-              isDisabled={!isTourStep && !firstError}
-              hasArrow
-              placement="top"
-            >
-              {/* span wrapper so the tooltip still shows on a disabled button */}
-              <Box>
-                <Button
-                  colorScheme="purple"
-                  onClick={handleFooterPrimary}
-                  isLoading={loadingSubmit}
-                  loadingText="Creating..."
-                  isDisabled={!canSubmit || !hasChosenType}
-                >
-                  {primaryLabel}
-                </Button>
-              </Box>
-            </Tooltip>
+            {/* No primary while the intent gallery is open — a grayed CTA next
+                to "what do you want to do?" reads broken, not disabled. */}
+            {hasChosenType && (
+              <Tooltip
+                label={isTourStep
+                  ? "Demo only — finish the tour to create a real proposal"
+                  : firstError || ''}
+                isDisabled={!isTourStep && !firstError}
+                hasArrow
+                placement="top"
+              >
+                {/* span wrapper so the tooltip still shows on a disabled button */}
+                <Box>
+                  <Button
+                    colorScheme="purple"
+                    onClick={handleFooterPrimary}
+                    isLoading={loadingSubmit}
+                    loadingText="Creating..."
+                    isDisabled={!canSubmit}
+                  >
+                    {primaryLabel}
+                  </Button>
+                </Box>
+              </Tooltip>
+            )}
           </HStack>
         </ModalFooter>
       </ModalContent>

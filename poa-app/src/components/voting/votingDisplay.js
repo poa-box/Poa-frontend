@@ -64,7 +64,7 @@ export function leadingOption(p) {
  * Compact relative time to (or since) a unix-seconds timestamp.
  * e.g. "2d 4h left", "3h left", "closed 2d ago".
  */
-export function relativeTime(unixSeconds, { pastPrefix = 'closed ', pastSuffix = ' ago', futureSuffix = ' left' } = {}) {
+export function relativeTime(unixSeconds, { pastPrefix = 'closed ', pastSuffix = ' ago', futureSuffix = ' left', coarse = false } = {}) {
   const end = parseInt(unixSeconds, 10) || 0;
   const nowSec = Math.floor(Date.now() / 1000);
   let diff = end - nowSec;
@@ -76,8 +76,9 @@ export function relativeTime(unixSeconds, { pastPrefix = 'closed ', pastSuffix =
   const m = Math.floor((diff % 3600) / 60);
 
   let core;
-  if (d > 0) core = h > 0 ? `${d}d ${h}h` : `${d}d`;
-  else if (h > 0) core = m > 0 ? `${h}h ${m}m` : `${h}h`;
+  // coarse: single largest unit — "opened 17h ago", not "opened 17h 43m ago".
+  if (d > 0) core = coarse ? `${d}d` : (h > 0 ? `${d}d ${h}h` : `${d}d`);
+  else if (h > 0) core = coarse ? `${h}h` : (m > 0 ? `${h}h ${m}m` : `${h}h`);
   else if (m > 0) core = `${m}m`;
   else if (future) core = 'under 1m';
   // "just now" is already relative — no prefix/suffix ("just now ago" reads broken).

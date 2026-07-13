@@ -173,7 +173,8 @@ export function ProposalCard({
     : proposal.type === 'Hybrid';
   const badgeText = typeBadge || (isBinding ? BINDING_BADGE : POLL_BADGE);
 
-  const showTallies = proposal.userHasVoted || !proposal.isOngoing;
+  // Voting ended => standings visible (provisional) — no bandwagon risk remains.
+  const showTallies = proposal.userHasVoted || !proposal.isOngoing || proposal.isExpired;
   const restrictedRoleLock = proposal.isHatRestricted && (proposal.restrictedHatIds || []).length > 0;
 
   const userIndexes = proposal.userVote?.optionIndexes || [];
@@ -259,7 +260,7 @@ export function ProposalCard({
         {/* Meta line — opened + reserved proposer slot */}
         <HStack spacing={1.5} color="gray.300" fontSize="xs">
           <Text noOfLines={1}>
-            opened {relativeTime(proposal.startTimestamp, { pastPrefix: '', pastSuffix: ' ago', futureSuffix: '' })}
+            opened {relativeTime(proposal.startTimestamp, { pastPrefix: '', pastSuffix: ' ago', futureSuffix: '', coarse: true })}
           </Text>
           {proposal.proposerUsername && (
             <>

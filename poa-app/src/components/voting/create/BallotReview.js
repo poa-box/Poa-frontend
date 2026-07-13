@@ -39,7 +39,8 @@ const BallotReview = ({ proposal, whoCanVoteLabel, nativeCurrencySymbol = 'ETH' 
     ? ['Yes — send the funds', 'No — do not send']
     : (proposal.options || []).filter(o => o.trim() !== '');
 
-  const endsLabel = formatVotingEnds(proposal.time) || 'Duration not set';
+  // Row label already reads "Voting ends" — the value is just the date.
+  const endsLabel = (formatVotingEnds(proposal.time) || 'Duration not set').replace(/^Voting ends /, '');
 
   return (
     <VStack
