@@ -369,7 +369,7 @@ const GovernanceStrip = ({ votingClasses, totalSharePct, onExpand }) => {
           </HStack>
           {splitText && (
             <Text fontSize="sm" color="gray.200">
-              {splitText}
+              {splitText} split
             </Text>
           )}
           {shareText && (
@@ -654,6 +654,21 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
           zIndex={-1}
         />
         <VotingEducationContent selectedTab={selectedTab} PTVoteType={PTVoteType} />
+        {/* Re-collapse to the one-line strip without waiting for the next visit. */}
+        {isBlendedTab && (
+          <Button
+            variant="ghost"
+            size="xs"
+            mt={1}
+            mb={2}
+            color="gray.400"
+            _hover={{ color: "white", bg: "whiteAlpha.100" }}
+            rightIcon={<ChevronUpIcon />}
+            onClick={() => setCollapsed(true)}
+          >
+            Hide
+          </Button>
+        )}
       </Flex>
     </Box>
   );

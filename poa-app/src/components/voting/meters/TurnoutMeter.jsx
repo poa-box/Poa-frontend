@@ -72,7 +72,7 @@ export function TurnoutMeter({
         </HStack>
         <Text
           fontSize="sm"
-          color={quorumMet ? 'green.300' : '#F6C177'}
+          color={quorumMet && voted > 0 ? 'green.300' : quorumMet ? 'gray.300' : '#F6C177'}
           fontWeight="600"
           textAlign="right"
         >
@@ -111,7 +111,7 @@ export function TurnoutMeter({
             w="2px"
             h="12px"
             borderRadius="full"
-            bg={quorumMet ? 'green.300' : '#F6C177'}
+            bg={quorumMet && voted > 0 ? 'green.300' : quorumMet ? 'whiteAlpha.500' : '#F6C177'}
           />
         </Box>
       )}

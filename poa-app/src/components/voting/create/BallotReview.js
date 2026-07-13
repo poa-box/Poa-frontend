@@ -5,8 +5,10 @@ import {
   Box,
   Text,
   Divider,
+  Badge,
 } from '@chakra-ui/react';
 import { utils } from 'ethers';
+import { POLL_BADGE, displayName } from '@/config/votingVocabulary';
 import { formatVotingEnds } from './DurationField';
 
 /**
@@ -51,9 +53,26 @@ const BallotReview = ({ proposal, whoCanVoteLabel, nativeCurrencySymbol = 'ETH' 
       bg="whiteAlpha.50"
       border="1px solid rgba(148, 115, 220, 0.3)"
     >
-      <Text fontSize="xs" fontWeight="bold" color="purple.300" textTransform="uppercase" letterSpacing="wide">
-        Review your ballot
-      </Text>
+      <HStack justify="space-between" align="center" flexWrap="wrap" gap={2}>
+        <Text fontSize="xs" fontWeight="bold" color="purple.300" textTransform="uppercase" letterSpacing="wide">
+          Review your ballot
+        </Text>
+        {/* Binding-ness at the moment of confirmation — normal + transferFunds
+            both run as informal direct-democracy polls. */}
+        <Badge
+          px={2}
+          py={0.5}
+          borderRadius="md"
+          textTransform="none"
+          fontSize="2xs"
+          fontWeight="700"
+          bg="rgba(66, 153, 225, 0.16)"
+          color="#90CDF4"
+          border="1px solid rgba(66, 153, 225, 0.3)"
+        >
+          {POLL_BADGE} · {displayName('Direct Democracy')}
+        </Badge>
+      </HStack>
 
       <Row label="Title">
         <Text fontSize="md" fontWeight="bold" color="white">

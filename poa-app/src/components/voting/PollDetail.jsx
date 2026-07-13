@@ -452,6 +452,7 @@ export function PollDetail({
                       supportPct={leader.percentage}
                       thresholdPct={poll.thresholdPct}
                       leaderName={leader.option?.name}
+                      votedCount={turnout.voted}
                     />
                   )}
                 </VStack>
@@ -480,7 +481,7 @@ export function PollDetail({
               )}
 
               {/* e. VotePowerReceipt (compact) — only when the viewer can still vote */}
-              {canVote && isBlended && (
+              {canVote && (
                 <VotePowerReceipt variant="compact" restrictedHatIds={poll.restrictedHatIds} />
               )}
 

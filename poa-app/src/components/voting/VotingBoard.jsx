@@ -114,9 +114,12 @@ function LaneGrid({ items, cardProps, accent = false }) {
   const [expanded, setExpanded] = useState(false);
   const shown = expanded ? items : items.slice(0, LANE_CAP);
   const hidden = items.length - shown.length;
+  // Columns adapt to how many cards there are — 2 cards in a 3-column lane
+  // leaves a hole that reads as a layout bug.
+  const cols = Math.max(1, Math.min(3, shown.length));
   return (
     <VStack align="stretch" spacing={3}>
-      <SimpleGrid columns={{ base: 1, md: 2, xl: 3 }} spacing={4}>
+      <SimpleGrid columns={{ base: 1, md: Math.min(2, cols), xl: cols }} spacing={4}>
         {shown.map((p) => (
           <ProposalCard
             key={p.id}

@@ -20,7 +20,7 @@ import { supportCopy } from '@/config/votingVocabulary';
 
 const AMETHYST = '#9473DC';
 
-export function SupportMeter({ supportPct = 0, thresholdPct = 0, leaderName = null }) {
+export function SupportMeter({ supportPct = 0, thresholdPct = 0, leaderName = null, votedCount = null }) {
   const support = Math.max(0, Math.min(100, Number(supportPct) || 0));
   const threshold = Math.max(0, Math.min(100, Number(thresholdPct) || 0));
   const passes = !threshold || support >= threshold;
@@ -36,7 +36,10 @@ export function SupportMeter({ supportPct = 0, thresholdPct = 0, leaderName = nu
             flexShrink={0}
           />
           <Text fontSize="sm" color="gray.200" fontWeight="500" noOfLines={1}>
-            {supportCopy(support, threshold)}
+            {/* "Leading option has 0% support" reads absurd with zero ballots */}
+            {votedCount === 0
+              ? `No votes were cast${threshold ? ` · passing needs over ${Math.round(threshold)}%` : ''}`
+              : supportCopy(support, threshold)}
           </Text>
         </HStack>
         <Text
