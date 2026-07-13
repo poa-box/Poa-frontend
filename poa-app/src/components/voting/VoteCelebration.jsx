@@ -42,7 +42,7 @@ import {
   keyframes,
 } from '@chakra-ui/react';
 import { WarningTwoIcon } from '@chakra-ui/icons';
-import { glassLayerStyle } from '@/components/shared/glassStyles';
+import GlassBack from './GlassBack';
 import {
   CELEBRATION_HEADLINE,
   celebrationShare,
@@ -229,8 +229,8 @@ export function VoteCelebration({
   // ── Failure state ──────────────────────────────────────────────────────────
   if (status === 'failed') {
     return (
-      <Box position="relative" borderRadius="2xl" p={{ base: 6, md: 8 }} overflow="hidden" w="100%">
-        <Box style={glassLayerStyle} />
+      <Box position="relative" borderRadius="2xl" p={{ base: 6, md: 8 }} overflow="hidden" w="100%" zIndex={1}>
+        <GlassBack />
         <VStack spacing={4} textAlign="center">
           <Flex
             w="64px"
@@ -270,8 +270,8 @@ export function VoteCelebration({
   const shareLine = celebrationShare(totalSharePct);
 
   return (
-    <Box position="relative" borderRadius="2xl" p={{ base: 5, md: 7 }} overflow="hidden" w="100%">
-      <Box style={glassLayerStyle} />
+    <Box position="relative" borderRadius="2xl" p={{ base: 5, md: 7 }} overflow="hidden" w="100%" zIndex={1}>
+      <GlassBack />
       <Particles show={!reduceMotion} />
 
       <VStack spacing={5} position="relative">

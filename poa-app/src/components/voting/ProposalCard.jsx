@@ -40,7 +40,7 @@ import {
   keyframes,
 } from '@chakra-ui/react';
 import { PiLockKey } from 'react-icons/pi';
-import { glassLayerStyle } from '@/components/shared/glassStyles';
+import GlassBack from './GlassBack';
 import {
   BINDING_BADGE,
   POLL_BADGE,
@@ -157,6 +157,15 @@ export function ProposalCard({
   const variant = useMemo(() => lifecycleVariant(proposal), [proposal]);
   const turnout = useMemo(() => turnoutInputs(proposal, poMembers), [proposal, poMembers]);
 
+  // Option-name preview for the pre-vote body: "Yes · No · +2 more".
+  // (Hook must run before ANY early return — rules-of-hooks.)
+  const optionPreview = useMemo(() => {
+    const names = (proposal?.options || []).map((o) => o.name);
+    const head = names.slice(0, 3).join(' · ');
+    const extra = names.length > 3 ? ` · +${names.length - 3} more` : '';
+    return head + extra;
+  }, [proposal?.options]);
+
   if (!proposal) return null;
 
   const isBinding = typeBadge
@@ -169,14 +178,6 @@ export function ProposalCard({
 
   const userIndexes = proposal.userVote?.optionIndexes || [];
   const userWeights = proposal.userVote?.optionWeights || [];
-
-  // Option-name preview for the pre-vote body: "Yes · No · +2 more".
-  const optionPreview = useMemo(() => {
-    const names = (proposal.options || []).map((o) => o.name);
-    const head = names.slice(0, 3).join(' · ');
-    const extra = names.length > 3 ? ` · +${names.length - 3} more` : '';
-    return head + extra;
-  }, [proposal.options]);
 
   const openDetail = () => onOpen?.(proposal);
 
@@ -194,6 +195,7 @@ export function ProposalCard({
         }
       }}
       position="relative"
+      zIndex={1}
       w="100%"
       borderRadius="2xl"
       overflow="hidden"
@@ -208,7 +210,7 @@ export function ProposalCard({
       }
       _focusVisible={{ outline: '2px solid', outlineColor: amethyst, outlineOffset: '2px' }}
     >
-      <Box style={glassLayerStyle} />
+      <GlassBack />
       {accent && (
         // "Needs your vote" left accent rail (tasks-board mine/needs-review convention).
         <Box position="absolute" left={0} top={0} bottom={0} w="3px" bg={coral} borderLeftRadius="2xl" />

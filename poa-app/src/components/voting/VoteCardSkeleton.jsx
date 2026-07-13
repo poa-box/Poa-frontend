@@ -11,20 +11,21 @@
 
 import React from 'react';
 import { Box, Flex, VStack, HStack, Skeleton } from '@chakra-ui/react';
-import { glassLayerStyle } from '@/components/shared/glassStyles';
+import GlassBack from './GlassBack';
 
 export function VoteCardSkeleton({ size = 'default' }) {
   const compact = size === 'compact';
   return (
     <Box
       position="relative"
+      zIndex={1}
       w="100%"
       borderRadius="2xl"
       overflow="hidden"
       p={compact ? 4 : 5}
       minH={compact ? '132px' : '168px'}
     >
-      <Box style={glassLayerStyle} />
+      <GlassBack />
       <VStack align="stretch" spacing={compact ? 2 : 3} h="100%">
         <Flex justify="space-between" align="center">
           <Skeleton height="16px" width="64px" borderRadius="md" />

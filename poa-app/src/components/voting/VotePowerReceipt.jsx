@@ -33,7 +33,7 @@ import {
 } from '@chakra-ui/react';
 import { ChevronRightIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon, CloseIcon } from '@chakra-ui/icons';
 import { PiUsers, PiChartBar, PiSquareHalfFill } from 'react-icons/pi';
-import { glassLayerStyle } from '@/components/shared/glassStyles';
+import GlassBack from './GlassBack';
 import { useVotingPower, useRoleNames } from '@/hooks';
 import { useUserContext } from '@/context/UserContext';
 import { usePOContext } from '@/context/POContext';
@@ -246,12 +246,13 @@ function ReceiptSkeleton({ variant }) {
   return (
     <Box
       position="relative"
+      zIndex={1}
       borderRadius="2xl"
       p={4}
       w="100%"
       overflow="hidden"
     >
-      <Box style={glassLayerStyle} />
+      <GlassBack />
       <VStack align="stretch" spacing={3}>
         <Skeleton height="16px" width="180px" />
         <Skeleton height="52px" borderRadius="lg" />
@@ -278,8 +279,8 @@ function RestrictionNotice({ rolesText, variant }) {
     );
   }
   return (
-    <Box position="relative" borderRadius="2xl" p={4} w="100%" overflow="hidden">
-      <Box style={glassLayerStyle} />
+    <Box position="relative" borderRadius="2xl" p={4} w="100%" overflow="hidden" zIndex={1}>
+      <GlassBack />
       <HStack spacing={2} align="center">
         <CloseIcon boxSize="11px" color="rose.300" />
         <Text fontSize="sm" color="gray.100">
@@ -290,7 +291,7 @@ function RestrictionNotice({ rolesText, variant }) {
   );
 }
 
-export function VotePowerReceipt({ variant = 'full', restrictedHatIds = null }) {
+export function VotePowerReceipt({ variant = 'full', restrictedHatIds = null, hideExplainer = false }) {
   const {
     classBreakdown,
     totalSharePct,
@@ -337,8 +338,8 @@ export function VotePowerReceipt({ variant = 'full', restrictedHatIds = null }) 
       );
     }
     return (
-      <Box position="relative" borderRadius="2xl" p={4} w="100%" overflow="hidden">
-        <Box style={glassLayerStyle} />
+      <Box position="relative" borderRadius="2xl" p={4} w="100%" overflow="hidden" zIndex={1}>
+        <GlassBack />
         <HStack spacing={2}>
           <Icon as={PiUsers} boxSize={4} color={AMETHYST} />
           <Text fontSize="sm" color="white" fontWeight="600">
@@ -377,23 +378,23 @@ export function VotePowerReceipt({ variant = 'full', restrictedHatIds = null }) 
         </Button>
         <Collapse in={compactOpen} animateOpacity>
           <Box mt={2}>
-            <FullReceiptBody breakdown={classBreakdown} headlinePct={headlinePct} />
+            <FullReceiptBody breakdown={classBreakdown} headlinePct={headlinePct} hideExplainer={hideExplainer} />
           </Box>
         </Collapse>
       </Box>
     );
   }
 
-  return <FullReceiptBody breakdown={classBreakdown} headlinePct={headlinePct} />;
+  return <FullReceiptBody breakdown={classBreakdown} headlinePct={headlinePct} hideExplainer={hideExplainer} />;
 }
 
 /**
  * The full glass-panel body — extracted so the compact variant can reuse it.
  */
-function FullReceiptBody({ breakdown, headlinePct }) {
+function FullReceiptBody({ breakdown, headlinePct, hideExplainer = false }) {
   return (
-    <Box position="relative" borderRadius="2xl" p={{ base: 4, md: 5 }} w="100%" overflow="hidden">
-      <Box style={glassLayerStyle} />
+    <Box position="relative" borderRadius="2xl" p={{ base: 4, md: 5 }} w="100%" overflow="hidden" zIndex={1}>
+      <GlassBack />
       <VStack align="stretch" spacing={3}>
         {/* Headline */}
         <Flex align="baseline" justify="space-between" gap={2}>
@@ -421,7 +422,10 @@ function FullReceiptBody({ breakdown, headlinePct }) {
         </VStack>
 
         {/* Footer explainer */}
-        <HowItWorksFooter breakdown={breakdown} />
+        {/* hideExplainer: the education header renders its own "How Blended
+            voting works" expander directly below the receipt — two identical
+            expanders stacked reads as a bug. */}
+        {!hideExplainer && <HowItWorksFooter breakdown={breakdown} />}
       </VStack>
     </Box>
   );

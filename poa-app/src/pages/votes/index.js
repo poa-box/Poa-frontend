@@ -281,12 +281,14 @@ const VotingHistoryPage = () => {
               </Box>
             </Flex>
 
-            {/* Filter chips [All | Binding | Polls] */}
+            {/* Filter chips [All | Binding | Polls] — dark track so the
+                inactive labels stay readable on light org theme backgrounds
+                (this row sits outside the glass panels). */}
             <HStack
               spacing={1}
               p={1}
               borderRadius="full"
-              bg="whiteAlpha.100"
+              bg="blackAlpha.600"
               border="1px solid"
               borderColor="whiteAlpha.200"
               alignSelf="flex-start"

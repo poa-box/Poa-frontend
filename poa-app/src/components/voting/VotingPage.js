@@ -19,6 +19,7 @@ import React, { useState, useCallback, useEffect, useRef, useMemo } from "react"
 import { Box, Container, Center, Flex, Heading, Button, Icon } from "@chakra-ui/react";
 import { PiPlusCircle } from "react-icons/pi";
 import PulseLoader from "@/components/shared/PulseLoader";
+import GlassBack from "./GlassBack";
 import { usePOContext } from "@/context/POContext";
 import { useVotingContext } from "@/context/VotingContext";
 import { useUserContext } from "@/context/UserContext";
@@ -252,39 +253,57 @@ const VotingPage = () => {
             <VotingEducationHeader selectedTab={0} PTVoteType={PTVoteType} />
           </Box>
 
-          {/* Board header row: title + Create Vote CTA (top-right). */}
-          <Flex justify="space-between" align="center" mb={5} gap={3} flexWrap="wrap">
-            <Heading as="h1" size="lg" color="white" fontWeight="800">
-              Votes
-            </Heading>
-            {canCreate && (
-              <Button
-                leftIcon={<Icon as={PiPlusCircle} boxSize={5} />}
-                minH="44px"
-                bg="#9473DC"
-                color="white"
-                _hover={{ bg: "#B79BF0" }}
-                onClick={handleCreatePollClick}
-              >
-                Create vote
-              </Button>
-            )}
-          </Flex>
+          {/* Board panel — the dark glass container the whole board lives in.
+              Lane headers, chips, and cards are unreadable directly on themed
+              org backgrounds (e.g. Test6 mint), so everything sits on glass,
+              matching the /votes archive panels and the old VotingPanel. */}
+          <Box
+            position="relative"
+            zIndex={1}
+            borderRadius="3xl"
+            p={{ base: 4, md: 8 }}
+            mb={8}
+            w="100%"
+            maxW="1400px"
+            mx="auto"
+            boxShadow="lg"
+          >
+            <GlassBack />
 
-          <VotingBoard
-            lanes={lanes}
-            loading={loading}
-            error={error}
-            onRetry={refetch}
-            onOpenPoll={(p) => handlePollClick(p, !p.isOngoing)}
-            onFinalize={(p) => handlePollClick(p, false)}
-            poMembers={poMembers}
-            isConnected={isConnected}
-            isMember={hasMemberRole}
-            canCreate={canCreate}
-            onCreate={handleCreatePollClick}
-            orgName={userDAO}
-          />
+            {/* Board header row: title + Create Vote CTA (top-right). */}
+            <Flex justify="space-between" align="center" mb={5} gap={3} flexWrap="wrap">
+              <Heading as="h1" size="lg" color="white" fontWeight="800">
+                Votes
+              </Heading>
+              {canCreate && (
+                <Button
+                  leftIcon={<Icon as={PiPlusCircle} boxSize={5} />}
+                  minH="44px"
+                  bg="#9473DC"
+                  color="white"
+                  _hover={{ bg: "#B79BF0" }}
+                  onClick={handleCreatePollClick}
+                >
+                  Create vote
+                </Button>
+              )}
+            </Flex>
+
+            <VotingBoard
+              lanes={lanes}
+              loading={loading}
+              error={error}
+              onRetry={refetch}
+              onOpenPoll={(p) => handlePollClick(p, !p.isOngoing)}
+              onFinalize={(p) => handlePollClick(p, false)}
+              poMembers={poMembers}
+              isConnected={isConnected}
+              isMember={hasMemberRole}
+              canCreate={canCreate}
+              onCreate={handleCreatePollClick}
+              orgName={userDAO}
+            />
+          </Box>
 
           <CreateVoteModal
             isOpen={showCreatePoll}

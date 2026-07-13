@@ -242,6 +242,9 @@ function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quoru
         quorum,
         isHatRestricted: proposal.isHatRestricted,
         restrictedHatIds: proposal.restrictedHatIds || [],
+        // Passthroughs for subgraph fields that ship later (undefined until the
+        // query fetches them — ProposalCard's proposer slot self-enables).
+        proposerUsername: proposal.proposerUsername ?? proposal.creatorUsername ?? null,
         userHasVoted: userVote !== null,
         userVote,
     };

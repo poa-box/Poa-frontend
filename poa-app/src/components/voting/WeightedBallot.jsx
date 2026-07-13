@@ -37,7 +37,7 @@ import {
   SliderThumb,
 } from '@chakra-ui/react';
 import { AddIcon, MinusIcon } from '@chakra-ui/icons';
-import { glassLayerLightStyle } from '@/components/shared/glassStyles';
+import GlassBack from './GlassBack';
 import { VOTE_PALETTE } from './votingDisplay';
 
 const STEP = 5;
@@ -142,7 +142,7 @@ export function WeightedBallot({ options = [], value = {}, onChange, disabled = 
         p={3}
         overflow="hidden"
       >
-        <Box style={glassLayerLightStyle} />
+        <GlassBack light />
         <Flex justify="space-between" align="center" mb={2} gap={2}>
           <Text fontSize="sm" fontWeight="600" color="white">
             You&apos;ve used{' '}

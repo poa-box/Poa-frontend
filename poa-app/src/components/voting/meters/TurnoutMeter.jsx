@@ -48,11 +48,12 @@ export function TurnoutMeter({
     return (
       <HStack spacing={1.5} align="center" minW={0}>
         <Icon as={PiUsersThree} boxSize="14px" color={AMETHYST} flexShrink={0} />
+        {/* No truncation: "quorum met ✓" clipping to "quorum me…" reads broken.
+            Wrapping to a second line on narrow cards is the honest fallback. */}
         <Text
           fontSize="xs"
           color={quorumMet ? 'gray.200' : '#F6C177'}
           fontWeight="500"
-          noOfLines={1}
         >
           {line}
         </Text>

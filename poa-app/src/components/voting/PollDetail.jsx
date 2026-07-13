@@ -66,7 +66,7 @@ import {
 } from '@chakra-ui/react';
 import { LinkIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon } from '@chakra-ui/icons';
 import { PiLockKey } from 'react-icons/pi';
-import { glassLayerStyle, glassLayerLightStyle } from '@/components/shared/glassStyles';
+import GlassBack from './GlassBack';
 import { useAuth } from '@/context/AuthContext';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingContext } from '@/context/VotingContext';
@@ -319,8 +319,8 @@ export function PollDetail({
       size={isMobile ? 'full' : 'xl'}
     >
       <ModalOverlay bg="blackAlpha.700" />
-      <ModalContent bg="transparent" position="relative" sx={contentSx} overflow="hidden" color="white">
-        <Box style={glassLayerStyle} />
+      <ModalContent bg="transparent" position="relative" sx={contentSx} overflow="hidden" color="white" zIndex={1}>
+        <GlassBack solid />
         {isMobile && (
           // Drag-handle affordance for the bottom sheet.
           <Box w="40px" h="4px" borderRadius="full" bg="whiteAlpha.400" mx="auto" mt={3} mb={1} />
@@ -435,8 +435,8 @@ export function PollDetail({
               )}
 
               {/* c. TurnoutMeter (always) + SupportMeter (post-vote/closed only) */}
-              <Box borderRadius="xl" p={4} position="relative" overflow="hidden">
-                <Box style={glassLayerLightStyle} />
+              <Box borderRadius="xl" p={4} position="relative" overflow="hidden" zIndex={1}>
+                <GlassBack light />
                 <VStack align="stretch" spacing={4}>
                   <TurnoutMeter
                     voted={turnout.voted}
@@ -584,8 +584,8 @@ export function PollDetail({
 
               {/* i. Finalize zone (awaiting-count) */}
               {awaitingCount && onFinalize && (
-                <Box borderRadius="xl" p={4} position="relative" overflow="hidden">
-                  <Box style={glassLayerLightStyle} />
+                <Box borderRadius="xl" p={4} position="relative" overflow="hidden" zIndex={1}>
+                  <GlassBack light />
                   <VStack align="stretch" spacing={3}>
                     <Text fontSize="sm" color="gray.100" lineHeight="1.6">
                       {FINALIZE_EXPLAINER}
@@ -652,8 +652,8 @@ function OutcomeBanner({ poll }) {
   const status = executionStatus(poll);
   const headline = outcomeHeadline(poll);
   return (
-    <Box borderRadius="xl" p={4} position="relative" overflow="hidden">
-      <Box style={glassLayerLightStyle} />
+    <Box borderRadius="xl" p={4} position="relative" overflow="hidden" zIndex={1}>
+      <GlassBack light />
       <VStack align="stretch" spacing={2}>
         <Text fontSize="sm" fontWeight="700" color={leaderText}>
           {headline}

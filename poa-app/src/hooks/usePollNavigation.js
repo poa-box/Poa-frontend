@@ -87,7 +87,14 @@ export function usePollNavigation({
     setVotingTypeSelected(poll?.type === 'Direct Democracy' ? 'Direct Democracy' : PTVoteType);
     // Write the canonical `userDAO` query param (useOrgName reads both
     // `userDAO` and legacy `org`, but we standardize on `userDAO` here).
-    routerRef.current.push(`/voting?poll=${poll.id}&userDAO=${encodeURIComponent(userDAORef.current)}`);
+    // Push onto the CURRENT route — hardcoding /voting here would unmount the
+    // /votes archive (losing filters/scroll) just to open a modal it already has.
+    const r = routerRef.current;
+    r.push(
+      { pathname: r.pathname, query: { poll: poll.id, userDAO: userDAORef.current } },
+      undefined,
+      { shallow: true }
+    );
     onDetailOpen();
   }, [onDetailOpen, PTVoteType]);
 

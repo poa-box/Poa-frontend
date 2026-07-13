@@ -331,7 +331,7 @@ const GovernanceStrip = ({ votingClasses, totalSharePct, onExpand }) => {
   const shareText = totalSharePct != null ? `${totalSharePct.toFixed(1)}%` : null;
 
   return (
-    <Box display={{ base: "none", md: "block" }} w="100%" maxW="1440px" mx="auto" mb={6}>
+    <Box w="100%" maxW="1440px" mx="auto" mb={6}>
       <Flex
         align="center"
         justify="center"
@@ -340,6 +340,7 @@ const GovernanceStrip = ({ votingClasses, totalSharePct, onExpand }) => {
         py={2.5}
         borderRadius="2xl"
         position="relative"
+        zIndex={1}
         boxShadow="lg"
         cursor="pointer"
         role="button"
@@ -518,7 +519,7 @@ export const VotingEducationContent = ({ selectedTab, PTVoteType }) => {
           {/* The member's own truthful power receipt */}
           {hasMemberRole && (
             <Box w="100%" maxW="560px">
-              <VotePowerReceipt variant="full" />
+              <VotePowerReceipt variant="full" hideExplainer />
             </Box>
           )}
 
@@ -623,7 +624,7 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType }) => {
   }
 
   return (
-    <Box display={{ base: "none", md: "block" }}>
+    <Box>
       <Flex
         align="center"
         mb={6}

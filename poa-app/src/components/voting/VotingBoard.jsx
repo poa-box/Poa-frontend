@@ -29,7 +29,7 @@ import {
 } from '@chakra-ui/react';
 import { WarningTwoIcon, ArrowForwardIcon } from '@chakra-ui/icons';
 import { PiPlusCircle } from 'react-icons/pi';
-import { glassLayerStyle } from '@/components/shared/glassStyles';
+import GlassBack from './GlassBack';
 import { BINDING_BADGE, POLL_BADGE } from '@/config/votingVocabulary';
 import { ProposalCard } from './ProposalCard';
 import { VoteCardSkeleton } from './VoteCardSkeleton';
@@ -163,8 +163,8 @@ function SkeletonLane({ title }) {
 /** Error banner — reassures that cast votes are safe, offers Retry. */
 function ErrorBanner({ onRetry }) {
   return (
-    <Box position="relative" borderRadius="2xl" p={6} overflow="hidden">
-      <Box style={glassLayerStyle} />
+    <Box position="relative" borderRadius="2xl" p={6} overflow="hidden" zIndex={1}>
+      <GlassBack />
       <VStack spacing={3} align="center" textAlign="center">
         <Icon as={WarningTwoIcon} boxSize={7} color="#F6C177" />
         <Text fontSize="sm" color="gray.100" maxW="480px">
@@ -210,8 +210,8 @@ function EmptyBoard({ kind, orgName, onCreate, canCreate }) {
     }
   }
   return (
-    <Box position="relative" borderRadius="2xl" p={{ base: 8, md: 12 }} overflow="hidden">
-      <Box style={glassLayerStyle} />
+    <Box position="relative" borderRadius="2xl" p={{ base: 8, md: 12 }} overflow="hidden" zIndex={1}>
+      <GlassBack />
       <VStack spacing={3} align="center" textAlign="center">
         <Text fontSize="lg" fontWeight="800" color="white">
           {heading}
