@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useCallback, useReducer, useRef, useState } from 'react';
 import { useQuery } from '@apollo/client';
-import { FETCH_VOTING_DATA_NEW } from '../util/queries';
+import { FETCH_VOTING_DATA_NEW, FETCH_VOTING_DATA_WITH_PROPOSER } from '../util/queries';
+import { hasProposerField } from '../util/subgraphCapabilities';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
 import { useSubgraphClient } from '../util/apolloClient';
@@ -277,17 +278,33 @@ export const VotingProvider = ({ children }) => {
     const isActive = useUserActive();
     const { accountAddress } = useAuth();
 
+    // Proposer attribution self-enables: probe the serving subgraph's schema
+    // once (cached) and upgrade to the richer query only when the field exists
+    // — asking for an unknown field errors the entire org query.
+    const [proposerSupported, setProposerSupported] = useState(false);
+    useEffect(() => {
+        let cancelled = false;
+        if (!subgraphUrl) return undefined;
+        hasProposerField(subgraphUrl).then((has) => {
+            if (!cancelled && has) setProposerSupported(true);
+        });
+        return () => { cancelled = true; };
+    }, [subgraphUrl]);
+
     // pollInterval keeps voting data fresh so another member's vote appears
     // without a reload. Voting is event-driven, but events only fire for the
     // acting user; gentle 30s polling surfaces everyone else's activity.
     // Polling pauses when the tab is hidden or the user is idle (useUserActive).
-    const { data, loading, error, refetch } = useQuery(FETCH_VOTING_DATA_NEW, {
+    const { data, loading, error, refetch } = useQuery(
+        proposerSupported ? FETCH_VOTING_DATA_WITH_PROPOSER : FETCH_VOTING_DATA_NEW,
+        {
         variables: { orgId: orgId },
         skip: !orgId,
         fetchPolicy: 'cache-first',
         pollInterval: isActive ? 30000 : 0,
         client,
-    });
+        }
+    );
 
     // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
     const refetchRef = useRef(refetch);

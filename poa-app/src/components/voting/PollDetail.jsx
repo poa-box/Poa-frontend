@@ -93,6 +93,7 @@ import { SupportMeter } from './meters/SupportMeter';
 import { ResultBars } from './ResultBars';
 import { WeightedBallot, weightedPairs } from './WeightedBallot';
 import { VoteCelebration } from './VoteCelebration';
+import { VoterRoster } from './VoterRoster';
 import {
   lifecycleVariant,
   turnoutInputs,
@@ -100,6 +101,7 @@ import {
   relativeTime,
   shortDate,
   isEligibleToVote,
+  computeVoterRoster,
   VOTE_PALETTE,
 } from './votingDisplay';
 
@@ -141,7 +143,7 @@ export function PollDetail({
   const { addOptimisticVote, removeOptimisticVote } = useVotingContext();
   const { classBreakdown, totalSharePct } = useVotingPower();
   const { getRoleNamesString } = useRoleNames();
-  const { poMembers } = usePOContext();
+  const { poMembers, leaderboardData } = usePOContext();
 
   const isMobile = useBreakpointValue({ base: true, md: false });
 
@@ -169,7 +171,14 @@ export function PollDetail({
   }, [isOpen, poll?.id]);
 
   const variant = useMemo(() => lifecycleVariant(poll), [poll]);
-  const turnout = useMemo(() => turnoutInputs(poll, poMembers), [poll, poMembers]);
+  const roster = useMemo(() => computeVoterRoster(poll, leaderboardData), [poll, leaderboardData]);
+  // Roster gives an EXACT eligible denominator (restricted polls narrow to the
+  // actual hat holders) — prefer it over the poMembers approximation.
+  const turnout = useMemo(() => {
+    const base = turnoutInputs(poll, poMembers);
+    if (!roster.exact) return base;
+    return { ...base, eligible: roster.eligibleCount, approximate: false };
+  }, [poll, poMembers, roster]);
   const leader = useMemo(() => leadingOption(poll), [poll]);
 
   const eligible = useMemo(
@@ -405,6 +414,9 @@ export function PollDetail({
                 </Text>
 
                 <Text fontSize="xs" color="gray.300">
+                  {poll.proposerUsername && (
+                    <Text as="span" color="#C6B4F5" fontWeight="600">by {poll.proposerUsername} · </Text>
+                  )}
                   opened {shortDate(poll.startTimestamp)} · closes {shortDate(poll.endTimestamp)}
                   {poll.isOngoing && !poll.isExpired && (
                     <Text as="span" color={leaderText}> ({relativeTime(poll.endTimestamp)})</Text>
@@ -455,6 +467,10 @@ export function PollDetail({
                       votedCount={turnout.voted}
                     />
                   )}
+                  <VoterRoster
+                    roster={roster}
+                    live={!!poll.isOngoing && !poll.isExpired}
+                  />
                 </VStack>
               </Box>
 

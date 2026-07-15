@@ -139,3 +139,62 @@ export const VOTE_PALETTE = {
   coralSoft: 'rgba(242, 131, 107, 0.16)',
   leaderText: '#C6B4F5',
 };
+
+/**
+ * Voter roster for a poll: who voted (names, no choices — social proof without
+ * pressure) and, for live polls, who the group is still waiting on. Built from
+ * the leaderboard member list; when the poll is role-restricted the eligible
+ * set narrows to holders of the restricted hats, which also yields an EXACT
+ * turnout denominator (the meters otherwise approximate with poMembers).
+ *
+ * Returns { voted, waiting, eligibleCount, exact }:
+ *   voted        [{ address, name }] in vote order
+ *   waiting      [{ address, name }] eligible members without a recorded vote
+ *   eligibleCount number — exact when leaderboard data is available
+ *   exact        bool — false when the leaderboard hasn't loaded (roster hidden)
+ */
+export function computeVoterRoster(p, leaderboardData = []) {
+  const votes = p?.votes || [];
+  const members = Array.isArray(leaderboardData) ? leaderboardData : [];
+
+  const byAddress = new Map(
+    members
+      .filter((m) => m?.address)
+      .map((m) => [String(m.address).toLowerCase(), m])
+  );
+
+  const shortAddr = (a) => (a ? `${a.slice(0, 6)}…${a.slice(-4)}` : 'unknown');
+
+  const voted = votes.map((v) => {
+    const addr = String(v.voter || '').toLowerCase();
+    const member = byAddress.get(addr);
+    return {
+      address: addr,
+      name: v.voterUsername || member?.name || shortAddr(v.voter),
+    };
+  });
+  const votedSet = new Set(voted.map((v) => v.address));
+
+  if (members.length === 0) {
+    return { voted, waiting: [], eligibleCount: 0, exact: false };
+  }
+
+  const restricted = p?.isHatRestricted && (p?.restrictedHatIds || []).length > 0;
+  const restrictedSet = restricted
+    ? new Set((p.restrictedHatIds || []).map(normalizeHatId))
+    : null;
+
+  const eligibleMembers = members.filter((m) => {
+    if (!restrictedSet) return true;
+    return (m.hatIds || []).map(normalizeHatId).some((h) => restrictedSet.has(h));
+  });
+
+  const waiting = eligibleMembers
+    .filter((m) => !votedSet.has(String(m.address).toLowerCase()))
+    .map((m) => ({ address: String(m.address).toLowerCase(), name: m.name }));
+
+  // Voters outside the eligible filter (e.g. hats revoked later) still count.
+  const eligibleCount = Math.max(eligibleMembers.length, votedSet.size);
+
+  return { voted, waiting, eligibleCount, exact: true };
+}
