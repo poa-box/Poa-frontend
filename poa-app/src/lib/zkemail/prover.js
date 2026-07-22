@@ -15,8 +15,8 @@
 // template (`{cid}` placeholder). Override any of these via env when re-hosting (e.g. on Pinata).
 const GATEWAY = process.env.NEXT_PUBLIC_ZKEMAIL_GATEWAY || 'https://api.thegraph.com/ipfs/api/v0/cat?arg={cid}';
 const MANIFEST = {
-  PopRoleClaim: process.env.NEXT_PUBLIC_ZKEMAIL_V1_MANIFEST || 'Qmbe9p35ZAVgxxMQJL43CJLtTbmc8dmVJEat3f9vfCaqxM',
-  PopRoleClaimV2: process.env.NEXT_PUBLIC_ZKEMAIL_V2_MANIFEST || 'QmUrEdu9CEkJBmWBNz7qwSVgkS1gobknWR3m7RdfLnEvZA',
+  PopRoleClaim: process.env.NEXT_PUBLIC_ZKEMAIL_V1_MANIFEST || 'QmcvZPhcdLA8NQUimRzTDCqFY7y1ujbQZ6AJjdPm2NozGc',
+  PopRoleClaimV2: process.env.NEXT_PUBLIC_ZKEMAIL_V2_MANIFEST || 'QmU4MJG8rAsfXrGb2sdFCBwcBCosDoVTPKUE5bXowe7Gx4',
 };
 const MAX_HEADERS_LENGTH = 1024;
 const FROM_WINDOW = 256; // == FROM_WINDOW in PopRoleClaimV2.circom
