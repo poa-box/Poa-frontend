@@ -4,7 +4,7 @@ import { Box, Button, Text } from '@chakra-ui/react';
 import { useWeb3Context } from '@/context/web3Context';
 import { useAutoChainSwitch } from '@/hooks/useAutoChainSwitch';
 
-function NetworkDialogLoading({ error, retry }) {
+function NetworkDialogLoading({ error, retry, pastDelay }) {
     const { isNetworkModalOpen, closeNetworkModal } = useWeb3Context();
     useEffect(() => {
         if (!isNetworkModalOpen) return;
@@ -14,7 +14,8 @@ function NetworkDialogLoading({ error, retry }) {
         window.addEventListener('keydown', onKeyDown);
         return () => window.removeEventListener('keydown', onKeyDown);
     }, [isNetworkModalOpen, closeNetworkModal]);
-    if (!isNetworkModalOpen) return null;
+    // Respect Next's pending delay without delaying errors or Escape handling.
+    if (!isNetworkModalOpen || (!error && !pastDelay)) return null;
     return (
         <Box position="fixed" bottom={4} right={4} maxW="calc(100vw - 32px)"
             bg="white" color="warmGray.800" borderRadius="lg" boxShadow="lg" p={4} zIndex="toast">

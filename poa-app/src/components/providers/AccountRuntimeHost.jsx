@@ -14,30 +14,24 @@ class AccountErrorBoundary extends React.Component {
 }
 
 /** A sibling of the page. Loading, retrying, or failing cannot replace its tree. */
-export default function AccountRuntimeHost({ preparePage }) {
+export default function AccountRuntimeHost() {
   const { attempt, reportRuntimeError } = useWalletRuntimeControl();
   const [Core, setCore] = useState(null);
 
   useEffect(() => {
     if (Core) return;
     let cancelled = false;
-    let timer;
-    // Let the active page request its code (including its initial view) first.
-    // Starting six wallet requests ahead of it congests slow connections even
-    // though the page no longer depends on the wallet's React providers.
-    // This waits for code only, never for an organization API or account query.
-    Promise.resolve().then(() => preparePage?.()).catch(() => {}).then(() => {
-      if (cancelled) return;
-      timer = setTimeout(() => {
-        loadCore().then((module) => {
-          if (!cancelled) setCore(() => module.default);
-        }).catch((error) => {
-          if (!cancelled) reportRuntimeError(error);
-        });
-      }, 0);
-    });
+    // Next has loaded the page code before mounting it. Give its public UI
+    // a browser turn before starting the independent account runtime.
+    const timer = setTimeout(() => {
+      loadCore().then((module) => {
+        if (!cancelled) setCore(() => module.default);
+      }).catch((error) => {
+        if (!cancelled) reportRuntimeError(error);
+      });
+    }, 0);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [Core, attempt, reportRuntimeError, preparePage]);
+  }, [Core, attempt, reportRuntimeError]);
 
   return Core ? (
     <AccountErrorBoundary key={attempt} onError={reportRuntimeError}>

@@ -16,6 +16,16 @@ export default function CommunityLoadingState({
   children,
 }) {
   const [quote, setQuote] = useState(null);
+  const [delayElapsed, setDelayElapsed] = useState(false);
+  const visible = fullScreen || delayElapsed;
+
+  useEffect(() => {
+    if (fullScreen) return;
+    // Fast reads should resolve without flashing a large card between pages.
+    // Preserve its layout; longer waits still get the existing loading UI.
+    const timer = setTimeout(() => setDelayElapsed(true), 200);
+    return () => clearTimeout(timer);
+  }, [fullScreen]);
 
   useEffect(() => {
     // Choose after hydration, and keep the thought still for this whole wait.
@@ -24,6 +34,8 @@ export default function CommunityLoadingState({
 
   const content = (
     <Box
+      visibility={visible ? 'visible' : 'hidden'}
+      aria-hidden={!visible}
       w="calc(100% - 32px)"
       maxW="440px"
       mx="auto"
