@@ -27,10 +27,11 @@ import {
   WrapItem,
 } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useWalletUI } from '@/context/WalletContext';
+import WalletActionButton from '@/components/common/WalletActionButton';
 import { FaCopy, FaCheck } from 'react-icons/fa';
 import { gql } from '@apollo/client';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useRefreshEmit, RefreshEvent } from '@/context/RefreshContext';
@@ -431,6 +432,7 @@ function ManualUpload({ onPick, busy, fileName, expandedByDefault, isAuthenticat
  * Render only when `zkEmailInvitesEnabled`.
  */
 export default function ZkEmailClaimFlow() {
+  const { account, openConnectModal, openAccountModal } = useWalletUI();
   const { isAuthenticated, accountAddress } = useAuth();
   const {
     claim,
@@ -718,19 +720,12 @@ export default function ZkEmailClaimFlow() {
                   Sign in with passkey
                 </Button>
                 <Text>·</Text>
-                <ConnectButton.Custom>
-                  {({ account, openConnectModal, openAccountModal, mounted }) => (
-                    <Button
-                      variant="link"
-                      size="xs"
-                      colorScheme="teal"
-                      onClick={account ? openAccountModal : openConnectModal}
-                      isDisabled={!mounted}
-                    >
-                      {account ? account.displayName : 'Connect a wallet'}
-                    </Button>
-                  )}
-                </ConnectButton.Custom>
+                <WalletActionButton
+                  variant="link" size="xs" colorScheme="teal"
+                  action={account ? openAccountModal : openConnectModal}
+                >
+                  {account ? account.displayName : 'Connect a wallet'}
+                </WalletActionButton>
               </HStack>
             </Box>
           )}

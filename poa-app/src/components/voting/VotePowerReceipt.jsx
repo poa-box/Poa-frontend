@@ -34,7 +34,8 @@ import {
 import { ChevronRightIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon, CloseIcon } from '@chakra-ui/icons';
 import { PiUsers, PiChartBar, PiSquareHalfFill } from 'react-icons/pi';
 import GlassBack from './GlassBack';
-import { useVotingPower, useRoleNames } from '@/hooks';
+import { useVotingPower } from '@/hooks/useVotingPower';
+import { useRoleNames } from '@/hooks/useRoleNames';
 import { useUserContext } from '@/context/UserContext';
 import { usePOContext } from '@/context/POContext';
 import {
@@ -42,7 +43,7 @@ import {
   sliceBadge,
   ineligibleCopy,
   BLENDED_EXPLAINER,
-} from '@/config/votingVocabulary';
+} from '@/config/votingVocabularyCore';
 
 const AMETHYST = '#9473DC';
 const AMETHYST_SOFT = 'rgba(148, 115, 220, 0.14)';
@@ -300,7 +301,7 @@ export function VotePowerReceipt({ variant = 'full', restrictedHatIds = null, hi
     percentOfTotal,
   } = useVotingPower();
   const { getRoleNamesString } = useRoleNames();
-  const { userData } = useUserContext();
+  const { userData, isAccountReady, userDataLoading, hasMemberRole } = useUserContext();
   const { poMembers } = usePOContext();
 
   const [compactOpen, setCompactOpen] = useState(false);
@@ -312,6 +313,13 @@ export function VotePowerReceipt({ variant = 'full', restrictedHatIds = null, hi
     const holds = restrictedHatIds.map(normalizeHatId).some((h) => userSet.has(h));
     return !holds;
   }, [restrictedHatIds, userData]);
+
+  if (isAccountReady === false || userDataLoading) {
+    return <Text fontSize="sm" color="gray.300" role="status">Getting your voting details ready…</Text>;
+  }
+  if (!hasMemberRole) {
+    return <Text fontSize="sm" color="gray.300">Members take part using the voting rules shown here.</Text>;
+  }
 
   if (restricted) {
     const rolesText = getRoleNamesString(restrictedHatIds);

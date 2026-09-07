@@ -6,7 +6,7 @@ import { formatTokenAmount } from '../util/formatToken';
 import { resolveTokenLabel, DEFAULT_TOKEN_LABEL } from '../util/tokenLabel';
 import { normalizeHourlyRate, DEFAULT_HOURLY_RATE } from '../util/taskUtils';
 import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
-import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
+import { bytes32ToIpfsCid } from '@/lib/ipfs/cidBytes32';
 import { useIPFScontext } from './ipfsContext';
 import { useIdentityContext } from './IdentityContext';
 import { getSubgraphUrl, getAllSubgraphUrls } from '../config/networks';
@@ -16,6 +16,7 @@ import { useOrgNameState } from '@/hooks/useOrgName';
 import { resolveLegacyRoleName } from '@/lib/roles/roleNames';
 import { createOrgStateReducer, selectOrgState } from '@/lib/orgState';
 import { lookupOrganization } from '@/util/orgLookup';
+import { fetchOrganizationSnapshot, seedOrganizationSnapshot } from '@/util/orgSnapshot';
 
 // Re-export for back-compat with callers that imported these from POContext.
 export { getDefaultOrgForHost, getVisitUrlForOrg, resolveOrgAlias };
@@ -109,6 +110,7 @@ const initialState = {
     // Organization info
     orgId: null,
     orgChainId: null,
+    initialSnapshotLoaded: false,
     poDescription: 'No description provided or IPFS content still being indexed',
     poLinks: [],
     logoHash: '',
@@ -164,11 +166,13 @@ const initialState = {
 
 const poReducer = createOrgStateReducer(initialState);
 
-export const POProvider = ({ children }) => {
+export const POProvider = ({ children, enabled = true }) => {
     const router = useRouter();
     // useOrgName covers query-param + window.location.search fallback +
     // host-default in one place; POProvider used to inline the same logic.
-    const { orgName: poName, resolved: orgNameResolved } = useOrgNameState();
+    const orgNameState = useOrgNameState();
+    const poName = enabled ? orgNameState.orgName : null;
+    const orgNameResolved = !enabled || orgNameState.resolved;
     const { safeFetchFromIpfs } = useIPFScontext();
     const { seedIdentities } = useIdentityContext();
 
@@ -229,6 +233,8 @@ export const POProvider = ({ children }) => {
     newOrgRef.current = router.query.newOrg === 'true';
     const pinnedOrgId = router.query.orgId;
     const pinnedChainId = Number(router.query.chainId);
+    const snapshotTreasuryRef = React.useRef(false);
+    snapshotTreasuryRef.current = router.pathname === '/treasury';
 
     useEffect(() => {
         // Keep loaded data when navigation carries or drops the same org's IDs.
@@ -237,13 +243,13 @@ export const POProvider = ({ children }) => {
         }
         setOrgLookupError(null);
         setOrgNotFoundName(null);
-        function setResolvedOrg(orgId, orgChainId) {
+        function setResolvedOrg(orgId, orgChainId, initialSnapshotLoaded) {
             const previous = storedStateRef.current;
             if (previous.scopeName === poName && previous.orgId
                 && (previous.orgId !== orgId || previous.orgChainId !== orgChainId)) {
                 dispatch({ type: 'RESET_ORG', orgName: poName });
             }
-            dispatch({ type: 'SET_ORG_DATA', orgName: poName, payload: { orgId, orgChainId } });
+            dispatch({ type: 'SET_ORG_DATA', orgName: poName, payload: { orgId, orgChainId, initialSnapshotLoaded } });
         }
         if (!poName) {
             // Nothing to look up. `poContextLoading` deliberately stays true:
@@ -280,13 +286,30 @@ export const POProvider = ({ children }) => {
                     signal: controller.signal,
                     // Newly deployed orgs always check current chain precedence.
                     bypassCache: isNewOrg,
+                    fetchSource: (source, name, options) => fetchOrganizationSnapshot(source, name, {
+                        ...options, treasury: snapshotTreasuryRef.current,
+                    }),
                     onSourceError: (source, error) => {
                         console.warn(`[POContext] Failed to query ${source.name}:`, error.message);
                     },
                 });
                 if (cancelled) return;
                 if (found) {
-                    setResolvedOrg(found.id, found.chainId);
+                    // An HTML-prefetched snapshot can resolve in the same
+                    // microtask checkpoint as hydration. Give the browser a
+                    // turn before normalizing its cache and publishing the org.
+                    if (found.snapshot?.length) {
+                        await new Promise((resolve) => setTimeout(resolve, 0));
+                        if (cancelled) return;
+                    }
+                    let initialSnapshotLoaded = false;
+                    try {
+                        initialSnapshotLoaded = seedOrganizationSnapshot(getSubgraphUrl(found.chainId), found);
+                    } catch (error) {
+                        // Cache preparation must not prevent a valid org opening.
+                        console.warn('[POContext] Initial data cache preparation failed:', error.message);
+                    }
+                    setResolvedOrg(found.id, found.chainId, initialSnapshotLoaded);
                     setOrgLookupLoading(false);
                 } else if ((isNewOrg || anySourceFailed) && retryCount < MAX_RETRIES) {
                     // Either a newly deployed org the subgraph hasn't indexed yet, OR a
@@ -709,6 +732,7 @@ export const POProvider = ({ children }) => {
     const contextValue = useMemo(() => ({
         // Organization info
         orgId: state.orgId,
+        initialSnapshotLoaded: state.initialSnapshotLoaded,
         orgName: poName,
         orgStatus,
         orgChainId: state.orgChainId,

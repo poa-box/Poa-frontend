@@ -55,6 +55,7 @@ export default function SpecPlate({
               alt={shot.alt}
               className="pa-plate-img"
               loading={eager ? 'eager' : 'lazy'}
+              fetchpriority={eager ? 'high' : undefined}
               decoding="async"
             />
           </div>

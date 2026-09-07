@@ -1,10 +1,12 @@
 import { useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import { useToast } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
 import { useTaskBoard } from '@/context/TaskBoardContext';
 import { useDataBaseContext } from '@/context/dataBaseContext';
-import TaskCardModal from '@/components/TaskManager/TaskCardModal';
 import { selectTaskModal } from '@/components/TaskManager/views/taskModalSelection';
+
+const TaskCardModal = dynamic(() => import('@/components/TaskManager/TaskCardModal'), { ssr: false });
 
 // One modal for every project view, including mobile columns and filtered
 // boards. Removing the task query (including browser Back) unmounts it.

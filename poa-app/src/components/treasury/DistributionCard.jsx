@@ -12,7 +12,7 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { FiExternalLink, FiCheck } from 'react-icons/fi';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { usePOContext } from '@/context/POContext';
 import UserIdentity from '@/components/common/UserIdentity';
 import { formatTokenAmount } from '@/util/formatToken';

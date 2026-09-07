@@ -15,7 +15,7 @@ import { defineChain } from 'viem';
 import { base } from 'viem/chains';
 import { NETWORKS } from '@/config/networks';
 import { burnerConnector } from '@/services/e2e/burnerConnector';
-import { E2E_ENABLED } from '@/services/e2e/e2eMode';
+import { deferEmptyCoinbaseProbe } from '@/lib/wallet/coinbaseStartup';
 
 // Base is included for the cash-out withdrawal flow, but intentionally stays
 // outside NETWORKS so it cannot be selected for organization/subgraph routing.
@@ -48,11 +48,15 @@ const transports = Object.fromEntries(
 );
 
 export const wagmiConfig = createConfig({
-  connectors: E2E_ENABLED ? [burnerConnector()] : connectors,
+  connectors: process.env.NEXT_PUBLIC_E2E_MODE === 'true' ? [burnerConnector()] : connectors.map((connector) => deferEmptyCoinbaseProbe(
+    connector,
+    () => wagmiConfig.state,
+    () => typeof window === 'undefined' ? undefined : window,
+  )),
   chains,
   transports,
   ssr: true,
-  multiInjectedProviderDiscovery: !E2E_ENABLED,
+  multiInjectedProviderDiscovery: process.env.NEXT_PUBLIC_E2E_MODE !== 'true',
 });
 
 export const rainbowKitTheme = darkTheme({

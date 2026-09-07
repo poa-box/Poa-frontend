@@ -71,7 +71,7 @@ import {
 import { LinkIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon } from '@chakra-ui/icons';
 import { PiLockKey } from 'react-icons/pi';
 import GlassBack from './GlassBack';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingContext } from '@/context/VotingContext';
 import { useVotingPower } from '@/hooks/useVotingPower';

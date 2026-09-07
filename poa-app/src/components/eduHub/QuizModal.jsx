@@ -1,3 +1,4 @@
+import { useAccount, useSwitchChain } from '@/context/WalletContext';
 import React, { useState, useCallback } from 'react';
 import {
   Box,
@@ -18,13 +19,12 @@ import {
   useDisclosure
 } from '@chakra-ui/react';
 import { ArrowForwardIcon, CheckIcon } from '@chakra-ui/icons';
-import { useAccount, useSwitchChain } from 'wagmi';
 
 import { usePOContext } from '@/context/POContext';
 import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import { educationDialogStyle } from '@/components/eduHub/educationStyles';
-import { useAuth } from '@/context/AuthContext';
-import { useWeb3 } from '@/hooks';
+import { useAuth } from '@/context/authState';
+import { useWeb3 } from '@/hooks/useWeb3Services';
 import { getNetworkByChainId } from '@/config/networks';
 
 const QuizModal = ({ module, isCompleted = false }) => {

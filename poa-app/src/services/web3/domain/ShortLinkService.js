@@ -1,7 +1,7 @@
 import { SHORT_LINK_REGISTRIES } from '@/config/shortLinkRegistries';
 import { getSubgraphUrl } from '@/config/networks';
 import { resolveOrgAlias } from '@/config/hostDefaultOrg';
-import { createPublicClientForChain } from '@/services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 import { buildShortLink, decodeShortCode, expandLinkExtras, linkPage, LINK_KIND } from '@/util/shortLinks';
 
 class ShortLinkError extends Error {

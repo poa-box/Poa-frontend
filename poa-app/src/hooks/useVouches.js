@@ -1,3 +1,4 @@
+import { useAccount } from '@/context/WalletContext';
 /**
  * useVouches - Hook for fetching and managing vouch data for an organization
  * Provides vouch status, progress, and helper functions for the vouching UI
@@ -5,7 +6,6 @@
 
 import { useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@apollo/client';
-import { useAccount } from 'wagmi';
 import { FETCH_VOUCHES_FOR_ORG, FETCH_ALL_ROLE_APPLICATIONS } from '../util/queries';
 import { useRefreshSubscription } from '../context/RefreshContext';
 import { usePOContext } from '../context/POContext';

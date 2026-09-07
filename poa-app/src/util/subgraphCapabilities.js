@@ -139,6 +139,29 @@ async function introspect(subgraphUrl, typeNames) {
   }
 }
 
+// Capability hooks mount together, but each asks about different schema fields.
+// Queue one turn so their type selections share a single standard GraphQL request.
+// Entries are removed before dispatch: a later request cannot mutate an in-flight
+// document, and different endpoints never share schema results.
+const pendingIntrospection = new Map();
+
+function queueIntrospection(subgraphUrl, requirements) {
+  let batch = pendingIntrospection.get(subgraphUrl);
+  if (!batch) {
+    batch = { types: new Set(), subscribers: [] };
+    pendingIntrospection.set(subgraphUrl, batch);
+    setTimeout(() => {
+      pendingIntrospection.delete(subgraphUrl);
+      introspect(subgraphUrl, [...batch.types]).then(
+        (typeMap) => batch.subscribers.forEach(({ resolve }) => resolve(typeMap)),
+        (error) => batch.subscribers.forEach(({ reject }) => reject(error)),
+      );
+    }, 0);
+  }
+  requirements.forEach(({ type }) => batch.types.add(type));
+  return new Promise((resolve, reject) => batch.subscribers.push({ resolve, reject }));
+}
+
 /**
  * Does this subgraph satisfy `capability`?
  * Resolves false on any failure (safe default: the base query).
@@ -183,6 +206,15 @@ export function peekCapability(subgraphUrl, capability) {
   return undefined;
 }
 
+/** Record support only after a successful query selecting every required field.
+ * A confirmed positive wins over an older, slower introspection failure.
+ */
+export function recordConfirmedCapability(subgraphUrl, capability) {
+  if (!subgraphUrl || !capability) return;
+  memory.set(memKey(subgraphUrl, capability), true);
+  try { window.localStorage.setItem(storageKey(subgraphUrl, capability), '1'); } catch { /* ignore */ }
+}
+
 export function hasCapability(subgraphUrl, capability) {
   if (!subgraphUrl || !capability) return Promise.resolve(false);
 
@@ -197,10 +229,9 @@ export function hasCapability(subgraphUrl, capability) {
     }
   } catch { /* storage unavailable — probe instead */ }
 
-  const typeNames = [...new Set(capability.require.map((r) => r.type))];
-  const probe = introspect(subgraphUrl, typeNames)
+  const probe = queueIntrospection(subgraphUrl, capability.require)
     .then((typeMap) => {
-      const has = satisfies(typeMap, capability.require);
+      const has = memory.get(mk) === true || satisfies(typeMap, capability.require);
       memory.set(mk, has);
       if (has) {
         try { window.localStorage.setItem(storageKey(subgraphUrl, capability), '1'); } catch { /* ignore */ }
@@ -208,8 +239,9 @@ export function hasCapability(subgraphUrl, capability) {
       return has;
     })
     .catch(() => {
-      memory.set(mk, false);
-      return false;
+      const has = memory.get(mk) === true;
+      memory.set(mk, has);
+      return has;
     });
 
   memory.set(mk, probe);

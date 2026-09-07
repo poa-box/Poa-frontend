@@ -1,11 +1,9 @@
+import { useAccount, useSwitchChain, useConfig, getConnectorClient, clientToSigner } from '@/context/WalletContext';
 import React, { useState } from 'react';
 import { Box, Container, Heading, Text, SimpleGrid, VStack, HStack, Badge, Table, Thead, Tbody, Tr, Th, Td, Link, Button, Input, InputGroup, InputRightAddon, useToast, useDisclosure, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton } from '@chakra-ui/react';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { motion } from 'framer-motion';
-import { useAccount, useSwitchChain, useConfig } from 'wagmi';
-import { getConnectorClient } from 'wagmi/actions';
-import { clientToSigner } from '@/components/ProviderConverter';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { ethers } from 'ethers';
 
 const MotionBox = motion.create(Box);

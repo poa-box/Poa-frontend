@@ -22,7 +22,7 @@ import {
 import { PiInfo, PiUserPlus, PiX, PiWarning } from 'react-icons/pi';
 import { UserSearchInput } from '@/components/common';
 import UserIdentity from '@/components/common/UserIdentity';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { getAdditionalMembers, memberLabel } from '../../utils/additionalMembers';
 
 /**

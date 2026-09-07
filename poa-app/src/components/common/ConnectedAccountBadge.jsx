@@ -8,8 +8,7 @@ import {
   useColorModeValue,
 } from '@chakra-ui/react';
 import { FaFingerprint, FaCheck, FaSignOutAlt } from 'react-icons/fa';
-import { useAccount } from 'wagmi';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import useOnboardingColors from '@/components/shared/useOnboardingColors';
 import useUnifiedDisconnect from '@/hooks/useUnifiedDisconnect';
 
@@ -18,7 +17,6 @@ const formatShortAddress = (address) =>
 
 export default function ConnectedAccountBadge({ variant, username }) {
   const { accountAddress, isPasskeyUser, isAuthenticated } = useAuth();
-  const { address: eoaAddress } = useAccount();
   // Was `signOut(); if (isEOAUser) disconnect();` — right order, but a bare
   // disconnect() drops only the current connector, so a second live connection
   // was promoted and this badge kept showing an address. Same rules as the
@@ -33,7 +31,7 @@ export default function ConnectedAccountBadge({ variant, username }) {
 
   if (!isAuthenticated) return null;
 
-  const displayAddress = isPasskeyUser ? accountAddress : eoaAddress;
+  const displayAddress = accountAddress;
   if (!displayAddress) return null;
 
   const label = isPasskeyUser

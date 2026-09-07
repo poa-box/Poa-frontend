@@ -110,7 +110,7 @@ describe('profile avatar source wiring', () => {
     ['UserIdentity', read('components', 'common', 'UserIdentity.jsx')],
     ['AvatarUpload', read('components', 'account', 'AvatarUpload.jsx')],
     ['LeaderboardUserModal', read('components', 'leaderboard', 'LeaderboardUserModal.jsx')],
-    ['public profile', read('pages', 'u', 'index.js')],
+    ['public profile', read('features', 'application', 'pages', 'UPage.jsx')],
   ];
 
   it('routes every requested consumer through useIpfsImage', () => {

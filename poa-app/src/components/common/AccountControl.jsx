@@ -20,9 +20,10 @@ import {
   Text,
 } from '@chakra-ui/react';
 import { ChevronDownIcon } from '@chakra-ui/icons';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useWalletUI } from '@/context/WalletContext';
+import WalletActionButton, { useWalletAction } from '@/components/common/WalletActionButton';
 import { FaSignOutAlt, FaWallet, FaUserCircle } from 'react-icons/fa';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import useUnifiedDisconnect from '@/hooks/useUnifiedDisconnect';
 import PasskeyAccountInfo from '@/components/passkey/PasskeyAccountInfo';
 
@@ -59,30 +60,22 @@ function AccountMenuList({ children }) {
 
 function WalletAccountControl({ size, compact, label }) {
   const handleDisconnect = useUnifiedDisconnect();
-
-  return (
-    <ConnectButton.Custom>
-      {({
-        account,
-        chain,
-        mounted,
-        openChainModal,
-        openConnectModal,
-      }) => {
-        const connected = mounted && account && chain;
+  const { account, chain, runtimeReady, openChainModal, openConnectModal } = useWalletUI();
+  const chainIntent = useWalletAction(openChainModal);
+  const connected = runtimeReady && account && chain;
 
         if (!connected) {
           return (
-            <Button
+            <WalletActionButton
               size={size}
               leftIcon={<Icon as={label ? FaUserCircle : FaWallet} />}
-              onClick={openConnectModal}
+              action={openConnectModal}
               bg="whiteAlpha.200"
               color="white"
               _hover={{ bg: 'whiteAlpha.300' }}
             >
               Connect
-            </Button>
+            </WalletActionButton>
           );
         }
 
@@ -103,15 +96,19 @@ function WalletAccountControl({ size, compact, label }) {
               </MenuButton>
               <AccountMenuList>
                 <MenuItem
-                  onClick={openChainModal}
+                  onClick={chainIntent.run}
+                  onMouseEnter={chainIntent.prepare}
+                  onFocus={chainIntent.prepare}
+                  isDisabled={chainIntent.pending}
                   borderRadius="md"
                   bg="transparent"
                   color="gray.200"
                   _hover={{ bg: 'whiteAlpha.200' }}
                 >
-                  Switch network
+                  {chainIntent.pending ? 'Opening…' : 'Switch network'}
                 </MenuItem>
-                <MenuDivider borderColor="whiteAlpha.300" />
+                {chainIntent.error && <MenuItem onClick={chainIntent.run}>Couldn’t open networks. Try again</MenuItem>}
+              <MenuDivider borderColor="whiteAlpha.300" />
                 <DisconnectMenuItem onDisconnect={handleDisconnect} />
               </AccountMenuList>
             </Menu>
@@ -151,22 +148,23 @@ function WalletAccountControl({ size, compact, label }) {
             )}
             <AccountMenuList>
               <MenuItem
-                onClick={openChainModal}
+                onClick={chainIntent.run}
+                  onMouseEnter={chainIntent.prepare}
+                  onFocus={chainIntent.prepare}
+                  isDisabled={chainIntent.pending}
                 borderRadius="md"
                 bg="transparent"
                 color="gray.200"
                 _hover={{ bg: 'whiteAlpha.200' }}
               >
-                {chain.name}
+                {chainIntent.pending ? 'Opening…' : chain.name}
               </MenuItem>
+              {chainIntent.error && <MenuItem onClick={chainIntent.run}>Couldn’t open networks. Try again</MenuItem>}
               <MenuDivider borderColor="whiteAlpha.300" />
               <DisconnectMenuItem onDisconnect={handleDisconnect} />
             </AccountMenuList>
           </Menu>
         );
-      }}
-    </ConnectButton.Custom>
-  );
 }
 
 /**
@@ -180,11 +178,17 @@ function WalletAccountControl({ size, compact, label }) {
  */
 export default function AccountControl({ size = 'sm', compact = false, label }) {
   const { isPasskeyUser, isAuthHydrated } = useAuth();
+  const { ensureRuntime } = useWalletUI();
 
   // Passkey restoration happens after the first client render. Rendering the
   // wallet branch before that restore settles produces a misleading Connect
   // button for one frame and lets a fast click open the wrong auth flow.
-  if (!isAuthHydrated) return null;
+  if (!isAuthHydrated) return (
+    <WalletActionButton action={ensureRuntime} size={size} minW={compact ? '32px' : '104px'}
+      bg="whiteAlpha.200" color="white" aria-label="Prepare account">
+      {compact ? <Icon as={FaUserCircle} /> : 'Account'}
+    </WalletActionButton>
+  );
 
   if (isPasskeyUser) return <PasskeyAccountInfo label={label} />;
   return <WalletAccountControl size={size} compact={compact} label={label} />;

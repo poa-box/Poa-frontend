@@ -4,7 +4,8 @@ import {
   VStack,
 } from '@chakra-ui/react';
 import useOnboardingColors from '@/components/shared/useOnboardingColors';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { useWalletUI } from '@/context/WalletContext';
+import WalletActionButton from '@/components/common/WalletActionButton';
 import { FiArrowRight, FiCheck, FiChevronDown, FiUsers, FiMessageCircle, FiArrowUpRight, FiMail } from 'react-icons/fi';
 import { FaFingerprint, FaWallet } from 'react-icons/fa';
 
@@ -117,21 +118,17 @@ export function JoinLayout({ orgName, orgLogoSrc, isVouching, isAuthenticated, c
 export function JoinWalletOption() {
   const colors = useOnboardingColors();
   const { muted } = colors;
+  const { account, chain, openConnectModal, openChainModal } = useWalletUI();
   return (
-    <ConnectButton.Custom>
-      {({ mounted, account, chain, openConnectModal, openChainModal }) => (
-        <Button
-          variant="ghost" color={muted} size="sm" minH="44px" width="100%"
-          leftIcon={<FaWallet size={13} />} fontWeight="500"
-          _hover={{ bg: colors.soft, color: colors.ink }}
-          _focusVisible={{ boxShadow: colors.focusRing }}
-          isDisabled={!mounted}
-          onClick={account && chain?.unsupported ? openChainModal : openConnectModal}
-        >
-          {account && chain?.unsupported ? 'Switch network' : 'Use a wallet instead'}
-        </Button>
-      )}
-    </ConnectButton.Custom>
+    <WalletActionButton
+      variant="ghost" color={muted} size="sm" minH="44px" width="100%"
+      leftIcon={<FaWallet size={13} />} fontWeight="500"
+      _hover={{ bg: colors.soft, color: colors.ink }}
+      _focusVisible={{ boxShadow: colors.focusRing }}
+      action={account && chain?.unsupported ? openChainModal : openConnectModal}
+    >
+      {account && chain?.unsupported ? 'Switch network' : 'Use a wallet instead'}
+    </WalletActionButton>
   );
 }
 

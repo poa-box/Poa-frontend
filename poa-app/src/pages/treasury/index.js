@@ -1,16 +1,11 @@
-import SEOHead from "@/components/common/SEOHead";
-import TreasuryPage from '@/components/treasury/TreasuryPage';
+import deferredApplicationPage from '@/components/providers/deferredApplicationPage';
 
-const Treasury = () => (
-  <>
-    <SEOHead
-      title="Treasury"
-      description="Organization treasury and finances."
-      path="/treasury"
-      noIndex
-    />
-    <TreasuryPage />
-  </>
+export default deferredApplicationPage(
+  () => import('@/features/application/pages/TreasuryPage'),
+  {
+    "title": "Treasury",
+    "description": "Organization treasury and finances.",
+    "path": "/treasury",
+    "noIndex": true
+  },
 );
-
-export default Treasury;

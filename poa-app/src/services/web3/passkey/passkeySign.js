@@ -7,8 +7,6 @@ import { startAuthentication, base64URLStringToBuffer, bufferToBase64URLString }
 import { encodeAbiParameters, parseAbiParameters, keccak256, pad, toBytes, toHex } from 'viem';
 import { computeCredentialId } from './passkeyUtils';
 import { getWebAuthnRpId } from '../../../config/passkey';
-import { E2E_ENABLED } from '../../../services/e2e/e2eMode';
-import { signVirtualAssertion } from '../../../services/e2e/virtualPasskey';
 
 // P-256 curve order
 const P256_N = BigInt('0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551');
@@ -31,7 +29,8 @@ const REGISTER_PASSKEY_TYPEHASH = keccak256(
  * @returns {Object} { authenticatorData, clientDataJSON, challengeIndex, typeIndex, r, s, rawId }
  */
 async function getWebAuthnAssertion(challengeHash, rawCredentialIdBase64) {
-  if (E2E_ENABLED) {
+  if (process.env.NEXT_PUBLIC_E2E_MODE === 'true') {
+    const { signVirtualAssertion } = await import('@/services/e2e/virtualPasskey');
     return signVirtualAssertion(challengeHash);
   }
   const hashBytes = toBytes(challengeHash);

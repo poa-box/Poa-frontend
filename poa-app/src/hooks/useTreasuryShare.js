@@ -18,7 +18,7 @@ import { usePOContext } from '../context/POContext';
 import { useUserContext } from '../context/UserContext';
 import { useRefreshSubscription, RefreshEvent } from '../context/RefreshContext';
 import { getBountyTokenOptions } from '../util/tokens';
-import { createChainClients } from '../services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 
 const BALANCE_OF_ABI = [
   {
@@ -47,8 +47,7 @@ export function useTreasuryShare() {
     // Only USD-pegged stablecoins count toward the treasury's USD figure.
     const stableTokens = tokens.filter((t) => t.isStable);
 
-    const clients = createChainClients(orgChainId);
-    const client = clients?.publicClient;
+    const client = createPublicClientForChain(orgChainId);
     if (!client) return;
 
     setIsLoading(true);

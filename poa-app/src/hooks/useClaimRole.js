@@ -6,7 +6,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { useWeb3Services, useTransactionWithNotification } from './useWeb3Services';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useIPFScontext } from '../context/ipfsContext';
 import { usePOContext } from '../context/POContext';
 import { FETCH_USER_ROLE_APPLICATIONS } from '../util/queries';

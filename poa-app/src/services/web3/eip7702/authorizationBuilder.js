@@ -41,7 +41,9 @@ export async function buildEOAAuthorization(walletClient) {
  * @returns {Promise<boolean>}
  */
 export async function checkWallet7702Support(walletClient) {
-  if (!walletClient?.signAuthorization) return false;
+  // A client can expose signing methods before a connector binds an account.
+  // Keep the direct signer path available until this client can authorize.
+  if (!walletClient?.account?.address || typeof walletClient.signAuthorization !== 'function') return false;
 
   // Try getCapabilities first (EIP-5792) for explicit confirmation
   try {

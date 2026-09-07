@@ -12,7 +12,7 @@
 // with `organizations(where: { name: $name })`, an exact match. An org that
 // renames itself breaks its own white-label domain until this map is updated;
 // add the retired name to ORG_NAME_ALIASES below at the same time.
-const HOST_DEFAULT_ORG = {
+export const HOST_DEFAULT_ORG = {
   'dao.kublockchain.com': 'Kansas Blockchain',
   'poa.earth': 'Test6',
   'www.poa.earth': 'Test6',
@@ -28,7 +28,7 @@ export function getDefaultOrgForHost() {
 // bookmarked keeps pointing at the name they had at the time. Without this the
 // lookup 404s ("Organization not found") because the subgraph only knows the
 // new name. Keys are lowercased; matching is case-insensitive.
-const ORG_NAME_ALIASES = {
+export const ORG_NAME_ALIASES = {
   kubi: 'Kansas Blockchain',
 };
 

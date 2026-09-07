@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
 import { isTaskMine, taskNeedsReview } from '@/util/taskIndicators';

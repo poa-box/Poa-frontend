@@ -1,3 +1,4 @@
+import { useUserContext } from '@/context/UserContext';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   VStack,
@@ -8,7 +9,7 @@ import { FiInbox } from 'react-icons/fi';
 import { INK } from './treasuryStyles';
 import { useQuery } from '@apollo/client';
 import { useWeb3 } from '@/hooks/useWeb3Services';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useIPFScontext } from '@/context/ipfsContext';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { FETCH_DISTRIBUTION_PROPOSALS } from '@/util/queries';
@@ -70,6 +71,8 @@ const CurrentDistributions = ({
 }) => {
   const { treasury, executeWithNotification, isReady } = useWeb3();
   const { accountAddress } = useAuth();
+  const { isAccountReady, userDataLoading } = useUserContext();
+  const accountPending = isAccountReady === false || userDataLoading;
   const { safeFetchFromIpfs } = useIPFScontext();
 
   const client = useSubgraphClient(subgraphUrl);
@@ -181,6 +184,10 @@ const CurrentDistributions = ({
       throw new Error('We couldn’t claim your share. Please try again.');
     }
   };
+
+  if (accountPending) {
+    return <Text py={8} color={INK.secondary} textAlign="center" fontSize="sm" role="status">Getting your payout details ready…</Text>;
+  }
 
   if (distributions.length === 0) {
     return (

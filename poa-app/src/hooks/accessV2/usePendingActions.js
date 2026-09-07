@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { usePOContext } from '@/context/POContext';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useSubgraphClient } from '@/util/apolloClient';
 import { FETCH_PENDING_ACTIONS } from '@/util/queries';
 import { RefreshEvent, useRefreshSubscription } from '@/context/RefreshContext';

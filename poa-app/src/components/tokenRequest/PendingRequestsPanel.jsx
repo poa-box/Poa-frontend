@@ -1,3 +1,4 @@
+import { useAccount } from '@/context/WalletContext';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   Box,
@@ -25,7 +26,6 @@ import { useIPFScontext } from '@/context/ipfsContext';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
 import { formatTokenAmount } from '@/util/formatToken';
 import { useSubgraphClient } from '@/util/apolloClient';
-import { useAccount } from 'wagmi';
 
 const PendingRequestsPanel = () => {
   const toast = useToast();

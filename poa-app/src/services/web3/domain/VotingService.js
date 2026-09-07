@@ -18,10 +18,8 @@ import {
 /**
  * Voting types
  */
-export const VotingType = {
-  HYBRID: 'hybrid',
-  DIRECT_DEMOCRACY: 'dd',
-};
+import { VotingType } from '@/lib/services/votingType';
+export { VotingType } from '@/lib/services/votingType';
 
 /**
  * VotingService - Proposal creation and voting operations

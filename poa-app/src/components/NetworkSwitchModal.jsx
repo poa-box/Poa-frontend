@@ -10,7 +10,8 @@ import {
   Text,
   Portal,
 } from "@chakra-ui/react";
-import { useChainModal } from "@rainbow-me/rainbowkit";
+import { useWalletAction } from "@/components/common/WalletActionButton";
+import { useChainModal } from "@/context/WalletContext";
 import { NETWORKS, DEFAULT_NETWORK } from "../config/networks";
 
 const defaultNetworkConfig = NETWORKS[DEFAULT_NETWORK];
@@ -20,14 +21,16 @@ const isDefaultTestnet = defaultNetworkConfig.isTestnet;
 const NetworkSwitchModal = ({ isOpen, onClose }) => {
   const { openChainModal } = useChainModal();
 
-  const handleNetworkSwitch = async () => {
-    openChainModal();
-    onClose();
-  };
+  const intent = useWalletAction(async ({ signal }) => {
+    await openChainModal({ signal });
+    if (!signal.aborted) onClose();
+  }, { enabled: isOpen });
+
+  const handleClose = () => { intent.cancel(); onClose(); };
 
   return (
     <Portal>
-      <Modal  isOpen={isOpen} onClose={onClose} isCentered>
+      <Modal  isOpen={isOpen} onClose={handleClose} isCentered>
         <ModalOverlay zIndex="1400" />
         <ModalContent zIndex="1500">
           <ModalHeader>Wrong Network</ModalHeader>
@@ -37,9 +40,11 @@ const NetworkSwitchModal = ({ isOpen, onClose }) => {
               <Text>If you need testnet ETH, get it from a {defaultNetworkName} faucet.</Text>
             )}
           </ModalBody>
+          {intent.error && <Text role="alert" px={6}>Couldn’t open networks. Please try again.</Text>}
           <ModalFooter>
-            <Button colorScheme="blue" onClick={handleNetworkSwitch}>
-              Switch to {defaultNetworkName}
+            <Button colorScheme="blue" onClick={intent.run} onMouseEnter={intent.prepare} onFocus={intent.prepare}
+              isLoading={intent.pending} loadingText="Opening…">
+              {intent.error ? 'Try again' : `Switch to ${defaultNetworkName}`}
             </Button>
           </ModalFooter>
         </ModalContent>

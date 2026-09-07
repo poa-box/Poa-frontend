@@ -33,7 +33,7 @@
  * maps the icon keys to components.
  */
 
-import { YOU_CAN_OPEN_CHIP } from '@/config/votingVocabulary';
+import { YOU_CAN_OPEN_CHIP } from '@/config/votingVocabularyCore';
 
 /** Longest role list spelled out before the rest folds into a count. */
 const MAX_NAMED_ROLES = 4;

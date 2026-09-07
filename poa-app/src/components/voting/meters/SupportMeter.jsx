@@ -16,7 +16,7 @@
 import React from 'react';
 import { Box, HStack, Text, Icon } from '@chakra-ui/react';
 import { PiSealCheck } from 'react-icons/pi';
-import { supportCopy } from '@/config/votingVocabulary';
+import { supportCopy } from '@/config/votingVocabularyCore';
 
 const AMETHYST = '#9473DC';
 

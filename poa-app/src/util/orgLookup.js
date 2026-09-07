@@ -1,3 +1,5 @@
+import { takeOrganizationPrefetch } from '@/lib/graphql/organizationPrefetch';
+
 export const ORG_LOOKUP_HINT_TTL_MS = 5 * 60 * 1000;
 const HINT_STORAGE_KEY = 'poa:orgLookupHints:v1';
 const MAX_HINTS = 50;
@@ -65,7 +67,7 @@ const browserHints = createOrgLookupHintCache({
   storage: () => typeof window === 'undefined' ? null : window.localStorage,
 });
 
-export async function fetchOrgByName(source, name, { signal } = {}) {
+export async function fetchOrgByName(source, name, { signal, query, variables = {} } = {}) {
   const controller = new AbortController();
   let rejectAborted;
   const aborted = new Promise((_, reject) => { rejectAborted = reject; });
@@ -85,18 +87,34 @@ export async function fetchOrgByName(source, name, { signal } = {}) {
     // fetch() resolves at headers, which can precede a stalled JSON body.
     const request = (async () => {
       if (controller.signal.aborted) return null;
-      const response = await fetch(source.url, {
+      const body = JSON.stringify({
+        query: query || 'query FindOrg($name: String!) { organizations(where: { name: $name }, first: 1) { id name } }',
+        variables: { ...variables, name },
+      });
+      const prefetched = takeOrganizationPrefetch(source.url, body, controller.signal);
+      let response;
+      let reused = false;
+      if (prefetched) {
+        try { response = await prefetched; reused = true; }
+        catch (error) { if (controller.signal.aborted) throw error; }
+      }
+      if (!reused) response = await fetch(source.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: 'query FindOrg($name: String!) { organizations(where: { name: $name }, first: 1) { id name } }',
-          variables: { name },
-        }),
+        body,
         signal: controller.signal,
       });
+      if (!response.ok && response.status !== 400) throw new Error(`Org lookup HTTP ${response.status}`);
+      const json = reused ? response.json : await response.json();
+      if (json?.errors?.length) {
+        const error = new Error(json.errors[0]?.message || 'Org lookup GraphQL error');
+        error.name = 'GraphQLResponseError';
+        error.isSchemaError = json.errors.every(({ message, extensions }) =>
+          extensions?.code === 'GRAPHQL_VALIDATION_FAILED'
+          || /Cannot query field|has no field|Unknown (?:field|argument|type)|is not defined by type/i.test(message || ''));
+        throw error;
+      }
       if (!response.ok) throw new Error(`Org lookup HTTP ${response.status}`);
-      const json = await response.json();
-      if (json?.errors?.length) throw new Error(json.errors[0]?.message || 'Org lookup GraphQL error');
       if (!Array.isArray(json?.data?.organizations)) throw new Error('Org lookup returned no organization list');
       return json.data.organizations[0] || null;
     })();

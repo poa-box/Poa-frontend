@@ -19,8 +19,9 @@ import {
 import { FiUsers, FiArrowRight, FiCheck, FiStar, FiLock, FiUserPlus } from 'react-icons/fi';
 import PulseLoader from "@/components/shared/PulseLoader";
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
-import { useClaimRole, useVouches } from '@/hooks';
-import { useAuth } from '@/context/AuthContext';
+import { useClaimRole } from '@/hooks/useClaimRole';
+import { useVouches } from '@/hooks/useVouches';
+import { useAuth } from '@/context/authState';
 
 /**
  * GlassLayer - Reusable glassmorphism background component

@@ -1,3 +1,4 @@
+import { useAccount, useSwitchChain } from '@/context/WalletContext';
 /**
  * OrgMetadataEditor - Component for editing organization metadata
  * Allows admins to update name, description, logo, and links
@@ -35,10 +36,10 @@ import PulseLoader from "@/components/shared/PulseLoader";
 import { useQuery } from '@apollo/client';
 import { getClient } from '@/util/apolloClient';
 
-import { useAccount, useSwitchChain } from 'wagmi';
 import { useIPFScontext } from '@/context/ipfsContext';
-import { useAuth } from '@/context/AuthContext';
-import { useWeb3Services, useTransactionWithNotification } from '@/hooks';
+import { useAuth } from '@/context/authState';
+import { useWeb3Services } from '@/hooks/useWeb3Services';
+import { useTransactionWithNotification } from '@/hooks/useTransactionWithNotification';
 import { ipfsCidToBytes32, stringToBytes } from '@/services/web3/utils/encoding';
 import {
   validateImageFile,

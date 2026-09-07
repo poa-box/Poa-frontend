@@ -53,6 +53,11 @@ const FORBIDDEN_ENVS = [
 // symbol scan above — but its strings are not. Anything here in the bundle means the branch
 // shipped, merely switched off.
 const FORBIDDEN_COPY = [
+  // Minification renames exports; these unique signer/seed literals survive.
+  'poa-virtual-credential-id-v1',
+  'poa-virtual-passkey-priv-v1',
+  'poa-e2e-factory-',
+  'E2E burner key missing.',
   'Voting must run for at least 10 minutes',
   '"10 min"',
 ];

@@ -1,5 +1,4 @@
 import React from 'react';
-import SEOHead from '@/components/common/SEOHead';
 import { Box, Container, Spinner, Center, Text } from '@chakra-ui/react';
 import Navbar from '@/components/landing/Navbar';
 import Footer from '@/components/landing/Footer';
@@ -17,21 +16,7 @@ const ProtocolPage = () => {
 
   return (
     <>
-      <SEOHead
-        title="Poa Protocol: Live Transparency Dashboard and Infrastructure"
-        description="The open-source infrastructure powering every community-owned organization on poa.box. Live cross-chain state, solidarity fund, gas sponsorship, and protocol upgrade history."
-        path="/protocol"
-        keywords={[
-          "poa protocol",
-          "decentralized infrastructure",
-          "DAO infrastructure",
-          "on-chain transparency",
-          "gas sponsorship",
-          "solidarity fund",
-          "cross-chain DAO",
-          "poa.box",
-        ]}
-      />
+
 
       <Box minH="100vh" bg="white">
         <Navbar />

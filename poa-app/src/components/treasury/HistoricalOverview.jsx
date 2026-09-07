@@ -1,24 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Box,
+  Button,
   VStack,
   HStack,
   Text,
   SimpleGrid,
+  VisuallyHidden,
 } from '@chakra-ui/react';
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  Legend,
-} from 'recharts';
 import { formatTokenAmount } from '@/util/formatToken';
 import { getTokenByAddress } from '@/util/tokens';
-import { ACCENT, INK, TABULAR, SeriesDot, twoDp, UnitSpan } from './treasuryStyles';
+import { ACCENT, INK, SeriesDot, twoDp, UnitSpan } from '@/components/treasury/treasuryStyles';
 
 // Series hues validated against the card surface (see treasuryStyles.js).
 const COLORS = {
@@ -44,27 +37,52 @@ const StatTile = ({ label, value, unit, subtext, dot }) => (
   </Box>
 );
 
-// ─── Custom Tooltip ───
-
-const ChartTooltip = ({ active, payload, label }) => {
-  if (!active || !payload?.length) return null;
+function ChartLoading({ error, retry }) {
+  if (!error) {
+    return <VisuallyHidden role="status">Loading activity chart…</VisuallyHidden>;
+  }
   return (
-    <Box bg="rgba(13,20,17,0.97)" border="1px solid rgba(255,255,255,0.14)" borderRadius="lg" p={3} maxW="220px">
-      <Text fontWeight="semibold" color={INK.primary} fontSize="sm" mb={1.5}>{label}</Text>
-      {payload.map((entry, i) => (
-        <HStack key={i} justify="space-between" spacing={4}>
-          <HStack spacing={1.5}>
-            <SeriesDot color={entry.color} size="7px" />
-            <Text fontSize="xs" color={INK.secondary}>{entry.name}</Text>
-          </HStack>
-          <Text fontSize="xs" color={INK.primary} fontWeight="medium" sx={TABULAR}>
-            {typeof entry.value === 'number' ? entry.value.toFixed(4) : entry.value}
-          </Text>
-        </HStack>
-      ))}
+    <VStack h="100%" justify="center" role="alert" spacing={2}>
+      <Text color={INK.secondary} fontSize="sm">The activity chart couldn’t load.</Text>
+      <Button size="sm" variant="ghost" color={INK.primary} onClick={retry}>Try again</Button>
+    </VStack>
+  );
+}
+
+const HistoricalActivityChart = dynamic(
+  () => import('@/components/treasury/HistoricalActivityChart'),
+  { ssr: false, loading: ChartLoading },
+);
+
+function ActivityChartSlot({ data }) {
+  const slotRef = useRef(null);
+  const [hasApproached, setHasApproached] = useState(false);
+
+  useEffect(() => {
+    if (hasApproached) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setHasApproached(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setHasApproached(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: '240px 0px' });
+    if (slotRef.current) observer.observe(slotRef.current);
+    return () => observer.disconnect();
+  }, [hasApproached]);
+
+  // Reserve the chart's original dimensions while keeping its runtime out of
+  // the page's startup. Once approached, keep it mounted when scrolling away.
+  return (
+    <Box ref={slotRef} h={{ base: '170px', md: '200px' }}>
+      {hasApproached && <HistoricalActivityChart data={data} />}
     </Box>
   );
-};
+}
 
 // ─── Main Component ───
 
@@ -175,36 +193,7 @@ const HistoricalOverview = ({ distributions = [], payments = [] }) => {
       {/* ─── Activity Chart ─── */}
       {timelineData.length > 0 && (
         <Box>
-          <Box h={{ base: '170px', md: '200px' }}>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={timelineData} barGap={2}>
-                <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-                <XAxis
-                  dataKey="label"
-                  tick={{ fill: INK.muted, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                />
-                <YAxis
-                  tick={{ fill: INK.muted, fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={45}
-                />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-                <Legend
-                  wrapperStyle={{ fontSize: '11px' }}
-                  iconType="square"
-                  iconSize={8}
-                  formatter={(value) => (
-                    <span style={{ color: 'rgba(255,255,255,0.66)' }}>{value}</span>
-                  )}
-                />
-                <Bar dataKey="received" name="Money in" fill={COLORS.inflow} radius={[4, 4, 0, 0]} maxBarSize={24} />
-                <Bar dataKey="distributed" name="Shared out" fill={COLORS.outflow} radius={[4, 4, 0, 0]} maxBarSize={24} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Box>
+          <ActivityChartSlot data={timelineData} />
           <Text fontSize="xs" color={INK.muted} mt={2}>
             Amounts shown in the org&apos;s main payout token.
           </Text>

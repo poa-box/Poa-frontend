@@ -27,7 +27,7 @@
 import React, { useMemo } from 'react';
 import { Box, HStack, Text, Icon, Tooltip } from '@chakra-ui/react';
 import { PiUsersThree } from 'react-icons/pi';
-import { turnoutCopy, lowQuorumTooltip, priorRulesTooltip } from '@/config/votingVocabulary';
+import { turnoutCopy, lowQuorumTooltip, priorRulesTooltip } from '@/config/votingVocabularyCore';
 
 const AMETHYST = '#9473DC';
 const AMETHYST_SOFT = 'rgba(148, 115, 220, 0.16)';

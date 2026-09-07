@@ -7,7 +7,8 @@ import { formatTokenAmount } from '../util/formatToken';
 import { getTokenByAddress } from '../util/tokens';
 import { useUserActive } from '../hooks/useUserActive';
 import { useSubgraphClient } from '../util/apolloClient';
-import { hasCapability, peekCapability, CAPABILITY } from '../util/subgraphCapabilities';
+import { CAPABILITY } from '@/util/subgraphCapabilities';
+import { useSubgraphCapability } from '@/hooks/useSubgraphCapability';
 
 const ProjectContext = createContext();
 
@@ -28,44 +29,25 @@ export const ProjectProvider = ({ children }) => {
     // project in hand (e.g. the Create Project modal, which shows them as a baseline
     // even when the org has zero projects yet).
     const [globalRolePermissions, setGlobalRolePermissions] = useState([]);
-    const { orgId, subgraphUrl } = usePOContext();
+    const { orgId, subgraphUrl, initialSnapshotLoaded } = usePOContext();
 
     const client = useSubgraphClient(subgraphUrl);
     const isActive = useUserActive();
 
-    // TaskManager v7 claim-release fields (subgraph-pop #201) only exist on newer
-    // deployments, and one unknown field fails the WHOLE query — which here would
-    // blank the entire task board. So probe first and upgrade the document only
-    // once the serving endpoint is known to have them.
-    //
-    // Seed synchronously from the cached answer: starting at `false` and flipping
-    // after the async probe renders once with the base document — enough for
-    // Apollo to put it on the wire — and then fetches the whole board a SECOND
-    // time with the rich one, on every load and every org switch. peekCapability
-    // returns undefined when genuinely unknown, where base-first is correct.
-    const [releasesSupported, setReleasesSupported] = useState(
-        () => peekCapability(subgraphUrl, CAPABILITY.TASK_RELEASES) === true
-    );
-    useEffect(() => {
-        let cancelled = false;
-        // Re-seed on endpoint change: a different chain may serve an older schema.
-        setReleasesSupported(peekCapability(subgraphUrl, CAPABILITY.TASK_RELEASES) === true);
-        if (!subgraphUrl) return undefined;
-        hasCapability(subgraphUrl, CAPABILITY.TASK_RELEASES).then((has) => {
-            if (!cancelled) setReleasesSupported(!!has);
-        });
-        return () => { cancelled = true; };
-    }, [subgraphUrl]);
+    // Select the current endpoint's known schema synchronously; an unknown
+    // endpoint starts with the compatible base document until its probe settles.
+    const releasesSupported = useSubgraphCapability(subgraphUrl, CAPABILITY.TASK_RELEASES);
 
     const projectsQuery = releasesSupported ? FETCH_PROJECTS_DATA_WITH_RELEASES : FETCH_PROJECTS_DATA_NEW;
 
-    // pollInterval keeps task data fresh. cache-and-network shows cached data instantly.
+    // A fresh lookup snapshot already fetched this data. Other entry paths retain
+    // cache-and-network; polling and explicit refresh still request fresh data.
     // 40s balances liveness against The Graph Studio rate limits.
     // Polling pauses when the tab is hidden or the user is idle (useUserActive).
     const { data, error, refetch } = useQuery(projectsQuery, {
         variables: { orgId: orgId },
         skip: !orgId,
-        fetchPolicy: 'cache-and-network',
+        fetchPolicy: initialSnapshotLoaded ? 'cache-first' : 'cache-and-network',
         pollInterval: isActive ? 40000 : 0,
         client,
     });

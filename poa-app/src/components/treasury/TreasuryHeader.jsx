@@ -1,3 +1,4 @@
+import { useUserContext } from '@/context/UserContext';
 import React from 'react';
 import NextLink from 'next/link';
 import {
@@ -70,6 +71,8 @@ const TreasuryHeader = ({
 }) => {
   const { orgChainId, paymentManagerAddress, tokenLabel = 'Shares' } = usePOContext();
   const userDAO = useOrgName();
+  const { isAccountReady, userDataLoading } = useUserContext();
+  const accountPending = isAccountReady === false || userDataLoading;
   const {
     treasuryShare,
     stableTotal,
@@ -238,7 +241,9 @@ const TreasuryHeader = ({
             <Box flex={1} borderTop={HAIRLINE} />
           </HStack>
 
-          {isLoading ? (
+          {accountPending ? (
+            <Text fontSize="sm" color={INK.secondary} role="status">Getting your account details ready…</Text>
+          ) : isLoading ? (
             <Skeleton height="40px" width="150px" />
           ) : hasShare ? (
             <>

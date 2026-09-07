@@ -1,3 +1,4 @@
+import { useEthersSigner, clientToSigner, useSwitchChain, useConfig, getConnectorClient, useWalletClient } from '@/context/WalletContext';
 /**
  * useProfileUpdate
  * Hook for updating user profile metadata on the UniversalAccountRegistry.
@@ -9,12 +10,8 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { encodeFunctionData } from 'viem';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useIPFScontext } from '@/context/ipfsContext';
-import { useEthersSigner, clientToSigner } from '@/components/ProviderConverter';
-import { useSwitchChain, useConfig } from 'wagmi';
-import { getConnectorClient } from 'wagmi/actions';
-import { useWalletClient } from 'wagmi';
 import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
 import { buildUserOp, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
 import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';
@@ -129,7 +126,7 @@ export function useProfileUpdate() {
     } finally {
       setIsUpdating(false);
     }
-  }, [accountAddress, registryAddress, isPasskeyUser, addToIpfs, signer, publicClient, bundlerClient, paymasterAddress, passkeyState, emit]);
+  }, [accountAddress, registryAddress, isPasskeyUser, addToIpfs, signer, publicClient, bundlerClient, paymasterAddress, passkeyState, emit, walletClient, switchChainAsync, wagmiConfig]);
 
   /**
    * EOA flow: try 7702 gas-sponsored via solidarity fund, fallback to direct tx.

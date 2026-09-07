@@ -1,3 +1,4 @@
+import { useAccount, useSwitchChain } from '@/context/WalletContext';
 /**
  * EmailAllowlistEditor — "Who can join by email", the admin half of email invites.
  *
@@ -46,13 +47,12 @@ import {
   Wrap,
 } from '@chakra-ui/react';
 import { CloseIcon } from '@chakra-ui/icons';
-import { useAccount, useSwitchChain } from 'wagmi';
 import { useQuery } from '@apollo/client';
 import { useIPFScontext } from '@/context/ipfsContext';
 import { useWeb3Services, useTransactionWithNotification } from '@/hooks/useWeb3Services';
 import { usePOContext } from '@/context/POContext';
 import { useOrgStructure } from '@/hooks/useOrgStructure';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { ipfsCidToBytes32, stringToBytes } from '@/services/web3/utils/encoding';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { assertRootMatches, buildAllowlist } from '@/lib/zkemail/allowlist';

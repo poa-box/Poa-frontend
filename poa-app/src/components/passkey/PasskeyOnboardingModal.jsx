@@ -1,4 +1,4 @@
-import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { useConnectModal } from '@/context/WalletContext';
 import { usePasskeyOnboarding } from '@/hooks/usePasskeyOnboarding';
 import PasskeyOnboardingDialog from './PasskeyOnboardingDialog';
 

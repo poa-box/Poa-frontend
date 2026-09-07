@@ -49,7 +49,7 @@ import { AddIcon, DeleteIcon } from '@chakra-ui/icons';
 import { ethers } from 'ethers';
 
 import { useIPFScontext } from '@/context/ipfsContext';
-import { useWeb3 } from '@/hooks';
+import { useWeb3 } from '@/hooks/useWeb3Services';
 import { usePOContext } from '@/context/POContext';
 import { useProjectContext } from '@/context/ProjectContext';
 import { ipfsCidToBytes32, parseProjectId } from '@/services/web3/utils/encoding';

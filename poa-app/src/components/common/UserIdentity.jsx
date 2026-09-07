@@ -147,7 +147,7 @@ function UserIdentity({
 
   if (link && username) {
     return (
-      <Link href={`/u?username=${encodeURIComponent(username)}`} passHref legacyBehavior>
+      <Link href={`/u?username=${encodeURIComponent(username)}`} prefetch={false} passHref legacyBehavior>
         <Box
           as="a"
           display="inline-flex"

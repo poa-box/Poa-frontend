@@ -14,7 +14,7 @@ import {
 } from '@chakra-ui/react';
 import { FiArrowRight, FiUsers } from 'react-icons/fi';
 import Link from 'next/link';
-import { displayName, taglineFor } from '@/config/votingVocabulary';
+import { displayName, taglineFor } from '@/config/votingVocabularyCore';
 
 const glassLayerStyle = {
   position: 'absolute',

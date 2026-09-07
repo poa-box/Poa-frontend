@@ -6,7 +6,7 @@
  */
 import { useEffect } from 'react';
 import { useAccount, useConnect, useConnectors } from 'wagmi';
-import { E2E_ENABLED, E2E_AS } from './e2eMode';
+import { E2E_AS } from './e2eMode';
 
 export default function E2EAutoConnect() {
   const { isConnected, isConnecting } = useAccount();
@@ -14,7 +14,7 @@ export default function E2EAutoConnect() {
   const connectors = useConnectors();
 
   useEffect(() => {
-    if (!E2E_ENABLED) return;
+    if (process.env.NEXT_PUBLIC_E2E_MODE !== 'true') return;
     if (E2E_AS === 'passkey') return;
     if (isConnected || isConnecting) return;
     const burner = connectors.find((c) => c.id === 'mock');

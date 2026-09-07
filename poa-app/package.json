@@ -8,7 +8,7 @@
     "dev": "next dev --webpack",
     "dev:e2e": "NEXT_PUBLIC_E2E_MODE=true next dev --webpack",
     "dev:e2e-passkey": "NEXT_PUBLIC_E2E_MODE=true NEXT_PUBLIC_E2E_AS=passkey next dev --webpack",
-    "build": "node scripts/generate-sitemap.mjs && next build --webpack",
+    "build": "node scripts/generate-sitemap.mjs && next build --webpack && node scripts/preload-common.mjs",
     "generate-sitemap": "node scripts/generate-sitemap.mjs",
     "lint": "eslint .",
     "e2e:setup": "node scripts/e2e/setup-machine.js",
@@ -20,6 +20,10 @@
     "test:live-chain": "POA_LIVE_CHAIN_TESTS=1 vitest run src/config/contractLimits.live.test.js"
   },
   "dependencies": {
+    "@ethersproject/address": "^5.8.0",
+    "@ethersproject/bytes": "^5.8.0",
+    "@ethersproject/keccak256": "^5.8.0",
+    "@ethersproject/strings": "^5.8.0",
     "@apollo/client": "^3.14.1",
     "@chakra-ui/icons": "^2.2.4",
     "@chakra-ui/react": "^2.10.10",

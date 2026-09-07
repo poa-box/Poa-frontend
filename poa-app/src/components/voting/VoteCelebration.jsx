@@ -50,7 +50,7 @@ import {
   CELEBRATION_ERROR_TITLE,
   CELEBRATION_ERROR_BODY,
   CELEBRATION_RETRY,
-} from '@/config/votingVocabulary';
+} from '@/config/votingVocabularyCore';
 import { TurnoutMeter } from './meters/TurnoutMeter';
 import { ResultBars } from './ResultBars';
 import { turnoutInputs, VOTE_PALETTE } from './votingDisplay';

@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { usePOContext } from '@/context/POContext';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useSubgraphClient } from '@/util/apolloClient';
 import { FETCH_AUTHORITY_MEMBERSHIPS, FETCH_USER_MEMBERSHIPS } from '@/util/queries';
 import { normalizeAuthorityMemberships, normalizeMyMemberships } from '@/lib/accessV2/normalize';

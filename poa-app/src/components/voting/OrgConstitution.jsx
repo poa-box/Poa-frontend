@@ -67,12 +67,12 @@ import {
 import GlassBack from './GlassBack';
 import { useVotingContext } from '@/context/VotingContext';
 import { usePOContext } from '@/context/POContext';
-import { useRoleNames } from '@/hooks';
+import { useRoleNames } from '@/hooks/useRoleNames';
 import {
   classLabel,
   sliceBadge,
   passRuleCopy,
-} from '@/config/votingVocabulary';
+} from '@/config/votingVocabularyCore';
 import { describeVoteOpenRights } from '@/lib/voting/voteOpenRights';
 import { getAvailableTemplateById } from '@/lib/voting/setterAvailability';
 import { useOrgAuthority } from '@/hooks/accessV2/useOrgAuthority';

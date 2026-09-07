@@ -1,3 +1,4 @@
+import { useAccount, useSwitchChain } from '@/context/WalletContext';
 /**
  * useClaimZkEmailRole
  * Orchestrates a client-side ZK Email role claim against the merkle-allowlist model:
@@ -23,11 +24,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@apollo/client';
-import { useAccount, useSwitchChain } from 'wagmi';
 import { getClient } from '@/util/apolloClient';
 import { useWeb3Services, useTransactionWithNotification } from './useWeb3Services';
 import { usePOContext } from '../context/POContext';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useIPFScontext } from '../context/ipfsContext';
 import { useOrgName } from './useOrgName';
 import { DEFAULT_CHAIN_ID } from '../config/networks';

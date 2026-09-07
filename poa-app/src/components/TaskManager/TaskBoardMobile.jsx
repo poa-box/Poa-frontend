@@ -1,3 +1,4 @@
+import TaskDragProvider from '@/components/TaskManager/TaskDragProvider';
 // Mobile Task Board: one column at a time, navigated by the fixed
 // ColumnTabBar (primary) or horizontal swipe (shortcut). The board
 // itself reserves space for the bar so the column never paints behind
@@ -174,4 +175,9 @@ const TaskBoardMobile = forwardRef(({
 
 TaskBoardMobile.displayName = 'TaskBoardMobile';
 
-export default TaskBoardMobile;
+const TaskBoardMobileWithDrag = forwardRef((props, ref) => (
+  <TaskDragProvider><TaskBoardMobile {...props} ref={ref} /></TaskDragProvider>
+));
+TaskBoardMobileWithDrag.displayName = 'TaskBoardMobileWithDrag';
+
+export default TaskBoardMobileWithDrag;

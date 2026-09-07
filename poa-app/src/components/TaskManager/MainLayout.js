@@ -1,12 +1,11 @@
 import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { Flex, Box, Heading, useMediaQuery, Text, Button, VStack, HStack, IconButton, useDisclosure, Badge } from '@chakra-ui/react';
 import { AddIcon } from '@chakra-ui/icons';
-import ProjectSidebar from './ProjectSidebar';
+import ProjectSidebar from '@/components/TaskManager/DeferredProjectSidebar';
 import TaskBoard from './TaskBoard';
-import CreateProjectModal from './CreateProjectModal';
-import FolderTreeEditor from '../folders/FolderTreeEditor';
 import MobileTopBar from './MobileTopBar';
-import ProjectSwitcherDrawer from './ProjectSwitcherDrawer';
+import { ProjectSwitcherDrawer, ExampleTaskModal } from '@/components/TaskManager/deferredTaskDialogs';
 import { useFolderDoc } from '../folders/useFolderDoc';
 import { TaskBoardProvider } from '../../context/TaskBoardContext';
 import AllTasksView from './views/AllTasksView';
@@ -15,19 +14,21 @@ import { ALL_TASKS_ID, MY_WORK_ID, getProjectNavigationQuery } from './taskViewI
 import { useDataBaseContext} from '../../context/dataBaseContext';
 import { useIPFScontext } from '../../context/ipfsContext';
 import { useUserContext } from '../../context/UserContext';
-import { useAuth } from '../../context/AuthContext';
-import { useWeb3, useOrgTheme, useTaskManagerV4State } from '../../hooks';
+import { useAuth } from '@/context/authState';
+import { useWeb3 } from '@/hooks/useWeb3Services';
+import { useOrgTheme } from '@/hooks/useOrgTheme';
+import { useTaskManagerV4State } from '@/hooks/useTaskManagerV4State';
 import { usePOContext } from '@/context/POContext';
 import { resolveTokenLabel } from '@/util/tokenLabel';
 import { useOrgName } from '@/hooks/useOrgName';
 import { useRouter } from 'next/router';
-import { DndProvider } from 'react-dnd';
-import { HTML5Backend } from 'react-dnd-html5-backend';
 import { SimpleGrid, Avatar } from '@chakra-ui/react';
 import { TimeIcon } from '@chakra-ui/icons';
-import { Modal, ModalOverlay, ModalContent, ModalCloseButton, ModalBody, ModalFooter, Spacer } from '@chakra-ui/react';
-import { useTour } from '@/features/tour';
+import { useTour } from '@/features/tour/TourContext';
 import { glassLayerStyle as boardGlassStyle } from './styles/taskBoardStyles';
+
+const CreateProjectModal = dynamic(() => import('@/components/TaskManager/CreateProjectModal'), { ssr: false });
+const FolderTreeEditor = dynamic(() => import('@/components/folders/FolderTreeEditor'), { ssr: false });
 
 // Re-export the URL sentinels (defined in the dependency-free ./taskViewIds leaf)
 // so existing consumers keep importing them from MainLayout.
@@ -170,59 +171,6 @@ function ExampleTaskBoard({ tokenLabel }) {
   );
 }
 
-// --- Example task detail modal shown during tour ---
-
-const modalGlassStyle = {
-  position: 'absolute',
-  height: '100%',
-  width: '100%',
-  zIndex: -1,
-  borderRadius: 'inherit',
-  backgroundColor: 'rgba(33, 33, 33, 0.97)',
-};
-
-function ExampleTaskModal({ isOpen, onClose, tokenLabel }) {
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} size="3xl" isCentered zIndex={10001}>
-      <ModalOverlay bg="transparent" />
-      <ModalContent bg="transparent" textColor="white" data-tour="example-task-modal">
-        <div style={modalGlassStyle} />
-        <ModalCloseButton zIndex={1} />
-        <Box pt={4} borderTopRadius="2xl" bg="transparent" boxShadow="lg" position="relative">
-          <div style={modalGlassStyle} />
-          <Text ml="6" fontSize="2xl" fontWeight="bold">Design the org logo</Text>
-        </Box>
-        <ModalBody>
-          <VStack spacing={4} align="start">
-            <Box>
-              <Text mb="4" mt="4" lineHeight="6" fontSize="md" fontWeight="bold" style={{ whiteSpace: 'pre-wrap' }}>
-                Create a logo that represents the organization. It should be clean, modern, and work well at small sizes. Consider the org&apos;s mission and values when designing.
-              </Text>
-            </Box>
-            <HStack width="100%">
-              <Badge colorScheme="green">Easy</Badge>
-              <Badge colorScheme="blue">2 hrs</Badge>
-              <Spacer />
-            </HStack>
-          </VStack>
-        </ModalBody>
-        <ModalFooter borderTop="1.5px solid" borderColor="gray.200" py={2}>
-          <Box flexGrow={1}>
-            <VStack align="start" spacing={0}>
-              <Text fontWeight="bold" fontSize="m">Reward: 10 {tokenLabel}</Text>
-            </VStack>
-          </Box>
-          <Box>
-            <Button textColor="white" variant="outline" mr={2} isDisabled>Share</Button>
-            <Button colorScheme="teal" isDisabled>Claim Task</Button>
-          </Box>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
-  );
-}
-
-
 const MainLayout = () => {
   const {
     projects,
@@ -232,7 +180,7 @@ const MainLayout = () => {
   } = useDataBaseContext();
 
   const { accountAddress: account } = useAuth();
-  const { task: taskService, executeWithNotification } = useWeb3();
+  const { task: taskService, executeWithNotification, isReady, getNotReadyMessage } = useWeb3();
   const { taskManagerContractAddress, roleHatIds, roleNames, creatorHatIds, useTokenSymbol, participationTokenSymbol } = usePOContext();
   // The tour's example board is a new member's first impression — it should teach
   // them this org's word for its shares, not the protocol's ticker.
@@ -270,32 +218,29 @@ const MainLayout = () => {
 
   const folderEditor = useDisclosure();
 
-  // Use useMediaQuery for more stable breakpoint detection
-  // Returns [isMatch] where isMatch is false by default on SSR to prevent flash
-  // Chakra's md breakpoint is 48em (768px)
+  // TaskWorkspace mounts this layout only after its client-side project reads.
+  // Chakra already reads the actual viewport synchronously here. Preserve that
+  // initial result so mobile never paints a desktop sidebar/header first.
   const [isMobileQuery] = useMediaQuery('(max-width: 47.99em)', { ssr: false, fallback: false });
+  const [isMobile, setIsMobile] = useState(isMobileQuery);
 
-  // Use stable state to prevent flash during re-renders
-  // Only update when genuinely changing (prevents flicker from brief query glitches)
-  const [isMobile, setIsMobile] = useState(false);
-  const isInitializedRef = useRef(false);
-
+  // Keep the existing short debounce for subsequent viewport changes.
   useEffect(() => {
-    // On first load, set the value
-    if (!isInitializedRef.current) {
-      setIsMobile(isMobileQuery);
-      isInitializedRef.current = true;
-    } else if (isMobile !== isMobileQuery) {
-      // Only update if genuinely different (debounce rapid changes)
-      const timeoutId = setTimeout(() => {
-        setIsMobile(isMobileQuery);
-      }, 50); // Small delay to filter out render glitches
-      return () => clearTimeout(timeoutId);
-    }
+    if (isMobile === isMobileQuery) return;
+    const timeoutId = setTimeout(() => setIsMobile(isMobileQuery), 50);
+    return () => clearTimeout(timeoutId);
   }, [isMobileQuery, isMobile]);
 
   const projectDrawer = useDisclosure();
   const { isOpen: isProjectModalOpen, onOpen: onProjectModalOpen, onClose: onProjectModalClose } = useDisclosure();
+  const [projectModalLoaded, setProjectModalLoaded] = useState(false);
+  const [folderEditorLoaded, setFolderEditorLoaded] = useState(false);
+  // Defer editor code until first use, then retain its existing close/reopen
+  // lifecycle and any in-progress form or transaction state.
+  useEffect(() => {
+    if (isProjectModalOpen) setProjectModalLoaded(true);
+    if (folderEditor.isOpen) setFolderEditorLoaded(true);
+  }, [isProjectModalOpen, folderEditor.isOpen]);
   const [showHelp, setShowHelp] = useState(true);
   const { pendingAction, isActive: isTourActive, currentStepDef, nextStep: tourNextStep } = useTour();
   const currentStepId = currentStepDef?.id;
@@ -350,7 +295,7 @@ const MainLayout = () => {
 
   // Create project using the new service
   const handleCreateProject = useCallback(async (projectData) => {
-    if (!taskService) return;
+    if (!taskService || !isReady) throw new Error(getNotReadyMessage());
 
     // Handle both simple string (for backwards compat) and full object
     const isSimpleCreate = typeof projectData === 'string';
@@ -403,7 +348,7 @@ const MainLayout = () => {
       bountyCaps: isSimpleCreate ? [] : (projectData.bountyCaps || []),
     };
 
-    await executeWithNotification(
+    return executeWithNotification(
       () => taskService.createProject(taskManagerContractAddress, createProjectData),
       {
         pendingMessage: 'Creating project...',
@@ -411,7 +356,7 @@ const MainLayout = () => {
         refreshEvent: 'project:created',
       }
     );
-  }, [taskService, executeWithNotification, taskManagerContractAddress, addToIpfs, roleHatIds, creatorHatIds]);
+  }, [taskService, isReady, getNotReadyMessage, executeWithNotification, taskManagerContractAddress, addToIpfs, roleHatIds, creatorHatIds]);
 
   // Toggle sidebar visibility
   const toggleSidebar = () => {
@@ -419,7 +364,7 @@ const MainLayout = () => {
   };
 
   return (
-    <DndProvider backend={HTML5Backend}>
+    <>
       <Flex
         height={{ base: 'calc(100vh - 60px)', md: 'calc(100vh - 80px)' }}
         direction={{ base: "column", md: "row" }}
@@ -561,7 +506,7 @@ const MainLayout = () => {
       </Flex>
 
       {/* Create Project Modal */}
-      <CreateProjectModal
+      {(isProjectModalOpen || projectModalLoaded) && <CreateProjectModal
         isOpen={isProjectModalOpen}
         onClose={() => {
           setTourDefaultProjectName('');
@@ -574,17 +519,17 @@ const MainLayout = () => {
         creatorHatIds={creatorHatIds || []}
         defaultName={tourDefaultProjectName}
         defaultDescription={tourDefaultProjectDesc}
-      />
+      />}
 
       {/* Folder editor — opened from the sidebar header when the
           connected wallet wears an organizer hat. Mounted here so the
           modal survives sidebar collapse / mobile-mode swaps. */}
-      <FolderTreeEditor
+      {(folderEditor.isOpen || folderEditorLoaded) && <FolderTreeEditor
         isOpen={folderEditor.isOpen}
         onClose={folderEditor.onClose}
         foldersRoot={foldersRoot}
         organizerHatIds={organizerHatIds}
-      />
+      />}
 
       {/* Mobile project switcher — bottom-sheet drawer. Mounted at the
           layout root so it survives the all-tasks ↔ project render swap. */}
@@ -602,7 +547,7 @@ const MainLayout = () => {
           onCreateProject={onProjectModalOpen}
         />
       )}
-    </DndProvider>
+    </>
   );
 };
 
