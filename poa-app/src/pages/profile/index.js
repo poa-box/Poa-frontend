@@ -1,11 +1,11 @@
-import deferredApplicationPage from '@/components/providers/deferredApplicationPage';
+import Page from '@/components/profileHub/ProfileHub';
 
-export default deferredApplicationPage(
-  () => import('@/components/profileHub/ProfileHub'),
-  {
+// Keep metadata available above the application providers during initial load.
+Page.seo = {
     "title": "Profile",
     "description": "Your community profile and activity.",
     "path": "/profile",
     "noIndex": true
-  },
-);
+  };
+
+export default Page;

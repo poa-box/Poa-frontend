@@ -18,7 +18,7 @@ function ActiveTourOverlay() {
 }
 
 /** Stable application state. Wallet startup is a sibling, never a page wrapper. */
-export default function OrganizationProviders({ children, enabled = true, preparePage }) {
+export default function OrganizationProviders({ children, enabled = true }) {
   return (
     <VotingProvider>
       <UserProvider>
@@ -29,7 +29,7 @@ export default function OrganizationProviders({ children, enabled = true, prepar
               {enabled && <ActiveTourOverlay />}
               {enabled && <DeferredTourPrompt />}
               {children}
-              <AccountRuntimeHost preparePage={preparePage} />
+              <AccountRuntimeHost />
             </TourProvider>
           </Web3Provider>
         </Web3ServicesProvider>

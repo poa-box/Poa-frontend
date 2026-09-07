@@ -19,6 +19,7 @@ import { useWeb3 } from '@/hooks/useWeb3Services';
 import { useOrgTheme } from '@/hooks/useOrgTheme';
 import { useTaskManagerV4State } from '@/hooks/useTaskManagerV4State';
 import { usePOContext } from '@/context/POContext';
+import { useProjectContext } from '@/context/ProjectContext';
 import { resolveTokenLabel } from '@/util/tokenLabel';
 import { useOrgName } from '@/hooks/useOrgName';
 import { useRouter } from 'next/router';
@@ -178,6 +179,7 @@ const MainLayout = () => {
     setSelectedProject,
     handleUpdateColumns,
   } = useDataBaseContext();
+  const { projectsData } = useProjectContext();
 
   const { accountAddress: account } = useAuth();
   const { task: taskService, executeWithNotification, isReady, getNotReadyMessage } = useWeb3();
@@ -409,7 +411,9 @@ const MainLayout = () => {
           flexDirection="column"
         >
           {/* Compact sticky mobile top bar — project name + view switcher. */}
-          {isMobile && projects.length > 0 && (
+          {/* Match the task data immediately; the editable project copy syncs
+              in an effect and would otherwise insert this header a frame late. */}
+          {isMobile && projectsData?.length > 0 && (
             <MobileTopBar
               variant={myWorkMode ? 'myWork' : allTasksMode ? 'allTasks' : 'project'}
               projectName={allTasksMode || myWorkMode ? undefined : selectedProject?.name}

@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module';
+import { SSR_APP_ROUTES, usesDeferredAccountBootstrap } from './src/lib/applicationRoutes.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -116,9 +117,13 @@ const nextConfig = {
               };
               publicEntryModules = staticClosure(modules.filter((module) => {
                 const resource = module.nameForCondition?.() || '';
-                // These server-rendered application routes intentionally share
-                // account/UI dependencies; reading routes remain protected.
-                const isApplicationPage = /\/src\/pages\/(?:create|protocol|explore|u)\/index\./.test(resource);
+                // Application bodies are normal Next route entries again.
+                // Keep their shared UI eligible for grouping while static
+                // reading pages and the landing page remain protected.
+                const pageFile = resource.match(/\/src\/pages(\/.*)\.[cm]?[jt]sx?$/)?.[1];
+                const route = pageFile?.replace(/\/index$/, '') || '/';
+                const isApplicationPage = !!pageFile
+                  && (SSR_APP_ROUTES.has(route) || usesDeferredAccountBootstrap(route));
                 return (resource.includes('/src/pages/') && !isApplicationPage)
                   || /\/src\/components\/providers\/RegistryProvider\./.test(resource);
               }));
@@ -192,7 +197,9 @@ const nextConfig = {
       // organization-read bootstrap moves together, before wallet startup.
       config.optimization.splitChunks.cacheGroups.readBootstrap = {
         name: 'organization-read',
-        chunks: 'async',
+        // Page bodies now use normal route chunks too. Share the same reader
+        // modules with them instead of duplicating the async provider closure.
+        chunks: 'all',
         minChunks: 1,
         minSize: 0,
         priority: 25,

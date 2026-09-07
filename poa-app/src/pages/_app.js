@@ -178,7 +178,7 @@ function CoreLoadingState() {
   return pathname === '/' ? null : <CommunityLoadingState fullScreen label="Opening Poa…" />;
 }
 
-function PageProviders({ page, pathname, preparePage }) {
+function PageProviders({ page, pathname }) {
   const [hasMounted, setHasMounted] = useState(false);
   useEffect(() => { setHasMounted(true); }, []);
   const isLanding = pathname === '/';
@@ -217,7 +217,7 @@ function PageProviders({ page, pathname, preparePage }) {
                     provider scripts to every organization's hydration gate.
                     This changes once on entry, never on account readiness. */}
                 {!hasMounted && !SSR_APP_ROUTES.has(pathname) ? <CoreLoadingState /> : (
-                  <OrganizationProviders enabled={isOrganization} preparePage={preparePage}>
+                  <OrganizationProviders enabled={isOrganization}>
                     {isLanding ? <LandingAccountBridge /> : page}
                   </OrganizationProviders>
                 )}
@@ -231,17 +231,13 @@ function PageProviders({ page, pathname, preparePage }) {
 }
 
 function MyApp({ Component, pageProps, router }) {
-  useEffect(() => {
-    Component.preload?.().catch(() => {});
-  }, [Component]);
-
   return (
     <ErrorBoundary>
       <ChakraProvider theme={theme}>
         <LandingAccountProvider>
           <ShortLinkRouter>
             {Component.seo && <SEOHead {...Component.seo} />}
-            <PageProviders page={<Component {...pageProps} />} pathname={router?.pathname} preparePage={Component.preload} />
+            <PageProviders page={<Component {...pageProps} />} pathname={router?.pathname} />
           </ShortLinkRouter>
         </LandingAccountProvider>
       </ChakraProvider>
