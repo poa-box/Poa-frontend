@@ -9,8 +9,6 @@ import { base64URLStringToBuffer, bufferToBase64URLString } from '@simplewebauth
 import { keccak256, encodePacked, pad, toHex } from 'viem';
 import { WEBAUTHN_RP_NAME, getWebAuthnRpId } from '../../../config/passkey';
 import { computeCredentialId } from './passkeyUtils';
-import { E2E_ENABLED } from '../../../services/e2e/e2eMode';
-import { getVirtualPasskeyCredential } from '../../../services/e2e/virtualPasskey';
 
 /**
  * Create a new WebAuthn credential (passkey).
@@ -23,7 +21,8 @@ import { getVirtualPasskeyCredential } from '../../../services/e2e/virtualPasske
  *   salt: BigInt = derived from credentialId for deterministic account address
  */
 export async function createPasskeyCredential(username) {
-  if (E2E_ENABLED) {
+  if (process.env.NEXT_PUBLIC_E2E_MODE === 'true') {
+    const { getVirtualPasskeyCredential } = await import('@/services/e2e/virtualPasskey');
     const cred = getVirtualPasskeyCredential();
     return {
       credentialId: cred.credentialId,

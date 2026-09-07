@@ -1,3 +1,4 @@
+import { useWalletAction } from '@/components/common/WalletActionButton';
 import { useId, useRef, useState } from 'react';
 import {
   Box,
@@ -119,6 +120,7 @@ export default function PasskeyOnboardingDialog({
   };
 
   const handleClose = () => {
+    walletIntent.cancel();
     if (isInProgress) return;
     const wasSuccess = isSuccess;
     reset();
@@ -127,10 +129,10 @@ export default function PasskeyOnboardingDialog({
     if (wasSuccess) onSuccess?.(result);
   };
 
-  const handleConnectWallet = () => {
-    onClose();
-    onConnectWallet?.();
-  };
+  const walletIntent = useWalletAction(async ({ signal }) => {
+    await onConnectWallet?.({ signal });
+    if (!signal.aborted) onClose();
+  }, { enabled: isOpen });
 
   return (
     <Modal
@@ -313,6 +315,7 @@ export default function PasskeyOnboardingDialog({
                 {isJoin ? 'Create account' : 'Create with Passkey'}
               </Button>
 
+              {walletIntent.error && <Text role="alert" fontSize="sm">Couldn’t open wallets. Try again below.</Text>}
               {onConnectWallet && (
                 <>
                   <HStack width="100%" align="center" display={isJoin ? 'none' : undefined}>
@@ -333,7 +336,11 @@ export default function PasskeyOnboardingDialog({
                     color="warmGray.800"
                     _hover={{ bg: 'blue.100', transform: 'translateY(-1px)', boxShadow: 'md' }}
                     _active={{ bg: 'blue.200', transform: 'translateY(0)' }}
-                    onClick={handleConnectWallet}
+                    onClick={walletIntent.run}
+                    onMouseEnter={walletIntent.prepare}
+                    onFocus={walletIntent.prepare}
+                    isLoading={walletIntent.pending}
+                    loadingText="Opening…"
                     leftIcon={<Icon as={FaWallet} color="blue.500" />}
                     {...(isJoin ? { size: 'sm', minH: '44px', bg: 'transparent', borderColor: 'transparent', color: joinColors.muted, _hover: { bg: joinColors.soft }, _active: { bg: joinColors.soft }, leftIcon: <Icon as={FaWallet} color={joinColors.muted} /> } : {})}
                   >

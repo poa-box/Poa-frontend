@@ -1,3 +1,4 @@
+import { useAccount, useSwitchChain, useConfig, getConnectorClient, clientToSigner } from '@/context/WalletContext';
 /**
  * TransferModal
  * Modal for transferring ERC20 tokens to any address.
@@ -29,10 +30,7 @@ import {
 } from '@chakra-ui/react';
 import { ethers } from 'ethers';
 import { encodeFunctionData } from 'viem';
-import { useAccount, useSwitchChain, useConfig } from 'wagmi';
-import { getConnectorClient } from 'wagmi/actions';
-import { clientToSigner } from '@/components/ProviderConverter';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { createChainClients } from '@/services/web3/utils/chainClients';
 import { buildUserOp, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
 import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';

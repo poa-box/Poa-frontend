@@ -1,8 +1,13 @@
+import AccountLoadingState from '@/components/common/AccountLoadingState';
+import { useAccount } from '@/context/WalletContext';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import useOnboardingColors from '@/components/shared/useOnboardingColors';
-import SEOHead from "@/components/common/SEOHead";
 import { JoinLayout, JoinAccountStart, JoinInvitationStart, JoinRoleDisclosure, JoinSignIn, JoinWalletOption } from "@/components/join/JoinPresentation";
-import { useWeb3, useOrgStructure, useClaimRole, useVouches, useVouchFirstOnboarding } from "@/hooks";
+import { useWeb3 } from '@/hooks/useWeb3Services';
+import { useOrgStructure } from '@/hooks/useOrgStructure';
+import { useClaimRole } from '@/hooks/useClaimRole';
+import { useVouches } from '@/hooks/useVouches';
+import { useVouchFirstOnboarding } from '@/hooks/useVouchFirstOnboarding';
 import { useOrgName } from "@/hooks/useOrgName";
 import useIpfsImage from '@/hooks/useIpfsImage';
 import { usePOContext } from "@/context/POContext";
@@ -32,8 +37,7 @@ import {
 } from "@chakra-ui/react";
 import PulseLoader from "@/components/shared/PulseLoader";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
-import { useAccount } from 'wagmi';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 
 import { FaUserPlus, FaUser, FaCheck, FaChevronRight, FaFingerprint, FaPaperPlane, FaCopy, FaHandshake, FaRedo } from 'react-icons/fa';
 import PasskeyOnboardingModal from '@/components/passkey/PasskeyOnboardingModal';
@@ -52,10 +56,10 @@ import { useOrgGate } from "@/components/shared/OrgDeadEnd";
 const User = () => {
   const { hasMemberRole, graphUsername, optimisticJoin } = useUserContext();
   const { address } = useAccount();
-  const { isAuthenticated, isPasskeyUser, accountAddress } = useAuth();
+  const { isAuthenticated, isPasskeyUser, accountAddress, isAuthHydrated } = useAuth();
   const { quickJoinContractAddress, roleHatIds, logoUrl } = usePOContext();
   const orgLogoSrc = useIpfsImage(logoUrl);
-  const { organization, executeWithNotification, signer } = useWeb3();
+  const { organization, executeWithNotification, signer, isReady, getNotReadyMessage } = useWeb3();
   const router = useRouter();
   const { vouch: vouchAddress, hatId: vouchHatId } = router.query;
   const userDAO = useOrgName();
@@ -299,7 +303,10 @@ const User = () => {
   }, [authenticatedUserVouchProgress, selectedHatId]);
 
   const handleJoinWithUser = useCallback(async () => {
-    if (!organization) return;
+    if (!organization || !isReady) {
+      toast({ description: getNotReadyMessage(), status: 'info', duration: 4000, isClosable: true });
+      return;
+    }
 
     setLoading(true);
 
@@ -346,10 +353,13 @@ const User = () => {
       router.push(`/profile/?org=${encodeURIComponent(userDAO)}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, router, userDAO, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, accountAddress, address, roleHatIds, crossChainUsername, graphUsername, quickJoinPaymasterHatIds]);
+  }, [organization, isReady, getNotReadyMessage, executeWithNotification, quickJoinContractAddress, router, userDAO, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, accountAddress, address, roleHatIds, crossChainUsername, graphUsername, quickJoinPaymasterHatIds, toast]);
 
   const handleJoinNewUser = useCallback(async () => {
-    if (!organization) return;
+    if (!organization || !isReady) {
+      toast({ description: getNotReadyMessage(), status: 'info', duration: 4000, isClosable: true });
+      return;
+    }
 
     if (!newUsername.trim()) {
       usernameInputRef.current.focus();
@@ -455,7 +465,7 @@ const User = () => {
       router.push(`/profile/?org=${encodeURIComponent(userDAO)}`);
     }
     setLoading(false);
-  }, [organization, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, roleHatIds, address, quickJoinPaymasterHatIds]);
+  }, [organization, isReady, getNotReadyMessage, executeWithNotification, quickJoinContractAddress, newUsername, router, userDAO, toast, accountAddress, isPasskeyUser, signer, authenticatedUserVouchProgress, pendingApplicationProgress, pendingVouchApplication, optimisticJoin, roleHatIds, address, quickJoinPaymasterHatIds]);
 
   const handleApplyAndJoin = useCallback(async () => {
     if (!selectedHatId) {
@@ -543,24 +553,15 @@ const User = () => {
     quickJoinPaymasterHatIds,
   ]);
 
-  const seoHead = (
-    <SEOHead
-      title="Join Organization"
-      description="Join a community-owned organization."
-      path="/join"
-      noIndex
-    />
-  );
 
   if (isSSR) {
-    return seoHead;
+    return null;
   }
 
   // No org to render: a dead end, not a pending state. After every hook.
   if (orgGate) return orgGate;
   return (
     <>
-      {seoHead}
       <Navbar />
       <JoinLayout
         orgName={userDAO}
@@ -572,7 +573,9 @@ const User = () => {
         invite={!requiresInvitation && canClaimWithEmail && <EmailInviteCard variant="join" summary={inviteSummary} />}
       >
                   {/* ── Branch 1: Member + vouch link → VouchLinkHandler ── */}
-                  {isAuthenticated && hasMemberRole && vouchAddress && vouchHatId ? (
+                  {isAuthHydrated === false ? (
+                    <AccountLoadingState />
+                  ) : isAuthenticated && hasMemberRole && vouchAddress && vouchHatId ? (
                     <VouchLinkHandler
                       vouchAddress={vouchAddress}
                       hatId={vouchHatId}

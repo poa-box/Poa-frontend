@@ -36,7 +36,8 @@ import {
 } from "@chakra-ui/react";
 import { InfoOutlineIcon, ChevronDownIcon, ChevronUpIcon } from "@chakra-ui/icons";
 import { PiUsers, PiChartBar, PiSquareHalfFill } from "react-icons/pi";
-import { useVotingIntro, useVotingPower } from "@/hooks";
+import { useVotingIntro } from '@/hooks/useVotingIntro';
+import { useVotingPower } from '@/hooks/useVotingPower';
 import { useUserContext } from "@/context/UserContext";
 import { usePOContext } from "@/context/POContext";
 import { useVotingContext } from "@/context/VotingContext";
@@ -47,7 +48,7 @@ import {
   displayName,
   taglineFor,
   TYPE_EXPLAINER,
-} from "@/config/votingVocabulary";
+} from "@/config/votingVocabularyCore";
 
 // Breathing animation for official governance indicator
 const breathe = keyframes`
@@ -318,12 +319,14 @@ const BlendedExplainerPanel = ({ votingClasses, poMembers }) => {
  * bar replaces the "80/20 split" text. On mobile it becomes a two-row tappable
  * card; the whole strip expands the full explainer.
  */
-const GovernanceStrip = ({ votingClasses, totalSharePct, poMembers, onExpand }) => {
+const GovernanceStrip = ({ votingClasses, totalSharePct, poMembers, onExpand, accountPending, hasMemberRole }) => {
   const classes = (votingClasses || []).filter((c) => Number(c.slicePct) > 0);
   const blendedText = totalSharePct != null ? `${totalSharePct.toFixed(1)}%` : null;
   const pollText = poMembers > 0 ? `${(100 / poMembers).toFixed(1)}%` : null;
 
-  const voiceNumbers = (
+  const voiceNumbers = accountPending ? (
+    <Text fontSize="xs" color="gray.300" role="status">Getting your voting details ready…</Text>
+  ) : !hasMemberRole ? null : (
     <HStack spacing={2} flexWrap="wrap" rowGap={0.5}>
       <Text fontSize="sm" color="gray.200" fontWeight="600">
         Your voice:
@@ -645,6 +648,8 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType, modalOpen = false }) =
   const { orgId, poMembers } = usePOContext();
   const { votingClasses } = useVotingContext();
   const { totalSharePct } = useVotingPower();
+  const { isAccountReady, userDataLoading, hasMemberRole } = useUserContext();
+  const accountPending = isAccountReady === false || userDataLoading;
 
   // The member opened the explainer on this page view.
   const [expanded, setExpanded] = useState(false);
@@ -678,6 +683,8 @@ const VotingEducationHeader = ({ selectedTab, PTVoteType, modalOpen = false }) =
           totalSharePct={totalSharePct}
           poMembers={poMembers}
           onExpand={expand}
+          accountPending={accountPending}
+          hasMemberRole={hasMemberRole}
         />
       </VotingIntroNudge>
     );

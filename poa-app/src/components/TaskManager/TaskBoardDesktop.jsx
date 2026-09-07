@@ -1,3 +1,4 @@
+import TaskDragProvider from '@/components/TaskManager/TaskDragProvider';
 /**
  * TaskBoardDesktop
  * Desktop view for TaskBoard with grid layout
@@ -108,4 +109,9 @@ const TaskBoardDesktop = forwardRef(({
 
 TaskBoardDesktop.displayName = 'TaskBoardDesktop';
 
-export default TaskBoardDesktop;
+const TaskBoardDesktopWithDrag = forwardRef((props, ref) => (
+  <TaskDragProvider><TaskBoardDesktop {...props} ref={ref} /></TaskDragProvider>
+));
+TaskBoardDesktopWithDrag.displayName = 'TaskBoardDesktopWithDrag';
+
+export default TaskBoardDesktopWithDrag;

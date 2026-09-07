@@ -1,0 +1,182 @@
+import AccountLoadingState from '@/components/common/AccountLoadingState';
+/**
+ * Organization Settings Page
+ * Allows org admins to edit organization metadata (name, description, logo, links)
+ */
+
+import React from 'react';
+import {
+  Box,
+  VStack,
+  Heading,
+  Text,
+  Center,
+  Alert,
+  AlertIcon,
+  AlertTitle,
+  AlertDescription,
+} from '@chakra-ui/react';
+import CommunityLoadingState from "@/components/shared/CommunityLoadingState";
+import { useRouter } from 'next/router';
+
+import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
+import { useAuth } from '@/context/authState';
+import { usePOContext } from '@/context/POContext';
+import { useIsOrgAdmin } from '@/hooks/useIsOrgAdmin';
+import { useOrgTheme } from '@/hooks/useOrgTheme';
+import { useOrgName } from '@/hooks/useOrgName';
+import OrgMetadataEditor from '@/components/settings/OrgMetadataEditor';
+import EmailAllowlistEditor from '@/components/settings/EmailAllowlistEditor';
+import { useOrgGate } from "@/components/shared/OrgDeadEnd";
+
+const SettingsPage = () => {
+  const router = useRouter();
+  const userDAO = useOrgName();
+  const { isAuthenticated, accountAddress, isAuthHydrated } = useAuth();
+
+  const {
+    orgId,
+    orgChainId,
+    poDescription,
+    poLinks,
+    logoUrl,
+    backgroundColor,
+    hideTreasury,
+    useTokenSymbol,
+    participationTokenSymbol,
+    taskPayoutHoursOnly,
+    taskPayoutHourlyRate,
+    zkEmailInvitesEnabled,
+    poContextLoading,
+    error: contextError,
+  } = usePOContext();
+
+  // Check if user is an org admin using unified accountAddress
+  const { isAdmin, loading: adminLoading, error: adminError } = useIsOrgAdmin(orgId, accountAddress);
+  const { pageBackground, onBackground, onBackgroundMuted, onBackgroundSubtle } = useOrgTheme();
+  const orgGate = useOrgGate();
+
+
+  // No org to render: a dead end, not a pending state. After every hook.
+  if (orgGate) return orgGate;
+
+  // Loading state
+  if (poContextLoading || adminLoading || isAuthHydrated === false) {
+    return (
+      <>
+        <Box minH="100vh" background={pageBackground()}>
+          <Navbar />
+          <Center minH="80vh">
+            {isAuthHydrated === false ? <AccountLoadingState /> : <CommunityLoadingState label="Loading your settings…" />}
+          </Center>
+        </Box>
+      </>
+    );
+  }
+
+  // Error state
+  if (contextError || adminError) {
+    return (
+      <>
+        <Box minH="100vh" background={pageBackground()}>
+          <Navbar />
+          <Center minH="80vh">
+            <Alert status="error" maxW="lg" borderRadius="xl" bg="red.50">
+              <AlertIcon />
+              <Box>
+                <AlertTitle>Error loading settings</AlertTitle>
+                <AlertDescription>{contextError?.message || adminError?.message}</AlertDescription>
+              </Box>
+            </Alert>
+          </Center>
+        </Box>
+      </>
+    );
+  }
+
+  // Not authenticated state
+  if (!isAuthenticated) {
+    return (
+      <>
+        <Box minH="100vh" background={pageBackground()}>
+          <Navbar />
+          <Center minH="80vh">
+            <Alert status="warning" maxW="lg" borderRadius="xl" bg="orange.50">
+              <AlertIcon />
+              <Box>
+                <AlertTitle>Not signed in</AlertTitle>
+                <AlertDescription>Please sign in to access organization settings.</AlertDescription>
+              </Box>
+            </Alert>
+          </Center>
+        </Box>
+      </>
+    );
+  }
+
+  // Not admin state
+  if (!isAdmin) {
+    return (
+      <>
+        <Box minH="100vh" background={pageBackground()}>
+          <Navbar />
+          <Center minH="80vh">
+            <Alert status="warning" maxW="lg" borderRadius="xl" bg="orange.50">
+              <AlertIcon />
+              <Box>
+                <AlertTitle>Access Denied</AlertTitle>
+                <AlertDescription>
+                  Only organization admins can access settings. You need to be wearing the admin hat or top hat to edit organization metadata.
+                </AlertDescription>
+              </Box>
+            </Alert>
+          </Center>
+        </Box>
+      </>
+    );
+  }
+
+  return (
+    <>
+    <Box minH="100vh" background={pageBackground()}>
+      <Navbar />
+      <Box maxW="2xl" mx="auto" px={4} pt={{ base: 4, md: 10 }} pb={12}>
+        <VStack spacing={8} align="stretch">
+          <Box>
+            <Heading size="lg" color={onBackground} mb={2} fontWeight="600">
+              Organization Settings
+            </Heading>
+            <Text color={onBackgroundMuted} fontSize="md">
+              Edit your organization&apos;s name, description, logo, and links
+            </Text>
+          </Box>
+
+          <OrgMetadataEditor
+            orgId={orgId}
+            orgChainId={orgChainId}
+            currentName={userDAO}
+            currentDescription={poDescription}
+            currentLinks={poLinks}
+            currentLogoHash={logoUrl}
+            currentBackgroundColor={backgroundColor}
+            currentHideTreasury={hideTreasury}
+            currentUseTokenSymbol={useTokenSymbol}
+            currentTokenSymbol={participationTokenSymbol}
+            currentTaskPayoutHoursOnly={taskPayoutHoursOnly}
+            currentTaskPayoutHourlyRate={taskPayoutHourlyRate}
+          />
+
+          {/* Only orgs that deployed the ZkEmailInvites module can do anything with an
+              allowlist. Without this gate the editor let admins pay for an on-chain
+              metadata write that could never be activated. */}
+          {zkEmailInvitesEnabled && (
+            <EmailAllowlistEditor orgId={orgId} orgChainId={orgChainId} currentName={userDAO} />
+          )}
+        </VStack>
+      </Box>
+    </Box>
+    </>
+  );
+};
+
+export default SettingsPage;

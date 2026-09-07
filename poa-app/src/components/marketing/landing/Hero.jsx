@@ -14,14 +14,14 @@ export default function Hero() {
           sec 01 / hero
         </span>
 
-        <div className="pa-hero-text poa-fade">
+        <div className="pa-hero-text">
           <p className="pa-eyebrow">
             {HERO.eyebrow}
           </p>
           <h1 className="pa-h1" aria-label={HERO.headline}>{HERO.headlineLines.map((line) => <span key={line}>{line}</span>)}</h1>
           <p className="pa-subline">{HERO.subline}</p>
           <div className="pa-cta-row">
-            <NextLink href="/create" className="pa-cta-solid pa-cta-lg">
+            <NextLink href="/create" prefetch={false} className="pa-cta-solid pa-cta-lg">
               {HERO.ctaPrimary}
             </NextLink>
             <NextLink href="/#how-it-works" className="pa-cta-ghost">
@@ -31,7 +31,7 @@ export default function Hero() {
           </div>
         </div>
 
-        <div className="pa-hero-plate poa-rise">
+        <div className="pa-hero-plate">
           <SpecPlate
             shot={S.taskDetail}
             eager

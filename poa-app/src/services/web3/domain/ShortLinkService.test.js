@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { encodeShortCode, LINK_KIND } from '@/util/shortLinks';
 
 const mocks = vi.hoisted(() => ({ readContract: vi.fn() }));
-vi.mock('@/services/web3/utils/chainClients', () => ({ createPublicClientForChain: () => ({ readContract: mocks.readContract }) }));
+vi.mock('@/services/web3/utils/publicChainClient', () => ({ createPublicClientForChain: () => ({ readContract: mocks.readContract }) }));
 vi.mock('@/config/networks', () => ({ NETWORKS: { arbitrum: { chainId: 42161 }, gnosis: { chainId: 100 } }, getSubgraphUrl: (id) => `https://graph.test/${id}` }));
 const id = `0x${'3'.repeat(64)}`;
 const tm = `0x${'a'.repeat(40)}`;

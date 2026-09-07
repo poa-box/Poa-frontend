@@ -20,16 +20,17 @@ import {
 } from '@chakra-ui/react';
 import PulseLoader from "@/components/shared/PulseLoader";
 import { FiCheck } from 'react-icons/fi';
-import { ethers } from 'ethers';
+import { BigNumber } from '@ethersproject/bignumber';
+import { MaxUint256 } from '@ethersproject/constants';
 import { useRouter } from 'next/router';
 import { useWeb3 } from '@/hooks/useWeb3Services';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useVoteCreateGate } from '@/hooks/useVoteCreateGate';
 import { FUND_BOUNTIES_DEEP_LINK } from '@/lib/voting/treasuryBatches';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { getBountyTokenOptions } from '@/util/tokens';
 import { formatTokenAmount, parseTokenAmount } from '@/util/formatToken';
-import { createChainClients } from '@/services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 
 const ERC20_BALANCE_ABI = [
   {
@@ -116,8 +117,7 @@ const DepositModal = ({
     const fetchTokenData = async () => {
       setIsFetchingBalance(true);
       try {
-        const clients = createChainClients(orgChainId);
-        const client = clients?.publicClient;
+        const client = createPublicClientForChain(orgChainId);
         if (!client || cancelled) return;
 
         // Always fetch user balance; skip allowance for direct transfers (not needed)
@@ -132,7 +132,7 @@ const DepositModal = ({
           const balance = await balancePromise;
           if (!cancelled) {
             setUserBalance(balance.toString());
-            setCurrentAllowance(ethers.constants.MaxUint256.toString()); // skip approval
+            setCurrentAllowance(MaxUint256.toString()); // skip approval
           }
         } else {
           const [balance, allowance] = await Promise.all([
@@ -185,8 +185,8 @@ const DepositModal = ({
     if (!amount || !selectedToken || Number(amount) <= 0) return false;
     try {
       const weiAmount = parseTokenAmount(amount, selectedToken.decimals);
-      const balanceBN = ethers.BigNumber.from(userBalance);
-      const amountBN = ethers.BigNumber.from(weiAmount);
+      const balanceBN = BigNumber.from(userBalance);
+      const amountBN = BigNumber.from(weiAmount);
       return amountBN.gt(0) && amountBN.lte(balanceBN);
     } catch {
       return false;
@@ -225,8 +225,8 @@ const DepositModal = ({
         }
       } else {
         // Standard approve + deposit flow (PaymentManager)
-        const allowanceBN = ethers.BigNumber.from(currentAllowance);
-        const amountBN = ethers.BigNumber.from(weiAmount);
+        const allowanceBN = BigNumber.from(currentAllowance);
+        const amountBN = BigNumber.from(weiAmount);
 
         if (allowanceBN.lt(amountBN)) {
           setStep('approving');

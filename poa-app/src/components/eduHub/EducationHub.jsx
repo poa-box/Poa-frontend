@@ -12,7 +12,7 @@ import { useOrgGate } from '@/components/shared/OrgDeadEnd';
 import { usePOContext } from '@/context/POContext';
 import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import { useUserContext } from '@/context/UserContext';
-import { useOrgTheme } from '@/hooks';
+import { useOrgTheme } from '@/hooks/useOrgTheme';
 import { useOrgName } from '@/hooks/useOrgName';
 import { useEducationCreateGate } from '@/hooks/useEducationCreateGate';
 import { useTour } from '@/features/tour';
@@ -81,7 +81,8 @@ function ModuleCard({ module, number, isCompleted, tokenLabel }) {
 
 export default function EducationHub() {
   const { poContextLoading, orgStatus, educationModules, educationHubEnabled, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
-  const { completedModules } = useUserContext();
+  const { completedModules, isAccountReady, userDataLoading } = useUserContext();
+  const accountPending = isAccountReady === false || userDataLoading;
   const { pageBackground, onBackground, onBackgroundMuted } = useOrgTheme();
   const { canCreateModule } = useEducationCreateGate();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -140,17 +141,17 @@ export default function EducationHub() {
             <Box w={{ base: 'full', md: '260px' }} flexShrink={0} borderLeftWidth={{ base: 0, md: '1px' }} borderTopWidth={{ base: '1px', md: 0 }} borderColor="whiteAlpha.300" pl={{ md: 8 }} pt={{ base: 6, md: 0 }}>
               <Text {...eyebrow} color="whiteAlpha.700" mb={4}>Your progress</Text>
               <Flex align="baseline" gap={2}>
-                <Text fontSize="4xl" fontWeight="medium" lineHeight="1" letterSpacing="-0.04em" fontVariantNumeric="tabular-nums">{completedCount}</Text>
-                <Text fontSize="sm" color="whiteAlpha.800">of {totalCount} completed</Text>
+                <Text fontSize="4xl" fontWeight="medium" lineHeight="1" letterSpacing="-0.04em" fontVariantNumeric="tabular-nums">{accountPending ? '—' : completedCount}</Text>
+                <Text fontSize="sm" color="whiteAlpha.800">{accountPending ? 'Progress pending' : `of ${totalCount} completed`}</Text>
               </Flex>
-              <Progress
+              {!accountPending && <Progress
                 aria-label="Learning modules completed"
                 aria-valuetext={`${completedCount} of ${totalCount} modules completed`}
                 value={progress} mt={5} h="5px" borderRadius="full" bg="whiteAlpha.200"
                 sx={{ '& > div': { bg: 'purple.300' } }}
-              />
+              />}
               <Text fontSize="xs" color="whiteAlpha.700" mt={3} lineHeight="1.6">
-                {totalCount === 0 ? 'Your next chapter starts here.' : completedCount === totalCount ? 'You’re all caught up. Nicely done.' : 'A little more understanding with every module.'}
+                {accountPending ? 'Getting your learning progress ready…' : totalCount === 0 ? 'Your next chapter starts here.' : completedCount === totalCount ? 'You’re all caught up. Nicely done.' : 'A little more understanding with every module.'}
               </Text>
             </Box>
           </Flex>
@@ -175,11 +176,11 @@ export default function EducationHub() {
               )}
             </Box>
           ) : (
-            <Tabs index={filterIndex} onChange={setFilterIndex} variant="unstyled" isLazy>
+            <Tabs index={accountPending ? 0 : filterIndex} onChange={setFilterIndex} variant="unstyled" isLazy>
               <TabList gap={{ base: 1, md: 2 }} mb={5} aria-label="Filter learning modules" flexWrap="wrap">
                 {filters.map((filter) => (
-                  <Tab key={filter.label} fontSize="sm" px={{ base: 3, md: 4 }} py={2} borderRadius="full" color={onBackgroundMuted} border="1px solid transparent" _selected={{ bg: 'rgba(0,0,0,0.82)', color: 'white', borderColor: 'whiteAlpha.300' }} _hover={{ textDecoration: 'underline', textUnderlineOffset: '4px' }}>
-                    {filter.label}<Text as="span" ml={2} fontSize="xs" opacity={0.8}>{filter.items.length}</Text>
+                  <Tab key={filter.label} isDisabled={accountPending && filter.label !== 'All modules'} fontSize="sm" px={{ base: 3, md: 4 }} py={2} borderRadius="full" color={onBackgroundMuted} border="1px solid transparent" _selected={{ bg: 'rgba(0,0,0,0.82)', color: 'white', borderColor: 'whiteAlpha.300' }} _hover={{ textDecoration: 'underline', textUnderlineOffset: '4px' }}>
+                    {filter.label}<Text as="span" ml={2} fontSize="xs" opacity={0.8}>{accountPending && filter.label !== 'All modules' ? '—' : filter.items.length}</Text>
                   </Tab>
                 ))}
               </TabList>

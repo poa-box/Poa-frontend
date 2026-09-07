@@ -41,12 +41,14 @@ import {
   Image,
 } from '@chakra-ui/react';
 import { AddIcon, InfoIcon, ChevronRightIcon } from '@chakra-ui/icons';
-import { ethers } from 'ethers';
+import { BigNumber } from '@ethersproject/bignumber';
+import { parseUnits } from '@ethersproject/units';
+import { isAddress } from '@ethersproject/address';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { getBountyTokenOptions } from '../../util/tokens';
 import { usePOContext } from '../../context/POContext';
 import { useProjectContext } from '../../context/ProjectContext';
-import { createChainClients } from '@/services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 import { formatTokenAmount } from '@/util/formatToken';
 
 /**
@@ -116,8 +118,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
     if (!taskManagerContractAddress || !orgChainId || bountyBudgets.length === 0) return;
     let cancelled = false;
     const fetchBalances = async () => {
-      const clients = createChainClients(orgChainId);
-      const client = clients?.publicClient;
+      const client = createPublicClientForChain(orgChainId);
       if (!client) return;
       const enabledTokens = bountyBudgets.map(b => b.token);
       const results = {};
@@ -226,7 +227,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
       let address, displayName;
 
       // Check if input is already a valid address
-      if (ethers.utils.isAddress(input)) {
+      if (isAddress(input)) {
         address = input;
         displayName = `${input.slice(0, 6)}...${input.slice(-4)}`;
       } else {
@@ -321,8 +322,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
       // Contract enforces MAX_PAYOUT = 1e24 wei (1M tokens at 18 decimals)
       if (!b.isUnlimited) {
         const decimals = tokenInfo?.decimals || 18;
-        const capWei = ethers.utils.parseUnits(b.cap.toString(), decimals);
-        const MAX_PAYOUT = ethers.BigNumber.from('1000000000000000000000000'); // 1e24
+        const capWei = parseUnits(b.cap.toString(), decimals);
+        const MAX_PAYOUT = BigNumber.from('1000000000000000000000000'); // 1e24
         if (capWei.gt(MAX_PAYOUT)) {
           toast({
             title: 'Cap Too Large',
@@ -341,21 +342,21 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
       // Convert cap to wei if set
       let capWei = 0;
       if (hasCap && cap) {
-        capWei = ethers.utils.parseUnits(cap.toString(), 18);
+        capWei = parseUnits(cap.toString(), 18);
       }
 
       // Build bounty token arrays from configured budgets
       // UNLIMITED = type(uint128).max = 2^128 - 1
-      const UNLIMITED = ethers.BigNumber.from('340282366920938463463374607431768211455');
+      const UNLIMITED = BigNumber.from('340282366920938463463374607431768211455');
       const bountyTokenAddrs = bountyBudgets.map(b => b.token);
       const bountyCapsWei = bountyBudgets.map(b => {
         if (b.isUnlimited) return UNLIMITED;
         const tokenInfo = availableTokens.find(t => t.address === b.token);
         const decimals = tokenInfo?.decimals || 18;
-        return ethers.utils.parseUnits(b.cap.toString(), decimals);
+        return parseUnits(b.cap.toString(), decimals);
       });
 
-      await onCreateProject({
+      const result = await onCreateProject({
         name: name.trim(),
         description: description.trim(),
         cap: capWei,
@@ -368,6 +369,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
         bountyCaps: bountyCapsWei,
       });
 
+      if (result?.success === false) return;
       handleClose();
     } catch (error) {
       console.error('Error creating project:', error);
@@ -541,8 +543,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                                 let insufficient = false;
                                 if (!budget.isUnlimited && budget.cap && Number(budget.cap) > 0) {
                                   try {
-                                    const capWei = ethers.utils.parseUnits(budget.cap.toString(), token.decimals);
-                                    insufficient = capWei.gt(ethers.BigNumber.from(tmBalance));
+                                    const capWei = parseUnits(budget.cap.toString(), token.decimals);
+                                    insufficient = capWei.gt(BigNumber.from(tmBalance));
                                   } catch { /* invalid input, skip warning */ }
                                 }
                                 return (

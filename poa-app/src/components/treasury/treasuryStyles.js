@@ -122,11 +122,6 @@ export const UnitSpan = ({ children }) => (
 
 export const RISE_CURVE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
-const riseIn = keyframes`
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-`;
-
 const dotPulse = keyframes`
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.35; }
@@ -138,35 +133,10 @@ const ringPulse = keyframes`
   100% { box-shadow: 0 0 0 1px rgba(144, 85, 232, 0); }
 `;
 
-/** Staggered entrance wrapper for the page zones. A caller-supplied
- *  `animation` (e.g. the flash ring) takes over once it's active. The
- *  entrance is one-shot: once it has played (or been superseded), clearing
- *  the caller animation must not replay it. */
-export const Rise = ({ delay = 0, animation, children, ...rest }) => {
-  const reduced = usePrefersReducedMotion();
-  const [entered, setEntered] = useState(false);
-
-  useEffect(() => {
-    if (animation) setEntered(true);
-  }, [animation]);
-
-  const rise = reduced || entered
-    ? undefined
-    : `${riseIn} 0.55s ${RISE_CURVE} ${delay}s both`;
-
-  return (
-    <Box
-      {...rest}
-      animation={animation ?? rise}
-      onAnimationEnd={(e) => {
-        if (e.animationName === riseIn.name) setEntered(true);
-        rest.onAnimationEnd?.(e);
-      }}
-    >
-      {children}
-    </Box>
-  );
-};
+/** Show ledger content immediately; explicit feedback animations remain available. */
+export const Rise = ({ animation, children, ...rest }) => (
+  <Box {...rest} animation={animation}>{children}</Box>
+);
 
 /** SeriesDot that gently pulses — "this is live right now". */
 export const LiveDot = ({ color, size = '6px' }) => {

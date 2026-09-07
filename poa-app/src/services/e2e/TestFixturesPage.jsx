@@ -1,5 +1,5 @@
-import { useAccount } from 'wagmi';
-import { useAuth } from '@/context/AuthContext';
+import { useAccount } from '@/context/WalletContext';
+import { useAuth } from '@/context/authState';
 import { E2E_BURNER_PK, E2E_ORG_NAME } from '@/services/e2e/e2eMode';
 
 /** Debug surface compiled only into explicit E2E builds. */

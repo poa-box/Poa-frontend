@@ -1,3 +1,6 @@
+import { useEffect, useState } from 'react';
+import { TaskDialogContext as DialogContext, TaskDialogLoading as ProjectDialogLoading } from '@/components/TaskManager/taskDialogLoading';
+import dynamic from 'next/dynamic';
 /**
  * ProjectHeader
  * Header bar showing project name with sidebar toggle and project info
@@ -17,15 +20,18 @@ import { useDataBaseContext } from '@/context/dataBaseContext';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { userCanBudgetProject } from '@/util/permissions';
-import EditBudgetModal from './EditBudgetModal';
-import ProjectInfoModal from './ProjectInfoModal';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
+const EditBudgetModal = dynamic(() => import('@/components/TaskManager/EditBudgetModal'), { loading: ProjectDialogLoading });
+const ProjectInfoModal = dynamic(() => import('@/components/TaskManager/ProjectInfoModal'), { loading: ProjectDialogLoading });
 import ViewSwitcher from './ViewSwitcher';
 
 const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isOpen: isBudgetOpen, onOpen: onBudgetOpen, onClose: onBudgetClose } = useDisclosure();
+  const [budgetMounted, setBudgetMounted] = useState(false);
+  useEffect(() => { if (isBudgetOpen) setBudgetMounted(true); }, [isBudgetOpen]);
   const { selectedProject } = useDataBaseContext();
-  const { tokenLabel = 'Shares' } = usePOContext() || {};
+  const { tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext() || {};
   const { userData } = useUserContext() || {};
 
   const userHatIds = userData?.hatIds || [];
@@ -95,6 +101,7 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
       </Box>
 
       {/* Mounted only when open so useOrgStructure's query is deferred until first use */}
+      <DialogContext.Provider value={{ isOpen, onClose, title: 'Project details' }}>
       {isOpen && (
         <ProjectInfoModal
           isOpen={isOpen}
@@ -109,12 +116,15 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
           }}
         />
       )}
+      </DialogContext.Provider>
 
-      <EditBudgetModal
+      <DialogContext.Provider value={{ isOpen: isBudgetOpen, onClose: onBudgetClose, title: 'Edit budget' }}>
+      {(isBudgetOpen || budgetMounted) && <EditBudgetModal
         isOpen={isBudgetOpen}
         onClose={onBudgetClose}
         project={selectedProject}
-      />
+      />}
+      </DialogContext.Provider>
     </>
   );
 };

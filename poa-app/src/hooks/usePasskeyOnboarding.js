@@ -7,7 +7,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
 import { getClient } from '@/util/apolloClient';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { usePOContext } from '../context/POContext';
 import { DEFAULT_CHAIN_ID } from '../config/networks';
 import { createChainClients } from '../services/web3/utils/chainClients';

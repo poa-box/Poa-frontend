@@ -1,35 +1,19 @@
-import React, { use, useEffect, useState } from 'react';
+import React from 'react';
 import { Button } from '@chakra-ui/react';
-import { useRouter } from "next/router";
 import NextLink from 'next/link';
 import { useUserContext } from '@/context/UserContext';
 import { useOrgName } from '@/hooks/useOrgName';
 
 const LoginButton = () => {
 
-    const { address, hasMemberRole} = useUserContext();
+    const { hasMemberRole } = useUserContext();
 
-    const router = useRouter();
     const userDAO = useOrgName();
 
 
 
-    // const [isMounted, setIsMounted] = useState(false); // new state to track mounting
-    const [text, setText] = useState("Connect Wallet");
-    const [ route , setRoute] = useState("join");
-
-    // Effect to set text based on accounts, only runs on client side after mount
-    useEffect(() => {
-
-        if (hasMemberRole) {
-            setText("Profile Hub");
-            setRoute("profile");
-        } else {
-
-            setText("Join or Connect");
-        }
-    }, [hasMemberRole, address]);
-
+    const text = hasMemberRole ? 'Profile Hub' : 'Join or Connect';
+    const route = hasMemberRole ? 'profile' : 'join';
 
     return (
         <NextLink href={`/${route}/?org=${encodeURIComponent(userDAO)}`} passHref>

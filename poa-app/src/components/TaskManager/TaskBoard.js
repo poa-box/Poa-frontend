@@ -4,15 +4,12 @@
  * Renders mobile or desktop view based on screen size
  */
 
-import { useRef } from 'react';
+import { Suspense, useRef } from 'react';
 import { VStack, Box } from '@chakra-ui/react';
+import { TaskBoardMobile, TaskBoardDesktop, ListView, GanttView, TaskViewLoading } from '@/components/TaskManager/views/lazyTaskViews';
 import { useTaskBoard } from '../../context/TaskBoardContext';
-import TaskBoardMobile from './TaskBoardMobile';
-import TaskBoardDesktop from './TaskBoardDesktop';
 import ProjectHeader from './ProjectHeader';
 import { useViewMode } from './views/useViewMode';
-import ListView from './views/list/ListView';
-import GanttView from './views/gantt/GanttView';
 import TaskModalMount from './views/TaskModalMount';
 import { TaskFilterProvider } from './views/useTaskFilters';
 import TaskFilterBar from './views/TaskFilterBar';
@@ -84,7 +81,9 @@ const TaskBoard = ({
           overflow="hidden"
           mb={0}
         >
-          {renderView()}
+          <Suspense fallback={<TaskViewLoading />}>
+            {renderView()}
+          </Suspense>
         </Box>
 
         {/* One URL-driven modal works across hidden columns, filters, and views. */}

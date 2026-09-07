@@ -4,12 +4,12 @@
  * GraphQL document, and the document these capabilities gate is the one that
  * backs every project and task in the app.
  *
- * Only the pure seams are exercised here (the repo has no fetch/localStorage
- * harness): the requirement evaluator and the introspection document builder.
+ * Pure requirement checks and a mocked transport cover schema batching, endpoint
+ * isolation, cache behavior, and timeout failure without a live subgraph.
  */
 
-import { describe, it, expect, vi} from 'vitest';
-import { satisfies, buildIntrospectionQuery, hasCapability, CAPABILITY, peekCapability } from './subgraphCapabilities';
+import { afterEach, describe, it, expect, vi} from 'vitest';
+import { satisfies, buildIntrospectionQuery, hasCapability, CAPABILITY, peekCapability, recordConfirmedCapability } from './subgraphCapabilities';
 
 /** Introspection result shaped like introspect() returns: type -> Set|null. */
 const typeMap = (entries) => new Map(Object.entries(entries).map(
@@ -134,5 +134,143 @@ describe('peekCapability — synchronous seed', () => {
     expect(peekCapability(url, CAPABILITY.TASK_RELEASES)).toBe(false);
     vi.unstubAllGlobals();
     vi.useRealTimers();
+  });
+});
+
+
+describe('endpoint capability introspection batching', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  const schemaResponse = (body, omittedTypes = []) => {
+    const fields = new Map();
+    Object.values(CAPABILITY).forEach(cap => cap.require.forEach(({ type, field }) => {
+      if (!fields.has(type)) fields.set(type, new Set());
+      if (field) fields.get(type).add(field);
+    }));
+    const data = {};
+    for (const match of body.query.matchAll(/(t\d+): __type\(name: "([^"]+)"\)/g)) {
+      data[match[1]] = omittedTypes.includes(match[2]) ? null : {
+        name: match[2], fields: [...(fields.get(match[2]) || [])].map(name => ({ name })),
+      };
+    }
+    return { ok: true, json: async () => ({ data }) };
+  };
+
+  it('unions proposal, task, and access types once and deduplicates repeated consumers', async () => {
+    const fetch = vi.fn(async (_url, options) => schemaResponse(JSON.parse(options.body)));
+    vi.stubGlobal('fetch', fetch);
+    const url = 'https://batch-all.example/sg';
+    const probes = Object.values(CAPABILITY).map(cap => hasCapability(url, cap));
+    probes.push(hasCapability(url, CAPABILITY.TASK_RELEASES));
+    expect(fetch).not.toHaveBeenCalled();
+    expect(peekCapability(url, CAPABILITY.TASK_RELEASES)).toBeUndefined();
+    await expect(Promise.all(probes)).resolves.toEqual([true, true, true, true]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(Array.isArray(body)).toBe(false);
+    const requested = [...body.query.matchAll(/__type\(name: "([^"]+)"\)/g)].map(m => m[1]);
+    const expected = [...new Set(Object.values(CAPABILITY).flatMap(cap => cap.require.map(r => r.type)))];
+    expect(requested).toEqual(expected);
+    await hasCapability(url, CAPABILITY.PROPOSAL_PROPOSER);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('evaluates each capability independently and persists only positives', async () => {
+    const storage = new Map();
+    vi.stubGlobal('window', { localStorage: {
+      getItem: key => storage.get(key) || null,
+      setItem: (key, value) => storage.set(key, value),
+    } });
+    vi.stubGlobal('fetch', async (_url, options) => schemaResponse(JSON.parse(options.body), ['TaskRelease']));
+    const url = 'https://batch-partial.example/sg';
+    await expect(Promise.all([
+      hasCapability(url, CAPABILITY.PROPOSAL_PROPOSER),
+      hasCapability(url, CAPABILITY.TASK_RELEASES),
+    ])).resolves.toEqual([true, false]);
+    expect(peekCapability(url, CAPABILITY.PROPOSAL_PROPOSER)).toBe(true);
+    expect(peekCapability(url, CAPABILITY.TASK_RELEASES)).toBe(false);
+    expect([...storage.keys()]).toEqual([`poa:subgraphHasProposer:${url}`]);
+  });
+
+  it('keeps simultaneous endpoint schemas isolated', async () => {
+    const fetch = vi.fn(async (url, options) => schemaResponse(JSON.parse(options.body), url.includes('legacy') ? ['Proposal'] : []));
+    vi.stubGlobal('fetch', fetch);
+    await expect(Promise.all([
+      hasCapability('https://batch-modern.example', CAPABILITY.PROPOSAL_PROPOSER),
+      hasCapability('https://batch-legacy.example', CAPABILITY.PROPOSAL_PROPOSER),
+    ])).resolves.toEqual([true, false]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('settles every queued capability safely when the shared request times out', async () => {
+    vi.useFakeTimers();
+    const fetch = vi.fn((_url, { signal }) => new Promise((resolve, reject) => {
+      signal.addEventListener('abort', () => reject(new Error('aborted')));
+    }));
+    vi.stubGlobal('fetch', fetch);
+    const url = 'https://batch-timeout.example';
+    const probes = [CAPABILITY.PROPOSAL_PROPOSER, CAPABILITY.TASK_RELEASES].map(cap => hasCapability(url, cap));
+    await vi.advanceTimersByTimeAsync(12000);
+    await expect(Promise.all(probes)).resolves.toEqual([false, false]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not queue a capability already positive in persistent storage', async () => {
+    const url = 'https://batch-stored.example';
+    vi.stubGlobal('window', { localStorage: {
+      getItem: key => key === `poa:subgraphHasProposer:${url}` ? '1' : null,
+      setItem: () => {},
+    } });
+    const fetch = vi.fn(async (_url, options) => schemaResponse(JSON.parse(options.body)));
+    vi.stubGlobal('fetch', fetch);
+    await expect(Promise.all([
+      hasCapability(url, CAPABILITY.PROPOSAL_PROPOSER),
+      hasCapability(url, CAPABILITY.TASK_RELEASES),
+    ])).resolves.toEqual([true, true]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body).query).not.toContain('Proposal');
+  });
+});
+
+
+describe('recordConfirmedCapability', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('seeds only the confirmed endpoint and capability, with positive persistence', async () => {
+    const storage = new Map();
+    vi.stubGlobal('window', { localStorage: {
+      getItem: key => storage.get(key) || null,
+      setItem: (key, value) => storage.set(key, value),
+    } });
+    const fetch = vi.fn();vi.stubGlobal('fetch', fetch);
+    const url = 'https://confirmed-rich.example';
+    recordConfirmedCapability(url, CAPABILITY.TASK_RELEASES);
+    expect(peekCapability(url, CAPABILITY.TASK_RELEASES)).toBe(true);
+    expect(peekCapability(url, CAPABILITY.PROPOSAL_PROPOSER)).toBeUndefined();
+    expect(peekCapability(url + '/other', CAPABILITY.TASK_RELEASES)).toBeUndefined();
+    await expect(hasCapability(url, CAPABILITY.TASK_RELEASES)).resolves.toBe(true);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(storage.get(`poa:subgraphCapability:taskReleases:${url}`)).toBe('1');
+  });
+
+  it.each(['unsupported', 'network failure'])('does not let an older %s probe overwrite confirmation', async outcome => {
+    let finish, started;
+    const dispatched = new Promise(resolve => { started = resolve; });
+    vi.stubGlobal('fetch', () => new Promise((resolve, reject) => {
+      finish = () => outcome === 'unsupported'
+        ? resolve({ ok: true, json: async () => ({ data: {} }) })
+        : reject(new Error('offline'));
+      started();
+    }));
+    const url = `https://confirmed-race.example/${outcome}`;
+    const pending = hasCapability(url, CAPABILITY.TASK_RELEASES);
+    await dispatched;
+    recordConfirmedCapability(url, CAPABILITY.TASK_RELEASES);
+    finish();
+    await expect(pending).resolves.toBe(true);
+    expect(peekCapability(url, CAPABILITY.TASK_RELEASES)).toBe(true);
   });
 });

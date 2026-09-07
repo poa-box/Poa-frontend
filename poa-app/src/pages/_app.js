@@ -1,15 +1,30 @@
+import { useEffect, useState } from 'react';
 import { ChakraProvider, extendTheme } from '@chakra-ui/react';
 import dynamic from 'next/dynamic';
+import { useRouter } from 'next/router';
+import { LandingAccountProvider, useLandingCoreReady } from '@/components/marketing/LandingAccountContext';
+import { WalletFacadeProvider } from '@/context/WalletContext';
+import { AuthFacadeProvider } from '@/context/authState';
 import CommunityLoadingState from '@/components/shared/CommunityLoadingState';
 import { ErrorBoundary } from '@/components/common/ErrorBoundary';
 import ShortLinkRouter from '@/components/common/ShortLinkRouter';
+import SEOHead from '@/components/common/SEOHead';
+import { PUBLIC_ROUTES, REGISTRY_ONLY_ROUTES, CORE_ONLY_ROUTES, SSR_APP_ROUTES } from '@/lib/applicationRoutes.mjs';
 import '@rainbow-me/rainbowkit/styles.css';
 import '../styles/globals.css';
 import '/public/css/prism.css';
 
-const CoreProviders = dynamic(
-  () => import('@/components/providers/CoreProviders'),
-  { loading: () => <CommunityLoadingState fullScreen label="Opening Poa…" /> },
+const PublicCoreProviders = dynamic(
+  () => import('@/components/providers/PublicCoreProviders'),
+  { loading: CoreLoadingState },
+);
+const OrganizationReadProviders = dynamic(
+  () => import('@/components/providers/OrganizationReadProviders'),
+  { loading: CoreLoadingState },
+);
+const LandingAccountBridge = dynamic(
+  () => import('@/components/marketing/LandingAccountBridge'),
+  { ssr: false },
 );
 const OrganizationProviders = dynamic(
   () => import('@/components/providers/OrganizationProviders'),
@@ -20,26 +35,6 @@ const RegistryProvider = dynamic(
   { loading: () => <CommunityLoadingState fullScreen label="Opening Poa…" /> },
 );
 
-// Fully static reading and redirect routes do not initialize wallets, Apollo,
-// passkeys, or organization data. About opts into only the public registry;
-// protocol opts into wallet services for donations. Unknown routes default to
-// the full application shell.
-const PUBLIC_ROUTES = new Set([
-  '/404',
-  '/_error',
-  '/blog/[id]',
-  '/browser',
-  '/docs',
-  '/docs/[id]',
-  '/edu-Hub',
-  '/org-structure',
-  '/profileHub',
-  '/user',
-  '/voting-history',
-]);
-
-const REGISTRY_ONLY_ROUTES = new Set(['/about']);
-const CORE_ONLY_ROUTES = new Set(['/', '/protocol']);
 
 const theme = extendTheme({
   fonts: {
@@ -178,26 +173,78 @@ const theme = extendTheme({
   },
 });
 
+function CoreLoadingState() {
+  const { pathname } = useRouter();
+  return pathname === '/' ? null : <CommunityLoadingState fullScreen label="Opening Poa…" />;
+}
+
+function PageProviders({ page, pathname, preparePage }) {
+  const [hasMounted, setHasMounted] = useState(false);
+  useEffect(() => { setHasMounted(true); }, []);
+  const isLanding = pathname === '/';
+  const coreReady = useLandingCoreReady(isLanding);
+  const isPublic = PUBLIC_ROUTES.has(pathname) || REGISTRY_ONLY_ROUTES.has(pathname);
+
+  useEffect(() => {
+    if (isPublic || (isLanding && !coreReady)) return;
+    // Download the independent provider layers together. Their render nesting
+    // still enforces dependencies, without turning it into a network waterfall.
+    const pending = [
+      import('@/components/providers/PublicCoreProviders'),
+      import('@/components/providers/OrganizationReadProviders'),
+      import('@/components/providers/OrganizationProviders'),
+    ];
+    // The mounted load boundary owns error presentation; speculative requests
+    // must not produce an unhandled rejection if a chunk request fails.
+    Promise.allSettled(pending);
+  }, [isPublic, isLanding, coreReady, pathname]);
+
+  // Static pages never initialize the application providers. The registry stays
+  // at the same position on landing, directory and organization routes so its
+  // public cache is shared rather than duplicated in the account tree.
+  if (PUBLIC_ROUTES.has(pathname)) return page;
+
+  const isOrganization = !isLanding && !isPublic && !CORE_ONLY_ROUTES.has(pathname);
+  return (
+    <RegistryProvider>
+      {(isLanding || isPublic) ? page : null}
+      {!isPublic && (!isLanding || coreReady) && (
+        <WalletFacadeProvider>
+          <AuthFacadeProvider>
+            <PublicCoreProviders>
+              <OrganizationReadProviders enabled={isOrganization}>
+                {/* Keep public reads early without adding the interactive
+                    provider scripts to every organization's hydration gate.
+                    This changes once on entry, never on account readiness. */}
+                {!hasMounted && !SSR_APP_ROUTES.has(pathname) ? <CoreLoadingState /> : (
+                  <OrganizationProviders enabled={isOrganization} preparePage={preparePage}>
+                    {isLanding ? <LandingAccountBridge /> : page}
+                  </OrganizationProviders>
+                )}
+              </OrganizationReadProviders>
+            </PublicCoreProviders>
+          </AuthFacadeProvider>
+        </WalletFacadeProvider>
+      )}
+    </RegistryProvider>
+  );
+}
+
 function MyApp({ Component, pageProps, router }) {
-  const page = <Component {...pageProps} />;
-  const pathname = router?.pathname;
-
-  let content = page;
-  if (REGISTRY_ONLY_ROUTES.has(pathname)) {
-    content = <RegistryProvider>{page}</RegistryProvider>;
-  } else if (!PUBLIC_ROUTES.has(pathname)) {
-    const coreContent = CORE_ONLY_ROUTES.has(pathname)
-      ? (pathname === '/' ? <RegistryProvider>{page}</RegistryProvider> : page)
-      : <OrganizationProviders>{page}</OrganizationProviders>;
-
-    content = (
-      <CoreProviders>{coreContent}</CoreProviders>
-    );
-  }
+  useEffect(() => {
+    Component.preload?.().catch(() => {});
+  }, [Component]);
 
   return (
     <ErrorBoundary>
-      <ChakraProvider theme={theme}><ShortLinkRouter>{content}</ShortLinkRouter></ChakraProvider>
+      <ChakraProvider theme={theme}>
+        <LandingAccountProvider>
+          <ShortLinkRouter>
+            {Component.seo && <SEOHead {...Component.seo} />}
+            <PageProviders page={<Component {...pageProps} />} pathname={router?.pathname} preparePage={Component.preload} />
+          </ShortLinkRouter>
+        </LandingAccountProvider>
+      </ChakraProvider>
     </ErrorBoundary>
   );
 }

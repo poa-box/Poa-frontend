@@ -46,7 +46,7 @@ export default function SEOHead({
       <title>{fullTitle}</title>
       <meta name="description" content={truncatedDescription} />
       {keywordsContent && <meta name="keywords" content={keywordsContent} />}
-      <link rel="canonical" href={canonicalUrl} />
+      <link key="canonical" rel="canonical" href={canonicalUrl} />
 
       {/* Open Graph */}
       <meta property="og:title" content={fullTitle} />

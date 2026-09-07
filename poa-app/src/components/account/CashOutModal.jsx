@@ -1,3 +1,4 @@
+import { useAccount, useSwitchChain, useConfig, getConnectorClient, clientToSigner } from '@/context/WalletContext';
 /**
  * CashOutModal
  * One-click USDC → fiat cashout. User signs ONE Permit2 message; the Bungee
@@ -13,11 +14,8 @@ import {
 } from '@chakra-ui/react';
 import { FiCheck, FiDollarSign } from 'react-icons/fi';
 import { ethers } from 'ethers';
-import { useAccount, useSwitchChain, useConfig } from 'wagmi';
-import { getConnectorClient } from 'wagmi/actions';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { formatTokenAmount } from '@/util/formatToken';
-import { clientToSigner } from '@/components/ProviderConverter';
 import {
   ARBITRUM_CHAIN_ID,
   DEFAULT_CONVERSION_RATE,

@@ -1,40 +1,39 @@
+import { Web3ServicesProvider } from '@/context/Web3ServicesContext';
+import AccountRuntimeHost from '@/components/providers/AccountRuntimeHost';
 import NetworkModalControl from '@/components/NetworkModalControl';
-import { DataBaseProvider } from '@/context/dataBaseContext';
-import { IdentityProvider } from '@/context/IdentityContext';
-import { POProvider } from '@/context/POContext';
-import { ProfileHubProvider } from '@/context/profileHubContext';
-import { ProjectProvider } from '@/context/ProjectContext';
+import dynamic from 'next/dynamic';
 import { UserProvider } from '@/context/UserContext';
 import { VotingProvider } from '@/context/VotingContext';
 import { Web3Provider } from '@/context/web3Context';
-import TourOverlay from '@/features/tour/components/TourOverlay';
-import TourPrompt from '@/features/tour/components/TourPrompt';
-import { TourProvider } from '@/features/tour/TourContext';
+import DeferredTourPrompt from '@/components/providers/DeferredTourPrompt';
+import { TourProvider, useTour } from '@/features/tour/TourContext';
 
-/** Organization-specific data and UI, loaded only outside public/root routes. */
-export default function OrganizationProviders({ children }) {
+const TourOverlay = dynamic(() => import('@/features/tour/components/TourOverlay'), { ssr: false });
+
+// The overlay's sharing tools are only needed during a tour. Loading them on
+// every org entry pulls transaction services into the initial provider bundle.
+function ActiveTourOverlay() {
+  const { isActive } = useTour();
+  return isActive ? <TourOverlay /> : null;
+}
+
+/** Stable application state. Wallet startup is a sibling, never a page wrapper. */
+export default function OrganizationProviders({ children, enabled = true, preparePage }) {
   return (
-    <IdentityProvider>
-      <ProfileHubProvider>
-        <POProvider>
-          <VotingProvider>
-            <ProjectProvider>
-              <UserProvider>
-                <Web3Provider>
-                  <DataBaseProvider>
-                    <TourProvider>
-                      <NetworkModalControl />
-                      <TourOverlay />
-                      <TourPrompt />
-                      {children}
-                    </TourProvider>
-                  </DataBaseProvider>
-                </Web3Provider>
-              </UserProvider>
-            </ProjectProvider>
-          </VotingProvider>
-        </POProvider>
-      </ProfileHubProvider>
-    </IdentityProvider>
+    <VotingProvider>
+      <UserProvider>
+        <Web3ServicesProvider>
+          <Web3Provider>
+            <TourProvider>
+              {enabled && <NetworkModalControl />}
+              {enabled && <ActiveTourOverlay />}
+              {enabled && <DeferredTourPrompt />}
+              {children}
+              <AccountRuntimeHost preparePage={preparePage} />
+            </TourProvider>
+          </Web3Provider>
+        </Web3ServicesProvider>
+      </UserProvider>
+    </VotingProvider>
   );
 }

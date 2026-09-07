@@ -22,40 +22,50 @@ import {
   AlertIcon,
 } from '@chakra-ui/react';
 import { FaFingerprint, FaWallet } from 'react-icons/fa';
-import { useConnectModal } from '@rainbow-me/rainbowkit';
+import { useWalletAction } from '@/components/common/WalletActionButton';
+import { useWalletUI } from '@/context/WalletContext';
 import useOnboardingColors from '@/components/shared/useOnboardingColors';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '@/context/authState';
 
 export default function SignInModal({ isOpen, onClose, onSuccess, onCreateAccount, variant }) {
   const { connectPasskey, passkeyConnecting } = useAuth();
-  const { openConnectModal } = useConnectModal();
+  const { openConnectModal, ensureRuntime } = useWalletUI();
   const [error, setError] = useState(null);
   const isJoin = variant === 'join';
   const joinColors = useOnboardingColors();
 
-  const handlePasskeyClick = async () => {
+  const passkeyIntent = useWalletAction(async ({ signal }) => {
     setError(null);
     try {
+      await ensureRuntime({ signal });
+      if (signal.aborted) return;
       await connectPasskey();
+      if (signal.aborted) return;
       onClose();
       onSuccess?.();
     } catch (err) {
-      console.error('Failed to sign in with passkey:', err);
-      setError('We couldn’t sign you in. Please try again.');
+      if (!signal.aborted) {
+        console.error('Failed to sign in with passkey:', err);
+        setError('We couldn’t sign you in. Please try again.');
+      }
     }
-  };
+  }, { enabled: isOpen });
 
   const handleClose = () => {
     setError(null);
+    walletIntent.cancel();
+    passkeyIntent.cancel();
     onClose();
   };
 
-  const handleWalletClick = () => {
-    onClose();
-    openConnectModal?.();
-  };
+  const walletIntent = useWalletAction(async ({ signal }) => {
+    await openConnectModal({ signal });
+    if (!signal.aborted) onClose();
+  }, { enabled: isOpen });
 
   const handleCreateAccount = () => {
+    walletIntent.cancel();
+    passkeyIntent.cancel();
     onClose();
     onCreateAccount?.();
   };
@@ -93,8 +103,11 @@ export default function SignInModal({ isOpen, onClose, onSuccess, onCreateAccoun
             {/* Passkey sign-in */}
             {/* Passkey sign-in — always visible */}
               <Button
-                onClick={handlePasskeyClick}
-                isLoading={passkeyConnecting}
+                onClick={passkeyIntent.run}
+                onMouseEnter={walletIntent.prepare}
+                onFocus={walletIntent.prepare}
+                isLoading={passkeyIntent.pending || passkeyConnecting}
+                isDisabled={walletIntent.pending}
                 loadingText="Signing in..."
                 w="100%"
                 h="auto"
@@ -133,9 +146,15 @@ export default function SignInModal({ isOpen, onClose, onSuccess, onCreateAccoun
               <Divider borderColor="warmGray.200" />
             </HStack>
 
+            {walletIntent.error && <Alert status="error" role="alert"><AlertIcon />Couldn’t open wallets. Try again below.</Alert>}
             {/* Wallet sign-in */}
             <Button
-              onClick={handleWalletClick}
+              onClick={walletIntent.run}
+              onMouseEnter={walletIntent.prepare}
+              onFocus={walletIntent.prepare}
+              isLoading={walletIntent.pending}
+              isDisabled={passkeyIntent.pending || passkeyConnecting}
+              loadingText="Opening…"
               w="100%"
               h="auto"
               py={4}

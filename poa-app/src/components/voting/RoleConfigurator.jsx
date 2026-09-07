@@ -50,8 +50,8 @@ import { utils } from 'ethers';
 import { inputStyles } from '@/components/shared/glassStyles';
 import { applyAutoCopy } from '@/components/voting/create/autoCopy';
 
-export const TITLE_PREFIX = 'Create role: ';
-export const DESCRIPTION_PREFIX = 'New role ';
+import { CREATE_ROLE_TITLE_PREFIX as TITLE_PREFIX, CREATE_ROLE_DESCRIPTION_PREFIX as DESCRIPTION_PREFIX, defaultRoleConfig } from '@/lib/voting/proposalDefaults';
+export { TITLE_PREFIX, DESCRIPTION_PREFIX, defaultRoleConfig };
 
 /**
  * Parse the auto-generated parent name from a createRole proposal title.
@@ -87,35 +87,7 @@ function maskLabels(mask) {
     .map(opt => opt.label.split(' ')[0]);
 }
 
-export const defaultRoleConfig = {
-  parentHatId: '',
-  name: '',
-  description: '',
-  imageURI: '',
-  maxSupply: 100,
-  mutable: true,
-  defaultEligible: true,
-  defaultStanding: true,
-  canVote: false,
-  // ACCESS V2 only: "anyone in the group can join this role" (`setSubjectDefault(allow)`).
-  // Deliberately OFF by default and deliberately NOT mapped from `defaultEligible` — the legacy
-  // flag reads as "wearers start eligible" while the v2 one makes the role claimable by ANYONE,
-  // and quietly upgrading one to the other would open every new role an org creates.
-  openRole: false,
-  // Task-system grants (all additive — encoder appends nothing when untouched):
-  globalPerms: 0,            // org-wide TaskPerm mask via setConfig(ROLE_PERM)
-  canCreateTasks: false,     // setConfig(CREATOR_HAT_ALLOWED) — create projects/tasks
-  canOrganizeFolders: false, // setConfig(ORGANIZER_HAT_ALLOWED) — reorganize folder tree
-  vouching: {
-    enabled: false,
-    quorum: 1,
-    voucherHatId: '',
-    selfVouch: false,
-    combineWithHierarchy: false,
-  },
-  initialWearers: [],   // [{ address, name, eligible, standing }]
-  projectPerms: [],     // [{ projectId, projectName, mask }]
-};
+
 
 /**
  * Build the auto-generated proposal title from the role config.

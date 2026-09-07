@@ -95,6 +95,18 @@ describe('isUserStateCurrent', () => {
 describe('deriveUserDataLoading', () => {
   const orgUserID = scope(ORG, ALICE);
 
+  it('does not mistake pending restoration for an anonymous visitor or reuse old member data', () => {
+    for (const account of [null, ALICE]) {
+      expect(deriveUserDataLoading({
+        isAuthHydrated: false,
+        account,
+        orgUserID,
+        resolvedUserScope: orgUserID,
+        queryLoading: false,
+      })).toBe(true);
+    }
+  });
+
   it('never leaves a logged-out visitor loading forever', () => {
     // The Profile Hub gates its spinner on this flag; a flag that can never
     // settle is an infinite loader.

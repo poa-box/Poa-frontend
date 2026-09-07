@@ -1,21 +1,26 @@
 import React, { useState, useEffect, useMemo, useCallback, startTransition } from "react";
+import dynamic from 'next/dynamic';
 import { Badge, Box, Flex, HStack, Link, IconButton, useDisclosure, Drawer, DrawerOverlay, DrawerContent, DrawerCloseButton, DrawerHeader, DrawerBody, VStack, Text, Button, Tooltip } from "@chakra-ui/react";
 import NextImage from "next/image";
 import { HamburgerIcon, SettingsIcon } from '@chakra-ui/icons';
 import { FaHome, FaRegFileAlt } from 'react-icons/fa';
 import NextLink from "next/link";
 import { useRouter } from "next/router";
+import WalletActionButton from "@/components/common/WalletActionButton";
+import { useWalletUI } from "@/context/WalletContext";
+import { useUserContext } from "@/context/UserContext";
 import LoginButton from "@/components/LoginButton";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from '@/context/authState';
 import { usePOContext } from "@/context/POContext";
 import { useIsOrgAdmin } from "@/hooks/useIsOrgAdmin";
 import { useOrgName } from "@/hooks/useOrgName";
 import { useVoteLanes } from "@/hooks/useVoteLanes";
 import { useTaskDrafts } from "@/hooks/useTaskDrafts";
 import { orgUrl } from "@/util/orgUrl";
-import DraftsReviewModal from "@/components/TaskManager/DraftsReviewModal";
 import MobileSectionWheel from "./MobileSectionWheel";
 import { NAVBAR_MOBILE_HEIGHT } from "./navbarLayout";
+const DraftsReviewModal = dynamic(() => import('@/components/TaskManager/DraftsReviewModal'), { ssr: false });
+
 const Navbar = React.memo(() => {
   const router = useRouter();
   const org = useOrgName();
@@ -26,12 +31,19 @@ const Navbar = React.memo(() => {
   const handleOpen = useCallback(() => {
     startTransition(onOpen);
   }, [onOpen]);
-  const { isPasskeyUser, accountAddress, isAuthenticated } = useAuth();
+  const { isPasskeyUser, accountAddress, isAuthenticated, isAuthHydrated } = useAuth();
+  const { ensureRuntime } = useWalletUI();
+  const { userDataLoading } = useUserContext();
+  const accountPending = !isAuthHydrated || (isAuthenticated && userDataLoading);
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
   const { educationHubEnabled, zkEmailInvitesEnabled, hideTreasury, orgId } = usePOContext();
   const { drafts, count: draftCount, projectsWithDrafts, removeDraft, clearProjectDrafts } = useTaskDrafts();
   const [isDraftsModalOpen, setIsDraftsModalOpen] = useState(false);
+  const [draftsModalLoaded, setDraftsModalLoaded] = useState(false);
+  useEffect(() => {
+    if (isDraftsModalOpen) setDraftsModalLoaded(true);
+  }, [isDraftsModalOpen]);
   const showDraftsChip = !!orgId && draftCount > 0;
   const draftsTooltip = `${draftCount} draft${draftCount === 1 ? '' : 's'} in ${projectsWithDrafts} project${projectsWithDrafts === 1 ? '' : 's'}`;
 
@@ -251,7 +263,9 @@ const Navbar = React.memo(() => {
               </Button>
             </Tooltip>
           )}
-          {mounted && (isPasskeyUser || isAuthenticated) ? (
+          {accountPending ? (
+            <WalletActionButton action={ensureRuntime} minW="150px" borderRadius="full" bg="whiteAlpha.200" color="white">Account</WalletActionButton>
+          ) : mounted && (isPasskeyUser || isAuthenticated) ? (
             <LoginButton />
           ) : (
             <Button
@@ -359,7 +373,9 @@ const Navbar = React.memo(() => {
               </Box>
             )}
             <Box p={6} mt={4}>
-              {mounted && (isPasskeyUser || isAuthenticated) ? (
+              {accountPending ? (
+                <WalletActionButton action={ensureRuntime} width="100%" borderRadius="full" bg="whiteAlpha.200" color="white">Account</WalletActionButton>
+              ) : mounted && (isPasskeyUser || isAuthenticated) ? (
                 <VStack spacing={3}>
                   <LoginButton />
                 </VStack>
@@ -391,7 +407,9 @@ const Navbar = React.memo(() => {
         </DrawerContent>
       </Drawer>
 
-      <DraftsReviewModal
+      {/* Keep draft submission state after the first open, while avoiding its
+          task/transaction dependencies on every initial organization visit. */}
+      {(isDraftsModalOpen || draftsModalLoaded) && <DraftsReviewModal
         isOpen={isDraftsModalOpen}
         onClose={() => setIsDraftsModalOpen(false)}
         drafts={drafts}
@@ -400,7 +418,7 @@ const Navbar = React.memo(() => {
         activeProjectId={null}
         destColumnId="open"
         onSwitchToProject={handleSwitchToProject}
-      />
+      />}
 
     </Box>
     <Box

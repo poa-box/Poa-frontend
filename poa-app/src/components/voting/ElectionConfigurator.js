@@ -52,8 +52,8 @@ function getCurrentHolders(hatId, leaderboardData) {
     .map(user => ({ address: user.address, name: user.name }));
 }
 
-export const TITLE_PREFIX = 'Election for ';
-export const DESCRIPTION_PREFIX = 'Election between ';
+import { ELECTION_TITLE_PREFIX as TITLE_PREFIX, ELECTION_DESCRIPTION_PREFIX as DESCRIPTION_PREFIX } from '@/lib/voting/proposalDefaults';
+export { TITLE_PREFIX, DESCRIPTION_PREFIX };
 
 /**
  * Build the auto-generated description from candidate names.

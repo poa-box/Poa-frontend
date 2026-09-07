@@ -1,37 +1,37 @@
-import { useEffect, useRef, useCallback } from 'react';
-import { useAccount, useSwitchChain } from 'wagmi';
-import { usePOContext } from '../context/POContext';
-import { isNetworkSupported } from '../config/networks';
+import { useAccount, useSwitchChain, useWalletRuntimeControl } from '@/context/WalletContext';
+import { useEffect, useRef } from 'react';
+import { useAuth } from '@/context/authState';
+import { usePOContext } from '@/context/POContext';
+import { isNetworkSupported } from '@/config/networks';
+import { createScopedRequestGate } from '@/lib/services/scopedRequestGate';
 
-/**
- * Automatically switches the wallet to the org's chain when navigating to an org.
- * Only triggers once per org load (not on every render).
- * If the user rejects, navigating away and back will retry.
- */
+/** Switch only a restored wallet, and never replay an old org's queued intent. */
 export function useAutoChainSwitch() {
-  const { chainId } = useAccount();
+  const { chainId, address, connector } = useAccount();
+  const { isAuthHydrated, isPasskeyUser } = useAuth();
+  const { runtimeReady } = useWalletRuntimeControl();
   const { orgChainId, orgId } = usePOContext();
   const { switchChainAsync } = useSwitchChain();
-  const lastSwitchedOrgRef = useRef(null);
-
-  const attemptSwitch = useCallback(async () => {
-    if (
-      orgChainId &&
-      chainId &&
-      orgChainId !== chainId &&
-      isNetworkSupported(orgChainId) &&
-      lastSwitchedOrgRef.current !== orgId
-    ) {
-      try {
-        await switchChainAsync?.({ chainId: orgChainId });
-        lastSwitchedOrgRef.current = orgId;
-      } catch {
-        // User rejected the wallet prompt — leave ref unset so retry is possible
-      }
-    }
-  }, [orgChainId, chainId, orgId, switchChainAsync]);
+  const lastSwitchedScopeRef = useRef(null);
+  const requestGate = useRef(null);
+  if (!requestGate.current) requestGate.current = createScopedRequestGate();
+  const scope = `${orgId || ''}:${orgChainId || ''}:${address?.toLowerCase() || ''}:${connector?.uid || ''}`;
+  const ready = isAuthHydrated === true && runtimeReady && !isPasskeyUser;
+  requestGate.current.setScope(ready ? scope : null);
 
   useEffect(() => {
-    attemptSwitch();
-  }, [attemptSwitch]);
+    if (!ready || !orgId || !orgChainId || !chainId || orgChainId === chainId
+      || !isNetworkSupported(orgChainId) || lastSwitchedScopeRef.current === scope) return;
+    const isCurrent = requestGate.current.start(scope);
+    if (!isCurrent) return;
+    const controller = new AbortController();
+    switchChainAsync({ chainId: orgChainId }, { signal: controller.signal, isCurrent })
+      .then(() => {
+        if (!controller.signal.aborted && isCurrent()) lastSwitchedScopeRef.current = scope;
+      })
+      .catch(() => {
+        // Rejection/cancellation leaves the scope retryable on later navigation.
+      });
+    return () => controller.abort();
+  }, [ready, orgId, orgChainId, chainId, scope, switchChainAsync]);
 }

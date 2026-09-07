@@ -1,3 +1,4 @@
+import { useAccount } from '@/context/WalletContext';
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   Modal,
@@ -18,14 +19,13 @@ import {
   Box,
 } from '@chakra-ui/react';
 import { FiCheck, FiAlertTriangle } from 'react-icons/fi';
-import { useAccount } from 'wagmi';
 import { useWeb3 } from '@/hooks/useWeb3Services';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { usePOContext } from '@/context/POContext';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { getNetworkByChainId } from '@/config/networks';
 import { formatTokenAmount, parseTokenAmount } from '@/util/formatToken';
-import { createChainClients } from '@/services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -76,8 +76,7 @@ const GasPoolDepositModal = ({ isOpen, onClose, paymasterHubAddress }) => {
     const fetchBalance = async () => {
       setIsFetchingBalance(true);
       try {
-        const clients = createChainClients(orgChainId);
-        const client = clients?.publicClient;
+        const client = createPublicClientForChain(orgChainId);
         if (!client || cancelled) return;
 
         const balance = await client.getBalance({ address: accountAddress });

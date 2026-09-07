@@ -1,3 +1,4 @@
+import { useAccount } from '@/context/WalletContext';
 /**
  * useGlobalAccount Hook
  * Provides global account state (username, account existence) independent of organization context.
@@ -7,31 +8,15 @@
  * Supports both wallet (EOA) and passkey authentication.
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { useAccount } from 'wagmi';
-import { gql } from '@apollo/client';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { createScopedRequestGate } from '@/lib/services/scopedRequestGate';
+import { ACCOUNT_QUERY } from '@/util/accountQueries';
 import { useRefresh } from '@/context/RefreshContext';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { getAllSubgraphUrls } from '@/config/networks';
 import { getClient } from '@/util/apolloClient';
 
-const ACCOUNT_QUERY = gql`
-  query FetchAccount($id: Bytes!) {
-    account(id: $id) {
-      id
-      username
-      profileMetadataHash
-      metadata {
-        id
-        bio
-        avatar
-        github
-        twitter
-        website
-      }
-    }
-  }
-`;
+
 
 /**
  * Count non-null fields in a metadata object.
@@ -56,24 +41,30 @@ function metadataRichness(meta) {
  */
 export function useGlobalAccount() {
   const { address: wagmiAddress } = useAccount();
-  const { accountAddress } = useAuth();
+  const { accountAddress, isAuthHydrated } = useAuth();
   const { subscribe } = useRefresh();
 
-  const lookupAddress = accountAddress || wagmiAddress;
+  const lookupAddress = (accountAddress || wagmiAddress || '').toLowerCase();
+  const requestGate = useRef(null);
+  if (!requestGate.current) requestGate.current = createScopedRequestGate();
+  requestGate.current.setScope(lookupAddress);
 
-  const [username, setUsername] = useState(null);
-  const [profileMetadata, setProfileMetadata] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState({ scope: null, username: null, profileMetadata: null, loading: true });
 
   const fetchAccount = useCallback(async () => {
+    const isCurrent = requestGate.current.start(lookupAddress);
+    if (!isCurrent) return; // Captured refresh callback from a previous identity.
     if (!lookupAddress) {
-      setUsername(null);
-      setProfileMetadata(null);
-      setLoading(false);
+      setResult({ scope: lookupAddress, username: null, profileMetadata: null, loading: false });
       return;
     }
 
-    setLoading(true);
+    setResult((previous) => ({
+      scope: lookupAddress,
+      username: previous.scope === lookupAddress ? previous.username : null,
+      profileMetadata: previous.scope === lookupAddress ? previous.profileMetadata : null,
+      loading: true,
+    }));
     const sources = getAllSubgraphUrls();
     const id = lookupAddress.toLowerCase();
 
@@ -110,12 +101,11 @@ export function useGlobalAccount() {
         }
       }
 
-      setUsername(bestUsername);
-      setProfileMetadata(bestMetadata);
+      if (isCurrent()) setResult({ scope: lookupAddress, username: bestUsername, profileMetadata: bestMetadata, loading: false });
     } catch (err) {
       console.error('[useGlobalAccount] Cross-chain lookup failed:', err);
     } finally {
-      setLoading(false);
+      if (isCurrent()) setResult((previous) => ({ ...previous, loading: false }));
     }
   }, [lookupAddress]);
 
@@ -139,12 +129,14 @@ export function useGlobalAccount() {
     };
   }, [subscribe, fetchAccount]);
 
+  // Mask previous identity synchronously, before the new fetch effect runs.
+  const current = result.scope === lookupAddress ? result : null;
   return {
-    globalUsername: username,
-    hasAccount: !!username,
-    isLoading: loading,
+    globalUsername: current?.username || null,
+    hasAccount: !!current?.username,
+    isLoading: isAuthHydrated === false || !current || current.loading,
     refetchAccount: fetchAccount,
-    profileMetadata,
+    profileMetadata: current?.profileMetadata || null,
   };
 }
 

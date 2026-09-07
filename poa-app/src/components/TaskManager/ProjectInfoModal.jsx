@@ -40,10 +40,11 @@ import {
 import { ExternalLinkIcon, EditIcon } from '@chakra-ui/icons';
 import { FiClipboard, FiCheckCircle, FiUsers, FiAward, FiCalendar } from 'react-icons/fi';
 
-import { PermissionsMatrix } from '@/components/orgStructure';
-import { useOrgStructure } from '@/hooks';
+import { PermissionsMatrix } from '@/components/orgStructure/PermissionsMatrix';
+import { useOrgStructure } from '@/hooks/useOrgStructure';
 import { lightCardStyle } from '@/components/shared/glassStyles';
 import { formatTokenAmount } from '@/util/formatToken';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import { getTokenByAddress } from '@/util/tokens';
 import {
   buildProjectPermissionColumns,
@@ -138,7 +139,7 @@ const ProjectInfoModal = ({
   onClose,
   project,
   projectName,
-  tokenLabel = 'Shares',
+  tokenLabel = DEFAULT_TOKEN_LABEL,
   canEditBudget = false,
   onEditBudget,
 }) => {
@@ -345,7 +346,7 @@ const ProjectInfoModal = ({
                         </Text>
                         {projectBudget !== '0' ? (
                           <Text fontSize="lg" fontWeight="bold" color="warmGray.900">
-                            {projectBudget} {tokenLabel.toLowerCase()}
+                            {projectBudget} {tokenLabel}
                           </Text>
                         ) : (
                           <Text color="warmGray.400" fontStyle="italic">
@@ -354,7 +355,7 @@ const ProjectInfoModal = ({
                         )}
                         {projectBudget !== '0' && stats.ptPaidOutNum > 0 && (
                           <Text fontSize="xs" color="warmGray.500" mt={1}>
-                            {stats.ptPaidOut} {tokenLabel.toLowerCase()} paid out so far
+                            {stats.ptPaidOut} {tokenLabel} paid out so far
                           </Text>
                         )}
                       </Box>

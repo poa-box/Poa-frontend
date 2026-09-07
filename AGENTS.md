@@ -269,10 +269,19 @@ Custom variants: `glass`, `elevated`, `primary`. Theme is defined inline in `_ap
 
 ### Provider nesting order matters
 
-The provider tree is dependency-sensitive: `CoreProviders.jsx` owns wallet/account
-services, `RegistryProvider.jsx` supplies live public organization data, and
-`OrganizationProviders.jsx` adds org-scoped data only on application routes. Fully
-static reading routes skip all three async bundles. Check these provider modules and
+The provider tree is dependency-sensitive. `RegistryProvider.jsx` and
+`OrganizationReadProviders.jsx` own public data and caches. Stable wallet/auth
+facades surround `OrganizationProviders.jsx`, whose single `Web3ServicesProvider`
+owns service demand below PO/User. `AccountRuntimeHost.jsx` loads `CoreProviders.jsx`
+as a **sibling of the page**; its real wagmi/Auth/Rainbow providers host account and
+signing implementations without replacing public readers or form state. Components
+outside that island import wallet hooks from `@/context/WalletContext` and auth from
+`@/context/authState`, never directly from wagmi or RainbowKit. Pending
+`isAuthHydrated: false` is unresolved identity, not an anonymous/nonmember answer.
+`accountHint` is an untrusted saved address used only by `AccountReadWarmup` to
+prefetch public cache entries; never use it for permissions, signing, or resolved
+member state. Actual readers must match the restored account and organization.
+Fully static reading routes skip the application bundles. Check these modules and
 `_app.js` before adding or reordering providers.
 
 ### Task permissions

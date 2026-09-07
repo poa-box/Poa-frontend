@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useCallback, useRef, useEffect } from 'react';
-import { IPFSError, IPFSErrorCode, IPFSOperation } from '@/lib/errors';
+import { IPFSError, IPFSErrorCode, IPFSOperation } from '@/lib/errors/IPFSError';
 import { hybridFetchBytes } from '@/lib/ipfs/hybridFetch';
 import {
     MAX_AVATAR_IMAGE_BYTES,
@@ -7,7 +7,7 @@ import {
     detectImageMimeType,
     isResolvableCid,
 } from '@/lib/ipfs/imageBytes';
-import { bytes32ToIpfsCid, ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
+import { bytes32ToIpfsCid, ipfsCidToBytes32 } from '@/lib/ipfs/cidBytes32';
 
 const IPFScontext = createContext();
 

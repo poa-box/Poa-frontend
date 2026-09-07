@@ -80,6 +80,172 @@ const nextConfig = {
     // Client bundle ONLY: the static-export/data-collection pass runs in Node and needs the real
     // built-ins (e.g. process.cwd() for getStaticPaths), so never shim them server-side.
     if (isServer) return config;
+    // Keep every statically reachable public/read module out of the shared
+    // application group. SSR-preloaded dynamic providers count as async chunks
+    // to webpack, so a plain `chunks: 'async'` rule cannot protect public pages.
+    if (process.env.NODE_ENV === 'production') {
+      let protectedModules = new Set();
+      let publicEntryModules = new Set();
+      let readBootstrapModules = new Set();
+      let commonApplicationModules = new Set();
+      let taskApplicationModules = new Set();
+      let serverRenderedApplicationModules = new Set();
+      config.plugins.push({
+        apply(compiler) {
+          compiler.hooks.thisCompilation.tap('ProtectPublicApplicationChunks', (compilation) => {
+            compilation.hooks.optimizeChunks.tap({ name: 'ProtectPublicApplicationChunks', stage: -100 }, () => {
+              const modules = [...compilation.modules];
+              const staticClosure = (roots) => {
+                const visited = new Set();
+                const pending = [...roots];
+                while (pending.length) {
+                  const webpackModule = pending.pop();
+                  if (visited.has(webpackModule)) continue;
+                  visited.add(webpackModule);
+                  for (const connection of compilation.moduleGraph.getOutgoingConnections(webpackModule)) {
+                    const dependency = connection.dependency;
+                    // AsyncDependenciesBlock edges (including Web Workers)
+                    // belong to separate runtimes, not this static closure.
+                    if (!connection.module || !dependency || !webpackModule.dependencies.includes(dependency)) continue;
+                    if (dependency.weak || dependency.category === 'worker' || dependency.type?.startsWith('import()')) continue;
+                    if (connection.isActive(undefined) === false) continue;
+                    pending.push(connection.module);
+                  }
+                }
+                return visited;
+              };
+              publicEntryModules = staticClosure(modules.filter((module) => {
+                const resource = module.nameForCondition?.() || '';
+                // These server-rendered application routes intentionally share
+                // account/UI dependencies; reading routes remain protected.
+                const isApplicationPage = /\/src\/pages\/(?:create|protocol|explore|u)\/index\./.test(resource);
+                return (resource.includes('/src/pages/') && !isApplicationPage)
+                  || /\/src\/components\/providers\/RegistryProvider\./.test(resource);
+              }));
+              readBootstrapModules = staticClosure(modules.filter((module) => {
+                const resource = module.nameForCondition?.() || '';
+                return /\/src\/components\/providers\/(?:PublicCoreProviders|OrganizationReadProviders)\./.test(resource);
+              }));
+              protectedModules = new Set([...publicEntryModules, ...readBootstrapModules]);
+              // Only public application dependencies share this group. The Core
+              // wallet closure is intentionally separate: merging it here would
+              // make every public reader download wallet code before rendering.
+              commonApplicationModules = staticClosure(modules.filter((module) => {
+                const resource = module.nameForCondition?.() || '';
+                return /\/src\/components\/providers\/OrganizationProviders\./.test(resource);
+              }));
+              taskApplicationModules = staticClosure(modules.filter((module) => {
+                const resource = module.nameForCondition?.() || '';
+                // Board-only cards, drag/drop and dialogs stay behind their
+                // selected view instead of joining every task page's preload.
+                return /\/src\/components\/TaskManager\/TaskWorkspace\./.test(resource)
+                  || /\/src\/components\/TaskManager\/views\/list\/ListView\./.test(resource);
+              }));
+              // A shared navbar or feature helper must not attach the entire
+              // task group to a server-rendered non-task route. Leave those
+              // modules to the common group or webpack's default splitting.
+              serverRenderedApplicationModules = staticClosure(modules.filter((module) => {
+                const resource = module.nameForCondition?.() || '';
+                return /\/src\/pages\/(?:create|protocol|explore|u)\/index\./.test(resource);
+              }));
+            });
+          });
+        },
+      });
+      // Package-level transport grouping: only the GraphQL cache/
+      // query runtime, with no wallet, RPC, UI, or application modules.
+      if (process.env.POA_GRAPHQL_CHUNK !== '0') {
+        config.optimization.splitChunks.cacheGroups.publicGraphql = {
+          name: 'public-graphql',
+          chunks: 'all',
+          minChunks: 1,
+          minSize: 0,
+          priority: 30,
+          reuseExistingChunk: true,
+          enforce: true,
+          test(module) {
+            const resource = module.nameForCondition?.() || '';
+            return module.type?.startsWith('javascript')
+              && /\/node_modules\/(?:@apollo\/client|graphql|graphql-tag|@wry\/[^/]+|optimism|zen-observable(?:-ts)?|ts-invariant)\//.test(resource);
+          },
+        };
+      }
+      // Preserve the exact existing SVG implementations; combine only these
+      // three already-shared families, not all icons or their _app runtime.
+      if (process.env.POA_ICON_CHUNK !== '0') {
+        config.optimization.splitChunks.cacheGroups.applicationIcons = {
+          name: 'application-icons',
+          chunks: 'all',
+          minChunks: 1,
+          minSize: 0,
+          priority: 30,
+          reuseExistingChunk: true,
+          enforce: true,
+          test(module) {
+            const resource = module.nameForCondition?.() || '';
+            return module.type?.startsWith('javascript')
+              && /\/node_modules\/react-icons\/(?:fi|pi|fa)\//.test(resource);
+          },
+        };
+      }
+      // Public pages keep their existing initial dependencies. Only the extra
+      // organization-read bootstrap moves together, before wallet startup.
+      config.optimization.splitChunks.cacheGroups.readBootstrap = {
+        name: 'organization-read',
+        chunks: 'async',
+        minChunks: 1,
+        minSize: 0,
+        priority: 25,
+        reuseExistingChunk: true,
+        enforce: true,
+        test(module) {
+          return module.type?.startsWith('javascript')
+            && (module.nameForCondition?.() || '').includes('/src/')
+            && readBootstrapModules.has(module) && !publicEntryModules.has(module);
+        },
+      };
+      const canShareApplicationModule = (module) => {
+        if (protectedModules.has(module) || !module.type?.startsWith('javascript')) return false;
+        const resource = module.nameForCondition?.() || '';
+        if (!resource) return false;
+        // Preserve account-operation, wallet-choice and proving boundaries in
+        // both groups; the task group must not broaden these exclusions.
+        if (/\/src\/services\/web3\//.test(resource)) return false;
+        if (/\/src\/(?:hooks\/useWeb3ServicesRuntime|components\/providers\/Web3ServicesRuntime)\./.test(resource)) return false;
+        if (/\/node_modules\/(?:permissionless|@coinbase|@walletconnect|@metamask|@safe-global|@simplewebauthn|@zk-email|snarkjs|circomlibjs)\//.test(resource)) return false;
+        return true;
+      };
+      config.optimization.splitChunks.cacheGroups.applicationShared = {
+        name: 'application-shared',
+        chunks: 'all',
+        minChunks: 2,
+        minSize: 0,
+        priority: 20,
+        reuseExistingChunk: true,
+        enforce: true,
+        test(module) {
+          return commonApplicationModules.has(module) && canShareApplicationModule(module);
+        },
+      };
+      // Active task pages preload their feature alongside public providers. Keep task-only
+      // dependencies on that parallel request, off non-task account routes.
+      // Disjoint membership plus chunks:all avoids initial/async duplication.
+      config.optimization.splitChunks.cacheGroups.taskShared = {
+        name: 'task-shared',
+        chunks: 'all',
+        minChunks: 2,
+        minSize: 0,
+        priority: 19,
+        reuseExistingChunk: true,
+        enforce: true,
+        test(module) {
+          return taskApplicationModules.has(module)
+            && !commonApplicationModules.has(module)
+            && !serverRenderedApplicationModules.has(module)
+            && canShareApplicationModule(module);
+        },
+      };
+    }
     config.experiments = { ...config.experiments, asyncWebAssembly: true };
     config.plugins.push(
       new webpack.NormalModuleReplacementPlugin(/^node:/, (r) => {

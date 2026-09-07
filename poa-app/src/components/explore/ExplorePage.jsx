@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useAccount } from "wagmi";
-import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { useAccount } from "@/context/WalletContext";
+import { useConnectModal } from "@/context/WalletContext";
 import {
   Box, Button, Container, Flex, Heading, HStack, Icon, IconButton, Image,
   Input, InputGroup, InputLeftElement, InputRightElement, LinkBox, LinkOverlay,
@@ -10,11 +10,10 @@ import {
   ModalOverlay, SimpleGrid, Skeleton, Text, VisuallyHidden, useDisclosure,
 } from "@chakra-ui/react";
 import { FiArrowRight, FiArrowUpRight, FiMap, FiSearch, FiUsers, FiX } from "react-icons/fi";
-import SEOHead from "@/components/common/SEOHead";
 import Navbar from "@/components/landing/Navbar";
 import SignInModal from "@/components/passkey/SignInModal";
 import { getVisitUrlForOrg } from "@/config/hostDefaultOrg";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from '@/context/authState';
 import { useIPFScontext } from "@/context/ipfsContext";
 import { useProfileHubContext } from "@/context/profileHubContext";
 import { useTour } from "@/features/tour";
@@ -180,7 +179,7 @@ export default function ExplorePage() {
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
-  const { isPasskeyUser, isAuthenticated } = useAuth();
+  const { isPasskeyUser, isAuthenticated, isAuthHydrated } = useAuth();
   const { startTour } = useTour();
   const [searchTerm, setSearchTerm] = useState("");
   const searchRef = useRef(null);
@@ -192,6 +191,7 @@ export default function ExplorePage() {
   useEffect(() => { setMounted(true); }, []);
 
   const getAccountMenuItem = () => {
+    if (!isAuthHydrated) return { text: "Account", onClick: onSignInOpen };
     if (mounted && isPasskeyUser) return { text: "My Account", onClick: () => router.push("/account") };
     if (!isConnected) return { text: "Connect Wallet", onClick: openConnectModal };
     if (isAccountLoading) return { text: "Loading...", onClick: () => {} };
@@ -217,14 +217,10 @@ export default function ExplorePage() {
 
   return (
     <>
-      <SEOHead
-        title="Explore community-owned organizations | Poa"
-        description="Find your people. Explore community-owned organizations on Poa."
-        path="/explore"
-      />
+
       <Box minH="100vh" bg="#FAF9F6" color="warmGray.900">
         <Navbar
-          mounted={mounted} isPasskeyUser={isPasskeyUser} isConnected={isConnected}
+          mounted={mounted} isAuthHydrated={isAuthHydrated} isPasskeyUser={isPasskeyUser} isConnected={isConnected}
           isAuthenticated={isAuthenticated} accountMenuItem={getAccountMenuItem()} onSignInOpen={onSignInOpen}
         />
         <SignInModal isOpen={isSignInOpen} onClose={onSignInClose} />

@@ -1,3 +1,4 @@
+import { useAccount, useSwitchChain } from '@/context/WalletContext';
 import React, { useRef, useState } from 'react';
 import {
   Button,
@@ -25,12 +26,11 @@ import {
   VisuallyHidden,
   useToast,
 } from '@chakra-ui/react';
-import { useAccount, useSwitchChain } from 'wagmi';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { usePOContext } from '@/context/POContext';
 import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import { educationDialogStyle, educationFieldStyle } from '@/components/eduHub/educationStyles';
-import { useWeb3 } from '@/hooks';
+import { useWeb3 } from '@/hooks/useWeb3Services';
 import { getNetworkByChainId } from '@/config/networks';
 
 const fieldStyle = educationFieldStyle;

@@ -16,11 +16,12 @@
  * - bundlerClient: Pimlico bundler client (shared)
  */
 
-import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { AuthContext } from '@/context/authState';
+export { useAuth } from '@/context/authState';
 import { useAccount } from 'wagmi';
 import { createPublicClient, http, defineChain } from 'viem';
-import { createPimlicoClient } from 'permissionless/clients/pimlico';
-import { getBundlerUrl, ENTRY_POINT_ADDRESS } from '../config/passkey';
+import { createLazyPimlicoClient } from '@/services/web3/utils/lazyPimlicoClient';
 import { NETWORKS, DEFAULT_NETWORK } from '../config/networks';
 import {
   getLastUsedCredential,
@@ -28,14 +29,8 @@ import {
   savePasskeyCredential,
   clearAllCredentials,
 } from '../services/web3/passkey/passkeyStorage';
-import { discoverPasskeyCredential } from '../services/web3/passkey/passkeyDiscover';
-import { E2E_ENABLED, E2E_AS } from '../services/e2e/e2eMode';
-import {
-  ensureVirtualPasskeyPendingSeeded,
-  ensureVirtualPasskeyActivated,
-} from '../services/e2e/seedVirtualPasskey';
+import { E2E_AS } from '../services/e2e/e2eMode';
 
-const AuthContext = createContext();
 const EXPLICIT_SIGN_OUT_KEY = 'poa:explicit-sign-out';
 
 function readExplicitSignOut() {
@@ -57,14 +52,6 @@ function writeExplicitSignOut(signedOut) {
     // current app session in that case.
   }
 }
-
-export const useAuth = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return ctx;
-};
 
 // Build a viem chain object from our network config
 const networkConfig = NETWORKS[DEFAULT_NETWORK];
@@ -132,18 +119,9 @@ export const AuthProvider = ({ children }) => {
     transport: http(networkConfig.rpcUrl),
   }), []);
 
-  // Create Pimlico bundler client
-  const bundlerClient = useMemo(() => {
-    const bundlerUrl = getBundlerUrl(networkConfig.chainId);
-    return createPimlicoClient({
-      chain: defaultChain,
-      transport: http(bundlerUrl),
-      entryPoint: {
-        address: ENTRY_POINT_ADDRESS,
-        version: '0.7',
-      },
-    });
-  }, []);
+  // Keep onboarding and transaction readiness synchronous; load the bundler
+  // implementation only when an async operation is actually requested.
+  const bundlerClient = useMemo(() => createLazyPimlicoClient(defaultChain), []);
 
   // Auto-reconnect: on mount, check for stored passkey credential.
   // In E2E mode, seed the pending credential for the target org so the
@@ -174,18 +152,19 @@ export const AuthProvider = ({ children }) => {
     // resolves. A new async branch only needs to set this and add .finally(settle).
     let asyncSettlePending = false;
 
-    if (E2E_ENABLED) {
+    if (process.env.NEXT_PUBLIC_E2E_MODE === 'true') {
+      const seedRuntime = import('@/services/e2e/seedVirtualPasskey');
       // In passkey mode, restore the deployed virtual passkey before falling
       // back to the pending/onboarding flow — otherwise a fresh tab can't act
       // as the already-deployed E2E identity.
       if (E2E_AS === 'passkey') {
         asyncSettlePending = true;
-        ensureVirtualPasskeyActivated().then((cred) => {
+        seedRuntime.then(({ ensureVirtualPasskeyActivated }) => ensureVirtualPasskeyActivated()).then((cred) => {
           if (cred && !explicitSignOutRef.current) setPasskeyState(cred);
         }).catch(() => { /* logged inside activator */ })
           .finally(settle);
       }
-      ensureVirtualPasskeyPendingSeeded().catch(() => { /* logged inside seeder */ });
+      seedRuntime.then(({ ensureVirtualPasskeyPendingSeeded }) => ensureVirtualPasskeyPendingSeeded()).catch(() => { /* logged inside seeder */ });
     }
 
     if (hasStoredCredentials()) {
@@ -236,6 +215,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       // Slow path: WebAuthn discoverable authentication + subgraph lookup
+      const { discoverPasskeyCredential } = await import('@/services/web3/passkey/passkeyDiscover');
       const discovered = await discoverPasskeyCredential();
 
       // Save to localStorage for future fast reconnects

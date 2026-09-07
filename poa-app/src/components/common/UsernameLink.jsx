@@ -25,7 +25,7 @@ function UsernameLink({
   }
 
   return (
-    <Link href={`/u?username=${encodeURIComponent(username)}`} passHref legacyBehavior>
+    <Link href={`/u?username=${encodeURIComponent(username)}`} prefetch={false} passHref legacyBehavior>
       <Text
         as="a"
         color={color}

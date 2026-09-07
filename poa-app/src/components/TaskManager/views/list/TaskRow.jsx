@@ -59,7 +59,7 @@ const humanizeDifficulty = (difficulty) => {
   return key.charAt(0).toUpperCase() + key.slice(1);
 };
 
-const TaskRow = ({ task, showProject = false }) => {
+const TaskRow = ({ task, showProject = false, isMobile = false }) => {
   const router = useRouter();
   const userDAO = useOrgName();
   const poContext = usePOContext();
@@ -245,7 +245,7 @@ const TaskRow = ({ task, showProject = false }) => {
         }
       }}
     >
-      <Grid
+      {!isMobile ? <Grid
         display={{ base: 'none', md: 'grid' }}
         gridTemplateColumns={TASK_ROW_COLUMNS}
         alignItems="center"
@@ -360,9 +360,7 @@ const TaskRow = ({ task, showProject = false }) => {
             </Text>
           )}
         </Flex>
-      </Grid>
-
-      <Flex display={{ base: 'flex', md: 'none' }} direction="column" gap={2} px={3.5} py={3}>
+      </Grid> : <Flex display={{ base: 'flex', md: 'none' }} direction="column" gap={2} px={3.5} py={3}>
         <Flex justify="space-between" align="flex-start" gap={3}>
           <Box minW={0} flex="1">
             <Text
@@ -437,7 +435,7 @@ const TaskRow = ({ task, showProject = false }) => {
             )}
           </HStack>
         </Flex>
-      </Flex>
+      </Flex>}
     </Box>
   );
 };

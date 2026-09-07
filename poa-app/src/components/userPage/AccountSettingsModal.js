@@ -13,13 +13,13 @@ import {
   Input,
   useToast,
 } from '@chakra-ui/react';
-import { useWeb3 } from '@/hooks';
+import { useWeb3 } from '@/hooks/useWeb3Services';
 import { useUserContext } from '@/context/UserContext';
 
 
 const AccountSettingsModal = ({ isOpen, onClose }) => {
     const { graphUsername, setGraphUsername } = useUserContext();
-    const { user: userService, executeWithNotification } = useWeb3();
+    const { user: userService, executeWithNotification, isReady, getNotReadyMessage } = useWeb3();
     const toast = useToast();
 
 
@@ -39,7 +39,10 @@ const AccountSettingsModal = ({ isOpen, onClose }) => {
   
 
   const handleSave = useCallback(async () => {
-    if (!userService) return;
+    if (!userService || !isReady) {
+      toast({ description: getNotReadyMessage(), status: 'info', duration: 4000, isClosable: true });
+      return;
+    }
 
     if (graphUsername !== username) {
       const result = await executeWithNotification(
@@ -51,6 +54,7 @@ const AccountSettingsModal = ({ isOpen, onClose }) => {
         }
       );
 
+      if (!result.success) return;
       if (result.success) {
         setGraphUsername(username);
       }
@@ -64,7 +68,7 @@ const AccountSettingsModal = ({ isOpen, onClose }) => {
       });
     }
     onClose();
-  }, [userService, executeWithNotification, username, graphUsername, setGraphUsername, toast, onClose]);
+  }, [userService, isReady, getNotReadyMessage, executeWithNotification, username, graphUsername, setGraphUsername, toast, onClose]);
 
 
   return (

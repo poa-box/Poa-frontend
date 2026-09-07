@@ -1,16 +1,11 @@
-import SEOHead from '@/components/common/SEOHead';
-import EducationHub from '@/components/eduHub/EducationHub';
+import deferredApplicationPage from '@/components/providers/deferredApplicationPage';
 
-export default function LearnPage() {
-  return (
-    <>
-      <SEOHead
-        title="Learn & Earn"
-        description="Get to know your community through short learning modules and quizzes."
-        path="/learn"
-        noIndex
-      />
-      <EducationHub />
-    </>
-  );
-}
+export default deferredApplicationPage(
+  () => import('@/features/application/pages/LearnPage'),
+  {
+    "title": "Learn & Earn",
+    "description": "Get to know your community through short learning modules and quizzes.",
+    "path": "/learn",
+    "noIndex": true
+  },
+);

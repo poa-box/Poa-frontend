@@ -1,3 +1,11 @@
-import ProfileHub from '@/components/profileHub/ProfileHub';
+import deferredApplicationPage from '@/components/providers/deferredApplicationPage';
 
-export default ProfileHub;
+export default deferredApplicationPage(
+  () => import('@/components/profileHub/ProfileHub'),
+  {
+    "title": "Profile",
+    "description": "Your community profile and activity.",
+    "path": "/profile",
+    "noIndex": true
+  },
+);

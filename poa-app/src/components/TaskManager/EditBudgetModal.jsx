@@ -30,35 +30,37 @@ import {
   Image,
   useToast,
 } from '@chakra-ui/react';
-import { ethers } from 'ethers';
-import { useWeb3 } from '@/hooks';
+import { BigNumber } from '@ethersproject/bignumber';
+import { parseUnits, formatUnits } from '@ethersproject/units';
+import { useWeb3 } from '@/hooks/useWeb3Services';
 import { usePOContext } from '@/context/POContext';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { getTokenByAddress } from '@/util/tokens';
 import { formatTokenAmount } from '@/util/formatToken';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 // type(uint128).max — contract sentinel for "unlimited" bounty cap.
-const UNLIMITED = ethers.BigNumber.from('340282366920938463463374607431768211455');
+const UNLIMITED = BigNumber.from('340282366920938463463374607431768211455');
 // Contract enforces MAX_PAYOUT = 1e24 wei
-const MAX_PAYOUT = ethers.BigNumber.from('1000000000000000000000000');
+const MAX_PAYOUT = BigNumber.from('1000000000000000000000000');
 
 function toBN(value) {
   try {
-    return ethers.BigNumber.from(value || '0');
+    return BigNumber.from(value || '0');
   } catch {
-    return ethers.BigNumber.from(0);
+    return BigNumber.from(0);
   }
 }
 
 function isUnlimited(capWei) {
   // Anything in the top half of uint128 we treat as "unlimited" for display.
-  return toBN(capWei).gte(ethers.BigNumber.from('100000000000000000000000000000000'));
+  return toBN(capWei).gte(BigNumber.from('100000000000000000000000000000000'));
 }
 
 const EditBudgetModal = ({ isOpen, onClose, project }) => {
   const toast = useToast();
-  const { task: taskService, executeWithNotification } = useWeb3();
-  const { taskManagerContractAddress, tokenLabel = 'Shares' } = usePOContext();
+  const { task: taskService, executeWithNotification, isReady, getNotReadyMessage } = useWeb3();
+  const { taskManagerContractAddress, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
 
   const currentCapWei = toBN(project?.cap);
 
@@ -71,7 +73,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
 
   const [hasCap, setHasCap] = useState(currentCapWei.gt(0));
   const [capInput, setCapInput] = useState(
-    currentCapWei.gt(0) ? ethers.utils.formatUnits(currentCapWei, 18) : ''
+    currentCapWei.gt(0) ? formatUnits(currentCapWei, 18) : ''
   );
   const [saving, setSaving] = useState(false);
 
@@ -89,7 +91,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
               bountyByToken[bc.token] = b.spent;
             } catch {
               // Lens read of a non-existent budget reverts — fall back to 0.
-              bountyByToken[bc.token] = ethers.BigNumber.from(0);
+              bountyByToken[bc.token] = BigNumber.from(0);
             }
           })
         );
@@ -113,7 +115,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
       const decimals = tokenInfo.decimals || 18;
       const unlimited = isUnlimited(bc.cap);
       m[bc.token] = {
-        cap: unlimited ? '' : ethers.utils.formatUnits(toBN(bc.cap), decimals),
+        cap: unlimited ? '' : formatUnits(toBN(bc.cap), decimals),
         unlimited,
       };
     }
@@ -124,7 +126,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
   React.useEffect(() => {
     if (isOpen) {
       setHasCap(currentCapWei.gt(0));
-      setCapInput(currentCapWei.gt(0) ? ethers.utils.formatUnits(currentCapWei, 18) : '');
+      setCapInput(currentCapWei.gt(0) ? formatUnits(currentCapWei, 18) : '');
       setBountyEdits(initialBountyEdits);
       setSaving(false);
     }
@@ -133,10 +135,10 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
 
   // Validation: warn (not block) when newCap < spent — contract reverts CapBelowCommitted.
   const newCapWei = useMemo(() => {
-    if (!hasCap) return ethers.BigNumber.from(0);
+    if (!hasCap) return BigNumber.from(0);
     if (!capInput) return null;
     try {
-      return ethers.utils.parseUnits(capInput, 18);
+      return parseUnits(capInput, 18);
     } catch {
       return null;
     }
@@ -144,7 +146,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
 
   const capWarning =
     newCapWei && newCapWei.gt(0) && newCapWei.lt(currentSpentWei)
-      ? `New cap (${ethers.utils.formatUnits(newCapWei, 18)}) is below already-spent (${ethers.utils.formatUnits(currentSpentWei, 18)} ${tokenLabel}). Contract will revert CapBelowCommitted.`
+      ? `New cap (${formatUnits(newCapWei, 18)}) is below already-spent (${formatUnits(currentSpentWei, 18)} ${tokenLabel}). Contract will revert CapBelowCommitted.`
       : null;
 
   const bountyValidation = useMemo(() => {
@@ -161,7 +163,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
       }
       let proposed;
       try {
-        proposed = ethers.utils.parseUnits(edit.cap, decimals);
+        proposed = parseUnits(edit.cap, decimals);
       } catch {
         issues.push(`${tokenInfo.symbol}: invalid amount`);
         continue;
@@ -191,7 +193,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
   // (setConfig has no batch endpoint for cap keys).
   const pendingChanges = useMemo(() => {
     const out = [];
-    const targetCap = hasCap ? newCapWei : ethers.BigNumber.from(0);
+    const targetCap = hasCap ? newCapWei : BigNumber.from(0);
     if (newCapWei !== null && !targetCap.eq(currentCapWei)) {
       out.push({ kind: 'projectCap', targetCap });
     }
@@ -207,7 +209,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
         continue;
       } else {
         try {
-          proposed = ethers.utils.parseUnits(edit.cap, decimals);
+          proposed = parseUnits(edit.cap, decimals);
         } catch {
           continue;
         }
@@ -222,7 +224,11 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
 
   const handleSave = async () => {
     if (saving) return; // double-click guard
-    if (!taskService || !taskManagerContractAddress || !project?.id) return;
+    if (!taskService || !isReady) {
+      toast({ description: getNotReadyMessage(), status: 'info', duration: 4000, isClosable: true });
+      return;
+    }
+    if (!taskManagerContractAddress || !project?.id) return;
     if (newCapWei === null && hasCap) {
       toast({ title: 'Enter a valid cap amount', status: 'error', duration: 3000 });
       return;
@@ -286,7 +292,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
             <Box>
               <Text fontSize="sm" color="gray.500">Currently spent</Text>
               <Text fontWeight="600">
-                {formatTokenAmount(currentSpentWei.toString())} {tokenLabel.toLowerCase()}
+                {formatTokenAmount(currentSpentWei.toString())} {tokenLabel}
               </Text>
             </Box>
 
@@ -304,7 +310,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
             {hasCap && (
               <Box p={3} bg="gray.50" borderRadius="md">
                 <FormControl>
-                  <FormLabel fontSize="sm">New Cap ({tokenLabel.toLowerCase()})</FormLabel>
+                  <FormLabel fontSize="sm">New Cap ({tokenLabel})</FormLabel>
                   <NumberInput value={capInput} onChange={setCapInput} min={0}>
                     <NumberInputField placeholder="e.g., 10000" />
                   </NumberInput>

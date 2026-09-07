@@ -1,16 +1,11 @@
-import SEOHead from "@/components/common/SEOHead";
-import VotingPage from "@/components/voting/VotingPage";
+import deferredApplicationPage from '@/components/providers/deferredApplicationPage';
 
-const Voting = () => (
-  <>
-    <SEOHead
-      title="Voting"
-      description="Vote on organization proposals."
-      path="/voting"
-      noIndex
-    />
-    <VotingPage />
-  </>
+export default deferredApplicationPage(
+  () => import('@/features/application/pages/VotingPage'),
+  {
+    "title": "Voting",
+    "description": "Vote on organization proposals.",
+    "path": "/voting",
+    "noIndex": true
+  },
 );
-
-export default Voting;

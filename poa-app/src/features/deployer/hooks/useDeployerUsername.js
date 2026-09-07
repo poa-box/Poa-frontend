@@ -1,3 +1,4 @@
+import { useAccount } from '@/context/WalletContext';
 /**
  * useDeployerUsername Hook
  * Manages username state for the deployer during org deployment
@@ -6,8 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAccount } from 'wagmi';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { isUsernameTakenGlobally, findUsernameAcrossChains } from '@/util/crossChainUsername';
 
 // Username validation regex (alphanumeric + underscore, 3-32 chars)
