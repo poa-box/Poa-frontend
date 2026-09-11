@@ -1,12 +1,12 @@
 ---
-title: "Earn a stake in what you help build"
-description: "See how useful work can earn you a stake in a Poa organization, with task payments, a say in future decisions, and a share when revenue is distributed."
+title: "Shared ownership: earn Shares through contribution"
+description: "Learn how approved work earns Shares in a Poa organization, how contribution can shape voting and revenue sharing, and how Shares differ from task payments."
 date: '2026-09-06'
-updated: '2026-09-06'
+updated: '2026-09-11'
 category: 'Work together'
 ---
 
-An approved task can earn you a stake in the organization behind it. That stake can count in future decisions and revenue distributions, so your contribution has a place beyond the finished work.
+Poa connects shared ownership with contribution. An approved task can earn you Shares: nontransferable participation units that record a stake in the organization behind the work. That stake can count in future decisions and revenue distributions under the group's rules, so your contribution has a place beyond the finished work.
 
 A task shows its contribution reward and any funded payment before you take it on. You earn the configured rewards when a reviewer approves completion.
 
@@ -47,7 +47,7 @@ Keep the reward policy understandable: for example, recognize documentation and 
 
 ## What your stake means
 
-Ownership belongs to a specific Poa organization and is recorded in participation tokens. These units cannot be bought, sold, transferred, or given away. The group's permissions determine who can issue them and approve rewards.
+Ownership belongs to a specific Poa organization and is recorded in Shares. These units cannot be bought, sold, transferred, or given away. The group's permissions determine who can award them and approve rewards. Organizations can choose their own label for Shares in their settings; the label does not change what the units mean.
 
 The rights they carry come from the organization's software and rules. Legal shares, employment, copyright, and ownership of other assets need their own agreements where relevant.
 

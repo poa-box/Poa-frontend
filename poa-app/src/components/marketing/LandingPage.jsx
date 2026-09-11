@@ -3,6 +3,7 @@ import Head from 'next/head';
 import { useRouter } from 'next/router';
 import { getDefaultOrgForHost } from '@/config/hostDefaultOrg';
 import SEOHead from '@/components/common/SEOHead';
+import { getPoaSchema, POA_DESCRIPTION } from '@/lib/seo.mjs';
 import { useLandingAccount } from '@/components/marketing/LandingAccountContext';
 import { PRODUCT_SHOTS } from '@/components/marketing/productShots';
 
@@ -43,106 +44,14 @@ export default function LandingPage() {
     return <div style={{ minHeight: "100vh", background: "#ffffff" }} />;
   }
 
-  const webSite = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "name": "Poa",
-    "alternateName": ["poa", "poa.box", "poa box", "Poa.box"],
-    "url": "https://poa.box",
-    "description":
-      "Poa (poa.box) turns your group into an organization you own together. Finished work earns ownership: a share of the revenue and a real say in the decisions.",
-    "potentialAction": {
-      "@type": "SearchAction",
-      "target": {
-        "@type": "EntryPoint",
-        "urlTemplate": "https://poa.box/explore/?search={search_term_string}",
-      },
-      "query-input": "required name=search_term_string",
-    },
-  };
-
-  const organizationLD = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "Poa",
-    "alternateName": ["poa", "poa.box", "poa box", "Poa.box"],
-    "url": "https://poa.box",
-    "logo": "https://poa.box/images/poa_og.webp",
-    "sameAs": [
-      "https://twitter.com/PoaPerpetual",
-      "https://discord.gg/9SD6u4QjTt",
-      "https://github.com/poa-box",
-    ],
-    "foundingDate": "2024",
-    "founder": {
-      "@type": "Person",
-      "name": "Hudson Headley",
-      "sameAs": [
-        "https://github.com/hudsonhrh",
-        "https://twitter.com/PoaPerpetual",
-      ],
-    },
-    "knowsAbout": [
-      "Worker owned organization",
-      "Community ownership",
-      "Cooperative software",
-      "Revenue sharing",
-      "Group governance",
-      "Task management for communities",
-      "Start a cooperative",
-    ],
-    "description":
-      "Poa (poa.box) turns your group into an organization you own together. Finished work earns ownership: revenue share and voting power for the tasks you complete. Open-source and free.",
-  };
-
-  const softwareLD = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Poa",
-    "alternateName": ["poa", "poa.box", "Poa Perpetual Organization Architect"],
-    "applicationCategory": "BusinessApplication",
-    "applicationSubCategory": "Worker owned organization platform",
-    "operatingSystem": "Web",
-    "url": "https://poa.box",
-    "description":
-      "Start an organization your group owns together: tasks, voting, membership, and a shared treasury in one place. Finished work earns ownership, and voting power is earned by participating. Open-source and free to use on poa.box.",
-    "offers": {
-      "@type": "Offer",
-      "price": "0",
-      "priceCurrency": "USD",
-    },
-    "creator": { "@type": "Organization", "name": "Poa" },
-  };
-
-  const breadcrumb = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://poa.box" },
-      { "@type": "ListItem", "position": 2, "name": "Docs", "item": "https://poa.box/docs/" },
-    ],
-  };
-
   return (
     <>
       <SEOHead
-        title="Poa: organizations that pay you with ownership"
-        description="Turn your group into an organization you own together. Finished work earns ownership: revenue share and voting power for the tasks you complete. Free and open."
+        title="Poa | Worker ownership, shared treasury & member voting"
+        description={POA_DESCRIPTION}
         path="/"
         ogImageAlt="Poa.box — Build together. Own Together"
-        keywords={[
-          "worker owned organization",
-          "community ownership",
-          "cooperative software",
-          "revenue sharing",
-          "group governance",
-          "task management for communities",
-          "start a cooperative",
-          "vouch based membership",
-          "participation based voting",
-          "poa.box",
-        ]}
-        jsonLd={[webSite, organizationLD, softwareLD, breadcrumb]}
+        jsonLd={getPoaSchema()}
       />
 
       {/* Prioritize the visible hero image and the exact font faces it uses. */}

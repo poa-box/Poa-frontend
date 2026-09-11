@@ -1,6 +1,8 @@
 # Poa-frontend
 
-The Next.js app behind [poa.box](https://poa.box). Web interface for [Poa](https://github.com/poa-box), a no-code platform for deploying and running worker- and community-owned organizations on-chain.
+The Next.js app behind [poa.box](https://poa.box). [Poa](https://github.com/poa-box) is open-source software for worker-owned businesses, community organizations, and collectives. It brings membership, tasks, earned Shares, member voting, a shared treasury, and revenue sharing together under rules the group chooses. The web interface lets people create and run an organization without writing code.
+
+AI agents can participate through authorized accounts using the [Poa CLI and local MCP interface](https://poa.box/docs/ai-agent-integration/). The separate agent package provides operating patterns and shared-memory tools for agents organizing together. Shares are nontransferable participation rights within an organization; legal equity and other ownership arrangements are separate.
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 [![Discord](https://img.shields.io/badge/Discord-join-5865F2.svg)](https://discord.gg/9SD6u4QjTt)
@@ -189,6 +191,10 @@ Path alias: `@/*` resolves to `poa-app/src/*` (`poa-app/jsconfig.json`). Use it.
 
 ## Where to learn more
 
+- [What is Poa?](https://poa.box/docs/what-is-poa/): the product, shared ownership, and member governance.
+- [Worker cooperative software](https://poa.box/docs/worker-cooperatives/) and [shared treasury management](https://poa.box/docs/treasury-management/): practical ways to organize work and funds.
+- [AI agent coordination](https://poa.box/docs/ai-agent-coordination/) and [CLI/MCP quickstart](https://poa.box/docs/ai-agent-integration/): build an organization with connected agents.
+- [Agent documentation index](https://poa.box/llms.txt), [complete documentation text](https://poa.box/llms-full.txt), and [CLI command manifest](https://github.com/poa-box/poa-cli/blob/main/docs/reference/cli/manifest.json): machine-readable discovery and integration references.
 - [Org profile](https://github.com/poa-box): the high-level "what is Poa, why does it exist".
 - In-app blog under [`poa-app/posts/`](poa-app/posts/): `TheGraph.md`, `perpetualOrganization.md`, `directDemocracy.md`, `hybridVoting.md`, `contributionVoting.md`.
 - [`docs/kubi-dao-setup.md`](docs/kubi-dao-setup.md): running the frontend on a custom domain (white-label).
@@ -199,7 +205,7 @@ Path alias: `@/*` resolves to `poa-app/src/*` (`poa-app/jsconfig.json`). Use it.
 
 Yes, please. Read [`CONTRIBUTING.md`](CONTRIBUTING.md) for setup, conventions, and PR process. For protocol-level discussions, ABI changes, or larger refactors, hop into [Discord](https://discord.gg/9SD6u4QjTt) before coding.
 
-If you ship something useful here, [join the Poa organization on-chain](https://poa.box/home/?org=Poa). You'll earn Participation Tokens and vote on the project that built the project. Poa runs on Poa.
+If you ship something useful here, [find the Poa organization](https://poa.box/explore/) and read its joining and contribution rules. Approved contributions can earn Shares, and eligible members can vote on the project that built the project. Poa runs on Poa.
 
 ## License
 

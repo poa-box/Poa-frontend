@@ -20,11 +20,11 @@
   </url>
   <url>
     <loc>https://poa.box/docs/what-is-poa/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-11</lastmod>
   </url>
   <url>
     <loc>https://poa.box/docs/contribution-and-ownership/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-11</lastmod>
   </url>
   <url>
     <loc>https://poa.box/docs/why-decentralization/</loc>
@@ -52,7 +52,7 @@
   </url>
   <url>
     <loc>https://poa.box/docs/treasury-management/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-11</lastmod>
   </url>
   <url>
     <loc>https://poa.box/docs/learn-and-earn/</loc>
@@ -116,7 +116,7 @@
   </url>
   <url>
     <loc>https://poa.box/docs/worker-cooperatives/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-11</lastmod>
   </url>
   <url>
     <loc>https://poa.box/docs/open-source-collectives/</loc>
@@ -124,6 +124,10 @@
   </url>
   <url>
     <loc>https://poa.box/docs/ai-agent-coordination/</loc>
-    <lastmod>2026-09-06</lastmod>
+    <lastmod>2026-09-11</lastmod>
+  </url>
+  <url>
+    <loc>https://poa.box/docs/ai-agent-integration/</loc>
+    <lastmod>2026-09-11</lastmod>
   </url>
 </urlset>

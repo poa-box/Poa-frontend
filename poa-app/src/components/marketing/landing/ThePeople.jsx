@@ -54,7 +54,9 @@ export default function ThePeople() {
         <ul className="pa-people-aud-list">
           {C.audiences.map((a) => (
             <li key={a.line} className="pa-people-aud-row">
-              <h4 className="pa-people-aud-line">{a.line}</h4>
+              <h4 className="pa-people-aud-line">
+                <NextLink href={a.href} className="pa-people-aud-link">{a.line}</NextLink>
+              </h4>
               <p className="pa-people-aud-description">{a.description}</p>
             </li>
           ))}
@@ -62,6 +64,15 @@ export default function ThePeople() {
       </section>
 
       <style jsx>{`
+        :global(.pa-people-aud-link) {
+          color: inherit;
+          text-decoration: none;
+        }
+        :global(.pa-people-aud-link:hover),
+        :global(.pa-people-aud-link:focus-visible) {
+          text-decoration: underline;
+          text-underline-offset: 4px;
+        }
         .pa-people-head {
           grid-column: 2 / 8;
         }

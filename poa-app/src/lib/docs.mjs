@@ -75,11 +75,12 @@ export function getDocMetadata(id, { data, content }) {
 
 export function getDocsArticleSchema(post) {
   const url = `${DOCS_SITE_URL}${canonicalDocPath(post.id)}`;
-  const organization = { '@type': 'Organization', name: 'Poa', url: DOCS_SITE_URL };
+  const organization = { '@type': 'Organization', '@id': `${DOCS_SITE_URL}/#organization`, name: 'Poa', url: `${DOCS_SITE_URL}/` };
   return [
     {
       '@context': 'https://schema.org',
       '@type': 'TechArticle',
+      '@id': `${url}#article`,
       headline: post.title,
       description: post.description,
       url,
@@ -88,7 +89,8 @@ export function getDocsArticleSchema(post) {
       ...(post.updated ? { dateModified: post.updated } : {}),
       author: organization,
       publisher: organization,
-      image: `${DOCS_SITE_URL}/images/poa_og.webp`,
+      image: `${DOCS_SITE_URL}/images/poa-og-landing.png`,
+      encoding: { '@type': 'MediaObject', encodingFormat: 'text/markdown', contentUrl: `${DOCS_SITE_URL}/docs/${post.id}.md` },
       mainEntityOfPage: { '@type': 'WebPage', '@id': url },
       isPartOf: { '@type': 'CollectionPage', name: 'Poa docs', url: `${DOCS_SITE_URL}/docs/` },
     },
@@ -112,7 +114,7 @@ export function getDocsCollectionSchema(posts) {
     description: 'How contribution, ownership, voting, and revenue sharing work in Poa. Guides to creating an organization, choosing its rules, and using its features.',
     url: `${DOCS_SITE_URL}/docs/`,
     inLanguage: 'en',
-    isPartOf: { '@type': 'WebSite', name: 'Poa', url: DOCS_SITE_URL },
+    isPartOf: { '@type': 'WebSite', '@id': `${DOCS_SITE_URL}/#website`, name: 'Poa', url: `${DOCS_SITE_URL}/` },
     mainEntity: {
       '@type': 'ItemList',
       itemListElement: posts.map((post, index) => ({

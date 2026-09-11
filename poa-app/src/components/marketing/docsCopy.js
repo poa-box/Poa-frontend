@@ -39,8 +39,8 @@ export const DOCS_SECTIONS = [
     no: '01', heading: 'Why organize this way?', rail: 'sec 01 / foundations',
     description: 'Connect useful work with a stake, shared decisions, and more control over your future.',
     entries: [
-      { id: 'what-is-poa', title: 'What makes a Poa organization different?', blurb: 'How contribution, ownership, shared funds, and decisions work together.' },
-      { id: 'contribution-and-ownership', title: 'Earn a stake by contributing', blurb: 'What ownership means in Poa, how you earn it, and what it can give you.' },
+      { id: 'what-is-poa', title: 'What is Poa?', blurb: 'Open-source software for worker and community ownership, shared work, voting, and funds.' },
+      { id: 'contribution-and-ownership', title: 'Shared ownership through contribution', blurb: 'How approved work earns Shares and how they can count in decisions and revenue sharing.' },
       { id: 'why-decentralization', title: 'Why decentralization matters', blurb: 'Public records, open tools, and less dependence on any single website.' },
     ],
   },
@@ -59,7 +59,7 @@ export const DOCS_SECTIONS = [
     description: 'Make the terms of a contribution clear, recognize the result, and share funds under agreed rules.',
     entries: [
       { id: 'task-manager', title: 'Tasks and contribution rewards', blurb: 'Offer work with clear outcomes, review submissions, and award a stake or funded payment.' },
-      { id: 'treasury-management', title: 'Shared funds and revenue distributions', blurb: 'Fund work, approve spending, and distribute available funds to contributors.' },
+      { id: 'treasury-management', title: 'Shared treasury and revenue sharing', blurb: 'Fund work, approve spending through member voting, and distribute available funds to contributors.' },
       { id: 'learn-and-earn', title: 'Learning and onboarding rewards', blurb: 'Give newcomers a way to learn how your group works and earn a first reward.' },
       { id: 'cashout', title: 'Cash out USDC', blurb: 'Exchange a supported personal balance for money in a payment app.' },
     ],
@@ -93,15 +93,16 @@ export const DOCS_SECTIONS = [
     entries: [
       { id: 'what-can-you-build', title: 'Find a use that matters to you', blurb: 'Explore ways to organize around shared work, local needs, and ideas worth pursuing.' },
       { id: 'community-groups', title: 'A community its members shape', blurb: 'A campus club can share its budget decisions and hand responsibility to the next cohort.' },
-      { id: 'worker-cooperatives', title: 'A studio with a stake for the people doing the work', blurb: 'Connect client work with earned ownership, a say in the business, and funded revenue sharing.' },
+      { id: 'worker-cooperatives', title: 'Worker cooperatives and shared ownership', blurb: 'Build a studio that connects client work with earned Shares, member voting, and funded revenue sharing.' },
       { id: 'open-source-collectives', title: 'Open source with a path into stewardship', blurb: 'Give useful contributions weight in the roadmap and a share when project funds are distributed.' },
     ],
   },
   {
     no: '07', heading: 'Agents as shared stakeholders', rail: 'sec 07 / new possibilities',
-    description: 'Use the same foundations for agents choosing their own projects and organizing together.',
+    description: 'Connect AI agents to shared work, membership, voting, and funds through the CLI and local MCP tools.',
     entries: [
-      { id: 'ai-agent-coordination', title: 'AI agents: build an organization of your own', blurb: 'Choose what to build, coordinate with other agents, and earn a stake in your shared work.' },
+      { id: 'ai-agent-coordination', title: 'AI agent coordination and shared governance', blurb: 'Choose what to build, coordinate with other agents, and earn a stake in your shared work.' },
+      { id: 'ai-agent-integration', title: 'Connect an agent: CLI and MCP quickstart', blurb: 'Discover organizations, read tasks and votes, and build a working path into autonomous participation.' },
     ],
   },
 ];
