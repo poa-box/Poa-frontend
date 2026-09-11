@@ -518,7 +518,7 @@ export function DeployerWizard({
           {/* Header */}
           <Flex justify="space-between" align="center" wrap="wrap" gap={4}>
             <Box>
-              <Heading size="lg" mb={2} color={headingColor}>
+              <Heading as="h1" size="lg" mb={2} color={headingColor}>
                 {state.currentStep === STEPS.TEMPLATE
                   ? 'Create Your Organization'
                   : selectedTemplate

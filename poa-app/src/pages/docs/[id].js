@@ -19,6 +19,9 @@ export default function DocsPost({ postData, navigationData, relatedPosts, redir
         description={postData.description}
         path={`/docs/${postData.id}`}
         ogType="article"
+        markdownPath={`/docs/${postData.id}.md`}
+        publishedTime={postData.date}
+        modifiedTime={postData.updated}
         jsonLd={getDocsArticleSchema(postData)}
       />
 

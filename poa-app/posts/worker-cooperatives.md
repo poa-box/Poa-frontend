@@ -1,12 +1,14 @@
 ---
-title: "Poa for worker cooperatives"
-description: "Turn freelance friends into a working studio. Use Poa to organize your first project, agree on rewards, share decisions, and build a business together."
+title: "Worker cooperative software for work, voting, and shared funds"
+description: "Use Poa to run a worker cooperative or worker-owned business: coordinate tasks, earn Shares, make decisions together, and distribute approved shared revenue."
 date: "2026-09-06"
-updated: "2026-09-06"
+updated: "2026-09-11"
 category: "Use cases"
 ---
 
-# Poa for worker cooperatives
+# Worker cooperative software for work, voting, and shared funds
+
+Poa gives worker cooperatives and worker-owned businesses one place to coordinate tasks, recognize contributions, vote on decisions, and manage shared funds. Members can earn Shares through approved work and take part in the business under rules the group chooses.
 
 You already know people whose work makes yours better. Together, you could take on a project none of you would attempt alone—and build a studio around the work you want to do.
 
@@ -31,6 +33,8 @@ The studio may want to buy equipment, fund its own product, or give another memb
 For this studio, a blend could give equal member voting half the result and contribution weight the other half. The writer gets an equal member voice once eligible, while the team's accumulated work also counts. The group chooses the eligible roles and passing requirements. An entirely equal-member model is available too.
 
 A [binding proposal](/docs/hybridVoting) can authorize supported spending or a permission change, with an execution result members can check. The studio can therefore put its agreed way of making decisions into practice.
+
+For a shared treasury controlled by member voting, choose an equal-member voting class with 100% of the result, define who is eligible, and set participation and passing requirements. This uses the binding voting system. A separate [equal-member poll](/docs/directDemocracy) can gather views, but does not move the money.
 
 ## Separate project payments from shared revenue
 

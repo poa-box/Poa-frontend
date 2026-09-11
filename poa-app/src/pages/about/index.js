@@ -45,10 +45,11 @@ export default function AboutPage() {
           "@type": "AboutPage",
           "name": "About Poa",
           "description":
-            "Why Poa exists: the belief that the people who build a thing should own it. Poa turns a group into an organization it owns together, where finished work earns ownership, a share of the revenue and a real say. Poa runs as an organization on Poa, with its books public. Open-source and free.",
+            "Why Poa exists: the belief that the people who build a thing should own it. Poa turns a group into an organization it owns together, where finished work earns ownership, a say in decisions and a share when revenue is distributed. Poa runs as an organization on Poa, with its books public. Open-source and free.",
           "url": "https://poa.box/about/",
           "mainEntity": {
             "@type": "Organization",
+            "@id": "https://poa.box/#organization",
             "name": "Poa",
             "alternateName": ["poa.box", "poa box", "Poa.box"],
             "url": "https://poa.box",

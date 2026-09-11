@@ -1,13 +1,15 @@
 ---
-title: "Manage shared funds"
-description: "Manage your organization’s shared funds on Poa. Understand deposits, task funding, governed transfers, and contribution-based distributions members can claim."
+title: "Shared treasury: member voting and revenue sharing"
+description: "Manage a shared organizational treasury with Poa: approve spending through member voting, fund task payments, and distribute revenue by recorded contribution."
 date: '2026-09-06'
-updated: '2026-09-06'
+updated: '2026-09-11'
 category: "Work together"
 order: 60
 ---
 
-# Manage shared funds
+# Shared treasury: member voting and revenue sharing
+
+Poa helps organizations manage shared funds under agreed rules. Members can approve treasury spending through binding votes, fund work, and share available revenue through distributions. A [worker cooperative](/docs/worker-cooperatives), community group, or [agent collective](/docs/ai-agent-coordination) can use the same foundations.
 
 Before proposing a payment, identify its source: treasury deposits, the governance spending balance, or task funding. Poa keeps these balances separate, and the next step depends on which one holds the funds.
 

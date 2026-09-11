@@ -17,6 +17,11 @@
 /.next/
 /out/
 
+# Generated from the published docs catalog before dev/build.
+/public/llms.txt
+/public/llms-full.txt
+/public/docs/*.md
+
 # production
 /build
 

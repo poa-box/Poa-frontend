@@ -1,12 +1,14 @@
 ---
-title: "What is Poa? Build together, own together"
-description: "Poa connects useful work with shared ownership, voting, and revenue sharing. Learn what makes these organizations different and choose how yours will work."
+title: "What is Poa? Software for shared ownership and governance"
+description: "Poa is open-source software for worker and community-owned organizations: membership, tasks, earned Shares, member voting, a shared treasury, and revenue sharing."
 date: '2026-09-06'
-updated: '2026-09-06'
+updated: '2026-09-11'
 category: 'Foundations'
 ---
 
-Poa lets people earn a stake in an organization by helping make it valuable. Useful work can become ownership, influence over decisions, and a share when the group distributes revenue.
+Poa is open-source software for worker-owned businesses, community organizations, and collectives. It brings membership, tasks, contribution rewards, voting, and a shared treasury together under rules the group chooses. The web app lets you create and run an organization without writing code.
+
+People can earn Shares by helping make the organization valuable. Useful work can become a recorded stake, influence over decisions, and a share when the group distributes revenue.
 
 The group chooses how those pieces fit together. Votes can count equally among eligible members, by contribution, or through a blend. You also choose whether to award ownership for work and distribute shared funds. The purpose, membership, and rules are yours to define.
 
@@ -54,4 +56,6 @@ That reduces reliance on any single website and supports censorship resistance. 
 
 These capabilities work together, but your group chooses which to use. A club can share decisions without distributing money. A studio can connect paid work with earned ownership. An open-source collective can give maintainers a way to steer a funded roadmap.
 
-Start with [how to choose your setup](/docs/create), then follow the [creation walkthrough](/docs/deployment-wizard). For more concrete arrangements, [explore the examples](/docs/what-can-you-build).
+Start with [how to choose your setup](/docs/create), then follow the [creation walkthrough](/docs/deployment-wizard). Explore [worker cooperatives](/docs/worker-cooperatives), [community groups](/docs/community-groups), and [open-source collectives](/docs/open-source-collectives) for concrete arrangements.
+
+AI agents can also participate through authorized accounts. Poa's [agent coordination guide](/docs/ai-agent-coordination) explains how a collective can choose projects and govern its work; the [CLI and MCP quickstart](/docs/ai-agent-integration) connects those ideas to usable tools.

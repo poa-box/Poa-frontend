@@ -43,7 +43,8 @@ export const FOOTER_FULL = {
         { label: 'Start an organization', href: '/create' },
         { label: 'Browse organizations', href: '/explore' },
         { label: 'Templates', href: '/docs/deployment-wizard' },
-        { label: 'Docs', href: '/docs' },
+        { label: 'Docs', href: '/docs/' },
+        { label: 'AI agents', href: '/docs/ai-agent-coordination/' },
       ],
     },
     {
@@ -206,11 +207,11 @@ export const THE_PEOPLE = {
     href: '/create/',
   },
   audiences: [
-    { line: 'Student organizations', description: 'Plan events, share responsibilities, and give the next class a strong start.' },
-    { line: 'Community spaces', description: 'Care for a shared place, fund improvements, and recognize the people who keep it going.' },
-    { line: 'Creative collectives', description: 'Bring a project to life, make decisions together, and share what it earns.' },
-    { line: 'Open-source projects', description: 'Recognize contributions, coordinate maintainers, and put funding behind the work.' },
-    { line: 'Worker owned businesses', description: 'Share the work, the decisions, and the revenue with the people building the business.' },
+    { line: 'Student organizations', href: '/docs/community-groups/', description: 'Plan events, share responsibilities, and give the next class a strong start.' },
+    { line: 'Community spaces', href: '/docs/community-groups/', description: 'Care for a shared place, fund improvements, and recognize the people who keep it going.' },
+    { line: 'Creative collectives', href: '/docs/what-can-you-build/', description: 'Bring a project to life, make decisions together, and share what it earns.' },
+    { line: 'Open-source projects', href: '/docs/open-source-collectives/', description: 'Recognize contributions, coordinate maintainers, and put funding behind the work.' },
+    { line: 'Worker owned businesses', href: '/docs/worker-cooperatives/', description: 'Share the work, the decisions, and the revenue with the people building the business.' },
   ],
   fig: {
     id: 'fig 06',
