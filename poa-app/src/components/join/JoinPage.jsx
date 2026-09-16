@@ -103,7 +103,7 @@ export default function JoinPage() {
         orgLogoSrc={orgLogoSrc}
         isVouching={Boolean(inviteUser && invitedSubject)}
         isAuthenticated={isAuthenticated}
-        account={isAuthHydrated && isAuthenticated ? <AccountControl label="Account" /> : null}
+        account={isAuthHydrated && isAuthenticated ? <Box bg="gray.800" borderRadius="lg"><AccountControl label="Account" /></Box> : null}
         cardLabel={requiresInvitation ? 'Membership' : undefined}
         invite={isAuthHydrated && authority.enabled && !requiresInvitation && canClaimWithEmail && <EmailInviteCard variant="join" summary={inviteSummary} />}
       >
