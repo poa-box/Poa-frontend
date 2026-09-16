@@ -22,15 +22,15 @@ export async function fetchOrganizationSnapshot(source, name, { signal, treasury
         if (releases) recordConfirmedCapability(source.url, CAPABILITY.TASK_RELEASES);
         if (proposer) recordConfirmedCapability(source.url, CAPABILITY.PROPOSAL_PROPOSER);
       }
-      return org ? { id: org.id, name: org.name, snapshot: plan.entries(org) } : null;
+      return org ? { id: org.id, name: org.name, membershipAuthority: org.membershipAuthority, snapshot: plan.entries(org) } : null;
     } catch (error) {
       // Transport failure is not schema evidence. Preserve lookup retry and
       // cancellation semantics instead of multiplying requests on an outage.
       if (error.name !== 'GraphQLResponseError' || !error.isSchemaError) throw error;
     }
   }
-  // A domain field unavailable on an older endpoint must not make the org
-  // disappear. Existing independent queries retain their error isolation.
+  // Optional domain fields may fall back to a smaller query, but authority support
+  // remains mandatory in every attempt. Never restore a legacy organization.
   return fetchOrgByName(source, name, { signal });
 }
 

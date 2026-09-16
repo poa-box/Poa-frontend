@@ -210,6 +210,7 @@ export const FETCH_USER_MEMBERSHIPS = gql`
     ) {
       id
       user
+      authority { id }
       accepted
       acceptedAt
       seededWhilePaused

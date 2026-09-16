@@ -144,7 +144,7 @@ export function JoinSignIn({ onSignIn }) {
   );
 }
 
-export function JoinAccountStart({ orgName, roleName, onCreate, onSignIn }) {
+export function JoinAccountStart({ orgName, roleName, onCreate, onSignIn, isDisabled = false }) {
   const colors = useOnboardingColors();
   const { ink, muted, soft: badge, primary: buttonBg, primaryText: buttonInk, hover: buttonHover } = colors;
   return (
@@ -155,7 +155,7 @@ export function JoinAccountStart({ orgName, roleName, onCreate, onSignIn }) {
         {roleName && <HStack display="inline-flex" mt={4} px={3} py={1.5} bg={badge} borderRadius="full" fontSize="xs" color={ink}><Icon as={FiCheck} /><Text>Join as {roleName}</Text></HStack>}
       </Box>
       <Box mt={1}>
-        <Button onClick={onCreate} width="100%" height="56px" colorScheme="amethyst" bg={buttonBg} color={buttonInk} _hover={{ bg: buttonHover }} _focusVisible={{ boxShadow: colors.focusRing }} borderRadius="lg" fontSize="lg" fontWeight="600" leftIcon={<FaFingerprint />} rightIcon={<FiArrowRight />} justifyContent="space-between" px={5}>Create account</Button>
+        <Button onClick={onCreate} isDisabled={isDisabled} width="100%" height="56px" colorScheme="amethyst" bg={buttonBg} color={buttonInk} _hover={{ bg: buttonHover }} _focusVisible={{ boxShadow: colors.focusRing }} borderRadius="lg" fontSize="lg" fontWeight="600" leftIcon={<FaFingerprint />} rightIcon={<FiArrowRight />} justifyContent="space-between" px={5}>Create account</Button>
         <Text fontSize="xs" color={muted} textAlign="center" mt={3} lineHeight="1.7">Use your face, fingerprint, or device PIN.</Text>
       </Box>
       <JoinSignIn onSignIn={onSignIn} />

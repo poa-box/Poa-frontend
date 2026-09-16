@@ -6,7 +6,8 @@ import { createOrganizationSnapshot } from '@/lib/graphql/organizationSnapshot';
 const schema = buildSchema(`
  input Filter { name: String! }
  type Query { organizations(where: Filter!, first: Int!): [Organization!]! }
- type Organization { id: ID!, name: String!, projects(first: Int!, order: String): [Project!]!, votes(first: Int!, before: Int!): [Vote!]! }
+ type Authority { id: ID!, isRouterBound: Boolean!, cutoverAt: String! }
+ type Organization { membershipAuthority: Authority, id: ID!, name: String!, projects(first: Int!, order: String): [Project!]!, votes(first: Int!, before: Int!): [Vote!]! }
  type Project { id: ID!, title: String!, tasks(first: Int!, order: String): [Task!]! }
  type Task { id: ID!, status: String! }
  type Vote { id: ID! }
@@ -19,7 +20,7 @@ async function execute(plan) {
  const result = await graphql({ schema, source: plan.query, variableValues: { ...plan.variables, name: 'Sandbox' }, rootValue: {
   organizations(args) {
    calls.push(['organizations', args]);
-   return [{ id: 'org1', name: 'Sandbox', projects(args) {
+   return [{ id: 'org1', name: 'Sandbox', membershipAuthority: { id: '0x' + '1'.repeat(40), isRouterBound: true, cutoverAt: '1750000000' }, projects(args) {
     calls.push(['projects', args]);
     return [{ id: 'project1', title: 'Work', tasks(args) {
      calls.push(['tasks', args]); return [{ id: args.order ? 'task2' : 'task1', status: 'Open' }];
@@ -36,11 +37,12 @@ describe('organization snapshot', () => {
   const plan = createOrganizationSnapshot(sections());
   const { calls, org } = await execute(plan);
   for (const expected of [
-   ['organizations', { where: { name: 'Sandbox' }, first: 1 }],
+   ['organizations', { where: { name: 'Sandbox' }, first: 100 }],
    ['projects', { first: 100 }], ['projects', { first: 50, order: 'desc' }],
    ['tasks', { first: 1000 }], ['tasks', { first: 1000, order: 'desc' }],
    ['votes', { first: 50, before: 900 }],
   ]) expect(calls).toContainEqual(expected);
+  expect(org.membershipAuthority).toMatchObject({ isRouterBound: true, cutoverAt: '1750000000' });
   const entries = plan.entries(org);
   expect(entries[0].data.organization.projects[0].tasks[0].id).toBe('task1');
   expect(entries[1].data.organization.projects[0].tasks[0].id).toBe('task2');
@@ -51,6 +53,7 @@ describe('organization snapshot', () => {
   const plan = createOrganizationSnapshot(sections());
   const { org } = await execute(plan);
   const cache = new InMemoryCache();
+  expect(org.membershipAuthority).toMatchObject({ isRouterBound: true, cutoverAt: '1750000000' });
   const entries = plan.entries(org);
   entries.forEach(entry => cache.writeQuery(entry));
   for (const entry of entries) {

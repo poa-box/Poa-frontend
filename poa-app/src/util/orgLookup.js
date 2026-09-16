@@ -1,7 +1,8 @@
+import { isSupportedOrganization, ORGANIZATION_SUPPORT_FIELDS } from '@/lib/supportedOrganizations';
 import { takeOrganizationPrefetch } from '@/lib/graphql/organizationPrefetch';
 
 export const ORG_LOOKUP_HINT_TTL_MS = 5 * 60 * 1000;
-const HINT_STORAGE_KEY = 'poa:orgLookupHints:v1';
+const HINT_STORAGE_KEY = 'poa:orgLookupHints:authority-only';
 const MAX_HINTS = 50;
 const LOOKUP_TIMEOUT_MS = 12000;
 
@@ -88,7 +89,7 @@ export async function fetchOrgByName(source, name, { signal, query, variables = 
     const request = (async () => {
       if (controller.signal.aborted) return null;
       const body = JSON.stringify({
-        query: query || 'query FindOrg($name: String!) { organizations(where: { name: $name }, first: 1) { id name } }',
+        query: query || `query FindOrg($name: String!) { organizations(where: { name: $name }, first: 100) { id name ${ORGANIZATION_SUPPORT_FIELDS} } }`,
         variables: { ...variables, name },
       });
       const prefetched = takeOrganizationPrefetch(source.url, body, controller.signal);
@@ -116,7 +117,7 @@ export async function fetchOrgByName(source, name, { signal, query, variables = 
       }
       if (!response.ok) throw new Error(`Org lookup HTTP ${response.status}`);
       if (!Array.isArray(json?.data?.organizations)) throw new Error('Org lookup returned no organization list');
-      return json.data.organizations[0] || null;
+      return json.data.organizations.find(isSupportedOrganization) || null;
     })();
     return await Promise.race([aborted, request]);
   } finally {
@@ -200,7 +201,7 @@ export function lookupOrganization({
         return fetchSource(source, name, { signal: controller.signal });
       }).then((org) => {
         if (org && (!org.id || org.name !== name)) throw new Error('Org lookup returned an invalid match');
-        return org
+        return isSupportedOrganization(org)
           ? { kind: 'match', org: { ...org, chainId: source.chainId } }
           : { kind: 'empty' };
       }).catch((error) => ({ kind: 'error', error })).then((outcome) => {

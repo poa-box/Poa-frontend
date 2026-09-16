@@ -1,3 +1,4 @@
+import { ORGANIZATION_SUPPORT_FIELDS } from '@/lib/supportedOrganizations';
 import { Kind, parse, print, visit } from 'graphql';
 import { addTypenameToDocument } from '@apollo/client/utilities';
 
@@ -43,7 +44,7 @@ function projectResult(value, projection) {
 
 /** Compose the existing domain documents; no second, drifting list of fields. */
 export function createOrganizationSnapshot(sections) {
-  const document = parse('query FindOrgSnapshot($name: String!) { organizations(where: { name: $name }, first: 1) { id name } }');
+  const document = parse(`query FindOrgSnapshot($name: String!) { organizations(where: { name: $name }, first: 100) { id name ${ORGANIZATION_SUPPORT_FIELDS} } }`);
   const operation = document.definitions[0];
   const root = operation.selectionSet.selections[0];
   const variables = {};

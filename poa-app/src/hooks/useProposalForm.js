@@ -1,3 +1,4 @@
+import { rawSetterUnavailableReason, templateUnavailableReason } from '@/lib/voting/setterAvailability';
 /**
  * useProposalForm
  * Hook for managing proposal form state and submission
@@ -435,7 +436,6 @@ export function useProposalForm({ onSubmit }) {
   // the form `buildProposalData` will actually encode. Anything else lets a proposal pass
   // validation describing one thing and encode another.
   const validateCreateRoleProposal = useCallback((accessV2Enabled = false) => {
-    const rc = proposal.roleConfig || {};
     const fail = (title, description) => {
       toast({ title, description, status: 'error', duration: 5000, isClosable: true });
       return false;
@@ -453,58 +453,7 @@ export function useProposalForm({ onSubmit }) {
       return true;
     }
 
-    if (!rc.parentHatId || String(rc.parentHatId).trim() === '') {
-      return fail('No Parent Role Selected', 'Pick which role this new role should sit under.');
-    }
-    if (!rc.name || rc.name.trim() === '') {
-      return fail('Missing Role Name', 'Give the new role a name.');
-    }
-    const maxSupply = Number(rc.maxSupply);
-    if (!Number.isFinite(maxSupply) || maxSupply < 1 || maxSupply > 4294967295) {
-      return fail('Invalid Max Supply', 'Max supply must be between 1 and 4,294,967,295.');
-    }
-
-    if (rc.vouching?.enabled) {
-      const quorum = Number(rc.vouching.quorum);
-      if (!Number.isFinite(quorum) || quorum < 1) {
-        return fail('Invalid Vouching Quorum', 'Vouching quorum must be at least 1.');
-      }
-      if (!rc.vouching.selfVouch && (!rc.vouching.voucherHatId || String(rc.vouching.voucherHatId).trim() === '')) {
-        return fail('Missing Voucher Role', 'Pick the role whose members can vouch, or toggle on self-vouching.');
-      }
-    }
-
-    const wearers = rc.initialWearers || [];
-    const seen = new Set();
-    for (const w of wearers) {
-      if (!w.address || !isAddress(w.address)) {
-        return fail('Invalid Wearer Address', `"${w.name || 'Unnamed'}" has an invalid address.`);
-      }
-      const key = w.address.toLowerCase();
-      if (seen.has(key)) {
-        return fail('Duplicate Wearer', `Address ${w.address.slice(0, 6)}…${w.address.slice(-4)} is listed twice.`);
-      }
-      seen.add(key);
-    }
-
-    const projectPerms = rc.projectPerms || [];
-    const seenProjects = new Set();
-    for (const p of projectPerms) {
-      if (!p.projectId) {
-        return fail('Missing Project', 'Pick a project for each project-permission row, or remove the row.');
-      }
-      if (seenProjects.has(p.projectId)) {
-        return fail('Duplicate Project Permission', 'Each project can only appear once in the permissions list.');
-      }
-      seenProjects.add(p.projectId);
-    }
-
-    const globalPerms = Number(rc.globalPerms) || 0;
-    if (globalPerms < 0 || globalPerms > 255) {
-      return fail('Invalid Permissions', 'Global task permission mask must be between 0 and 255.');
-    }
-
-    return true;
+    return fail('Organization unavailable', 'Current authority permissions are required.');
   }, [proposal, toast]);
 
   const validateRoleRemovalProposal = useCallback((accessV2Enabled = false) => {
@@ -523,6 +472,13 @@ export function useProposalForm({ onSubmit }) {
   }, [proposal.roleRemovalConfig, toast]);
 
   const validateSetterProposal = useCallback(() => {
+    const retired = proposal.setterMode === 'advanced'
+      ? rawSetterUnavailableReason(proposal)
+      : templateUnavailableReason(getTemplateById(proposal.setterTemplate), { authorityEnabled: true });
+    if (retired) {
+      toast({ title: 'Action unavailable', description: retired, status: 'error' });
+      return false;
+    }
     if (proposal.setterMode === 'template') {
       if (!proposal.setterTemplate) {
         toast({
@@ -738,7 +694,7 @@ export function useProposalForm({ onSubmit }) {
     }
 
     return true;
-  }, [proposal.setterMode, proposal.setterTemplate, proposal.setterContract, proposal.setterFunction, proposal.setterValues, proposal.setterParams, toast]);
+  }, [proposal, toast]);
 
   // Project id → name map, derived exactly like CreateVoteModal's so the setter
   // description the member reads on the details step and the actionSummary
@@ -889,6 +845,11 @@ export function useProposalForm({ onSubmit }) {
   ]);
 
   const handleSubmit = useCallback(async (...args) => {
+    const [, contractAddresses = {}, extras = {}] = args;
+    if (!extras?.accessV2?.enabled || !contractAddresses?.membershipAuthorityAddress) {
+      toast({ title: 'Organization permissions are unavailable', description: 'Wait for the current roles to load and try again.', status: 'error' });
+      return false;
+    }
     if (submittingRef.current) return false;
     submittingRef.current = true;
     const isCurrent = scopeGate.current.start(scope);

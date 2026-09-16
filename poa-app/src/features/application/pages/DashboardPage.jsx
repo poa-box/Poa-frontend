@@ -26,7 +26,6 @@ import CommunityLoadingState from "@/components/shared/CommunityLoadingState";
 import { useVotingContext } from '@/context/VotingContext';
 import { usePOContext } from '@/context/POContext';
 import { useProjectContext } from '@/context/ProjectContext';
-import { useUserContext } from '@/context/UserContext';
 import Link2 from 'next/link';
 import OngoingPolls from '@/components/userPage/OngoingPolls';
 import { useRouter } from 'next/router';
@@ -38,7 +37,8 @@ import { useOrgStructure } from '@/hooks/useOrgStructure';
 import { useOrgTheme } from '@/hooks/useOrgTheme';
 import { useAuthoritySubjects } from '@/hooks/accessV2';
 import { useOrgName } from '@/hooks/useOrgName';
-import { VouchingSection } from '@/components/orgStructure/VouchingSection';
+import RolesGroupsPanel from '@/components/accessV2/RolesGroupsPanel';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import UserIdentity from '@/components/common/UserIdentity';
 import { OrgStructureCard } from '@/components/dashboard/OrgStructureCard';
 import { glassLayerStyle } from '@/components/shared/glassStyles';
@@ -47,7 +47,7 @@ import { useOrgGate } from "@/components/shared/OrgDeadEnd";
 const PerpetualOrgDashboard = () => {
   const { ongoingPolls, votingClasses } = useVotingContext();
   const poContext = usePOContext();
-  const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled, tokenLabel = 'Shares' } = poContext;
+  const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled, tokenLabel = DEFAULT_TOKEN_LABEL } = poContext;
   const { pageBackground } = useOrgTheme();
   const { startTour, isActive: isTourActive } = useTour();
   const router = useRouter();
@@ -85,32 +85,18 @@ const PerpetualOrgDashboard = () => {
 
   const { leaderboardDisplayData } = usePOContext();
   const { recommendedTasks } = useProjectContext();
-  const { userData } = useUserContext();
-  const { roles, totalMembers, governance, eligibilityModuleAddress } = useOrgStructure();
+  const { totalMembers, governance } = useOrgStructure();
 
   // On a live-authority org the structure card previews the fold mirror's roles, not the retired
   // hat entities (which render raw subject ids and miss every role created after migration).
   const v2 = useAuthoritySubjects();
   const cardRoles = useMemo(() => {
-    if (!v2.enabled) return roles;
+    if (!v2.enabled) return [];
     return (v2.roles || []).map((r) => ({ id: r.subjectId, hatId: r.hatId, name: r.name, memberCount: r.memberCount }));
-  }, [v2.enabled, v2.roles, roles]);
+  }, [v2.enabled, v2.roles]);
 
-  // Vouching section logic - only show if user can vouch for any role
-  const userHatIds = useMemo(() => userData?.hatIds || [], [userData?.hatIds]);
-  const rolesWithVouching = useMemo(() => {
-    return roles?.filter(role => role.vouchingEnabled) || [];
-  }, [roles]);
-
-  const showVouchingSection = useMemo(() => {
-    if (!rolesWithVouching.length || !userHatIds.length) return false;
-    return rolesWithVouching.some(role => {
-      const membershipHatId = role.vouchingMembershipHatId;
-      if (!membershipHatId) return false;
-      const normalizedMembership = String(membershipHatId).toLowerCase();
-      return userHatIds.some(id => String(id).toLowerCase() === normalizedMembership);
-    });
-  }, [rolesWithVouching, userHatIds]);
+  const rolesWithVouching = v2.enabled ? (v2.roles || []).filter(role => role.vouchConfig?.enabled) : [];
+  const showVouchingSection = rolesWithVouching.length > 0;
 
   const getMedalColor = (rank) => {
     switch (rank) {
@@ -719,19 +705,12 @@ const PerpetualOrgDashboard = () => {
                   <Box px={{ base: 3, md: 6 }} py={{ base: 3, md: 4 }}>
                     <Collapse in={isVouchingExpanded} animateOpacity>
                       <Box onClick={(e) => e.stopPropagation()} cursor="default" pb={2}>
-                        <VouchingSection
-                          roles={rolesWithVouching}
-                          eligibilityModuleAddress={eligibilityModuleAddress}
-                          userHatIds={userHatIds}
-                          userAddress={userData?.id}
-                          isConnected={true}
-                          embedded={true}
-                        />
+                        <RolesGroupsPanel />
                       </Box>
                     </Collapse>
                     {!isVouchingExpanded && (
                       <Text fontSize={textSize} color="gray.400">
-                        Review and vouch for pending membership requests
+                        Open a role to review its members and vouches
                       </Text>
                     )}
                   </Box>

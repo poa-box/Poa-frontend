@@ -222,13 +222,8 @@ describe('buildV2ElectionBatches', () => {
   });
 });
 
-/**
- * THE LEGACY ORG MUST BE UNTOUCHED. There is no React harness in this repo, so the guard is over
- * the source of the submission runtime that chooses between the two encoders — the same technique
- * `hooks/accessV2/gating.test.js` uses, and for the same reason: a legacy org silently losing its
- * election encoder is invisible in every other test.
- */
-describe('the legacy encoders are still there, and the v2 ones are behind the gate', () => {
+/** Keep the deferred encoder connected to the hook without restoring retired mutations. */
+describe('retired encoders are removed and authority encoders require readiness', () => {
   const HERE = dirname(fileURLToPath(import.meta.url));
   const hook = readFileSync(join(HERE, '..', '..', 'hooks', 'useProposalForm.js'), 'utf8');
   const src = readFileSync(join(HERE, '..', '..', 'hooks', 'runtime', 'proposalSubmitRuntime.js'), 'utf8');
@@ -239,20 +234,12 @@ describe('the legacy encoders are still there, and the v2 ones are behind the ga
     expect(src).toContain('return handleSubmit(...args)');
   });
 
-  it('still encodes the legacy election and create-role calls', () => {
-    for (const fn of [
-      'setWearerEligibility',
-      'clearWearerVouches',
-      'mintHatToAddress',
-      'transferHat',
-      'createHatWithEligibility',
-      'configureVouching',
-      'setCreatorHatAllowed',
-      'setProjectRolePerm',
-      'updateHatMetadata',
-    ]) {
-      expect(src, `legacy encoder lost: ${fn}`).toContain(fn);
+  it('never encodes legacy Hats mutation calls', () => {
+    for (const fn of ['setWearerEligibility', 'mintHatToAddress', 'transferHat', 'createHatWithEligibility', 'configureVouching', 'setCreatorHatAllowed', 'setProjectRolePerm']) {
+      expect(src).not.toMatch(new RegExp(`encodeFunctionData\\(['"]${fn}['"]`));
     }
+    expect(src).not.toContain('createHatsService(');
+    expect(src).toContain('Authority permissions are required to create a proposal.');
   });
 
   it('reaches the v2 adapters only through an accessV2 gate', () => {

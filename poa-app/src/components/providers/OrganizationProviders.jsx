@@ -1,3 +1,4 @@
+import AuthorityBoundary from '@/components/providers/AuthorityBoundary';
 import { Web3ServicesProvider } from '@/context/Web3ServicesContext';
 import AccountRuntimeHost from '@/components/providers/AccountRuntimeHost';
 import NetworkModalControl from '@/components/NetworkModalControl';
@@ -28,7 +29,7 @@ export default function OrganizationProviders({ children, enabled = true }) {
               {enabled && <NetworkModalControl />}
               {enabled && <ActiveTourOverlay />}
               {enabled && <DeferredTourPrompt />}
-              {children}
+              <AuthorityBoundary>{children}</AuthorityBoundary>
               <AccountRuntimeHost />
             </TourProvider>
           </Web3Provider>

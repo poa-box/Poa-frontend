@@ -2,11 +2,13 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { InMemoryCache } from '@apollo/client';
 import { parse } from 'graphql';
 import { fetchOrganizationSnapshot, seedOrganizationSnapshot } from './orgSnapshot';
+import { lookupOrganization } from './orgLookup';
 import { CAPABILITY, peekCapability } from './subgraphCapabilities';
 import { getClient } from './apolloClient';
 
 vi.mock('./apolloClient', () => ({ getClient: vi.fn() }));
 
+const authority = { id: '0x' + '1'.repeat(40), isRouterBound: true, cutoverAt: '1750000000' };
 const response = (json) => ({ ok: true, json: async () => json });
 const schemaError = () => response({ errors: [{ message: 'Cannot query field on this schema' }] });
 // A valid organization with absent optional contracts: every selected field is
@@ -17,6 +19,7 @@ function organizationFor(query) {
     const key = field.alias?.value || field.name.value;
     const value = field.name.value === 'id' ? '0x1234'
       : field.name.value === 'name' ? 'Test6'
+      : field.name.value === 'membershipAuthority' ? authority
       : field.name.value === '__typename' ? 'Organization' : null;
     return [key, value];
   }));
@@ -34,6 +37,8 @@ describe('organization snapshot transport and cache', () => {
     expect(seedOrganizationSnapshot(source.url, org)).toBe(true);
     expect(getClient).toHaveBeenCalledExactlyOnceWith(source.url);
     expect(org.snapshot).toHaveLength(4);
+    expect(org.membershipAuthority).toEqual(authority);
+    expect(JSON.parse(fetch.mock.calls[0][1].body).query).toContain('isRouterBound');
     for (const entry of org.snapshot) {
       expect(cache.diff({ query: entry.query, variables: entry.variables }).complete).toBe(true);
       expect(cache.readQuery({ query: entry.query, variables: entry.variables })).toEqual(entry.data);
@@ -57,13 +62,39 @@ describe('organization snapshot transport and cache', () => {
 
   it('retains minimal identity lookup when both domain snapshots are unsupported', async () => {
     const fetch = vi.fn().mockResolvedValueOnce(schemaError()).mockResolvedValueOnce(schemaError())
-      .mockResolvedValueOnce(response({ data: { organizations: [{ id: '0x1234', name: 'Test6' }] } }));
+      .mockResolvedValueOnce(response({ data: { organizations: [{ id: '0x1234', name: 'Test6', membershipAuthority: authority }] } }));
     vi.stubGlobal('fetch', fetch);
     await expect(fetchOrganizationSnapshot({ url: 'https://snapshot-minimal.example' }, 'Test6'))
-      .resolves.toEqual({ id: '0x1234', name: 'Test6' });
+      .resolves.toEqual({ id: '0x1234', name: 'Test6', membershipAuthority: authority });
     expect(fetch).toHaveBeenCalledTimes(3);
     expect(JSON.parse(fetch.mock.calls[2][1].body).query).toContain('query FindOrg(');
+    for (const [, options] of fetch.mock.calls) {
+      expect(JSON.parse(options.body).query).toContain('membershipAuthority');
+      expect(JSON.parse(options.body).query).toContain('cutoverAt');
+    }
     expect(getClient).not.toHaveBeenCalled();
+  });
+
+  it('keeps the verified authority through the real snapshot lookup used by POContext', async () => {
+    const source = { url: 'https://snapshot-lookup.example', chainId: 100 };
+    vi.stubGlobal('fetch', vi.fn(async (...args) => success(...args)));
+    const result = await lookupOrganization({
+      name: 'Test6', sources: [source], cache: null, fetchSource: fetchOrganizationSnapshot,
+    });
+    expect(result.org).toMatchObject({ id: '0x1234', chainId: 100, membershipAuthority: authority });
+    expect(result.org.snapshot).toHaveLength(3);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([0, 1, 2])('rejects legacy organizations after %i optional-schema fallbacks', async (fallbacks) => {
+    const fetch = vi.fn();
+    for (let i = 0; i < fallbacks; i++) fetch.mockResolvedValueOnce(schemaError());
+    fetch.mockResolvedValueOnce(response({ data: { organizations: [{ id: 'retired', name: 'Argus' }] } }));
+    vi.stubGlobal('fetch', fetch);
+    await expect(fetchOrganizationSnapshot({ url: `https://snapshot-retired-${fallbacks}.example` }, 'Argus')).resolves.toBeNull();
+    for (const [, options] of fetch.mock.calls) {
+      expect(JSON.parse(options.body).query).toContain('membershipAuthority');
+    }
   });
 
   it('does not multiply requests on a network failure', async () => {

@@ -6,7 +6,8 @@ import { fetchOrgByName, lookupOrganization } from '@/util/orgLookup';
 const sources = [{ chainId: 42161, url: 'https://a.example/graphql' }, { chainId: 100, url: 'https://b.example/graphql' }];
 const query = 'query FindOrgSnapshot($name: String!) { organizations(where: {name: $name}) { id name } }';
 const config = { sources, query, variables: {}, hosts: { 'poa.earth': 'Test6' }, aliases: { kubi: 'Kansas Blockchain' } };
-const reply = (org, overrides = {}) => ({ ok: true, status: 200, json: async () => ({ data: { organizations: org ? [org] : [] } }), ...overrides });
+const authority = { id: '0x' + '1'.repeat(40), isRouterBound: true, cutoverAt: '1750000000' };
+const reply = (org, overrides = {}) => ({ ok: true, status: 200, json: async () => ({ data: { organizations: org ? [{ membershipAuthority: authority, ...org }] : [] } }), ...overrides });
 function boot(search = '?org=Test6', overrides = {}) {
   const window = { location: { search, hostname: 'localhost' } };
   runInNewContext(organizationPrefetchScript({ ...config, ...overrides }), {

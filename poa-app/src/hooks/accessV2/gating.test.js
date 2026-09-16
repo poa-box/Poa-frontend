@@ -6,10 +6,8 @@
  * promise was false — six hooks skipped on `authority.migrated`, which is already true in the
  * PENDING window (authority deployed, not yet bound) where every v2 surface renders only a banner.
  *
- * There is no React harness in this repo, so the invariant is checked the only way it can be:
- * against the files. Crude, but it fails when someone reintroduces the wrong gate, which is exactly
- * when it matters — a wrong gate is invisible in every other test because it only costs gateway
- * quota and renders nothing.
+ * This broad source scan complements the rendered membership-hook tests in
+ * useMyMemberships.test.jsx, including the derived account-and-authority gate.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -61,7 +59,13 @@ describe('v2 hooks gate on `enabled` (router-bound), not `migrated`', () => {
       const queries = src.match(/useQuery\([\s\S]*?\}\);/g) || [];
       for (const q of queries) {
         expect(q, `${file}: useQuery without a skip`).toMatch(/skip:/);
-        expect(q, `${file}: skip does not consult authority.enabled`).toMatch(/skip:[^\n]*authority\.enabled/);
+        if (file === 'useAuthorityMemberships.js' && /skip: !enabled/.test(q)) {
+          // The per-user query also waits for a restored account. Its behavioral
+          // tests verify skip and discard retained data during scope changes.
+          expect(src).toMatch(/const enabled = Boolean\(authority\.enabled && authority\.address && identityReady/);
+        } else {
+          expect(q, `${file}: skip does not consult authority.enabled`).toMatch(/skip:[^\n]*authority\.enabled/);
+        }
       }
     }
   });

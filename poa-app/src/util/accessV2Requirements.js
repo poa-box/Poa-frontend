@@ -33,6 +33,7 @@ export const TYPE_OF_FIELD = {
   configLintEvents: 'ConfigLintEvent',
   // nested
   membershipAuthority: 'MembershipAuthorityContract',
+  authority: 'MembershipAuthorityContract',
   subjects: 'Subject',
   subject: 'Subject',
   voucherSubject: 'Subject',
