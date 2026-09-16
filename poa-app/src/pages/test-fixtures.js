@@ -10,17 +10,16 @@
  */
 
 import dynamic from 'next/dynamic';
-import { E2E_ENABLED } from '@/services/e2e/e2eMode';
 
 const EmptyTestFixturesPage = () => null;
-const TestFixturesPage = E2E_ENABLED
+const TestFixturesPage = process.env.NEXT_PUBLIC_E2E_MODE === 'true'
   ? dynamic(() => import('@/services/e2e/TestFixturesPage'))
   : EmptyTestFixturesPage;
 
 export default TestFixturesPage;
 
 export function getStaticProps() {
-  return E2E_ENABLED
+  return process.env.NEXT_PUBLIC_E2E_MODE === 'true'
     ? { props: {} }
     : { notFound: true };
 }

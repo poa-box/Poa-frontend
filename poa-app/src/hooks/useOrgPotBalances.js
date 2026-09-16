@@ -18,7 +18,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getAddress } from 'viem';
 import { usePOContext } from '@/context/POContext';
 import { RefreshEvent, useRefreshSubscription } from '@/context/RefreshContext';
-import { createPublicClientForChain } from '@/services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 import PaymentManagerABI from '../../abi/PaymentManager.json';
 
 const ERC20_BALANCE_ABI = [

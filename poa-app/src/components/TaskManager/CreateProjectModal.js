@@ -41,13 +41,16 @@ import {
   Image,
 } from '@chakra-ui/react';
 import { AddIcon, InfoIcon, ChevronRightIcon } from '@chakra-ui/icons';
-import { ethers } from 'ethers';
+import { BigNumber } from '@ethersproject/bignumber';
+import { parseUnits } from '@ethersproject/units';
+import { isAddress } from '@ethersproject/address';
 import { resolveUsernames } from '@/features/deployer/utils/usernameResolver';
 import { getBountyTokenOptions } from '../../util/tokens';
 import { usePOContext } from '../../context/POContext';
 import { useProjectContext } from '../../context/ProjectContext';
-import { createChainClients } from '@/services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 import { formatTokenAmount } from '@/util/formatToken';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 /**
  * @param {Object} props
@@ -78,7 +81,7 @@ const GLOBAL_PERMISSION_ROWS = [
 
 const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [], roleNames = {}, creatorHatIds = [], defaultName = '', defaultDescription = '' }) => {
   const toast = useToast();
-  const { orgChainId, taskManagerContractAddress, tokenLabel } = usePOContext();
+  const { orgChainId, taskManagerContractAddress, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
   // Org-wide TaskPerm grants for the read-only baseline shown in Advanced Settings.
   const { globalRolePermissions = [] } = useProjectContext() || {};
   const [loading, setLoading] = useState(false);
@@ -116,8 +119,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
     if (!taskManagerContractAddress || !orgChainId || bountyBudgets.length === 0) return;
     let cancelled = false;
     const fetchBalances = async () => {
-      const clients = createChainClients(orgChainId);
-      const client = clients?.publicClient;
+      const client = createPublicClientForChain(orgChainId);
       if (!client) return;
       const enabledTokens = bountyBudgets.map(b => b.token);
       const results = {};
@@ -176,7 +178,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
       let address, displayName;
 
       // Check if input is already a valid address
-      if (ethers.utils.isAddress(input)) {
+      if (isAddress(input)) {
         address = input;
         displayName = `${input.slice(0, 6)}...${input.slice(-4)}`;
       } else {
@@ -271,8 +273,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
       // Contract enforces MAX_PAYOUT = 1e24 wei (1M tokens at 18 decimals)
       if (!b.isUnlimited) {
         const decimals = tokenInfo?.decimals || 18;
-        const capWei = ethers.utils.parseUnits(b.cap.toString(), decimals);
-        const MAX_PAYOUT = ethers.BigNumber.from('1000000000000000000000000'); // 1e24
+        const capWei = parseUnits(b.cap.toString(), decimals);
+        const MAX_PAYOUT = BigNumber.from('1000000000000000000000000'); // 1e24
         if (capWei.gt(MAX_PAYOUT)) {
           toast({
             title: 'Cap Too Large',
@@ -291,21 +293,21 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
       // Convert cap to wei if set
       let capWei = 0;
       if (hasCap && cap) {
-        capWei = ethers.utils.parseUnits(cap.toString(), 18);
+        capWei = parseUnits(cap.toString(), 18);
       }
 
       // Build bounty token arrays from configured budgets
       // UNLIMITED = type(uint128).max = 2^128 - 1
-      const UNLIMITED = ethers.BigNumber.from('340282366920938463463374607431768211455');
+      const UNLIMITED = BigNumber.from('340282366920938463463374607431768211455');
       const bountyTokenAddrs = bountyBudgets.map(b => b.token);
       const bountyCapsWei = bountyBudgets.map(b => {
         if (b.isUnlimited) return UNLIMITED;
         const tokenInfo = availableTokens.find(t => t.address === b.token);
         const decimals = tokenInfo?.decimals || 18;
-        return ethers.utils.parseUnits(b.cap.toString(), decimals);
+        return parseUnits(b.cap.toString(), decimals);
       });
 
-      await onCreateProject({
+      const result = await onCreateProject({
         name: name.trim(),
         description: description.trim(),
         cap: capWei,
@@ -318,6 +320,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
         bountyCaps: bountyCapsWei,
       });
 
+      if (result?.success === false) return;
       handleClose();
     } catch (error) {
       console.error('Error creating project:', error);
@@ -368,8 +371,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
             <FormControl>
               <HStack justify="space-between">
                 <HStack spacing={1}>
-                  <FormLabel mb={0}>Share Budget Cap</FormLabel>
-                  <Tooltip label={`Set a maximum amount of ${tokenLabel.toLowerCase()} this project can allocate to tasks. Leave unchecked for unlimited.`} placement="top">
+                  <FormLabel mb={0}>{tokenLabel} Budget Cap</FormLabel>
+                  <Tooltip label={`Set a maximum amount of ${tokenLabel} this project can allocate to tasks. Leave unchecked for unlimited.`} placement="top">
                     <InfoIcon color="gray.400" boxSize={3} />
                   </Tooltip>
                 </HStack>
@@ -397,7 +400,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                     </NumberInputStepper>
                   </NumberInput>
                   <Text fontSize="xs" color="gray.500" mt={1}>
-                    Total {tokenLabel.toLowerCase()} that can be allocated to tasks in this project
+                    Total {tokenLabel} that can be allocated to tasks in this project
                   </Text>
                 </FormControl>
               </Box>
@@ -486,8 +489,8 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
                                 let insufficient = false;
                                 if (!budget.isUnlimited && budget.cap && Number(budget.cap) > 0) {
                                   try {
-                                    const capWei = ethers.utils.parseUnits(budget.cap.toString(), token.decimals);
-                                    insufficient = capWei.gt(ethers.BigNumber.from(tmBalance));
+                                    const capWei = parseUnits(budget.cap.toString(), token.decimals);
+                                    insufficient = capWei.gt(BigNumber.from(tmBalance));
                                   } catch { /* invalid input, skip warning */ }
                                 }
                                 return (

@@ -6,12 +6,13 @@ import {
     FETCH_PROPOSAL_BY_ID,
     FETCH_PROPOSAL_BY_ID_WITH_PROPOSER,
 } from '../util/queries';
-import { hasProposerField, peekCapability, CAPABILITY } from '../util/subgraphCapabilities';
+import { CAPABILITY } from '@/util/subgraphCapabilities';
+import { useSubgraphCapability } from '@/hooks/useSubgraphCapability';
 import { usePOContext } from './POContext';
 import { useRefreshSubscription, useRefreshEmit, RefreshEvent } from './RefreshContext';
 import { useSubgraphClient } from '../util/apolloClient';
 import { useUserActive } from '../hooks/useUserActive';
-import { useAuth } from './AuthContext';
+import { useAuth } from '@/context/authState';
 import {
     createVotingStateReducer,
     selectVotingState,
@@ -363,28 +364,9 @@ export const VotingProvider = ({ children }) => {
         return votingHatPermissions?.pollVoters || null;
     }, [directDemocracyVotingContractAddress, poContextLoading, orgError, votingHatPermissions]);
 
-    // Proposer attribution self-enables: probe the serving subgraph's schema
-    // once (cached) and upgrade to the richer query only when the field exists
-    // — asking for an unknown field errors the entire org query.
-    //
-    // Seeded synchronously from the cached answer — see peekCapability. Both
-    // production endpoints already serve `proposer`, so initialising to `false`
-    // meant every load fetched the voting query twice: once bare, then again
-    // with proposer once the probe resolved a microtask later.
-    const [proposerSupported, setProposerSupported] = useState(
-        () => peekCapability(subgraphUrl, CAPABILITY.PROPOSAL_PROPOSER) === true
-    );
-    useEffect(() => {
-        let cancelled = false;
-        // Re-seed on every endpoint switch: a cross-chain org may serve an older
-        // schema, and carrying `true` over would error its entire org query.
-        setProposerSupported(peekCapability(subgraphUrl, CAPABILITY.PROPOSAL_PROPOSER) === true);
-        if (!subgraphUrl) return undefined;
-        hasProposerField(subgraphUrl).then((has) => {
-            if (!cancelled) setProposerSupported(!!has);
-        });
-        return () => { cancelled = true; };
-    }, [subgraphUrl]);
+    // Select the current endpoint's known schema synchronously; an unknown
+    // endpoint starts with the compatible base document until its probe settles.
+    const proposerSupported = useSubgraphCapability(subgraphUrl, CAPABILITY.PROPOSAL_PROPOSER);
 
     // pollInterval keeps voting data fresh so another member's vote appears
     // without a reload. Voting is event-driven, but events only fire for the

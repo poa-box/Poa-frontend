@@ -126,7 +126,9 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false, allo
     () => (isFiltering ? allTasks.filter((t) => predicate(t, t.columnId)) : allTasks),
     [allTasks, predicate, isFiltering],
   );
-  const isMobile = useBreakpointValue({ base: true, md: false });
+  // Task views mount after client-side org resolution. Use the current CSS
+  // breakpoint immediately, including resize, without the layout's debounce.
+  const isMobile = useBreakpointValue({ base: true, md: false }, { ssr: false });
   const [hideCompleted, setHideCompleted] = useState(false);
   const [sortId, setSortId] = useLocalState(SORT_KEY, 'created_desc');
   const [groupId, setGroupId] = useLocalState(GROUP_KEY, 'none');
@@ -354,7 +356,7 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false, allo
                   </Text>
                 </Flex>
                 {g.tasks.map((t) => (
-                  <TaskRow key={t.id} task={t} showProject={showProject} />
+                  <TaskRow key={t.id} task={t} showProject={showProject} isMobile={isMobile} />
                 ))}
               </Box>
             ))}
@@ -362,7 +364,7 @@ const ListView = ({ projectName, tasks: tasksOverride, showProject = false, allo
         ) : (
           <Box>
             {sortedTasks.map((t) => (
-              <TaskRow key={t.id} task={t} showProject={showProject} />
+              <TaskRow key={t.id} task={t} showProject={showProject} isMobile={isMobile} />
             ))}
           </Box>
         )}

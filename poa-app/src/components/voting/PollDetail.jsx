@@ -35,6 +35,7 @@
  *   contractAddress    string — voting contract for this poll's type
  */
 
+import { useShareLink } from '@/hooks/useShareLink';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   Modal,
@@ -70,7 +71,7 @@ import {
 import { LinkIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon } from '@chakra-ui/icons';
 import { PiLockKey } from 'react-icons/pi';
 import GlassBack from './GlassBack';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingContext } from '@/context/VotingContext';
 import { useVotingPower } from '@/hooks/useVotingPower';
@@ -134,17 +135,9 @@ const { amethyst, amethystBright, leaderText } = VOTE_PALETTE;
  */
 function CopyLinkButton({ poll }) {
   const userDAO = useOrgName();
-  const [href, setHref] = useState('');
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !poll?.id) return;
-    const params = new URLSearchParams();
-    params.set('poll', poll.id);
-    // usePollNavigation writes the canonical `userDAO`; without it a link
-    // pasted into a fresh browser has no org to resolve.
-    if (userDAO) params.set('userDAO', userDAO);
-    setHref(`${window.location.origin}${window.location.pathname}?${params.toString()}`);
-  }, [poll?.id, userDAO]);
+  const scope = usePOContext();
+  const pathname = typeof window === 'undefined' ? '/voting/' : window.location.pathname;
+  const href = useShareLink(pathname, { org: userDAO, poll: poll?.id }, scope);
 
   const { onCopy, hasCopied } = useClipboard(href);
   return (

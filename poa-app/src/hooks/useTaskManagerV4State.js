@@ -14,25 +14,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ethers } from 'ethers';
-import { decodeAbiParameters } from 'viem';
+import { ZERO_FOLDER_ROOT as ZERO_ROOT } from '@/lib/folders/constants';
 import { usePOContext } from '@/context/POContext';
-import { createChainClients } from '@/services/web3/utils/chainClients';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
-import TaskManagerABI from '../../abi/TaskManagerNew.json';
-
-const ZERO_ROOT = ethers.constants.HashZero;
-const FOLDERS_ROOT_KEY = 10;
-const ORGANIZER_HAT_IDS_KEY = 11;
-
-async function readLens(publicClient, address, key) {
-  return publicClient.readContract({
-    address,
-    abi: TaskManagerABI,
-    functionName: 'getLensData',
-    args: [key, '0x'],
-  });
-}
 
 export function useTaskManagerV4State() {
   const {
@@ -53,43 +37,48 @@ export function useTaskManagerV4State() {
   chainIdRef.current = orgChainId;
   // Sequence id makes stale responses (org-switch mid-load) discardable.
   const seqRef = useRef(0);
+  const activeRef = useRef(true);
 
   const load = useCallback(async () => {
     const seq = ++seqRef.current;
     const address = addressRef.current;
     const chainId = chainIdRef.current;
-    if (!address || !chainId) return;
-    const clients = createChainClients(chainId);
-    if (!clients?.publicClient) return;
+    if (!activeRef.current || !address || !chainId) return;
+    const isCurrent = () => activeRef.current && seq === seqRef.current
+      && addressRef.current === address && chainIdRef.current === chainId;
     setLoading(true);
     setError(null);
     try {
-      const [rawRoot, rawIds] = await Promise.all([
-        readLens(clients.publicClient, address, FOLDERS_ROOT_KEY),
-        readLens(clients.publicClient, address, ORGANIZER_HAT_IDS_KEY),
-      ]);
-      if (seq !== seqRef.current) return; // stale, a newer load() has started
-      const [root] = decodeAbiParameters([{ type: 'bytes32' }], rawRoot);
-      const [ids] = decodeAbiParameters([{ type: 'uint256[]' }], rawIds);
-      setFoldersRoot(root);
-      setOrganizerHatIds(ids.map((id) => id.toString()));
+      const { readTaskManagerV4State } = await import('@/services/web3/read/taskManagerV4State');
+      if (!isCurrent()) return; // Never start RPCs for an obsolete import intent.
+      const result = await readTaskManagerV4State(chainId, address);
+      if (!isCurrent() || !result) return;
+      setFoldersRoot(result.foldersRoot);
+      setOrganizerHatIds(result.organizerHatIds);
     } catch (e) {
-      if (seq !== seqRef.current) return;
+      if (!isCurrent()) return;
       setError(e);
     } finally {
-      if (seq === seqRef.current) setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
+  }, []);
+
+  const invalidateLoads = useCallback(() => {
+    activeRef.current = false;
+    ++seqRef.current; // Invalidate the latest request, not an effect's captured counter.
   }, []);
 
   // Reset state when the org changes so the UI never shows the previous
   // org's folders while a new load is in flight.
   useEffect(() => {
+    activeRef.current = true;
+    setLoading(false);
     setFoldersRoot(ZERO_ROOT);
     setOrganizerHatIds([]);
     setError(null);
-    if (!taskManagerContractAddress || !orgChainId) return;
-    load();
-  }, [taskManagerContractAddress, orgChainId, load]);
+    if (taskManagerContractAddress && orgChainId) load();
+    return invalidateLoads; // Includes a switch to no org and unmount.
+  }, [taskManagerContractAddress, orgChainId, load, invalidateLoads]);
 
   useRefreshSubscription(
     [RefreshEvent.FOLDERS_UPDATED, RefreshEvent.ORGANIZER_HAT_UPDATED],

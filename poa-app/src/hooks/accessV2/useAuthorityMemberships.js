@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@apollo/client';
 import { usePOContext } from '@/context/POContext';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useSubgraphClient } from '@/util/apolloClient';
 import { FETCH_AUTHORITY_MEMBERSHIPS, FETCH_USER_MEMBERSHIPS } from '@/util/queries';
 import { normalizeAuthorityMemberships, normalizeMyMemberships } from '@/lib/accessV2/normalize';
@@ -211,15 +211,20 @@ export function useAuthorityMemberships() {
  */
 export function useMyMemberships(addressOverride) {
   const { subgraphUrl } = usePOContext();
-  const { accountAddress } = useAuth();
+  const { accountAddress, isAuthenticated, isAuthHydrated } = useAuth();
   const client = useSubgraphClient(subgraphUrl);
   const authority = useOrgAuthority();
 
   const user = String(addressOverride || accountAddress || '').toLowerCase();
+  // Explicit address reads are public. The connected user's grants require a
+  // restored identity; a saved account hint or retained Apollo result is not one.
+  const identityReady = Boolean(addressOverride || (isAuthHydrated && isAuthenticated && accountAddress));
+  const enabled = Boolean(authority.enabled && authority.address && identityReady
+    && !authority.loading && !authority.error && user);
 
-  const { data, loading, error, refetch } = useQuery(FETCH_USER_MEMBERSHIPS, {
+  const { data, loading, error, refetch, variables } = useQuery(FETCH_USER_MEMBERSHIPS, {
     variables: { authority: authority.address, user },
-    skip: !authority.enabled || !authority.address || !user,
+    skip: !enabled,
     fetchPolicy: 'cache-and-network',
     client,
   });
@@ -227,19 +232,31 @@ export function useMyMemberships(addressOverride) {
   useRefreshSubscription(
     MEMBERSHIP_REFRESH_EVENTS,
     () => {
-      if (authority.enabled && authority.address && user) refetch?.();
+      if (enabled) refetch?.();
     },
-    [authority.enabled, authority.address, user, refetch]
+    [enabled, refetch]
   );
 
-  const value = useMemo(() => normalizeMyMemberships(data?.subjectMemberships || []), [data]);
+  const value = useMemo(() => {
+    const address = String(authority.address || '').toLowerCase();
+    const currentQuery = String(variables?.authority || '').toLowerCase() === address
+      && String(variables?.user || '').toLowerCase() === user;
+    // Apollo may retain data when a query becomes skipped or changes variables.
+    // Check both the request and each returned row before granting current roles.
+    const rows = enabled && !error && currentQuery
+      ? (data?.subjectMemberships || []).filter(row =>
+        String(row.user || '').toLowerCase() === user
+        && String(row.authority?.id || '').toLowerCase() === address)
+      : [];
+    return normalizeMyMemberships(rows);
+  }, [data, enabled, error, authority.address, user, variables]);
 
   return {
     ...value,
     user,
-    loading: authority.enabled ? loading : false,
-    error: authority.enabled ? error : null,
-    enabled: authority.enabled,
+    loading: Boolean((!addressOverride && !isAuthHydrated) || authority.loading || (enabled && loading)),
+    error: authority.error || (enabled ? error : null),
+    enabled,
     paused: authority.paused,
     refetch,
   };

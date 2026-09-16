@@ -15,7 +15,7 @@ import {
 } from '@chakra-ui/react';
 import { FaFingerprint, FaSignOutAlt, FaUserCircle } from 'react-icons/fa';
 import { ChevronDownIcon } from '@chakra-ui/icons';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 
 export default function PasskeyAccountInfo({ label }) {
   const { accountAddress, forgetPasskey, isPasskeyUser } = useAuth();

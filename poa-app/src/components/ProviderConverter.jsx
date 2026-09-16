@@ -2,7 +2,7 @@ import { providers, Wallet } from 'ethers';
 import { useMemo } from 'react';
 import { useClient } from 'wagmi';
 import { useConnectorClient } from 'wagmi';
-import { E2E_ENABLED, E2E_BURNER_PK } from '@/services/e2e/e2eMode';
+import { E2E_BURNER_PK } from '@/services/e2e/e2eMode';
 
 
 
@@ -62,7 +62,7 @@ export function clientToSigner(client) {
    * needs an additional `useEthersProvider` call, which we don't want
    * production paying for on every render — `useEthersSigner` is exported
    * as one of two implementations chosen at module-load by the build-time
-   * `E2E_ENABLED` constant. Webpack folds the unused branch away.
+   * literal environment guard. An imported flag can survive chunk splitting.
    */
   function useEthersSignerProd({ chainId } = {}) {
     const { data: client } = useConnectorClient({ chainId });
@@ -78,4 +78,4 @@ export function clientToSigner(client) {
     }, [client, provider]);
   }
 
-  export const useEthersSigner = E2E_ENABLED ? useEthersSignerE2E : useEthersSignerProd;
+  export const useEthersSigner = process.env.NEXT_PUBLIC_E2E_MODE === 'true' ? useEthersSignerE2E : useEthersSignerProd;

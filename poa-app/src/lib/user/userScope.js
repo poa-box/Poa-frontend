@@ -58,7 +58,8 @@ export function isUserStateCurrent({ account, orgUserID, resolvedUserScope }) {
 /**
  * The loading flag consumers see.
  *
- * - No account: never loading. A logged-out visitor is not "waiting", and
+ * - Identity still restoring: loading; null is not yet an anonymous answer.
+ * - Restored, no account: never loading. A logged-out visitor is not "waiting", and
  *   gating a page on a flag that can never settle is how the Profile Hub used
  *   to spin forever.
  * - Account but no org scope yet: still loading (POContext resolves orgId a
@@ -67,11 +68,13 @@ export function isUserStateCurrent({ account, orgUserID, resolvedUserScope }) {
  * - Otherwise: whatever the in-flight query says.
  */
 export function deriveUserDataLoading({
+  isAuthHydrated = true,
   account,
   orgUserID,
   resolvedUserScope,
   queryLoading,
 }) {
+  if (!isAuthHydrated) return true;
   if (!account) return false;
   if (!orgUserID) return true;
   if (!isUserStateCurrent({ account, orgUserID, resolvedUserScope })) return true;

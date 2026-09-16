@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import TaskDragProvider from '@/components/TaskManager/TaskDragProvider';
 import {
   Box,
   VStack,
@@ -14,7 +15,7 @@ import {
   IconButton,
   useToast,
 } from '@chakra-ui/react';
-import { useWeb3 } from '../../hooks';
+import { useWeb3 } from '@/hooks/useWeb3Services';
 import { useDataBaseContext } from '@/context/dataBaseContext';
 import DraggableProject from './DraggableProject';
 import FolderedProjectList from './FolderedProjectList';
@@ -23,7 +24,7 @@ import TrashBin from './TrashBin';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { AddIcon, SearchIcon, ChevronLeftIcon, EditIcon } from '@chakra-ui/icons';
 import { FiLayers, FiBriefcase } from 'react-icons/fi';
 import { PERMISSION_MESSAGES, userWearsAnyHat } from '../../util/permissions';
@@ -68,10 +69,10 @@ const ProjectSidebar = ({
   }, [projects]);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const { userData, graphUsername } = useUserContext();
+  const { userData, graphUsername, userDataLoading } = useUserContext();
   const { projectsData } = useProjectContext();
   const { accountAddress } = useAuth() || {};
-  const { task: taskService, executeWithNotification } = useWeb3();
+  const { task: taskService, executeWithNotification, isReady, getNotReadyMessage } = useWeb3();
   const toast = useToast();
 
   const { taskManagerContractAddress, creatorHatIds } = usePOContext();
@@ -103,7 +104,7 @@ const ProjectSidebar = ({
     return { myWorkActive: active, myWorkNeedsYou: needsYou };
   }, [projectsData, accountAddress, userData, graphUsername, userHatIds]);
 
-  const myWorkSubtitle =
+  const myWorkSubtitle = userDataLoading ? 'Your tasks and reviews' :
     myWorkActive > 0 || myWorkNeedsYou > 0
       ? [`${myWorkActive} active`, myWorkNeedsYou > 0 ? `${myWorkNeedsYou} needs you` : null]
           .filter(Boolean)
@@ -153,7 +154,10 @@ const ProjectSidebar = ({
       return;
     }
 
-    if (!taskService) return;
+    if (!taskService || !isReady) {
+      toast({ description: getNotReadyMessage(), status: 'info', duration: 4000, isClosable: true });
+      return;
+    }
 
     await executeWithNotification(
       () => taskService.deleteProject(taskManagerContractAddress, projectId),
@@ -163,7 +167,7 @@ const ProjectSidebar = ({
         refreshEvent: 'project:deleted',
       }
     );
-  }, [canManageProjects, taskService, executeWithNotification, taskManagerContractAddress, toast]);
+  }, [canManageProjects, taskService, isReady, getNotReadyMessage, executeWithNotification, taskManagerContractAddress, toast]);
 
   // Filter projects based on search term. Memoized so the array reference
   // stays stable between unrelated re-renders — without this, the child
@@ -502,4 +506,6 @@ const ProjectSidebar = ({
   );
 };
 
-export default ProjectSidebar;
+export default function ProjectSidebarWithDrag(props) {
+  return <TaskDragProvider><ProjectSidebar {...props} /></TaskDragProvider>;
+}

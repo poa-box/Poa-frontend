@@ -1,3 +1,4 @@
+import { useConnections, useDisconnect } from '@/context/WalletContext';
 /**
  * The wagmi bindings for Poa's one correct sign-out.
  *
@@ -12,8 +13,7 @@
  */
 
 import { useCallback } from 'react';
-import { useConnections, useDisconnect } from 'wagmi';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { runUnifiedDisconnect } from '@/lib/auth/unifiedDisconnect';
 
 export function useUnifiedDisconnect() {

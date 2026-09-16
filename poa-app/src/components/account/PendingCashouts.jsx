@@ -1,3 +1,4 @@
+import { useConfig, useSwitchChain, getConnectorClient, clientToSigner } from '@/context/WalletContext';
 /**
  * PendingCashouts
  * Lists the user's recoverable cashouts on Base — two row kinds:
@@ -20,10 +21,7 @@ import {
   Tooltip,
   useToast,
 } from '@chakra-ui/react';
-import { useConfig, useSwitchChain } from 'wagmi';
-import { getConnectorClient } from 'wagmi/actions';
-import { useAuth } from '@/context/AuthContext';
-import { clientToSigner } from '@/components/ProviderConverter';
+import { useAuth } from '@/context/authState';
 import { formatTokenAmount } from '@/util/formatToken';
 import {
   BASE_CHAIN_ID,

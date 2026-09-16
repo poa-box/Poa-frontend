@@ -2,8 +2,8 @@ import { useAuthorityPermission } from '@/hooks/useAuthorityPermission';
 import { PERM_KEYS } from '@/lib/accessV2/permKeys';
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useQuery } from '@apollo/client';
-import { useAuth } from './AuthContext';
-import { FETCH_USER_DATA_NEW } from '../util/queries';
+import { useAuth } from '@/context/authState';
+import { FETCH_USER_DATA_NEW } from '@/util/queries';
 import { useOrgName } from '../hooks/useOrgName';
 import { usePOContext } from './POContext';
 import { formatTokenAmount } from '../util/formatToken';
@@ -23,7 +23,7 @@ const UserContext = createContext();
 export const useUserContext = () => useContext(UserContext);
 
 export const UserProvider = ({ children }) => {
-    const { accountAddress: authAddress } = useAuth();
+    const { accountAddress: authAddress, isAuthHydrated } = useAuth();
     const userDAO = useOrgName();
     const { orgId, participationTokenAddress, subgraphUrl } = usePOContext();
 
@@ -162,6 +162,9 @@ export const UserProvider = ({ children }) => {
             RefreshEvent.TASK_CANCELLED,
             RefreshEvent.TASK_UPDATED,
             RefreshEvent.TASK_APPLICATION_APPROVED,
+            // Deleting a project soft-deletes the parent only; assignedTasks
+            // otherwise stays cached with its now-hidden child tasks.
+            RefreshEvent.PROJECT_DELETED,
             // modulesCompleted + module payout → balance
             RefreshEvent.MODULE_COMPLETED,
             // participationTokenBalance (self-approval; requester side is poll-covered)
@@ -359,9 +362,10 @@ export const UserProvider = ({ children }) => {
     // Stabilize error: only change when the message string changes, not the object reference
     const errorMessage = error?.message || null;
     const userStateIsCurrent = isUserStateCurrent({ account, orgUserID, resolvedUserScope });
-    // A logged-out visitor is never "loading"; an account whose org id has not
-    // resolved yet always is. See lib/user/userScope for the full rule set.
+    // Restoration is unresolved identity, not a logged-out/nonmember answer.
+    // Public readers remain visible; only account-specific gates wait on this.
     const exposedUserDataLoading = deriveUserDataLoading({
+        isAuthHydrated,
         account,
         orgUserID,
         resolvedUserScope,
@@ -374,6 +378,7 @@ export const UserProvider = ({ children }) => {
         // it previously made `account` undefined → the claimer could never submit
         // their own task from the modal (Submit stayed disabled for everyone).
         address: effectiveAddress,
+        isAccountReady: isAuthHydrated !== false,
         userDataLoading: exposedUserDataLoading,
         userProposals: userStateIsCurrent ? userProposals : [],
         userData: userStateIsCurrent ? userData : {},
@@ -388,6 +393,7 @@ export const UserProvider = ({ children }) => {
         optimisticJoin,
     }), [
         effectiveAddress,
+        isAuthHydrated,
         exposedUserDataLoading,
         userStateIsCurrent,
         userProposals,

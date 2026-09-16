@@ -6,7 +6,7 @@ import { useProjectContext } from '@/context/ProjectContext';
 import { useUserContext } from '@/context/UserContext';
 import { useTaskDrafts } from '@/hooks/useTaskDrafts';
 import { projectTaskPermissions, PERMISSION_MESSAGES } from '@/util/permissions';
-import AddTaskModal from '@/components/TaskManager/AddTaskModal';
+import { AddTaskModal } from '@/components/TaskManager/deferredTaskDialogs';
 
 // Owns the "create a task" concern for the List view. Mirrors the create/draft
 // wiring on the Board's Open column (see TaskColumn.js:33-210) so the List has

@@ -14,13 +14,22 @@ const read = (...parts) => readFileSync(join(SRC, ...parts), 'utf8');
 const gallery = read('components', 'voting', 'create', 'IntentGallery.js');
 const modal = read('components', 'voting', 'CreateVoteModal.js');
 const form = read('hooks', 'useProposalForm.js');
+const runtime = read('hooks', 'runtime', 'proposalSubmitRuntime.js');
 const page = read('components', 'voting', 'VotingPage.js');
 const detail = read('components', 'voting', 'PollDetail.jsx');
 const actions = read('hooks', 'useVoteActions.js');
-const services = read('hooks', 'useWeb3Services.js');
+const services = read('hooks', 'useWeb3ServicesRuntime.js');
 const configurator = read('components', 'voting', 'RoleRemovalConfigurator.jsx');
 const membershipsHook = read('hooks', 'accessV2', 'useAuthorityMemberships.js');
 const checks = read('lib', 'voting', 'proposalChecks.js');
+
+describe('lazy proposal submission wiring', () => {
+  it('loads and invokes the encoder runtime from the mounted form submit handler', () => {
+    expect(form).toMatch(/const handleSubmit = useCallback\(async[\s\S]*?const \{ submitProposalRuntime \} = await import\('@\/hooks\/runtime\/proposalSubmitRuntime'\);[\s\S]*?return await submitProposalRuntime\(\{ proposal,/);
+    expect(runtime).toContain('export async function submitProposalRuntime(context, ...args)');
+    expect(runtime).toContain('return handleSubmit(...args)');
+  });
+});
 
 describe('role-removal vote production wiring', () => {
   it('exposes the intent only with the access-v2 gate and mounts its configurator', () => {
@@ -33,10 +42,10 @@ describe('role-removal vote production wiring', () => {
   });
 
   it('builds one Yes batch, pins the live authority, and routes it through Hybrid', () => {
-    expect(form).toContain('const built = buildRoleRemovalBatch({');
-    expect(form).toContain('authority,\n        subjectId: rc.subjectId');
-    expect(form).toContain('batches = [built.batch, []]');
-    expect(form).toContain('gasLimit = built.gasLimit');
+    expect(runtime).toContain('const built = buildRoleRemovalBatch({');
+    expect(runtime).toContain('authority,\n        subjectId: rc.subjectId');
+    expect(runtime).toContain('batches = [built.batch, []]');
+    expect(runtime).toContain('gasLimit = built.gasLimit');
     expect(page).toContain("proposalData.type === 'removeRoleMembers'");
     expect(page).toContain("membershipAuthorityAddress: authority.enabled ? (authority.address || '') : ''");
   });

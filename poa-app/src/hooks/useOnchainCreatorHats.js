@@ -29,7 +29,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { decodeAbiParameters } from 'viem';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
-import { createChainClients } from '@/services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 import HybridVotingABI from '../../abi/HybridVotingNew.json';
 import DirectDemocracyVotingABI from '../../abi/DirectDemocracyVotingNew.json';
 import TaskManagerABI from '../../abi/TaskManagerNew.json';
@@ -97,8 +97,7 @@ export function useOnchainCreatorHats({
     const seq = ++seqRef.current;
     const { hybridVoting, directDemocracyVoting, taskManager, educationHub, chainId } = inputsRef.current;
     if (!chainId) return;
-    const clients = createChainClients(chainId);
-    const pc = clients?.publicClient;
+    const pc = createPublicClientForChain(chainId);
     if (!pc) return;
 
     setLoading(true);

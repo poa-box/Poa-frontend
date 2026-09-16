@@ -1,16 +1,11 @@
-import SEOHead from "@/components/common/SEOHead";
-import TreasuryPage from '@/components/treasury/TreasuryPage';
+import Page from '@/features/application/pages/TreasuryPage';
 
-const Treasury = () => (
-  <>
-    <SEOHead
-      title="Treasury"
-      description="Organization treasury and finances."
-      path="/treasury"
-      noIndex
-    />
-    <TreasuryPage />
-  </>
-);
+// Keep metadata available above the application providers during initial load.
+Page.seo = {
+    "title": "Treasury",
+    "description": "Organization treasury and finances.",
+    "path": "/treasury",
+    "noIndex": true
+  };
 
-export default Treasury;
+export default Page;

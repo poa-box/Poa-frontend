@@ -1,18 +1,19 @@
+import AccountLoadingState from '@/components/common/AccountLoadingState';
 import React, { useState, useMemo } from 'react';
 import { Box, VStack, Grid, Text, HStack, Center, Icon, Button } from '@chakra-ui/react';
 import { FiLock } from 'react-icons/fi';
 import { useRouter } from 'next/router';
-import SEOHead from '@/components/common/SEOHead';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
 import AccountSettingsModal from '@/components/userPage/AccountSettingsModal';
 import ExecutiveMenuModal from '@/components/profileHub/ExecutiveMenuModal';
-import PulseLoader from '@/components/shared/PulseLoader';
+import CommunityLoadingState from '@/components/shared/CommunityLoadingState';
 import { useUserContext } from '@/context/UserContext';
 import { usePOContext } from '@/context/POContext';
 import { useProjectContext } from '@/context/ProjectContext';
-import { useOrgStructure, useOrgTheme } from '@/hooks';
+import { useOrgStructure } from '@/hooks/useOrgStructure';
+import { useOrgTheme } from '@/hooks/useOrgTheme';
 import { useOrgName } from '@/hooks/useOrgName';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useAuthoritySubjects, useMyMemberships } from '@/hooks/accessV2';
 import { buildV2ProfileView } from '@/lib/accessV2/profileBridge';
 import { profileMemberSince } from '@/lib/profile/hub';
@@ -102,14 +103,6 @@ export default function ProfileHub() {
   const isFullyLoaded = v2.enabled && !orgLoading && !userDataLoading && !v2.authority.loading &&
     orgName && !v2.loading && !v2Memberships.loading;
 
-  const seoHead = (
-    <SEOHead
-      title="Profile"
-      description="Your community profile and activity."
-      path="/profile"
-      noIndex
-    />
-  );
 
   // No org to render: a dead end, not a pending state. After every hook.
   if (orgGate) return orgGate;
@@ -119,7 +112,6 @@ export default function ProfileHub() {
   if (isAuthHydrated && !isAuthenticated) {
     return (
       <>
-        {seoHead}
         <Navbar />
         <Center height="100vh" background={pageBackground()} px={4}>
           <Box
@@ -165,7 +157,6 @@ export default function ProfileHub() {
   if (v2Error || orgError) {
     return (
       <>
-        {seoHead}
         <Navbar />
         <Center height="100vh" background={pageBackground()}>
           <Text color={onBackground}>We couldn’t load your roles. Please refresh to try again.</Text>
@@ -173,13 +164,12 @@ export default function ProfileHub() {
       </>
     );
   }
-  if (!isFullyLoaded) {
+  if (!isAuthHydrated || !isFullyLoaded) {
     return (
       <>
-        {seoHead}
         <Navbar />
-        <Center height="100vh" background={pageBackground()}>
-          <PulseLoader size="xl" />
+        <Center minH="100vh" background={pageBackground()}>
+          {!isAuthHydrated ? <AccountLoadingState /> : <CommunityLoadingState label="Loading your place in the community…" />}
         </Center>
       </>
     );
@@ -188,7 +178,6 @@ export default function ProfileHub() {
   if (error) {
     return (
       <>
-        {seoHead}
         <Navbar />
         <Center height="100vh" background={pageBackground()}>
           <Text color={onBackground}>We couldn’t load your profile. Please refresh to try again.</Text>
@@ -199,7 +188,6 @@ export default function ProfileHub() {
 
   return (
     <>
-      {seoHead}
       <Navbar />
       <Box as="main" minH="100vh" background={pageBackground()} px={{ base: 4, md: 6, lg: 10 }} py={{ base: 5, md: 8 }}>
         <VStack maxW="1200px" mx="auto" spacing={{ base: 5, md: 6 }} align="stretch">

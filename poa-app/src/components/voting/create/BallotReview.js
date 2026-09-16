@@ -8,7 +8,7 @@ import {
   Badge,
 } from '@chakra-ui/react';
 import { utils } from 'ethers';
-import { POLL_BADGE, BINDING_BADGE, displayName, TYPE_EXPLAINER } from '@/config/votingVocabulary';
+import { POLL_BADGE, BINDING_BADGE, displayName, TYPE_EXPLAINER } from '@/config/votingVocabularyCore';
 import { VOTE_PALETTE } from '@/components/voting/votingDisplay';
 import {
   TRANSFER_DESTINATION,

@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import {
   Box,
   Flex,
@@ -10,8 +11,7 @@ import {
 import { FaProjectDiagram } from 'react-icons/fa';
 import { useProjectContext } from '@/context/ProjectContext';
 import ViewSwitcher from '../ViewSwitcher';
-import ListView from './list/ListView';
-import GanttView from './gantt/GanttView';
+import { ListView, GanttView, TaskViewLoading } from '@/components/TaskManager/views/lazyTaskViews';
 import { useViewMode } from './useViewMode';
 import { useAllProjectsFlatTasks } from './useFlatTasks';
 import { TaskFilterProvider } from './useTaskFilters';
@@ -37,12 +37,12 @@ const AllTasksView = ({ isDesktop = true, sidebarVisible, toggleSidebar }) => {
     if (viewMode === 'gantt' && !isMobile) {
       return <GanttView projectName="All Tasks" tasks={tasks} />;
     }
-    return <ListView projectName="All Tasks" tasks={tasks} showProject />;
+    return <ListView projectName="All Tasks" tasks={tasks} />;
   };
 
   return (
     <TaskFilterProvider>
-      <VStack w="100%" align="stretch" h="100%" spacing={0}>
+      <VStack w="100%" align="stretch" h="100%" minH={0} spacing={0}>
         {/* Desktop header — mirrors ProjectHeader's purple bar so it slots
             into the same visual rhythm, but with the all-tasks framing. */}
         {isDesktop && (
@@ -92,7 +92,9 @@ const AllTasksView = ({ isDesktop = true, sidebarVisible, toggleSidebar }) => {
           overflow="hidden"
           mb={0}
         >
-          {renderView()}
+          <Suspense fallback={<TaskViewLoading />}>
+            {renderView()}
+          </Suspense>
         </Box>
       </VStack>
     </TaskFilterProvider>

@@ -7,7 +7,7 @@
 
 import { Button, Icon, useDisclosure, useToast } from '@chakra-ui/react';
 import { FaFingerprint } from 'react-icons/fa';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '@/context/authState';
 import PasskeyOnboardingModal from './PasskeyOnboardingModal';
 
 /**

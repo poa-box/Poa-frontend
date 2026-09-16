@@ -21,7 +21,7 @@ import {
   Textarea,
   VStack,
 } from '@chakra-ui/react';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useWeb3 } from '@/hooks/useWeb3Services';
 import { usePOContext } from '@/context/POContext';
 import { useIPFScontext } from '@/context/ipfsContext';

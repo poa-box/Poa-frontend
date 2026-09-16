@@ -9,9 +9,10 @@ export { usePermissionToast } from './usePermissionToast';
 // Web3 Services
 export {
   useWeb3Services,
-  useTransactionWithNotification,
   useWeb3,
 } from './useWeb3Services';
+
+export { useTransactionWithNotification } from '@/hooks/useTransactionWithNotification';
 
 // Swipe Navigation (mobile)
 export { useSwipeNavigation } from './useSwipeNavigation';

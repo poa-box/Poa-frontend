@@ -1,5 +1,5 @@
 # Allow search crawlers full access. App pages that should not appear in search
-# carry a per-page <meta name="robots" content="noindex, nofollow"> via the
+# carry a per-page <meta name="robots" content="noindex, follow"> via the
 # SEOHead component — Google must be allowed to crawl the page in order to
 # read that directive and properly de-index it. Listing those same paths under
 # Disallow here would block crawling, which causes the "Indexed, though blocked
@@ -8,9 +8,34 @@
 User-agent: *
 Allow: /
 
-# Block proprietary / closed-source AI training crawlers. Common Crawl
-# (CCBot) is intentionally allowed via the default User-agent: * rule
-# because it feeds the open-source LLM ecosystem — see note at end of file.
+# Search indexing and user-requested retrieval are independent of model
+# training. These explicit groups preserve access for AI discovery.
+# Official bot definitions:
+# https://developers.openai.com/api/docs/bots
+# https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler
+# https://docs.perplexity.ai/docs/resources/perplexity-crawlers
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# Preserve the existing restrictions on these other crawlers/product uses.
+# These are not all training-only: Google-Extended also controls grounding
+# in Gemini Apps and Vertex AI, but does not control Google Search.
+# Common Crawl (CCBot) remains allowed by the default rule.
 User-agent: GPTBot
 Disallow: /
 
@@ -30,9 +55,6 @@ User-agent: Bytespider
 Disallow: /
 
 User-agent: meta-externalagent
-Disallow: /
-
-User-agent: PerplexityBot
 Disallow: /
 
 User-agent: cohere-ai

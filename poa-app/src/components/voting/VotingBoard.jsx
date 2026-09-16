@@ -1,3 +1,4 @@
+import { useUserContext } from '@/context/UserContext';
 /**
  * VotingBoard — the lifecycle-lane presentation for /voting.
  *
@@ -30,7 +31,7 @@ import {
 import { WarningTwoIcon, ArrowForwardIcon } from '@chakra-ui/icons';
 import { PiPlusCircle } from 'react-icons/pi';
 import GlassBack from './GlassBack';
-import { BINDING_BADGE, POLL_BADGE } from '@/config/votingVocabulary';
+import { BINDING_BADGE, POLL_BADGE } from '@/config/votingVocabularyCore';
 import { ProposalCard } from './ProposalCard';
 import { VoteCardSkeleton } from './VoteCardSkeleton';
 import { VOTE_PALETTE } from './votingDisplay';
@@ -243,6 +244,8 @@ export function VotingBoard({
   orgName,
 }) {
   const [filter, setFilter] = useState('all');
+  const { isAccountReady, userDataLoading } = useUserContext();
+  const accountPending = isAccountReady === false || userDataLoading;
 
   const matchesFilter = useMemo(() => {
     return (p) => {
@@ -266,9 +269,14 @@ export function VotingBoard({
 
   return (
     <VStack align="stretch" spacing={8} data-tour="voting-panel">
-      <Flex justify="flex-start">
-        <FilterChips value={filter} onChange={setFilter} />
-      </Flex>
+      <VStack align="stretch" spacing={3}>
+        <Flex justify="flex-start">
+          <FilterChips value={filter} onChange={setFilter} />
+        </Flex>
+        <Text fontSize="sm" color="gray.200">
+          Follow the decisions shaping this organization.
+        </Text>
+      </VStack>
 
       {error ? (
         <ErrorBanner onRetry={onRetry} />
@@ -279,27 +287,13 @@ export function VotingBoard({
         </VStack>
       ) : totalAny === 0 ? (
         <EmptyBoard
-          kind={!isConnected ? 'not-connected' : !isMember ? 'not-member' : 'quiet'}
+          kind={accountPending ? 'quiet' : !isConnected ? 'not-connected' : !isMember ? 'not-member' : 'quiet'}
           orgName={orgName}
           onCreate={onCreate}
           canCreate={canCreate}
         />
       ) : (
         <VStack align="stretch" spacing={8}>
-          {/* Governance is PUBLIC — visitors see everything, members act.
-              Gating the read view behind login contradicted the mission
-              (votes are on-chain public; transparency is the product). */}
-          {(!isConnected || !isMember) && (
-            <Box position="relative" zIndex={1} borderRadius="xl" p={3} overflow="hidden">
-              <GlassBack light />
-              <Text fontSize="sm" color="gray.200" textAlign="center">
-                You&apos;re viewing as a visitor — votes here are public.{' '}
-                <Text as="span" color="#C6B4F5" fontWeight="600">
-                  {isConnected ? `Join ${orgName || 'this org'} to take part.` : `Connect and join ${orgName || 'this org'} to take part.`}
-                </Text>
-              </Text>
-            </Box>
-          )}
           <Lane title="Needs your vote" count={needsVote.length} accent>
             <LaneGrid items={needsVote} cardProps={cardProps} accent />
           </Lane>

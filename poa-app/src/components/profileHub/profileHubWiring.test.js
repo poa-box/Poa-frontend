@@ -31,7 +31,7 @@ const accountControl = read('components', 'common', 'AccountControl.jsx');
 const passkeyAccountInfo = read('components', 'passkey', 'PasskeyAccountInfo.jsx');
 const accountBadge = read('components', 'common', 'ConnectedAccountBadge.jsx');
 const disconnectHook = read('hooks', 'useUnifiedDisconnect.js');
-const accountPage = read('pages', 'account', 'index.js');
+const accountPage = read('features', 'application', 'pages', 'AccountPage.jsx');
 const profilePage = read('components', 'profileHub', 'ProfileHub.jsx');
 const authContext = read('context', 'AuthContext.js');
 const userContext = read('context', 'UserContext.js');
@@ -139,7 +139,9 @@ describe('Profile Hub uses one authenticated account control', () => {
         .not.toMatch(/\buseDisconnect\b/);
       expect(source, `${label} has no Disconnect affordance`).toMatch(/Disconnect/);
     }
-    expect(accountControl).toContain('ConnectButton.Custom');
+    expect(accountControl).toContain("import { useWalletUI } from '@/context/WalletContext'");
+    expect(accountControl).toMatch(/useWalletUI\(\)/);
+    expect(accountControl).not.toContain('@rainbow-me/rainbowkit');
   });
 
   it('keeps Disconnect reachable while the wallet is on an unsupported chain', () => {
@@ -165,7 +167,15 @@ describe('Profile Hub uses one authenticated account control', () => {
 
   it('waits for auth restoration before choosing the wallet or passkey control', () => {
     expect(accountControl).toContain('isAuthHydrated');
-    expect(accountControl).toMatch(/if \(!isAuthHydrated\) return null/);
+    const pending = accountControl.slice(
+      accountControl.indexOf('if (!isAuthHydrated)'),
+      accountControl.indexOf('if (isPasskeyUser)')
+    );
+    expect(pending).toContain('<WalletActionButton');
+    expect(pending).toContain('action={ensureRuntime}');
+    expect(pending).toContain('aria-label="Prepare account"');
+    expect(pending).not.toContain('openConnectModal');
+    expect(pending).not.toContain('PasskeyAccountInfo');
   });
 
   it('keeps account menus legible on the dark Profile Hub surface', () => {

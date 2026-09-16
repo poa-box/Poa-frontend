@@ -8,11 +8,12 @@ const state = vi.hoisted(() => ({ grants: [], legacyGrant: true, enabled: true, 
 vi.mock('@chakra-ui/react', async () => (await import('@/test/mockChakra')).mockChakra());
 vi.mock('next/router', () => ({ useRouter: () => ({ query: {}, push: vi.fn() }) }));
 vi.mock('next/link', () => ({ default: ({ children }) => children }));
-vi.mock('@/context/AuthContext', () => ({ useAuth: () => ({ accountAddress: '0x' + 'a'.repeat(40), isAuthenticated: true, isAuthHydrated: true }) }));
+vi.mock('@/context/authState', () => ({ useAuth: () => ({ accountAddress: '0x' + 'a'.repeat(40), isAuthenticated: true, isAuthHydrated: true }) }));
 vi.mock('@/context/UserContext', () => ({ useUserContext: () => ({ claimedTasks: [{ id: 'old-task' }], graphUsername: 'alice', userDataLoading: false, hasMemberRole: state.legacyGrant, hasApproverRole: state.legacyGrant, userData: { hatIds: ['999'], participationTokenBalance: '42', tasksCompleted: 7, totalVotes: 8, firstSeenAt: '1700000000' } }) }));
 vi.mock('@/context/POContext', () => ({ usePOContext: () => ({ tokenLabel: 'TEST' }) }));
 vi.mock('@/context/ProjectContext', () => ({ useProjectContext: () => ({ recommendedTasks: [{ id: 'recommended' }], projectsLoading: false }) }));
-vi.mock('@/hooks', () => ({ useOrgTheme: () => ({ pageBackground: () => 'black', onBackground: 'white' }), useOrgStructure: () => ({ orgName: 'Test6', roles: [{ hatId: '999', name: 'Retired role', defaultEligible: true }], eligibilityModuleAddress: '0x' + '9'.repeat(40), permissionsMatrix: [], loading: false }) }));
+vi.mock('@/hooks/useOrgTheme', () => ({ useOrgTheme: () => ({ pageBackground: () => 'black', onBackground: 'white' }) }));
+vi.mock('@/hooks/useOrgStructure', () => ({ useOrgStructure: () => ({ orgName: 'Test6', roles: [{ hatId: '999', name: 'Retired role', defaultEligible: true }], eligibilityModuleAddress: '0x' + '9'.repeat(40), permissionsMatrix: [], loading: false }) }));
 vi.mock('@/hooks/useOrgName', () => ({ useOrgName: () => 'Test6' }));
 vi.mock('@/hooks/useGlobalAccount', () => ({ useGlobalAccount: () => ({ profileMetadata: {} }) }));
 vi.mock('@/hooks/accessV2', () => ({

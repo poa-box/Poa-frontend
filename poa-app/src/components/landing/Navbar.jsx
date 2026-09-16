@@ -26,6 +26,7 @@ const SCROLL_THRESHOLD = 48;
 
 const Navbar = ({
   mounted,
+  isAuthHydrated = true,
   isPasskeyUser,
   isConnected,
   isAuthenticated,
@@ -69,7 +70,7 @@ const Navbar = ({
     return () => window.removeEventListener("scroll", handleScroll);
   }, [handleScroll]);
 
-  const showSignIn = mounted && !isPasskeyUser && !isConnected && !isAuthenticated;
+  const showSignIn = mounted && isAuthHydrated && !isPasskeyUser && !isConnected && !isAuthenticated;
 
   return (
     <Box
@@ -170,7 +171,7 @@ const Navbar = ({
             >
               {accountMenuItem.text}
             </Button>
-          ) : null}
+          ) : !isAuthHydrated ? <Button size="sm" minW="88px" borderRadius="full" onClick={handleSignInOpen}>Account</Button> : null}
         </Box>
 
         {/* Mobile Hamburger */}
@@ -246,7 +247,7 @@ const Navbar = ({
               >
                 {accountMenuItem.text}
               </Button>
-            ) : null}
+            ) : !isAuthHydrated ? <Button size="sm" minW="88px" borderRadius="full" onClick={handleMobileSignInOpen}>Account</Button> : null}
           </VStack>
         </Box>
       </Collapse>

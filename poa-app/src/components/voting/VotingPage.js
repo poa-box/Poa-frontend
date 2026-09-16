@@ -14,21 +14,24 @@
  *   - tour auto-open of CreateVoteModal at the create-vote-preview step
  */
 
-import React, { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import dynamic from 'next/dynamic';
+import { shouldWaitForAccount } from '@/lib/services/accountReadiness';
+import React, { useState, useCallback, useEffect, useRef, useMemo, createContext, useContext } from "react";
 import { useRouter } from "next/router";
-import { Box, Container, Center, Flex, Heading, Button, Icon, Link, Tooltip, useToast } from "@chakra-ui/react";
+import { Box, Container, Center, Flex, Heading, Button, Icon, Link, Tooltip, useToast, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton } from "@chakra-ui/react";
 import { PiPlusCircle, PiScales } from "react-icons/pi";
 import {
   isContractAvailable, CONTRACT_MAP, buildSetterCopy,
 } from "@/config/setterDefinitions";
-import PulseLoader from "@/components/shared/PulseLoader";
+import CommunityLoadingState from "@/components/shared/CommunityLoadingState";
 import GlassBack from "./GlassBack";
 import { useOrgGate } from "@/components/shared/OrgDeadEnd";
 import { usePOContext } from "@/context/POContext";
 import { useVotingContext } from "@/context/VotingContext";
 import { useUserContext } from "@/context/UserContext";
-import { useAuth } from "@/context/AuthContext";
-import { useOrgTheme, useVoteLanes } from "@/hooks";
+import { useAuth } from '@/context/authState';
+import { useOrgTheme } from "@/hooks/useOrgTheme";
+import { useVoteLanes } from "@/hooks/useVoteLanes";
 import { useVoteCreateGate } from "@/hooks/useVoteCreateGate";
 import { useVoteActions } from "@/hooks/useVoteActions";
 import { useOrgName } from "@/hooks/useOrgName";
@@ -49,8 +52,31 @@ import { getBountyTokenOptions } from "@/util/tokens";
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
 import VotingEducationHeader from "./VotingEducationHeader";
 import { VotingBoard } from "./VotingBoard";
-import { PollDetail } from "./PollDetail";
-import CreateVoteModal from "./CreateVoteModal";
+const DialogLoadingContext = createContext(null);
+
+function DialogLoading({ error, retry }) {
+  const dialog = useContext(DialogLoadingContext);
+  if (!dialog?.isOpen) return null;
+  return (
+    <Modal isOpen onClose={dialog.onClose} isCentered>
+      <ModalOverlay />
+      <ModalContent bg="gray.800" color="white">
+        <ModalHeader>{dialog.title}</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody role={error ? 'alert' : 'status'} aria-live="polite">
+          {error ? 'This form could not finish loading.' : 'Getting this form ready…'}
+        </ModalBody>
+        <ModalFooter gap={3}>
+          <Button variant="ghost" onClick={dialog.onClose}>Close</Button>
+          {error && <Button onClick={retry}>Try again</Button>}
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  );
+}
+
+const PollDetail = dynamic(() => import("@/components/voting/PollDetail").then((module) => module.PollDetail), { loading: DialogLoading });
+const CreateVoteModal = dynamic(() => import("@/components/voting/CreateVoteModal"), { loading: DialogLoading });
 import OrgConstitution from "./OrgConstitution";
 
 // Custom hooks for logic extraction
@@ -122,7 +148,7 @@ const VotingPage = () => {
   } = useVotingContext();
 
   const { hasMemberRole, userDataLoading } = useUserContext();
-  const { accountAddress } = useAuth();
+  const { accountAddress, isAuthHydrated } = useAuth();
   const isConnected = !!accountAddress;
 
   // On-chain creator-hat gate: membership alone is NOT enough to create votes —
@@ -152,6 +178,13 @@ const VotingPage = () => {
     PTVoteType,
     resolveMissingPoll,
   });
+
+  // Keep dialog state after its first opening, without mounting closed forms
+  // during board startup. The open flag also covers first-render deep links.
+  const [createMounted, setCreateMounted] = useState(false);
+  const [detailMounted, setDetailMounted] = useState(false);
+  useEffect(() => { if (showCreatePoll) setCreateMounted(true); }, [showCreatePoll]);
+  useEffect(() => { if (isDetailOpen) setDetailMounted(true); }, [isDetailOpen]);
 
   // Cast + finalize handlers, shared with the /votes archive so the two
   // PollDetail surfaces can't drift (they did: the archive shipped without a
@@ -551,9 +584,9 @@ const VotingPage = () => {
     // Also wait for the creator gate's inputs: on a cold load the user query
     // can only START after orgId resolves, so at this instant hasMemberRole is
     // still false and consuming the param would bounce an authorized creator
-    // with a false denial (and strip the link). isConnected scopes the wait —
-    // visitors' userDataLoading never settles and they should get the toast.
-    if (creatorGateLoading || (isConnected && userDataLoading)) return;
+    // with a false denial (and strip the link). Confirmed visitors can receive
+    // the denial, but unresolved identity must retain the intent.
+    if (creatorGateLoading || shouldWaitForAccount({ isAuthHydrated, isAuthenticated: isConnected, userDataLoading })) return;
     const templateId = router.query.propose;
     if (!templateId || typeof templateId !== 'string') return;
     if (templateId === 'create-role' && authority.loading) return;
@@ -575,7 +608,7 @@ const VotingPage = () => {
       Object.entries(router.query).filter(([key]) => key !== 'propose' && !key.startsWith('prefill_')),
     );
     router.replace({ pathname: router.pathname, query: rest }, undefined, { shallow: true });
-  }, [router.isReady, router.query, handleProposeRuleChange, handleProposeFundBounties, handleProposeCreateRole, router, poContextLoading, creatorGateLoading, isConnected, userDataLoading, authority.loading]);
+  }, [router.isReady, router.query, handleProposeRuleChange, handleProposeFundBounties, handleProposeCreateRole, router, poContextLoading, creatorGateLoading, isConnected, userDataLoading, isAuthHydrated, authority.loading]);
 
   const canCreate = canCreateAny;
 
@@ -586,8 +619,8 @@ const VotingPage = () => {
     <>
       <Navbar />
       {poContextLoading ? (
-        <Center height="90vh" background={pageBackground()}>
-          <PulseLoader size="xl" />
+        <Center minH="90vh" background={pageBackground()}>
+          <CommunityLoadingState label="Loading community decisions…" />
         </Center>
       ) : (
         <Container maxW="container.2xl" py={4} px={{ base: "1%", md: "3%" }} minH="100vh" background={pageBackground()}>
@@ -690,7 +723,8 @@ const VotingPage = () => {
             onProposeRuleChange={handleProposeRuleChange}
           />
 
-          <CreateVoteModal
+          <DialogLoadingContext.Provider value={{ isOpen: showCreatePoll, onClose: handleCreatePollClick, title: "Create vote" }}>
+          {(showCreatePoll || createMounted) && <CreateVoteModal
             isOpen={showCreatePoll}
             deepLinkedOpen={deepLinkedOpen}
             onClose={handleCreatePollClick}
@@ -718,10 +752,12 @@ const VotingPage = () => {
             // The same object the builders get, so the configurators and the batch can never
             // disagree about what this org's roles actually are.
             accessV2={accessV2}
-          />
+          />}
+          </DialogLoadingContext.Provider>
 
           {/* ONE detail surface for ongoing AND completed polls. */}
-          <PollDetail
+          <DialogLoadingContext.Provider value={{ isOpen: isDetailOpen, onClose: onDetailClose, title: "Vote details" }}>
+          {(isDetailOpen || detailMounted) && <PollDetail
             poll={livePoll}
             isOpen={isDetailOpen}
             onClose={onDetailClose}
@@ -731,7 +767,8 @@ const VotingPage = () => {
               directDemocracyVotingContractAddress,
               votingContractAddress
             )}
-          />
+          />}
+          </DialogLoadingContext.Provider>
         </Container>
       )}
     </>

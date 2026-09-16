@@ -37,7 +37,7 @@ import {
 } from "@chakra-ui/react";
 import { InfoOutlineIcon, AddIcon, CloseIcon } from "@chakra-ui/icons";
 import SubjectRestrictionPicker from '@/components/accessV2/SubjectRestrictionPicker';
-import { useRoleNames } from "@/hooks";
+import { useRoleNames } from '@/hooks/useRoleNames';
 import { subjectNamesLabel } from "@/lib/accessV2/subjectNames";
 import { hasCompetingSubjectCreation } from "@/lib/accessV2/ids";
 import { usePOContext } from "@/context/POContext";

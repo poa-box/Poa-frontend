@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useMemo, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { usePOContext } from '@/context/POContext';
 import { useUserContext } from '@/context/UserContext';
 import { useDataBaseContext } from '@/context/dataBaseContext';

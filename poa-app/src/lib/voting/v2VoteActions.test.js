@@ -222,15 +222,17 @@ describe('buildV2ElectionBatches', () => {
   });
 });
 
-/**
- * THE LEGACY ORG MUST BE UNTOUCHED. There is no React harness in this repo, so the guard is over
- * the source of the one file that chooses between the two encoders — the same technique
- * `hooks/accessV2/gating.test.js` uses, and for the same reason: a legacy org silently losing its
- * election encoder is invisible in every other test.
- */
+/** Keep the deferred encoder connected to the hook without restoring retired mutations. */
 describe('retired encoders are removed and authority encoders require readiness', () => {
   const HERE = dirname(fileURLToPath(import.meta.url));
-  const src = readFileSync(join(HERE, '..', '..', 'hooks', 'useProposalForm.js'), 'utf8');
+  const hook = readFileSync(join(HERE, '..', '..', 'hooks', 'useProposalForm.js'), 'utf8');
+  const src = readFileSync(join(HERE, '..', '..', 'hooks', 'runtime', 'proposalSubmitRuntime.js'), 'utf8');
+
+  it('reaches the runtime encoders from the real form submit handler', () => {
+    expect(hook).toMatch(/const handleSubmit = useCallback\(async[\s\S]*?const \{ submitProposalRuntime \} = await import\('@\/hooks\/runtime\/proposalSubmitRuntime'\);[\s\S]*?return await submitProposalRuntime\(\{ proposal,/);
+    expect(src).toContain('export async function submitProposalRuntime(context, ...args)');
+    expect(src).toContain('return handleSubmit(...args)');
+  });
 
   it('never encodes legacy Hats mutation calls', () => {
     for (const fn of ['setWearerEligibility', 'mintHatToAddress', 'transferHat', 'createHatWithEligibility', 'configureVouching', 'setCreatorHatAllowed', 'setProjectRolePerm']) {

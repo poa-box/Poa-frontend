@@ -6,13 +6,13 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ethers } from 'ethers';
+import { ZERO_FOLDER_ROOT } from '@/lib/folders/constants';
 import { useIPFScontext } from '@/context/ipfsContext';
 import { makeEmptyFolderDoc, validateFolderDoc } from '@/lib/folders/schema';
 
 function isZeroRoot(root) {
   if (!root) return true;
-  if (root === ethers.constants.HashZero) return true;
+  if (root === ZERO_FOLDER_ROOT) return true;
   if (typeof root === 'string' && /^0x0+$/.test(root)) return true;
   return false;
 }
@@ -30,7 +30,7 @@ export function useFolderDoc(foldersRoot) {
       setError(null);
       if (isZeroRoot(foldersRoot)) {
         setDoc(makeEmptyFolderDoc());
-        setLoadedRoot(ethers.constants.HashZero);
+        setLoadedRoot(ZERO_FOLDER_ROOT);
         return;
       }
       setLoading(true);

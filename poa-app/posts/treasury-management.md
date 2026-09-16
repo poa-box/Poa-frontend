@@ -1,54 +1,62 @@
-# Treasury management
+---
+title: "Shared treasury: member voting and revenue sharing"
+description: "Manage a shared organizational treasury with Poa: approve spending through member voting, fund task payments, and distribute revenue by recorded contribution."
+date: '2026-09-06'
+updated: '2026-09-11'
+category: "Work together"
+order: 60
+---
 
-Every Poa organization has a shared treasury. Think of it as a checking account that the members own together. Anyone can deposit. Nothing leaves without a community vote. Every transaction is visible to every member. And no outside party can freeze the funds or override a community decision. Not a bank. Not a payment processor. Not a platform admin.
+# Shared treasury: member voting and revenue sharing
 
-This is the same idea covered in the FAQ. This doc is the reference for the treasurers and officers who actually have to set it up, fund it, spend from it, and verify what it is doing.
+Poa helps organizations manage shared funds under agreed rules. Members can approve treasury spending through binding votes, fund work, and share available revenue through distributions. A [worker cooperative](/docs/worker-cooperatives), community group, or [agent collective](/docs/ai-agent-coordination) can use the same foundations.
 
-## The basics
+Before proposing a payment, identify its source: treasury deposits, the governance spending balance, or task funding. Poa keeps these balances separate, and the next step depends on which one holds the funds.
 
-The treasury holds one or more tokens. For most organizations that means a stable-coin, usually USDC. The treasury can also hold multiple tokens at once. USDC for member payouts. The organization's own participation token for governance accounting. Anything else the community has voted to accept.
+## Find the funds for your plan
 
-Three things happen against a treasury:
+| Balance | What it is for |
+|---|---|
+| Treasury deposits | Funds held by the payment system for governed withdrawals and distributions |
+| Governance spending balance | Funds the organization can spend directly through an approved action |
+| Task funding | The separate balance used to pay configured task bounties |
 
-1. **Deposits.** Anyone can send the treasury tokens. Members fund it. Supporters fund it. Revenue from organizational activities flows in. Deposits do not require a vote.
-2. **Outflows.** Moving tokens out (to a member, to another address, to a paymaster, anywhere) always requires a community vote. The exact governance model is whichever one your org chose at creation.
-3. **Allowances.** For one-time approved actions like a member cashing out their earned share, the treasury can grant short-lived signing approvals via Permit2 without needing a separate vote each time.
+A deposit into the treasury does not automatically fund a task bounty. Review the source and available amount for the action you are preparing. Funds already committed to open distributions may not be available to spend again.
 
-## A worked example
+The organization may hold different assets. Read the asset name and amount rather than assuming every balance is denominated in dollars. Participation units record contribution; they are different from the assets used to pay people.
 
-Bread & Roses Co-op generates revenue from delivery work. Revenue flows into the treasury as USDC.
+## Deposit and plan
 
-At the end of each month, the co-op holds a community vote: "Distribute $4,800 from the treasury proportional to participation tokens earned this month." The proposal goes up via the standard governance flow ([direct democracy](/docs/directDemocracy), [contribution-based](/docs/contributionVoting), or [hybrid](/docs/hybridVoting), whichever the co-op uses). If it passes quorum and threshold, the treasury contract executes the distribution. Each member gets the share of $4,800 corresponding to their share of that month's participation tokens.
+Use the treasury's deposit flow to choose an asset and amount. Depositing does not itself require a governance vote. Record enough context for members to understand where the funds came from and any agreement about their use.
 
-For a member who wants those USDC payments converted to fiat in their bank account, see [cashout](/docs/cashout).
+To fund bounties, open Treasury and choose **Fund task rewards**. Select the payment asset and amount from your own balance on the organization's network, then confirm the deposit to the task-reward pool. If you can create proposals, the dialog also offers **Propose a move by vote** for using the group's funds. Check the pool against the rewards already promised before offering more work.
 
-## Proposing a treasury transfer
+A received payment's asset and network determine how you can use it. The [cashout guide](/docs/cashout) covers personal USDC on Arbitrum in a connected wallet; a payment on Gnosis does not qualify directly.
 
-To propose moving tokens out:
+Discuss reserves before distributions. A print collective might keep enough for its next edition before proposing a share for contributors.
 
-1. Open a new proposal from `/voting` (or wherever your org puts the proposal flow).
-2. Choose "Treasury transfer" as the action type.
-3. Specify the token, the amount, and the recipient (or recipients, batch transfers are supported).
-4. Add a description for context. This is what other members will read when they vote.
-5. Submit. The proposal is open for voting per your org's governance rules.
+## Propose a transfer
 
-If the proposal passes, the transfer executes automatically. If it fails or expires, no funds move.
+Create a spending proposal with the recipient, asset, amount, and purpose. Explain what it makes possible: “Pay the printer for 200 copies of our first issue” gives members a decision they can assess. Read the action preview and check the available balance before submitting it.
 
-## Verifying treasury history
+Binding spending proposals use the organization's [hybrid voting system](/docs/hybridVoting), whose classes may give equal or contribution-based weight. A direct-democracy poll can inform a spending decision, but cannot execute the transfer.
 
-Every deposit, withdrawal, and approval is recorded on-chain and indexed by the [subgraph](/docs/TheGraph). Inside Poa, the `/treasury` page shows you the full history with USD values. For independent verification, the [protocol dashboard](/docs/protocol) lets anyone (including non-members) see total funds across all Poa organizations. You can also query the subgraph directly to audit individual transactions.
+After voting ends, the result must be finalized through the available action. Check the execution receipt and resulting balances. Winning a vote and successfully completing its payment are separate things to verify.
 
-This is the whole point of the "no third party can stop you" model. Anyone can verify what your community is doing. No one can interfere with it.
+## Share revenue through a distribution
 
-## How it works under the hood
+When the group decides to share funds with contributors, the distribution flow prepares an allocation in proportion to participation balances at the time it is prepared. Members vote on that specific allocation. Once it is approved and created, eligible recipients claim their allocated amount.
 
-- **Nobody outside the community holds the keys.** Not a bank. Not a payment processor. Not us. Spending takes a community vote. Full stop. If we shut down tomorrow, your treasury keeps working exactly the same way.
-- **Big payouts are efficient.** When a vote approves paying many members at once (a monthly worker share, an end-of-period dividend, a grant round), the system records one summary of the whole payout. Each recipient then claims their share. The cost to pay 100 members is about the same as the cost to pay one.
-- **One click per member-facing action.** A member who is owed a payout claims it in a single click. Behind the scenes the platform handles the signing in a way that does not ask them to do the same approval twice.
-- **Open source.** The treasury code is at [poa-box/POP](https://github.com/poa-box/POP) under AGPL-3.0 for anyone who wants to read or audit it.
+For example, a collective proposes distributing 1,000 units of its payment asset. A member with 10% of the participation balance included in that allocation receives a claim for 100 units, subject to rounding.
 
-## Related reading
+The current flow uses balances, rather than automatically calculating work completed during a chosen month. If your agreement concerns a particular period, review the allocation carefully before asking members to approve it.
 
-- [Cashout](/docs/cashout). Converting treasury payouts to fiat
-- [Gas sponsor](/docs/gas-sponsor). How the protocol covers transaction costs
-- [Task manager](/docs/task-manager). The source of participation tokens used for payout proportions
+Revenue sharing is a deliberate organizational decision. Earning participation units does not cause a recurring payment, and a distribution does not require a new vote for each recipient's claim.
+
+![Argus treasury showing three BREAD distributions marked 100 percent claimed](/images/product/treasury.webp "Argus: three BREAD distributions, each shown as fully claimed.")
+
+## Keep the record understandable
+
+Use clear proposal descriptions so members can follow a plan through its transfers, distributions, and claims.
+
+Read [tasks and contribution rewards](/docs/task-manager) for direct task payments and [cash out a payment](/docs/cashout) for the currently supported personal cashout flow.

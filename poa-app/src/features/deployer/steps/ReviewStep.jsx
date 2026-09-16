@@ -71,7 +71,7 @@ import { getAdditionalMembers, countGenesisVoters, memberLabel } from '../utils/
 import { DeployerUsernameSection } from '../components/review/DeployerUsernameSection';
 import { getNetworkByChainId, DEFAULT_DEPLOY_CHAIN_ID } from '../../../config/networks';
 import { TaskPermission, hasPermission } from '@/util/permissions';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 
 // TaskPerm bits surfaced in the review summary. CREATE is omitted — it is granted
 // to every role by default at deploy (see TaskManagerPermsMatrix / buildTaskManagerPerms).

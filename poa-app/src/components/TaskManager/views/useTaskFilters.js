@@ -8,7 +8,7 @@ import {
   useState,
 } from 'react';
 import { useRouter } from 'next/router';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
 import { hasBounty as checkHasBounty } from '@/util/tokens';

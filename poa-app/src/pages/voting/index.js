@@ -1,16 +1,11 @@
-import SEOHead from "@/components/common/SEOHead";
-import VotingPage from "@/components/voting/VotingPage";
+import Page from '@/features/application/pages/VotingPage';
 
-const Voting = () => (
-  <>
-    <SEOHead
-      title="Voting"
-      description="Vote on organization proposals."
-      path="/voting"
-      noIndex
-    />
-    <VotingPage />
-  </>
-);
+// Keep metadata available above the application providers during initial load.
+Page.seo = {
+    "title": "Voting",
+    "description": "Vote on organization proposals.",
+    "path": "/voting",
+    "noIndex": true
+  };
 
-export default Voting;
+export default Page;

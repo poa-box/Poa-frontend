@@ -10,7 +10,7 @@ const MOBILE_QUERY = '(max-width: 47.99em)';
 
 const isValid = (m) => VIEW_MODES.includes(m);
 
-const readStoredMode = () => {
+export const readStoredMode = () => {
   if (typeof window === 'undefined') return DEFAULT_MODE;
   // An explicit, previously-chosen view always wins.
   try {

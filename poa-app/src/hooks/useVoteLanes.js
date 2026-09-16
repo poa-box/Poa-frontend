@@ -22,7 +22,7 @@ import { useVotingContext } from '@/context/VotingContext';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingPower } from '@/hooks/useVotingPower';
 import { useNow } from '@/hooks/useNow';
-import { BINDING_BADGE, POLL_BADGE } from '@/config/votingVocabulary';
+import { BINDING_BADGE, POLL_BADGE } from '@/config/votingVocabularyCore';
 import { lifecycleVariant, voterEligibility } from '@/components/voting/votingDisplay';
 
 const byEndAsc = (a, b) => parseInt(a.endTimestamp || 0, 10) - parseInt(b.endTimestamp || 0, 10);

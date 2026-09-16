@@ -11,21 +11,21 @@ import {
   useDisclosure,
   usePrefersReducedMotion,
 } from '@chakra-ui/react';
-import PulseLoader from "@/components/shared/PulseLoader";
+import CommunityLoadingState from "@/components/shared/CommunityLoadingState";
 import { useRouter } from 'next/router';
 import { useQuery } from '@apollo/client';
-import { getClient, useSubgraphClient } from '@/util/apolloClient';
+import { getClient } from '@/util/apolloClient';
 import { usePOContext } from '@/context/POContext';
 import { useVoteCreateGate } from '@/hooks/useVoteCreateGate';
 import { useOrgName } from '@/hooks/useOrgName';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
 import Navbar from '@/templateComponents/studentOrgDAO/NavBar';
-import { FETCH_TREASURY_DATA, FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
-import { FETCH_GAS_POOL_DATA } from '@/util/passkeyQueries';
+import { FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
+import { useTreasuryReadQueries } from '@/hooks/useTreasuryReadQueries';
 import { getBountyTokenOptions, getTokenByAddress } from '@/util/tokens';
 import { committedBountiesByToken, bountyShortfall } from '@/util/bountyFunding';
 import { formatTokenAmount } from '@/util/formatToken';
-import { createChainClients } from '@/services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 import TreasuryHeader from './TreasuryHeader';
 import TokenBalancesGrid from './TokenBalancesGrid';
 import CurrentDistributions from './CurrentDistributions';
@@ -33,7 +33,7 @@ import HistoricalOverview from './HistoricalOverview';
 import ActivityFeed from './ActivityFeed';
 import GasPoolSection from './GasPoolSection';
 import { SectionHeader, LEDGER_GLASS, Rise, flashRing } from './treasuryStyles';
-import { useOrgTheme } from '@/hooks';
+import { useOrgTheme } from '@/hooks/useOrgTheme';
 import { useOrgGate } from '@/components/shared/OrgDeadEnd';
 
 // Closed transaction forms should not initialize wallet services or authority
@@ -99,23 +99,9 @@ const TreasuryPage = () => {
   const { isOpen: isCreateDistOpen, onOpen: onCreateDistOpen, onClose: onCreateDistClose } = useDisclosure();
   const { isOpen: isGasPoolDepositOpen, onOpen: onGasPoolDepositOpen, onClose: onGasPoolDepositClose } = useDisclosure();
 
-  const client = useSubgraphClient(subgraphUrl);
-
-  // Fetch treasury data from subgraph
-  const { data: treasuryData, loading: treasuryLoading, refetch } = useQuery(FETCH_TREASURY_DATA, {
-    variables: { orgId },
-    skip: !orgId,
-    fetchPolicy: 'cache-first',
-    client,
-  });
-
-  // Fetch gas pool data
-  const { data: gasPoolData, loading: gasPoolLoading, refetch: refetchGasPool } = useQuery(FETCH_GAS_POOL_DATA, {
-    variables: { orgId },
-    skip: !orgId,
-    fetchPolicy: 'cache-first',
-    client,
-  });
+  const { treasury, gasPool } = useTreasuryReadQueries({ orgId, subgraphUrl });
+  const { data: treasuryData, loading: treasuryLoading, refetch } = treasury;
+  const { data: gasPoolData, loading: gasPoolLoading, refetch: refetchGasPool } = gasPool;
 
   // Fetch paymaster hub address from infrastructure.
   // Per-chain client prevents cache poisoning: each endpoint has its own InMemoryCache.
@@ -210,8 +196,7 @@ const TreasuryPage = () => {
     }
     if (tokens.length === 0 && poolTokens.length === 0) return;
 
-    const clients = createChainClients(orgChainId);
-    const client = clients?.publicClient;
+    const client = createPublicClientForChain(orgChainId);
     if (!client) return;
 
     const readAll = (list, holder) => Promise.all(
@@ -290,11 +275,8 @@ const TreasuryPage = () => {
     <>
       <Navbar />
       {isLoading ? (
-        <Center height="100vh" background={pageBackground()}>
-          <VStack spacing={4}>
-            <PulseLoader size="xl" color="purple.400" />
-            <Text color="gray.400">Loading treasury data...</Text>
-          </VStack>
+        <Center minH="100vh" background={pageBackground()}>
+          <CommunityLoadingState label="Loading your shared treasury…" />
         </Center>
       ) : (
         <Box p={{ base: 2, md: 4 }} mt={{ base: 16, md: 0 }} minH="100vh" background={pageBackground()}>
@@ -320,7 +302,7 @@ const TreasuryPage = () => {
           >
             {/* Zone 1 — Hero: what we hold + what's yours (+ the holdings ledger) */}
             <GridItem area="hero">
-              <Rise delay={0} w="100%" {...zoneBox}>
+              <Rise w="100%" {...zoneBox}>
                 <div style={glassLayerStyle} />
                 <TreasuryHeader
                   memberCount={poMembers}
@@ -349,7 +331,7 @@ const TreasuryPage = () => {
             {/* Zone 2 — Payouts you can claim */}
             <GridItem area="payouts" ref={payoutsRef}>
               <Rise
-                delay={0.07}
+
                 h="100%"
                 {...zoneBox}
                 animation={flashRing(payoutsFlash, prefersReducedMotion)}
@@ -376,7 +358,7 @@ const TreasuryPage = () => {
 
             {/* Zone 3a — Money in & out (insight strip + chart) */}
             <GridItem area="insights">
-              <Rise delay={0.14} h="100%" {...zoneBox}>
+              <Rise h="100%" {...zoneBox}>
                 <div style={glassLayerStyle} />
                 <Box px={{ base: 4, md: 8 }} py={{ base: 4, md: 6 }}>
                   <SectionHeader>Money in &amp; out</SectionHeader>
@@ -390,7 +372,7 @@ const TreasuryPage = () => {
 
             {/* Zone 3c — Compact network-fees card (hugs its content) */}
             <GridItem area="gas" alignSelf="start">
-              <Rise delay={0.18} {...zoneBox}>
+              <Rise {...zoneBox}>
                 <div style={glassLayerStyle} />
                 <Box px={{ base: 4, md: 6 }} py={{ base: 4, md: 6 }}>
                   <GasPoolSection
@@ -405,7 +387,7 @@ const TreasuryPage = () => {
 
             {/* Zone 3b — Recent activity (unified feed) */}
             <GridItem area="feed">
-              <Rise delay={0.22} {...zoneBox}>
+              <Rise {...zoneBox}>
                 <div style={glassLayerStyle} />
                 <Box px={{ base: 4, md: 8 }} py={{ base: 4, md: 6 }}>
                   <SectionHeader

@@ -19,11 +19,14 @@ import { NAV } from '@/components/marketing/landingCopy';
 
 export default function MarketingNav({
   mounted,
+  isAuthHydrated = true,
+  onAccountIntent,
   isPasskeyUser,
   isConnected,
   isAuthenticated,
   accountMenuItem,
   onSignInOpen,
+  signInPending = false,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -39,14 +42,19 @@ export default function MarketingNav({
     }
   }, [accountMenuItem]);
 
-  const showSignIn = mounted && !isPasskeyUser && !isConnected && !isAuthenticated;
+  const showSignIn = mounted && isAuthHydrated && !isPasskeyUser && !isConnected && !isAuthenticated;
   const showAccount = mounted && isAuthenticated;
 
   const authControl = (extraClass = '') => {
+    if (!isAuthHydrated) return (
+      <button type="button" className={`pa-nav-auth ${extraClass}`} onMouseEnter={onAccountIntent} onFocus={onAccountIntent} onClick={handleSignInOpen} aria-busy={signInPending}>
+        {signInPending ? 'Opening…' : 'Account'}
+      </button>
+    );
     if (showSignIn) {
       return (
-        <button type="button" className={`pa-nav-auth ${extraClass}`} onClick={handleSignInOpen}>
-          {NAV.signIn}
+        <button type="button" className={`pa-nav-auth ${extraClass}`} onClick={handleSignInOpen} aria-busy={signInPending}>
+          {signInPending ? 'Opening…' : NAV.signIn}
         </button>
       );
     }
@@ -78,6 +86,7 @@ export default function MarketingNav({
               <NextLink
                 key={l.href}
                 href={l.href}
+                prefetch={false}
                 className={`pa-nav-link ${l.fromMd ? 'pa-from-md' : l.fromSm ? 'pa-from-sm' : ''}`}
               >
                 {l.label}
@@ -88,7 +97,7 @@ export default function MarketingNav({
 
         <div className="pa-nav-actions">
           {authControl('pa-nav-auth-desk')}
-          <NextLink href="/create" className="pa-cta-solid pa-nav-cta">
+          <NextLink href="/create" prefetch={false} className="pa-cta-solid pa-nav-cta">
             {NAV.cta}
           </NextLink>
           <button
@@ -113,13 +122,13 @@ export default function MarketingNav({
                 {l.label}
               </a>
             ) : (
-              <NextLink key={l.href} href={l.href} className="pa-nav-menu-link" onClick={() => setMenuOpen(false)}>
+              <NextLink key={l.href} href={l.href} prefetch={false} className="pa-nav-menu-link" onClick={() => setMenuOpen(false)}>
                 {l.label}
               </NextLink>
             )
           )}
           {authControl('pa-nav-auth-menu')}
-          <NextLink href="/create" className="pa-cta-solid pa-cta-lg pa-nav-menu-cta" onClick={() => setMenuOpen(false)}>
+          <NextLink href="/create" prefetch={false} className="pa-cta-solid pa-cta-lg pa-nav-menu-cta" onClick={() => setMenuOpen(false)}>
             {NAV.cta}
           </NextLink>
         </nav>
@@ -196,6 +205,7 @@ export default function MarketingNav({
           border: none;
           cursor: pointer;
           padding: 0;
+          min-width: 72px;
         }
         .pa-nav :global(.pa-nav-auth):hover {
           color: var(--signal);

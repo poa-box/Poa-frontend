@@ -9,11 +9,12 @@ import {
   Text,
   Tooltip,
   VStack,
+  useBreakpointValue,
 } from '@chakra-ui/react';
 import { FaProjectDiagram } from 'react-icons/fa';
 import { FiBriefcase } from 'react-icons/fi';
 import { useRouter } from 'next/router';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
 import { useOrgName } from '@/hooks/useOrgName';
@@ -51,6 +52,7 @@ const deadlineKey = (t) => {
 
 const MyWorkView = ({ isDesktop = true, sidebarVisible, toggleSidebar }) => {
   const router = useRouter();
+  const rowIsMobile = useBreakpointValue({ base: true, md: false }, { ssr: false });
   const org = useOrgName();
   const tasks = useAllProjectsFlatTasks();
   const { projectsData } = useProjectContext();
@@ -212,7 +214,7 @@ const MyWorkView = ({ isDesktop = true, sidebarVisible, toggleSidebar }) => {
                   </Text>
                 </Heading>
                 {section.tasks.map((t) => (
-                  <TaskRow key={t.id} task={t} showProject />
+                  <TaskRow key={t.id} task={t} showProject isMobile={rowIsMobile} />
                 ))}
               </Box>
             ))

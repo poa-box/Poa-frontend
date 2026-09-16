@@ -7,7 +7,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { NETWORKS } from '@/config/networks';
 import { getBountyTokenOptions } from '@/util/tokens';
-import { createChainClients } from '@/services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 import ERC20ABI from '../../abi/ERC20.json';
 
 const mainnetChains = Object.entries(NETWORKS).filter(([_, n]) => !n.isTestnet);
@@ -22,8 +22,8 @@ export function useTokenBalances(address) {
   if (!clientsRef.current) {
     const clients = {};
     for (const [name, network] of mainnetChains) {
-      const c = createChainClients(network.chainId);
-      if (c) clients[network.chainId] = { ...c, name: network.name, nativeCurrency: network.nativeCurrency };
+      const publicClient = createPublicClientForChain(network.chainId);
+      if (publicClient) clients[network.chainId] = { publicClient, name: network.name, nativeCurrency: network.nativeCurrency };
     }
     clientsRef.current = clients;
   }

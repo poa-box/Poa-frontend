@@ -7,7 +7,7 @@
  * all pass. Per dataviz rules these hues go on MARKS (dots, bars, accent rules)
  * only — text and values stay in ink tokens.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Box, HStack, Text, usePrefersReducedMotion } from '@chakra-ui/react';
 import { keyframes } from '@emotion/react';
 
@@ -122,11 +122,6 @@ export const UnitSpan = ({ children }) => (
 
 export const RISE_CURVE = 'cubic-bezier(0.22, 1, 0.36, 1)';
 
-const riseIn = keyframes`
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-`;
-
 const dotPulse = keyframes`
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.35; }
@@ -138,35 +133,10 @@ const ringPulse = keyframes`
   100% { box-shadow: 0 0 0 1px rgba(144, 85, 232, 0); }
 `;
 
-/** Staggered entrance wrapper for the page zones. A caller-supplied
- *  `animation` (e.g. the flash ring) takes over once it's active. The
- *  entrance is one-shot: once it has played (or been superseded), clearing
- *  the caller animation must not replay it. */
-export const Rise = ({ delay = 0, animation, children, ...rest }) => {
-  const reduced = usePrefersReducedMotion();
-  const [entered, setEntered] = useState(false);
-
-  useEffect(() => {
-    if (animation) setEntered(true);
-  }, [animation]);
-
-  const rise = reduced || entered
-    ? undefined
-    : `${riseIn} 0.55s ${RISE_CURVE} ${delay}s both`;
-
-  return (
-    <Box
-      {...rest}
-      animation={animation ?? rise}
-      onAnimationEnd={(e) => {
-        if (e.animationName === riseIn.name) setEntered(true);
-        rest.onAnimationEnd?.(e);
-      }}
-    >
-      {children}
-    </Box>
-  );
-};
+/** Show ledger content immediately; explicit feedback animations remain available. */
+export const Rise = ({ animation, children, ...rest }) => (
+  <Box {...rest} animation={animation}>{children}</Box>
+);
 
 /** SeriesDot that gently pulses — "this is live right now". */
 export const LiveDot = ({ color, size = '6px' }) => {
@@ -186,42 +156,6 @@ export const LiveDot = ({ color, size = '6px' }) => {
 /** One-shot purple ring, fired when a CTA lands the user somewhere. */
 export const flashRing = (active, reduced) =>
   active && !reduced ? `${ringPulse} 1.4s ${RISE_CURVE} 1` : undefined;
-
-/**
- * Count a number up to its target on arrival — the money waking up.
- * Returns the target directly under reduced motion or for non-finite input.
- */
-export const useCountUp = (target, duration = 750) => {
-  const reduced = usePrefersReducedMotion();
-  const [display, setDisplay] = useState(0);
-  const fromRef = useRef(0);
-  const rafRef = useRef(null);
-
-  useEffect(() => {
-    const to = Number(target);
-    if (!Number.isFinite(to) || reduced) {
-      setDisplay(Number.isFinite(to) ? to : 0);
-      return undefined;
-    }
-    const from = fromRef.current;
-    const start = performance.now();
-    const tick = (now) => {
-      const t = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const value = from + (to - from) * eased;
-      setDisplay(value);
-      if (t < 1) {
-        rafRef.current = requestAnimationFrame(tick);
-      } else {
-        fromRef.current = to;
-      }
-    };
-    rafRef.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(rafRef.current);
-  }, [target, duration, reduced]);
-
-  return display;
-};
 
 /**
  * Returns 0 on first paint, then the real value one frame later — pair with a

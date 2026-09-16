@@ -23,8 +23,17 @@ const roleForm = read('components', 'accessV2', 'RoleForm.jsx');
 const votePage = read('components', 'voting', 'VotingPage.js');
 const voteModal = read('components', 'voting', 'CreateVoteModal.js');
 const proposalForm = read('hooks', 'useProposalForm.js');
+const proposalRuntime = read('hooks', 'runtime', 'proposalSubmitRuntime.js');
 const intentGallery = read('components', 'voting', 'create', 'IntentGallery.js');
 const rolesPanel = read('components', 'accessV2', 'RolesGroupsPanel.jsx');
+
+describe('lazy proposal submission wiring', () => {
+  it('loads and invokes the encoder runtime from the mounted form submit handler', () => {
+    expect(proposalForm).toMatch(/const handleSubmit = useCallback\(async[\s\S]*?const \{ submitProposalRuntime \} = await import\('@\/hooks\/runtime\/proposalSubmitRuntime'\);[\s\S]*?return await submitProposalRuntime\(\{ proposal,/);
+    expect(proposalRuntime).toContain('export async function submitProposalRuntime(context, ...args)');
+    expect(proposalRuntime).toContain('return handleSubmit(...args)');
+  });
+});
 
 describe('both entry points use the normal vote wizard', () => {
   it('reads the files at all (guards against a silently empty scan)', () => {
@@ -76,8 +85,8 @@ describe('both entry points use the normal vote wizard', () => {
 
 describe('one encoder', () => {
   it('the vote wizard builds through buildRoleFormBatch', () => {
-    expect(proposalForm).toContain('buildRoleFormBatch');
-    expect(proposalForm.split('buildRoleFormBatch(').length - 1).toBeGreaterThan(0);
+    expect(proposalRuntime).toContain('buildRoleFormBatch');
+    expect(proposalRuntime.split('buildRoleFormBatch(').length - 1).toBeGreaterThan(0);
   });
 
   it('the create-role encoder that used to live in v2VoteActions is gone, not duplicated', () => {
@@ -90,15 +99,15 @@ describe('one encoder', () => {
 
   it('the wizard gate and the encoder read the SAME form', () => {
     // `resolveRoleForm` is what makes "validated" and "encoded" the same object.
-    expect(proposalForm).toContain('form: resolveRoleForm(proposal)');
+    expect(proposalRuntime).toContain('form: resolveRoleForm(proposal)');
     expect(read('lib', 'voting', 'proposalChecks.js')).toContain('roleFormError(resolveRoleForm(p))');
   });
 
   it('the v2 create-role arm is still behind the accessV2 gate', () => {
-    expect(proposalForm).toMatch(/proposal\.type === "createRole" && extras\?\.accessV2\?\.enabled/);
-    // …and the legacy arm still encodes the Hats-era calls for an org that has not cut over.
-    expect(proposalForm).not.toContain('createHatWithEligibility');
-    expect(proposalForm).not.toContain('setProjectRolePerm');
+    expect(proposalRuntime).toMatch(/proposal\.type === "createRole" && extras\?\.accessV2\?\.enabled/);
+    // Retired Hats drafts cannot reintroduce the legacy encoder in the deferred runtime.
+    expect(proposalRuntime).not.toContain('createHatWithEligibility');
+    expect(proposalRuntime).not.toContain('setProjectRolePerm');
   });
 });
 

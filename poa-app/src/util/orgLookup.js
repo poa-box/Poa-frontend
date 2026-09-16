@@ -1,4 +1,5 @@
 import { isSupportedOrganization, ORGANIZATION_SUPPORT_FIELDS } from '@/lib/supportedOrganizations';
+import { takeOrganizationPrefetch } from '@/lib/graphql/organizationPrefetch';
 
 export const ORG_LOOKUP_HINT_TTL_MS = 5 * 60 * 1000;
 const HINT_STORAGE_KEY = 'poa:orgLookupHints:authority-only';
@@ -67,7 +68,7 @@ const browserHints = createOrgLookupHintCache({
   storage: () => typeof window === 'undefined' ? null : window.localStorage,
 });
 
-export async function fetchOrgByName(source, name, { signal } = {}) {
+export async function fetchOrgByName(source, name, { signal, query, variables = {} } = {}) {
   const controller = new AbortController();
   let rejectAborted;
   const aborted = new Promise((_, reject) => { rejectAborted = reject; });
@@ -87,18 +88,34 @@ export async function fetchOrgByName(source, name, { signal } = {}) {
     // fetch() resolves at headers, which can precede a stalled JSON body.
     const request = (async () => {
       if (controller.signal.aborted) return null;
-      const response = await fetch(source.url, {
+      const body = JSON.stringify({
+        query: query || `query FindOrg($name: String!) { organizations(where: { name: $name }, first: 100) { id name ${ORGANIZATION_SUPPORT_FIELDS} } }`,
+        variables: { ...variables, name },
+      });
+      const prefetched = takeOrganizationPrefetch(source.url, body, controller.signal);
+      let response;
+      let reused = false;
+      if (prefetched) {
+        try { response = await prefetched; reused = true; }
+        catch (error) { if (controller.signal.aborted) throw error; }
+      }
+      if (!reused) response = await fetch(source.url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: `query FindOrg($name: String!) { organizations(where: { name: $name }, first: 100) { id name ${ORGANIZATION_SUPPORT_FIELDS} } }`,
-          variables: { name },
-        }),
+        body,
         signal: controller.signal,
       });
+      if (!response.ok && response.status !== 400) throw new Error(`Org lookup HTTP ${response.status}`);
+      const json = reused ? response.json : await response.json();
+      if (json?.errors?.length) {
+        const error = new Error(json.errors[0]?.message || 'Org lookup GraphQL error');
+        error.name = 'GraphQLResponseError';
+        error.isSchemaError = json.errors.every(({ message, extensions }) =>
+          extensions?.code === 'GRAPHQL_VALIDATION_FAILED'
+          || /Cannot query field|has no field|Unknown (?:field|argument|type)|is not defined by type/i.test(message || ''));
+        throw error;
+      }
       if (!response.ok) throw new Error(`Org lookup HTTP ${response.status}`);
-      const json = await response.json();
-      if (json?.errors?.length) throw new Error(json.errors[0]?.message || 'Org lookup GraphQL error');
       if (!Array.isArray(json?.data?.organizations)) throw new Error('Org lookup returned no organization list');
       return json.data.organizations.find(isSupportedOrganization) || null;
     })();
@@ -119,10 +136,13 @@ export async function fetchOrgByName(source, name, { signal } = {}) {
  * A live hint queries its chain by name again. Only the same org id can use
  * it; misses, renamed/replaced orgs, and failures evict the hint and query all
  * other chains, reusing the hinted response rather than fetching it twice.
+ * An explicit org/chain from an expanded share link is checked against its
+ * name on that chain only. It never changes normal name-lookup precedence.
  */
 export function lookupOrganization({
   name,
   sources,
+  pinnedOrg,
   signal,
   bypassCache = false,
   cache = browserHints,
@@ -159,7 +179,7 @@ export function lookupOrganization({
     }
     signal?.addEventListener('abort', cancel, { once: true });
 
-    const hint = bypassCache ? null : cache?.get(name, sources);
+    const hint = pinnedOrg || bypassCache ? null : cache?.get(name, sources);
 
     const settle = () => {
       const matchIndex = outcomes.findIndex((outcome) => outcome?.kind === 'match');
@@ -188,6 +208,12 @@ export function lookupOrganization({
         if (finished) return;
         outcomes[index] = outcome;
         if (outcome.kind === 'error') onSourceError?.(source, outcome.error);
+        if (pinnedOrg) {
+          // Never switch a shared link to a same-name org on another chain or
+          // save that explicit choice as a hint for ordinary name lookups.
+          finish(outcome.kind === 'match' && outcome.org.id === pinnedOrg.id ? outcome.org : null);
+          return;
+        }
         if (hinted) {
           if (outcome.kind === 'match' && outcome.org.id === hint.orgId && cache?.get(name, sources) === hint) {
             // Revalidate the org itself, but do not renew cached higher-chain absence.
@@ -201,7 +227,11 @@ export function lookupOrganization({
       });
     };
 
-    if (hint) startSource(hint.sourceIndex, true);
+    if (pinnedOrg) {
+      const index = sources.findIndex((source) => source.chainId === pinnedOrg.chainId);
+      if (index < 0 || !pinnedOrg.id) finish(null);
+      else startSource(index);
+    } else if (hint) startSource(hint.sourceIndex, true);
     else {
       sources.forEach((_, index) => startSource(index));
       settle();

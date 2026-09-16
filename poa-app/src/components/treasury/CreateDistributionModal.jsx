@@ -6,14 +6,16 @@ import {
 } from '@chakra-ui/react';
 import PulseLoader from "@/components/shared/PulseLoader";
 import { FiCheck } from 'react-icons/fi';
-import { ethers } from 'ethers';
+import { BigNumber } from '@ethersproject/bignumber';
+import { Interface } from '@ethersproject/abi';
+import { parseUnits } from '@ethersproject/units';
 import { useWeb3 } from '@/hooks/useWeb3Services';
 
 import { usePOContext } from '@/context/POContext';
 import { useIPFScontext } from '@/context/ipfsContext';
 import { getBountyTokenOptions } from '@/util/tokens';
 import { formatTokenAmount, parseTokenAmount } from '@/util/formatToken';
-import { createChainClients } from '@/services/web3/utils/chainClients';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
 import { buildDistributionTree } from '@/util/merkleDistribution';
 import { useQuery, gql } from '@apollo/client';
 import { getClient } from '@/util/apolloClient';
@@ -103,8 +105,7 @@ const CreateDistributionModal = ({
     let cancelled = false;
     const fetch = async () => {
       try {
-        const clients = createChainClients(orgChainId);
-        const client = clients?.publicClient;
+        const client = createPublicClientForChain(orgChainId);
         if (!client || cancelled) return;
         const bal = await client.readContract({
           address: selectedToken.address,
@@ -127,8 +128,8 @@ const CreateDistributionModal = ({
     if (!amount || !selectedToken || Number(amount) <= 0) return false;
     try {
       const wei = parseTokenAmount(amount, selectedToken.decimals);
-      return ethers.BigNumber.from(wei).gt(0) &&
-        ethers.BigNumber.from(wei).lte(ethers.BigNumber.from(treasuryBalance));
+      return BigNumber.from(wei).gt(0) &&
+        BigNumber.from(wei).lte(BigNumber.from(treasuryBalance));
     } catch { return false; }
   };
 
@@ -150,8 +151,8 @@ const CreateDistributionModal = ({
       });
 
       // 2. Get checkpoint block
-      const clients = createChainClients(orgChainId);
-      const blockNumber = await clients.publicClient.getBlockNumber();
+      const client = createPublicClientForChain(orgChainId);
+      const blockNumber = await client.getBlockNumber();
       const checkpointBlock = Number(blockNumber) - 1; // Must be in the past
 
       // 3. Upload merkle tree to IPFS
@@ -169,7 +170,7 @@ const CreateDistributionModal = ({
       console.log('[Distribution] Tree uploaded to IPFS:', treeCid);
 
       // 4. Encode the createDistribution call
-      const iface = new ethers.utils.Interface([
+      const iface = new Interface([
         'function createDistribution(address payoutToken, uint256 amount, bytes32 merkleRoot, uint256 checkpointBlock)',
       ]);
       const callData = iface.encodeFunctionData('createDistribution', [
@@ -350,13 +351,13 @@ const CreateDistributionModal = ({
                     Top holder gets ~{(() => {
                       try {
                         const maxBal = holders.reduce((max, h) =>
-                          ethers.BigNumber.from(h.balance).gt(ethers.BigNumber.from(max.balance)) ? h : max, holders[0]);
-                        const totalSupply = holders.reduce((s, h) => s.add(ethers.BigNumber.from(h.balance)), ethers.BigNumber.from(0));
-                        const share = ethers.BigNumber.from(maxBal.balance).mul(ethers.utils.parseUnits(amount, selectedToken.decimals)).div(totalSupply);
+                          BigNumber.from(h.balance).gt(BigNumber.from(max.balance)) ? h : max, holders[0]);
+                        const totalSupply = holders.reduce((s, h) => s.add(BigNumber.from(h.balance)), BigNumber.from(0));
+                        const share = BigNumber.from(maxBal.balance).mul(parseUnits(amount, selectedToken.decimals)).div(totalSupply);
                         return formatTokenAmount(share.toString(), selectedToken.decimals, 4);
                       } catch { return '?'; }
                     })()} {selectedToken.symbol}
-                    {holders[0]?.username ? ` (${holders.reduce((max, h) => ethers.BigNumber.from(h.balance).gt(ethers.BigNumber.from(max.balance)) ? h : max, holders[0]).username})` : ''}
+                    {holders[0]?.username ? ` (${holders.reduce((max, h) => BigNumber.from(h.balance).gt(BigNumber.from(max.balance)) ? h : max, holders[0]).username})` : ''}
                   </Text>
                 )}
               </Box>

@@ -12,7 +12,7 @@ import { useOrgName } from '@/hooks/useOrgName';
 import { usePOContext } from '@/context/POContext';
 import { useVoteCreateGate } from '@/hooks/useVoteCreateGate';
 import { ProposalCard } from '@/components/voting/ProposalCard';
-import { BINDING_BADGE, POLL_BADGE } from '@/config/votingVocabulary';
+import { BINDING_BADGE, POLL_BADGE } from '@/config/votingVocabularyCore';
 
 const OngoingPolls = ({ OngoingPolls }) => {
     const router = useRouter();

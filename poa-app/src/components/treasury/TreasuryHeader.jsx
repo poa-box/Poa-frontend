@@ -1,3 +1,4 @@
+import { useUserContext } from '@/context/UserContext';
 import React from 'react';
 import NextLink from 'next/link';
 import {
@@ -26,7 +27,7 @@ import { useOrgName } from '@/hooks/useOrgName';
 import { useTreasuryShare } from '@/hooks/useTreasuryShare';
 import { getNetworkByChainId } from '@/config/networks';
 import { getBountyTokenOptions } from '@/util/tokens';
-import { INK, HAIRLINE, ACCENT, eyebrowStyle, MoneyFigure, TABULAR, useCountUp } from './treasuryStyles';
+import { INK, HAIRLINE, ACCENT, eyebrowStyle, MoneyFigure, TABULAR } from './treasuryStyles';
 
 const formatPct = (frac) => {
   const pct = (Number(frac) || 0) * 100;
@@ -70,6 +71,8 @@ const TreasuryHeader = ({
 }) => {
   const { orgChainId, paymentManagerAddress, tokenLabel = 'Shares' } = usePOContext();
   const userDAO = useOrgName();
+  const { isAccountReady, userDataLoading } = useUserContext();
+  const accountPending = isAccountReady === false || userDataLoading;
   const {
     treasuryShare,
     stableTotal,
@@ -93,10 +96,6 @@ const TreasuryHeader = ({
   const hasShare = userSharePct > 0;
   const hasOpenPayouts = activeDistributionCount > 0;
   const isZero = !isLoading && (Number(stableTotal) || 0) === 0;
-
-  // The money wakes up on arrival — figures count up once real data lands.
-  const heroValue = useCountUp(isLoading ? 0 : stableTotal);
-  const shareValue = useCountUp(isLoading || !hasShare ? 0 : treasuryShare);
 
   const othersText = otherHoldings
     .map((t) => `${t.amount} ${t.symbol}`)
@@ -190,7 +189,7 @@ const TreasuryHeader = ({
           {isLoading ? (
             <Skeleton height="72px" width="280px" />
           ) : (
-            <MoneyFigure value={isZero ? 0 : heroValue} size="hero" />
+            <MoneyFigure value={isZero ? 0 : stableTotal} size="hero" />
           )}
 
           <Box mt={3}>
@@ -238,11 +237,13 @@ const TreasuryHeader = ({
             <Box flex={1} borderTop={HAIRLINE} />
           </HStack>
 
-          {isLoading ? (
+          {accountPending ? (
+            <Text fontSize="sm" color={INK.secondary} role="status">Getting your account details ready…</Text>
+          ) : isLoading ? (
             <Skeleton height="40px" width="150px" />
           ) : hasShare ? (
             <>
-              <MoneyFigure value={shareValue} size="panel" />
+              <MoneyFigure value={treasuryShare} size="panel" />
               <Text fontSize="sm" color={INK.secondary} mt={2} sx={TABULAR}>
                 {formatPct(userSharePct)} of participation (your {userPtBalance} of {totalPtSupply} {tokenLabel})
               </Text>

@@ -5,7 +5,7 @@ import PulseLoader from '@/components/shared/PulseLoader';
 import { FETCH_USER_TOKEN_REQUESTS } from '@/util/queries';
 import { useSubgraphClient } from '@/util/apolloClient';
 import { useWeb3 } from '@/hooks/useWeb3Services';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/context/authState';
 import { usePOContext } from '@/context/POContext';
 import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
 import { formatTokenAmount } from '@/util/formatToken';

@@ -19,12 +19,12 @@ import {
   Input,
   useToast,
 } from '@chakra-ui/react';
-import { useWeb3 } from '@/hooks';
+import { useWeb3 } from '@/hooks/useWeb3Services';
 import { useGlobalAccount } from '@/hooks/useGlobalAccount';
 
 const GlobalAccountSettingsModal = ({ isOpen, onClose }) => {
   const { globalUsername, refetchAccount } = useGlobalAccount();
-  const { user: userService, executeWithNotification } = useWeb3();
+  const { user: userService, executeWithNotification, isReady, getNotReadyMessage } = useWeb3();
   const toast = useToast();
 
   const [username, setUsername] = useState('');
@@ -38,7 +38,10 @@ const GlobalAccountSettingsModal = ({ isOpen, onClose }) => {
   const handleUsernameChange = (event) => setUsername(event.target.value);
 
   const handleSave = useCallback(async () => {
-    if (!userService) return;
+    if (!userService || !isReady) {
+      toast({ description: getNotReadyMessage(), status: 'info', duration: 4000, isClosable: true });
+      return;
+    }
 
     if (globalUsername !== username) {
       const result = await executeWithNotification(
@@ -50,6 +53,7 @@ const GlobalAccountSettingsModal = ({ isOpen, onClose }) => {
         }
       );
 
+      if (!result.success) return;
       if (result.success) {
         // Refetch handled by useGlobalAccount's refresh subscription —
         // executeWithNotification waits for the subgraph before emitting.
@@ -64,7 +68,7 @@ const GlobalAccountSettingsModal = ({ isOpen, onClose }) => {
       });
     }
     onClose();
-  }, [userService, executeWithNotification, username, globalUsername, refetchAccount, toast, onClose]);
+  }, [userService, isReady, getNotReadyMessage, executeWithNotification, username, globalUsername, refetchAccount, toast, onClose]);
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
