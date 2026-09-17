@@ -19,9 +19,9 @@ export default function DocsRedirect({ target, title }) {
         title={`${title} | Poa docs`}
         description={`Continue to ${title} in the Poa documentation.`}
         path={target}
+        noIndex
       />
       <Head>
-        <meta name="robots" content="noindex, follow" />
         <meta httpEquiv="refresh" content={`0;url=${target}`} />
       </Head>
       <MarketingRoot>

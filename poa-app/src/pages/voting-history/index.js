@@ -2,6 +2,13 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useOrgName } from '@/hooks/useOrgName';
 
+LegacyRedirect.seo = {
+  title: 'Voting history | Poa',
+  description: 'Continue to your organization’s past votes.',
+  path: '/votes',
+  noIndex: true,
+};
+
 /**
  * Legacy client-side redirect: /voting-history → /votes.
  *

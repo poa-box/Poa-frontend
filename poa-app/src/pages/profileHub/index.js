@@ -2,6 +2,13 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { useOrgName } from '@/hooks/useOrgName';
 
+LegacyRedirect.seo = {
+  title: 'Member profile | Poa',
+  description: 'Continue to your member profile.',
+  path: '/profile',
+  noIndex: true,
+};
+
 export default function LegacyRedirect() {
   const router = useRouter();
   const orgName = useOrgName();

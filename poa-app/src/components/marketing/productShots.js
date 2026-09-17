@@ -4,6 +4,7 @@
 // marketing copy and obey the vocabulary policy in docs/landing-overhaul-v2/BRIEF.md.
 // Dimensions are the PNG pixel sizes (deviceScaleFactor baked in); render at half
 // (desktop, DSF 2) or one third (mobile, DSF 3) for crisp 1x layout sizes.
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 export const PRODUCT_SHOTS = {
   taskDetail: {
@@ -12,8 +13,8 @@ export const PRODUCT_SHOTS = {
     height: 816,
     dsf: 2,
     org: 'Decentral Park',
-    alt: 'A completed task in a community organization: propagate plant cuttings and install propagation sculptures, claimed by a member, with a reward of 50 shares.',
-    caption: 'Finished work earns ownership. This task paid 50 shares when it was approved.',
+    alt: `A completed task in Decentral Park: propagate plant cuttings and install propagation sculptures, with a reward of 50 ${DEFAULT_TOKEN_LABEL}.`,
+    caption: `This completed task awarded 50 ${DEFAULT_TOKEN_LABEL} when it was approved.`,
   },
   tasksBoard: {
     src: '/images/product/tasks-board.webp',
@@ -21,7 +22,7 @@ export const PRODUCT_SHOTS = {
     height: 1630,
     dsf: 2,
     org: 'Decentral Park',
-    alt: 'A task board for a community workspace project with columns for open, in progress, in review, and completed work, each task showing its payout in shares.',
+    alt: `A task board for a community workspace project with columns for open, in progress, in review, and completed work, with contribution rewards in ${DEFAULT_TOKEN_LABEL}.`,
     caption: 'Work is posted, claimed, reviewed, and paid on a shared board.',
   },
   voteTally: {
@@ -31,7 +32,7 @@ export const PRODUCT_SHOTS = {
     dsf: 2,
     org: 'KUBI',
     alt: 'Election results for a director of education role: five candidates, real member votes, and a clear winner at 85 percent.',
-    caption: 'A real election, decided by the members and recorded permanently.',
+    caption: 'A recorded member election from Kansas Blockchain, then named KUBI.',
   },
   treasury: {
     src: '/images/product/treasury.webp',
@@ -39,8 +40,8 @@ export const PRODUCT_SHOTS = {
     height: 1184,
     dsf: 2,
     org: 'Argus',
-    alt: 'Active profit shares in an organization treasury: three distributions, each fully claimed by the members who earned them.',
-    caption: 'When the organization distributes revenue, your share matches the ownership you earned.',
+    alt: 'Historical Argus treasury screenshot showing three distributions, each fully claimed.',
+    caption: 'A historical example of recorded allocations and claims in the Argus treasury.',
   },
   treasuryStats: {
     src: '/images/product/treasury-stats.webp',
@@ -48,8 +49,8 @@ export const PRODUCT_SHOTS = {
     height: 464,
     dsf: 2,
     org: 'Argus',
-    alt: 'A shared treasury header reading: transparent finances for all members, major spending requires a vote.',
-    caption: 'The books are open to every member. Major spending requires a vote.',
+    alt: 'Historical Argus treasury header showing shared balances and distribution tools.',
+    caption: 'A historical view of shared balances and distribution tools.',
   },
   teamMatrix: {
     src: '/images/product/team-matrix.webp',
@@ -84,7 +85,7 @@ export const PRODUCT_SHOTS = {
     height: 2532,
     dsf: 3,
     org: 'Decentral Park',
-    alt: 'The task list on a phone: community tasks with their status and payout in shares.',
+    alt: `The task list on a phone: community tasks with their status and reward in ${DEFAULT_TOKEN_LABEL}.`,
     caption: 'The whole organization fits in a pocket.',
   },
 };

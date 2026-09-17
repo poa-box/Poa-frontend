@@ -55,12 +55,15 @@ describe('legacy documentation URLs', () => {
     for (const [id, target] of Object.entries(DOCS_REDIRECTS)) {
       expect(getDocsRedirect(`/docs/${id}`)).toBe(`/docs/${target}/`);
       expect(getDocsRedirect(`/blog/${id}/`)).toBe(`/docs/${target}/`);
+      expect(getDocsRedirect(`/docs/${id}/index.html`)).toBe(`/docs/${target}/`);
+      expect(getDocsRedirect(`/blog/${id}/index.html`)).toBe(`/docs/${target}/`);
     }
   });
 
   it('canonicalizes blog aliases without redirecting active docs or unknown paths', () => {
     for (const entry of getDocsEntries()) {
       expect(getDocsRedirect(`/blog/${entry.id}/`)).toBe(`/docs/${entry.id}/`);
+      expect(getDocsRedirect(`/blog/${entry.id}/index.html`)).toBe(`/docs/${entry.id}/`);
     }
     expect(getDocsRedirect('/docs/create/')).toBeNull();
     expect(getDocsRedirect('/blog/test/')).toBeNull();
@@ -68,6 +71,8 @@ describe('legacy documentation URLs', () => {
     expect(getDocsRedirect('/docs/__proto__/')).toBeNull();
     expect(getDocsRedirect('/blog/toString/')).toBeNull();
     expect(getDocsRedirect('/docs/create/child/')).toBeNull();
+    expect(getDocsRedirect('/docs/create/index.html')).toBeNull();
+    expect(getDocsRedirect('/blog/does-not-exist/index.html')).toBeNull();
   });
 
   it('returns permanent edge redirects before requiring or fetching an IPFS deployment', async () => {

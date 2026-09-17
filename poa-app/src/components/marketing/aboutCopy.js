@@ -1,3 +1,5 @@
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
+
 // Production /about copy (P3). Direction A · "public works".
 //
 // The /about page re-grounds the landing's story in five blocks (BRIEF §6):
@@ -25,7 +27,7 @@ export const BELIEF = {
   // Set large, the one strong display line on this quieter, prose-forward page.
   headline: 'The people who build a thing should own it',
   body:
-    'That is the whole idea behind Poa. When a group builds something together, the ownership should belong to the people who did the building, and it should be earned by the work, not handed out by whoever got there first. What you earn is yours, the group decides its own rules together, and no one can quietly take either away.',
+    'That is the idea behind Poa. We want the people doing the work and the communities it serves to share in decisions, value, and a lasting future. Clear agreements, recognized contributions, and a public record give people a practical way to build toward that together.',
 };
 
 // ── Block 2 · The problem we saw ──────────────────────────────────────────
@@ -65,10 +67,12 @@ export const WHAT = {
   kicker: 'What Poa is',
   heading: 'A place to turn a group into an organization it owns',
   sentences: [
-    'Poa gives your group one place to run itself: a shared treasury, tasks that pay for the work, votes that settle decisions, and roles with their powers written down.',
-    'The work you do earns you real ownership, a share of the money and a say in what happens next, and that ownership is earned, never bought or sold.',
-    'Everything is in the open and yours to take anywhere, and Poa charges nothing to use it.',
+    'Poa means Perpetual Organization Architect. It is open-source software for worker cooperatives, community organizations, and collectives to organize work, membership, votes, and shared funds.',
+    `Approved work can earn ${DEFAULT_TOKEN_LABEL}: participation rights that can count toward voting and funded revenue distributions under the group’s rules. Legal ownership arrangements are separate.`,
+    'The core record is public and compatible tools can work with the same organization. You can read before signing in, then use a passkey or an existing wallet to participate. Network fees may apply.',
   ],
+  guideLabel: 'Explore how Poa works',
+  guideHref: '/docs/what-is-poa/',
 };
 
 // ── Block 4 · How we hold ourselves to it ─────────────────────────────────
@@ -81,7 +85,7 @@ export const HOLD = {
   kicker: 'How we hold ourselves to it',
   heading: 'We run Poa the way we ask you to run yours',
   body:
-    'Poa itself runs as an organization on Poa. The people who build it earn ownership by the work, decisions are made by vote, and the record is public. If the product does not work for a real organization, we are the first to feel it.',
+    'Poa itself runs as an organization on Poa. Approved contributions can earn a stake, eligible members vote on decisions, and the record is public. Working this way helps us learn where the product needs care.',
   // Sentence prefix + live-linked tail (component adds the org link when the
   // registry confirms the Poa org exists; keep-verbatim self-host line).
   selfHost: 'Poa itself runs as an organization on Poa.',
@@ -90,17 +94,17 @@ export const HOLD = {
     {
       title: 'Open-source, under the AGPL',
       body:
-        'Every line of Poa is public and licensed so that anyone who runs it has to keep their version open too.',
+        'Poa’s source is available under the AGPL. People can inspect it, run it, and contribute improvements under that license.',
     },
     {
       title: 'Yours to host yourself',
       body:
-        'You can run your own copy of Poa on your own terms. Nothing about your organization depends on us staying in the picture.',
+        'A maintained, compatible copy of Poa can work with the same organization. Running it still requires hosting and access to the networks that hold its records.',
     },
     {
-      title: 'No lock-in, including by us',
+      title: 'More ways to keep going',
       body:
-        'Your group holds its own rules, money, and record, and can take them elsewhere. Poa is built so no one can lock you in, including us.',
+        'Public records and open tools reduce dependence on a single website. Members can inspect their organization and maintain other ways to take part.',
     },
   ],
 };

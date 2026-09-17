@@ -2,13 +2,15 @@
 title: "Worker cooperative software for work, voting, and shared funds"
 description: "Use Poa to run a worker cooperative or worker-owned business: coordinate tasks, earn Shares, make decisions together, and distribute approved shared revenue."
 date: "2026-09-06"
-updated: "2026-09-11"
+updated: "2026-09-17"
 category: "Use cases"
 ---
 
 # Worker cooperative software for work, voting, and shared funds
 
 Poa gives worker cooperatives and worker-owned businesses one place to coordinate tasks, recognize contributions, vote on decisions, and manage shared funds. Members can earn Shares through approved work and take part in the business under rules the group chooses.
+
+Use it for the operating questions your team shares: who does the work, who reviews it, and how members decide what happens next. Creating a Poa organization does not incorporate a business or establish a legally recognized cooperative. Shares record participation rights in Poa; legal ownership, employment, and cooperative agreements remain separate.
 
 You already know people whose work makes yours better. Together, you could take on a project none of you would attempt alone—and build a studio around the work you want to do.
 
@@ -18,7 +20,7 @@ Poa gives the studio a shared record of its work, rewards, decisions, and funds.
 
 Imagine a designer, developer, and strategist who regularly deliver websites together. For a larger project, a writer joins to develop the content and handle the client guide. The team wants a clear agreement about both project pay and the writer's place in the studio.
 
-They create [tasks](/docs/task-manager) for discovery, design, development, content, testing, and handover. Each says what a finished result looks like and who reviews it. The content task can include a [funded bounty](/docs/treasury-management#deposit-and-plan) for delivery and participation units that record a stake in the organization. Approval and completion award the configured rewards.
+They create [tasks](/docs/task-manager) for discovery, design, development, content, testing, and handover. Each says what a finished result looks like and who reviews it. The content task can include a [funded bounty](/docs/treasury-management#deposit-and-plan) for delivery and Shares that record participation in the organization. Approval and completion award the configured rewards.
 
 Include the work around delivery too: writing the proposal, talking to the client, and keeping the books. That is part of building the studio. Keep confidential deliverables in your team's private tools; the [task guide](/docs/task-manager#turn-a-project-into-work-people-can-take) explains what goes on the public record.
 
@@ -48,4 +50,6 @@ Poa records participation rights within the software. Legal ownership and employ
 
 ## Bring your team in
 
-Before inviting the team, outline the delivery and agree on rewards, reviewers, and how much funding the work needs. [Create the organization](/docs/create) around that agreement. After handover, use the completed work and spending record to review how the project went before taking on another.
+Before inviting the team, outline the delivery and agree on rewards, reviewers, and how much funding the work needs. [Create the organization](/docs/create/) around that agreement. You can explore setup before signing in; launching and participating require accounts, and each action follows the organization's permissions. Network and external service costs may apply.
+
+Keep payroll, tax records, accounting, and confidential client files in the tools your cooperative already uses. Poa's public task and decision records help coordinate the work; they do not replace those responsibilities. After handover, use the completed work and spending record to review how the project went before taking on another.

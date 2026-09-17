@@ -1,5 +1,12 @@
 # Poa search and agent discovery
 
+The [September 17 research and implementation report](../docs/seo-research-2026-09-17.html)
+records the current audience research, keyword-to-page map, changes, validation,
+and measurement plan. The operational guidance below remains useful after release.
+The [sitemap follow-up investigation](../docs/sitemap-discovery-2026-09-17.html)
+compares Poa's crawl evidence and publication history with firsthand reports and
+Google's guidance on stale sitemap read dates.
+
 Updated September 11, 2026. Poa is open-source software for worker and community
 ownership: membership, shared work, Shares, voting, shared treasury, and funded
 revenue distributions. Describe those capabilities concretely while keeping the
@@ -48,11 +55,17 @@ after deployment; content-hashed assets retain their normal caching.
 
 ## Hudson: after deployment
 
-1. **Check the live deployment, then Search Console.** Inspect the HTTPS homepage
-   and the priority guides above. Confirm the live test sees the correct content,
-   crawling is allowed, and the Google-selected canonical is the expected HTTPS
-   URL. Submit `https://poa.box/sitemap.xml` and request indexing for those updated
-   canonical pages. Do not resubmit retired URLs.
+1. **Keep automatic discovery working after deployment.** Every build regenerates
+   `https://poa.box/sitemap.xml` from the published guide catalog; retain this stable
+   URL and its robots.txt reference. Verify the live sitemap contains the new
+   canonical pages. Submit it when initially setting up Search Console or changing
+   its location; routine deployments do not require per-page indexing requests.
+   Use URL Inspection on representative pages to diagnose problems. Its live test
+   establishes current fetchability, while the indexed report shows Google's
+   selected canonical and stored state. If a sitemap's read date remains old while
+   page crawling succeeds, compare verified Googlebot requests for that exact
+   sitemap URL with the report before changing code. Repeated submissions do not
+   establish or repair the cause. Never refresh lastmod merely because a build ran.
 2. **Bing Webmaster Tools.** Verify `poa.box` (or import the verified Search Console
    property), submit the same sitemap, and inspect priority URLs. Use its actual
    crawl/index reports instead of assuming Google and Bing agree.

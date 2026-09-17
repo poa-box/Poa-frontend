@@ -23,7 +23,7 @@ export function canonicalDocPath(id) {
 }
 
 export function getDocsRedirect(pathname) {
-  const match = pathname.match(/^\/(docs|blog)\/([^/]+)\/?$/);
+  const match = pathname.match(/^\/(docs|blog)\/([^/]+)(?:\/index\.html|\/)?$/);
   if (!match) return null;
   const [, namespace, id] = match;
   const target = Object.hasOwn(DOCS_REDIRECTS, id) ? DOCS_REDIRECTS[id] : null;

@@ -42,6 +42,7 @@ export default function TheMoney() {
             ))}
           </ul>
 
+          <p className="pa-money-example">{C.exampleLabel}</p>
           <dl className="pa-stats">
             {C.stats.map((s) => (
               <div className="pa-stat" key={s.k}>
@@ -52,6 +53,7 @@ export default function TheMoney() {
           </dl>
 
           <p className="pa-money-candor">{C.candor}</p>
+          <p className="pa-money-guide"><a href={C.guideHref}>{C.guideLabel} →</a></p>
         </div>
 
         <div className="pa-band-plate poa-reveal">
@@ -83,6 +85,17 @@ export default function TheMoney() {
         }
         .pa-band-text {
           grid-column: 2 / 7;
+        }
+        .pa-money-example,
+        .pa-money-guide {
+          font-size: 14px;
+          line-height: 1.6;
+          margin: 24px 0 0;
+          color: var(--bone);
+        }
+        .pa-money-guide a {
+          color: var(--bone);
+          text-underline-offset: 3px;
         }
         .pa-money-points {
           list-style: none;

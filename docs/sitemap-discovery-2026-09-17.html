@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Poa: investigating stale sitemap discovery</title>
+  <style>
+    :root{color-scheme:light;--ink:#203a32;--muted:#55685f;--paper:#f7f5ee;--line:#d8ded5;--accent:#9a432d}
+    *{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.65 system-ui,sans-serif}
+    main{max-width:1050px;margin:auto;padding:48px 24px 72px}h1{font-size:clamp(2rem,5vw,3.1rem);line-height:1.15;max-width:850px}h2{line-height:1.25;margin-top:2.2em}p,li{max-width:900px}a{color:var(--accent);text-underline-offset:3px}code{font-size:.85em;overflow-wrap:anywhere}.eyebrow,small{color:var(--muted)}.lead{font-size:1.15rem}.note{padding:18px 22px;border-left:4px solid var(--accent);background:#efece1}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:.93rem}th,td{text-align:left;vertical-align:top;padding:14px 12px;border-bottom:1px solid var(--line)}th{background:#e9eee5}blockquote{margin:20px 0;padding:8px 24px;border-left:3px solid var(--line)}li{margin:.5em 0}@media print{body{background:white}main{padding:0}a{color:inherit}tr{break-inside:avoid}}
+  </style>
+</head>
+<body><main>
+  <p class="eyebrow">Poa technical research · September 17, 2026</p>
+  <h1>Why Google can crawl Poa successfully while its sitemap read date stays old</h1>
+  <p class="lead">Successful access does not guarantee that Google will use a sitemap to discover more pages. Direct Google guidance and closely matching firsthand reports support a separate demand and scheduling decision. That is the leading working explanation here, not a confirmed account-specific diagnosis.</p>
+  <p class="note">Repeated manual submissions are not the proposed maintenance process. Poa already generates and publishes its sitemap automatically. The investigation found no present defect requiring a new sitemap implementation.</p>
+
+  <h2>What we know about Poa</h2>
+  <ul>
+    <li>The submitted URL is <code>https://poa.box/sitemap.xml</code>, with Success, 50 discovered URLs, and a last-read date of May 28.</li>
+    <li>The user's June 18–September 14 crawl report shows 1,245 requests across both hosts, no host problems, 95% HTTP 200 responses, 99% refresh, and less than 1% discovery. These are requests, including resources and repeats, not unique or indexed pages.</li>
+    <li>The cooperative guide was unknown to Google in the stored inspection result. The user subsequently confirmed that Google's live test succeeded and submitted an indexing request.</li>
+    <li>The current sitemap contains 34 URLs and matches the committed HEAD and origin/main file exactly. All 34 live targets returned HTTP 200, correct self-canonicals, and no noindex directive in the named-review checks.</li>
+    <li>The sitemap is advertised in robots.txt, generated on each build, and deployed with the static site. Current cache policy requires revalidation. Matching/stale ETag and old modification-date probes returned the current file, with no false 304 observed.</li>
+  </ul>
+  <p>These findings weaken a broad access-block explanation. They do not prove that Google fetched this exact sitemap recently. The May 28 date describes that file, not the site's last crawl. <a href="https://support.google.com/webmasters/answer/9679690?hl=en">Google's Crawl Stats definitions</a>.</p>
+
+  <h2>The strongest matching evidence</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Firsthand case</th><th>What matched</th><th>What it establishes</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://www.reddit.com/r/SEO/comments/1r8wki0/comment/o6ertwe/">Cloudflare Workers, February 2026</a></td><td>Owner reported valid XML, 80 URLs, successful Google live inspection and HTTP 200 logs, but repeated submissions did not help.</td><td>John Mueller explained that Google can decline to use a sitemap when it is unconvinced there is additional new, important content. Its status was Couldn't fetch, unlike Poa's historical Success. No confirmed repair was reported.</td></tr>
+      <tr><td><a href="https://support.google.com/webmasters/thread/133159394/github-io-sitemap-not-working?hl=en">GitHub Pages, October 2021</a></td><td>Static site, a roughly three-month-old read date, successful live tests, and new pages found through individual submission. Repeated sitemap submissions did not help.</td><td>A close symptom match, but the thread contains no proven cause or durable fix. Its old sitemap-ping advice is obsolete.</td></tr>
+      <tr><td><a href="https://support.google.com/webmasters/thread/213489871/my-sitemap-has-been-submitted-successfully-but-last-read-and-discovered-page-never-updated?hl=en">Success with frozen counts, April 2023</a></td><td>Submission dates updated while last-read and discovered-page counts remained approximately six months old.</td><td>Repeated submission is not a reliably established cure. No verified resolution or comparable request-log evidence was published.</td></tr>
+      <tr><td><a href="https://support.google.com/webmasters/thread/3594734/sitemap-s-last-read-stuck-for-several-weeks?hl=en">Canonical repair, April–May 2019</a></td><td>Valid reachable sitemap, delayed discovery; owner later found canonicals pointing to missing pages that redirected home.</td><td>Crawling improved after canonical fixes and another linking change. The owner could not isolate the cause. Poa's current checked canonicals already work.</td></tr>
+      <tr><td><a href="https://www.reddit.com/r/TechSEO/comments/p6zh7n/comment/j60dk0z/">Large sitemap-index anomaly, reported August 2021</a></td><td>Owner reported healthy crawling while recognition of child sitemaps collapsed, then recovered much later without a corresponding change.</td><td>Processing/reporting anomalies are possible. The site had hundreds of thousands of URLs; it is a weak size/architecture match and does not establish a present Google bug affecting Poa.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Community owners' logs and conclusions are self-reported. Product Experts answering on Google's forum are community contributors, not necessarily Google employees. The Mueller reply is the strongest direct explanation; none of these cases diagnoses Poa.</p>
+
+  <h2>What Google's documentation supports</h2>
+  <p>Sitemaps have a recrawl schedule independent of ordinary page crawling. Google explicitly lists low sitemap crawl demand as a possible reason for nonprocessing. A working site can therefore receive page and resource crawls without frequent sitemap revisits. <a href="https://support.google.com/webmasters/answer/7451001?hl=en">Official Sitemaps report guidance</a>.</p>
+  <p>Google's Gary Illyes has linked sitemap handling to the pages supplied in the feed. Crawl and indexing decisions involve content quality and relative popularity; a transport-level success is only one prerequisite. This supports a demand hypothesis, not a finding that Poa is penalized or that its guides are poor. <a href="https://developers.google.com/search/help/office-hours/2023/march">March 2023 office hours</a>; <a href="https://developers.google.com/search/help/office-hours/2023/june">June 2023 office hours</a>.</p>
+  <p>Google may skip reprocessing an unchanged sitemap. That is not an explanation for every frozen Last read date: the report defines Last read as fetching, and a sitemap must be fetched before new contents can be observed. The distinction matters when interpreting successful HTTP requests versus report updates. <a href="https://developers.google.com/search/help/office-hours/2023/june">Google's processing explanation</a>.</p>
+
+  <h2>Poa's history adds context</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Repository evidence</th><th>Significance and limitation</th></tr></thead>
+    <tbody>
+      <tr><td><a href="https://github.com/poa-box/Poa-frontend/commit/cc7cf741">May 26</a> through <a href="https://github.com/poa-box/Poa-frontend/commit/a4737b5a">July 9</a>: 50 URLs, comprising six public routes and 22 articles published under both docs and blog.</td><td>This matches the old count in Search Console and contained duplicate article URLs. It does not establish a sitemap-wide penalty or Google's chosen canonicals.</td></tr>
+      <tr><td>All 22 article sources lacked authored dates and were unchanged between those snapshots, while builds refreshed lastmod. Corrected <a href="https://github.com/poa-box/Poa-frontend/commit/2207c45a">September 5</a>.</td><td>Frequent deployments did not necessarily mean new article content. Marketing/templates did change. Artificial dates could reduce the usefulness of lastmod; Google does not document this as permanently ignoring the entire sitemap.</td></tr>
+      <tr><td>May docs hid the article body behind an isClient check; <a href="https://github.com/poa-box/Poa-frontend/commit/a4737b5a">July 9</a> removed it.</td><td>Earlier docs required JavaScript execution to expose article text. Historical rendering failure has not been established.</td></tr>
+      <tr><td><a href="https://github.com/poa-box/Poa-frontend/commit/033c9c58">September 6</a>: curated publication, duplicate consolidation, authored dates, and 27 guides. <a href="https://github.com/poa-box/Poa-frontend/commit/7adfb938">September 11</a>: 28 guides, 34 total sitemap URLs.</td><td>The worker-cooperative guide first appears September 6. These source changes are recent relative to the report ending September 14. Exact deployment dates were not recovered.</td></tr>
+      <tr><td>Until September 11, sitemap and robots responses inherited gateway cache headers; HTML already had separate revalidation policy.</td><td>A historical cache interaction is possible. The IPFS gateway specification uses long-lived immutable caching, but Poa's actual May response headers and Google's use of them are unknown. Current public responses have the corrected policy. <a href="https://specs.ipfs.tech/http-gateways/path-gateway/#322-cache-control-response-header">IPFS specification</a>.</td></tr>
+    </tbody>
+  </table></div>
+  <p>Google says it may stop trusting consistently inaccurate lastmod values. That is a specific date-signal issue, not evidence that it blacklisted Poa's sitemap. <a href="https://developers.google.com/search/blog/2023/06/sitemaps-lastmod-ping">Google's lastmod guidance</a>. The checked historical map did not include deliberately noindexed application routes; that earlier possible explanation is unsupported.</p>
+
+  <h2>Assessment and a sustainable response</h2>
+  <ol>
+    <li><strong>Leading working explanation: low priority for additional discovery under Google's independent sitemap schedule.</strong> It fits Google's direct explanation and Poa's limited first-time fetches, but aggregate percentages do not prove the cause.</li>
+    <li><strong>Remaining alternatives: old cache behavior or a sitemap processing/reporting discrepancy.</strong> Current tests do not reproduce a cache defect. No matching current Google outage was established. The unknown guide makes the issue more than a cosmetic timestamp concern.</li>
+    <li><strong>Keep the stable, automatic publication pipeline.</strong> Preserve accurate dates, canonical-only inventory, rendered articles and ordinary links from the homepage/docs hub. The main technical repairs described above already exist; avoid another rewrite without evidence.</li>
+    <li><strong>Measure useful discovery.</strong> Track whether newly published public guides are crawled, indexed and receive relevant impressions. Improving specific workflows, original examples and real references to Poa is a more defensible direction than manipulating sitemap dates. It still offers no promised Google schedule.</li>
+    <li><strong>The most direct remaining diagnostic is exact-route request evidence.</strong> Compare verified Googlebot requests for <code>/sitemap.xml</code> with Last read, distinguishing normal Googlebot from user-triggered inspection. No requests supports scheduling; successful delivery of the current XML with a frozen report supports a processing/reporting discrepancy; errors or stale bytes identify a technical repair. Account logs were not available in this investigation.</li>
+  </ol>
+  <p>Daily resubmission, repeatedly renaming the file, increasing priority/changefreq, and setting every date to today are not established fixes. Google ignores priority/changefreq, and its old ping endpoint is retired. <a href="https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap">Current sitemap guidance</a>; <a href="https://developers.google.com/search/blog/2023/06/sitemaps-lastmod-ping">Ping retirement</a>.</p>
+  <p class="note">No new production code was changed or deployed for this research. Operational guidance was updated to remove routine per-page submission instructions. Earlier SEO/content changes in this workspace remain local until released.</p>
+  <p><small>Method: primary Google documentation and representative statements, five firsthand case reports, repository snapshots, previously recorded live checks and user-provided Search Console evidence. Sources accessed September 17, 2026. No paid keyword estimates, Google account access, verified production crawler logs, or claim of a proven root cause.</small></p>
+</main></body>
+</html>

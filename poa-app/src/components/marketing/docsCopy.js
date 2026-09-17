@@ -48,7 +48,7 @@ export const DOCS_SECTIONS = [
     no: '02', heading: 'Create your organization', rail: 'sec 02 / get started',
     description: 'Choose how people join, share responsibility, and make decisions. Build the structure around your group.',
     entries: [
-      { id: 'create', title: 'Choose how your organization works', blurb: 'When Poa fits, which choices matter, and how to get started.' },
+      { id: 'create', title: 'Create an organization or DAO', blurb: 'Choose membership, rewards, and voting, then understand what launching involves.' },
       { id: 'deployment-wizard', title: 'Create an organization, step by step', blurb: 'Choose a template, set up your team and voting, then review and launch.' },
       { id: 'first-week', title: 'Your first week', blurb: 'Welcome members, complete a first contribution, and make a decision together.' },
       { id: 'join', title: 'Join an existing organization', blurb: 'Understand its entry rules, find your role, and start contributing.' },
@@ -58,7 +58,7 @@ export const DOCS_SECTIONS = [
     no: '03', heading: 'Work, rewards, and revenue', rail: 'sec 03 / contribution',
     description: 'Make the terms of a contribution clear, recognize the result, and share funds under agreed rules.',
     entries: [
-      { id: 'task-manager', title: 'Tasks and contribution rewards', blurb: 'Offer work with clear outcomes, review submissions, and award a stake or funded payment.' },
+      { id: 'task-manager', title: 'Contribution tracking and task rewards', blurb: 'Record work, review submissions, and award configured Shares or a funded payment.' },
       { id: 'treasury-management', title: 'Shared treasury and revenue sharing', blurb: 'Fund work, approve spending through member voting, and distribute available funds to contributors.' },
       { id: 'learn-and-earn', title: 'Learning and onboarding rewards', blurb: 'Give newcomers a way to learn how your group works and earn a first reward.' },
       { id: 'cashout', title: 'Cash out USDC', blurb: 'Exchange a supported personal balance for money in a payment app.' },
@@ -70,7 +70,7 @@ export const DOCS_SECTIONS = [
     entries: [
       { id: 'directDemocracy', title: 'Equal member polls', blurb: 'Gather preferences with one equal vote per eligible member.' },
       { id: 'contributionVoting', title: 'Contribution-weighted voting', blurb: 'Let an earned stake count toward influence on the next decision.' },
-      { id: 'hybridVoting', title: 'Binding proposals and blended voting', blurb: 'Combine voting approaches and carry out approved payments or rule changes.' },
+      { id: 'hybridVoting', title: 'Member voting and collective decisions', blurb: 'Choose equal or contribution-weighted votes and carry out supported actions.' },
       { id: 'roles-and-permissions', title: 'Roles and permissions', blurb: 'Share the power to welcome people, review work, and manage projects.' },
       { id: 'vouching-and-trust', title: 'Membership through vouching', blurb: 'Let trusted members help others join under the entry rules your group sets.' },
     ],
@@ -92,7 +92,7 @@ export const DOCS_SECTIONS = [
     description: 'Illustrative setups for groups with different purposes. See what each gains and which choices make it work.',
     entries: [
       { id: 'what-can-you-build', title: 'Find a use that matters to you', blurb: 'Explore ways to organize around shared work, local needs, and ideas worth pursuing.' },
-      { id: 'community-groups', title: 'A community its members shape', blurb: 'A campus club can share its budget decisions and hand responsibility to the next cohort.' },
+      { id: 'community-groups', title: 'Shared decisions for community groups', blurb: 'A campus club can share tasks, budget decisions, and responsibility with the next cohort.' },
       { id: 'worker-cooperatives', title: 'Worker cooperatives and shared ownership', blurb: 'Build a studio that connects client work with earned Shares, member voting, and funded revenue sharing.' },
       { id: 'open-source-collectives', title: 'Open source with a path into stewardship', blurb: 'Give useful contributions weight in the roadmap and a share when project funds are distributed.' },
     ],

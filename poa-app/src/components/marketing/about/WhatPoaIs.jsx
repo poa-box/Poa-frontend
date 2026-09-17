@@ -33,16 +33,17 @@ export default function WhatPoaIs() {
             </li>
           ))}
         </ol>
+        <p className="pa-aw-guide"><a href={C.guideHref}>{C.guideLabel} →</a></p>
       </div>
 
       <div className="pa-aw-plate poa-reveal">
         <SpecPlate
           shot={S.treasuryStats}
-          anno="the books, open to every member"
+          anno="a historical view of shared funds"
           annoPos="band"
           fig={{
             id: 'fig 01',
-            txt: 'a shared treasury · transparent finances, major spending by vote',
+            txt: 'historical Argus treasury · shared balances and distribution tools',
           }}
         />
       </div>
@@ -50,6 +51,15 @@ export default function WhatPoaIs() {
       <style jsx>{`
         .pa-aw-text {
           grid-column: 2 / 8;
+        }
+        .pa-aw-guide {
+          font-size: 15px;
+          line-height: 1.6;
+          margin: 20px 0 0;
+        }
+        .pa-aw-guide a {
+          color: var(--signal-deep);
+          text-underline-offset: 3px;
         }
         .pa-aw-list {
           list-style: none;

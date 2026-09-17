@@ -1,15 +1,17 @@
 ---
-title: "Projects, tasks, and rewards"
-description: "Find a useful task or organize your next project on Poa. Set clear outcomes, review finished work, and understand contribution rewards and funded bounties."
+title: "Contribution tracking: tasks, review, and rewards"
+description: "Track contributions with Poa's shared task board. Set outcomes, review submitted work, and award configured Shares or funded payments when work is approved."
 date: '2026-09-06'
-updated: '2026-09-06'
+updated: '2026-09-17'
 category: "Work together"
 order: 50
 ---
 
-# Projects, tasks, and rewards
+# Contribution tracking: tasks, review, and rewards
 
-Open a project's task board to find available work or add a task. Each task describes an outcome and its reward. Depending on the project's rules, you can claim it, apply for it, or receive an assignment.
+Keep a shared record of what needs doing, who takes it on, and which results have been approved. Poa connects each task to a submission, a review, and its configured rewards, so a collective can recognize contributions under rules everyone can read.
+
+Open a project's task board to find available work or add a task. Each task describes an outcome and its reward. Depending on the project's rules, you can claim it, apply for it, or receive an assignment. Work outside Poa needs to be described and submitted for review; the board does not automatically measure everyone's effort.
 
 ## Turn a project into work people can take
 
@@ -39,12 +41,12 @@ A task can offer:
 
 | Reward | What it gives you |
 |---|---|
-| Contribution reward | A stake in what you help build, recorded as participation units. These can count toward voting weight and proportional distributions under the group's rules. |
+| Shares | Participation rights earned through approved work. These can count toward voting weight and proportional distributions under the group's rules. |
 | Funded bounty | An additional payment in the asset and amount shown on the task. |
 
-For example, “Write the setup guide” might award 20 participation units when a reviewer confirms that the guide works and approves completion.
+For example, “Write the setup guide” might award 20 Shares when a reviewer confirms that the guide works and approves completion. Shares is the default label; an organization can choose to display its own symbol.
 
-A bounty needs available task funding and room within the project's limits. Participation units themselves are not a cash balance; [revenue distributions](/docs/treasury-management) are a separate decision. Read [contribution and ownership](/docs/contribution-and-ownership) for the rights this stake can carry and how they differ from legal shares.
+A bounty needs available task funding and room within the project's limits. Shares themselves are not a cash balance; [revenue distributions](/docs/treasury-management) are a separate decision. Read [contribution and ownership](/docs/contribution-and-ownership) for the rights this stake can carry and how they differ from legal shares.
 
 ## Check timing and budgets
 
@@ -53,3 +55,9 @@ Read any due date, deadline, or claim window before starting. An expired claim c
 Projects can limit participation rewards and bounty amounts. Changing those limits needs budget authority, even when someone already manages the project. [Roles and permissions](/docs/roles-and-permissions) explains the controls.
 
 For a new project, include a few small tasks alongside the major pieces: test an installation, edit a page, or check the equipment. They give newcomers a manageable place to begin.
+
+## Start with one contribution
+
+If your group already uses Poa, open its task board and read the entry and review requirements before taking work. You'll need an account and the permissions required for your action. [Joining an organization](/docs/join/) explains how to find your place.
+
+For a new collective, [create an organization](/docs/create/), name a reviewer, and prepare one task with a clear outcome. Use your existing payroll, timekeeping, and private document tools where you need them; the Poa task record shows the work and rewards your group has explicitly agreed to review.

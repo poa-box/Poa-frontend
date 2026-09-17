@@ -3,6 +3,7 @@ import NextLink from 'next/link';
 import { HERO } from '@/components/marketing/landingCopy';
 import { PRODUCT_SHOTS } from '@/components/marketing/productShots';
 import { SpecPlate } from '@/components/marketing/primitives';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 const S = PRODUCT_SHOTS;
 
@@ -38,7 +39,7 @@ export default function Hero() {
           />
           <div className="pa-hero-receipt">
             <div><span className="pa-receipt-dot" aria-hidden="true" />A contribution. A stake.</div>
-            <span className="pa-receipt-value">50 shares earned</span>
+            <span className="pa-receipt-value">50 {DEFAULT_TOKEN_LABEL} earned</span>
           </div>
           <p className="pa-plate-note">A real task, completed by a member of Decentral Park.</p>
         </div>

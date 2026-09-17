@@ -1,17 +1,25 @@
 ---
-title: "Create an organization"
-description: "Start a club, studio, or software project on Poa. Choose how people join, plan the first tasks, and give your group a place to make things happen."
+title: "Create an organization or DAO with Poa"
+description: "Create an organization or DAO without coding. Choose membership, tasks, rewards, and voting rules, then review account, funding, and launch requirements."
 date: '2026-09-06'
-updated: '2026-09-06'
+updated: '2026-09-17'
 category: "Get started"
 order: 20
 ---
 
-# Create an organization
+# Create an organization or DAO with Poa
 
 Use Poa when people need a clear way to join, take responsibility for work, and decide how shared resources are used. It is especially useful when contributions should count beyond the task itself: in future decisions or an approved distribution of funds.
 
 A club can use membership and polls without collecting money. A working team can add reviewed tasks, contribution rewards, and funded payments. Start with the parts your group will use now.
+
+## Creating a DAO with Poa
+
+A DAO, or decentralized autonomous organization, uses shared rules on public blockchain infrastructure to coordinate decisions and resources. Poa gives your group a web interface to create that structure without writing code: choose membership, roles, voting, and contribution rewards, then launch a new Poa organization.
+
+The people still do the organizing. Someone needs to prepare tasks, review contributions, fund payments, and finalize decisions. Supported actions can execute after a proposal passes and is finalized, provided their requirements are met. [Member voting](/docs/hybridVoting/) explains the difference between a poll and a proposal that carries out an action.
+
+Creating the organization is not legal incorporation and does not automatically establish a cooperative. Shares are participation rights within Poa. They cannot be transferred and do not by themselves grant legal equity. Read [contribution and ownership](/docs/contribution-and-ownership/) before agreeing on rewards, and keep sensitive information out of the public record. This guide covers a new Poa organization, not importing another platform's DAO.
 
 ## Choose a setup around real work
 
