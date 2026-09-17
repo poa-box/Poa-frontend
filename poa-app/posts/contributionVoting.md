@@ -2,7 +2,7 @@
 title: "Contribution-based voting"
 description: "Give contributors a say in what they build. Learn how Poa uses participation balances in voting, and how to make contribution rules clear and fair."
 date: '2026-09-06'
-updated: '2026-09-06'
+updated: '2026-09-17'
 category: "Make decisions"
 order: 70
 ---
@@ -13,17 +13,17 @@ To understand a contribution-weighted vote, check three settings: which roles ar
 
 ## What gives a vote weight
 
-Poa organizations can award participation units for approved [tasks](/docs/task-manager) and completed [learning modules](/docs/learn-and-earn). These units may be called participation tokens or shares in the interface.
+Poa organizations can award Shares for approved [tasks](/docs/task-manager) and completed [learning modules](/docs/learn-and-earn). Shares is the default label; an organization can choose to display its own symbol.
 
 In a contribution-weighted voting class, the configured participation balance supplies voting weight. The class also defines which roles are eligible. A balance alone does not guarantee a vote in every decision.
 
-A straightforward balance-based class gives a member with 100 units twice the weight of a member with 50. If square-root weighting is enabled, the difference is reduced: 100 units give twice the weight of 25 units, rather than four times the weight.
+A straightforward balance-based class gives a member with 100 Shares twice the weight of a member with 50 Shares. If square-root weighting is enabled, the difference is reduced: 100 Shares give twice the weight of 25 Shares, rather than four times the weight.
 
 Contribution weighting is available within the [binding voting system](/docs/hybridVoting). An organization can give it all of the result or combine it with equal member voting.
 
 ## See how a contribution balance counts
 
-An open-source collective recognizes documentation, code review, and release work through tasks. Three eligible contributors hold 60, 30, and 10 participation units.
+An open-source collective recognizes documentation, code review, and release work through tasks. Three eligible contributors hold 60, 30, and 10 Shares.
 
 In a simple contribution class without square-root weighting, their relative voting weights are 60%, 30%, and 10% of those three contributors' combined balance. That describes their weight within the class; the full result also depends on the proposal's other eligible voters, any other classes, and its passing requirements.
 

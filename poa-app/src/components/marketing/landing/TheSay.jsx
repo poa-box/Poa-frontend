@@ -36,6 +36,7 @@ export default function TheSay() {
             </li>
           ))}
         </ul>
+        <p className="pa-say-guide"><a href={C.guideHref}>{C.guideLabel} →</a></p>
       </div>
 
       <div className="pa-say-plate poa-reveal">
@@ -55,6 +56,15 @@ export default function TheSay() {
       <style jsx>{`
         .pa-say-head {
           grid-column: 2 / 8;
+        }
+        .pa-say-guide {
+          margin: 20px 0 0;
+          font-size: 14px;
+          line-height: 1.6;
+        }
+        .pa-say-guide a {
+          color: var(--signal-deep);
+          text-underline-offset: 3px;
         }
         .pa-say-points {
           list-style: none;

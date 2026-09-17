@@ -116,6 +116,7 @@ const PublicProfilePage = () => {
       title={`${displayName || 'Profile'} | Poa`}
       description={meta?.bio || (displayName ? `View ${displayName}'s profile on Poa` : 'View a community profile on Poa.')}
       path="/u"
+      noIndex
     />
   );
 

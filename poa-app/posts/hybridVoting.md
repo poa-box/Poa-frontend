@@ -1,15 +1,19 @@
 ---
-title: "Hybrid voting: make decisions and act"
-description: "Balance equal member voice with contribution on Poa. Understand voting classes, eligibility, and the binding proposals that change rules or spend shared funds."
+title: "Member voting and collective decision-making"
+description: "Make decisions together with Poa: give members equal votes, recognize contributions, and use approved proposals to spend shared funds or update supported rules."
 date: '2026-09-06'
-updated: '2026-09-06'
+updated: '2026-09-17'
 category: "Make decisions"
 order: 80
 ---
 
-# Hybrid voting: make decisions and act
+# Member voting and collective decision-making
 
-To approve spending, change permissions, or update a rule, prepare a binding proposal. These proposals use Poa's hybrid voting system, called **Blended voting** in parts of the interface. It supports equal member weight, contribution weight, or a blend.
+Your group needs a way to turn a shared question into a clear decision: what to fund, who can approve work, or which rules to change. Poa brings the proposal, eligible voters, result, and outcome of any supported action into the organization's public record. Governance means these everyday choices about how your organization runs.
+
+To approve spending, change permissions, or update a supported rule, prepare a binding proposal. These proposals use Poa's hybrid voting system, called **Blended voting** in parts of the interface. It supports equal member weight, contribution weight, or a blend.
+
+If you only want to gather preferences, use an [equal-member poll](/docs/directDemocracy/). A poll records a choice but does not spend money or change permissions.
 
 ## How voting classes work
 
@@ -52,3 +56,11 @@ Before settling on a split, try a few hypothetical decisions with your actual me
 Agree on the contribution rules before relying on their balances. Set minimum voter counts your active membership can meet, and allow enough time for members to understand a decision.
 
 For your first proposal, choose one decision and describe its consequence plainly. A [spending proposal](/docs/treasury-management), for example, should let members see exactly what will be paid, to whom, and why.
+
+## Is this the right voting tool for your group?
+
+Poa fits groups that want member decisions connected to their work, responsibilities, and shared funds. Votes and proposal records are public; this is not a secret-ballot service. Discuss sensitive questions in your private tools and keep personal details out of public proposal text.
+
+You can read the guides and [browse organizations](/explore/) without signing in. Voting requires an account and eligibility under the organization's rules. A role that lets you create tasks may not give you a vote.
+
+For a new collective, [choose your setup](/docs/create/) and agree on who votes before opening the first proposal. For an existing group, review its voting classes, then start with a decision members can understand and check afterward.

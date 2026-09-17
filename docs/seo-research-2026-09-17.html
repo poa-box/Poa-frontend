@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, follow">
+  <title>Poa — Search research and implementation decisions · 17 September 2026</title>
+  <style>
+    :root { color-scheme: light; --paper:#f5f2e9; --card:#fffef9; --ink:#263c32; --muted:#536258; --rule:#d5dacf; --green:#285641; --soft:#e4ece0; --orange:#ae482d; --pending:#775719; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--paper); color:var(--ink); font:16px/1.6 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; }
+    a { color:var(--green); text-decoration-thickness:1px; text-underline-offset:3px; overflow-wrap:anywhere; }
+    a:hover { color:var(--orange); }
+    a:focus-visible, .table-wrap:focus-visible { outline:3px solid var(--orange); outline-offset:4px; }
+    main { max-width:1180px; margin:auto; padding:52px 34px 72px; }
+    header { padding:0 0 34px; border-bottom:2px solid var(--ink); }
+    .eyebrow,.section-label { font:700 12px/1.4 ui-monospace,SFMono-Regular,Consolas,monospace; letter-spacing:.1em; text-transform:uppercase; color:var(--green); }
+    h1 { font:600 clamp(34px,5.7vw,62px)/1.06 Georgia,"Times New Roman",serif; letter-spacing:-.035em; max-width:880px; margin:18px 0 22px; }
+    h2 { font:600 30px/1.2 Georgia,"Times New Roman",serif; letter-spacing:-.02em; margin:9px 0 18px; }
+    h3 { font-size:17px; line-height:1.35; margin:0 0 9px; }
+    p { margin:0 0 15px; }
+    .lead { max-width:790px; font-size:19px; line-height:1.6; }
+    .small,small { font-size:13px; line-height:1.55; color:var(--muted); }
+    .status { display:inline-block; padding:5px 11px; border:1px solid var(--rule); border-radius:999px; font-size:12px; font-weight:700; background:var(--card); }
+    .status.pending { color:var(--pending); background:#fbf0d6; border-color:#e4d4ad; }
+    .status.pass { color:var(--green); background:var(--soft); }
+    nav { display:flex; gap:10px 22px; flex-wrap:wrap; font-size:14px; padding:20px 0 4px; }
+    section { padding:34px 0; border-bottom:1px solid var(--rule); }
+    .columns { display:grid; grid-template-columns:1fr 1fr; gap:24px; }
+    .card { padding:22px; background:var(--card); border:1px solid var(--rule); border-radius:4px; }
+    .card p:last-child { margin-bottom:0; }
+    .callout { border-left:4px solid var(--orange); padding:15px 20px; background:var(--card); margin-top:20px; }
+    .flow { display:grid; grid-template-columns:repeat(4,1fr); padding:0; margin:24px 0 0; list-style:none; gap:12px; }
+    .flow li { padding:15px; background:var(--soft); border-top:2px solid var(--green); }
+    .flow strong { display:block; margin-bottom:3px; }
+    .flow span { font-size:13px; color:var(--muted); }
+    .table-wrap { overflow-x:auto; background:var(--card); border:1px solid var(--rule); border-radius:4px; }
+    table { width:100%; border-collapse:collapse; text-align:left; font-size:13px; line-height:1.55; }
+    caption { text-align:left; padding:14px 16px; font-size:12px; color:var(--muted); border-bottom:1px solid var(--rule); }
+    th { background:var(--soft); font-size:12px; font-weight:750; padding:13px; vertical-align:top; }
+    td { padding:14px 13px; vertical-align:top; border-top:1px solid var(--rule); }
+    .keyword-map { min-width:970px; }
+    .keyword-map td:nth-child(2) { width:18%; }
+    .keyword-map td:nth-child(3),.keyword-map td:nth-child(4) { width:23%; }
+    .priority { display:inline-block; color:var(--green); font-weight:800; white-space:nowrap; }
+    .path { font:12px/1.55 ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+    ul,ol { padding-left:22px; margin:12px 0 0; }
+    li { margin:0 0 10px; }
+    .tight li { margin-bottom:7px; }
+    .source-list { columns:2; column-gap:35px; }
+    .source-list li { break-inside:avoid; font-size:14px; }
+    .validation td:first-child { width:21%; }
+    .validation td:nth-child(2) { width:20%; }
+    .validation { min-width:680px; }
+    footer { padding-top:22px; }
+    code { font:12px/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+    @media(max-width:700px) { main { padding:30px 19px 45px; } .columns { grid-template-columns:1fr; gap:14px; } .flow { grid-template-columns:1fr 1fr; } .source-list { columns:1; } section { padding:28px 0; } .lead { font-size:17px; } h2 { font-size:27px; } .card { padding:18px; } }
+    @media print { body { background:white; font-size:11px; } main { max-width:none; padding:0; } nav { display:none; } section { padding:18px 0; } h1 { font-size:34px; } h2 { font-size:22px; } .lead { font-size:14px; } .table-wrap { overflow:visible; } .keyword-map,.validation { min-width:0; } table { font-size:9px; } th,td { padding:7px; } .card,.flow li { break-inside:avoid; } a { color:inherit; } }
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="eyebrow">Poa / Research &amp; implementation decisions / 17 September 2026</div>
+    <h1>Make shared ownership<br>easier to discover.</h1>
+    <p class="lead">Poa’s clearest search opportunity is practical software for groups sharing work, decisions, and funds. This work strengthens the existing pages around those needs and makes the product’s conditions clearer.</p>
+    <p><span class="status">Local changes · not released</span> <span class="status pass">Build, browser and review checks passed</span></p>
+    <p class="small">Qualitative research and source review. No measured search volume, ranking forecast, paid keyword data, or Search Console access.</p>
+    <nav aria-label="Report sections"><a href="#product">Product fit</a><a href="#map">Keyword map</a><a href="#decisions">Changes</a><a href="#validation">Validation</a><a href="#evidence">Sources</a><a href="#measurement">Measurement</a></nav>
+  </header>
+
+  <section id="product">
+    <div class="section-label">01 / What Poa does</div>
+    <h2>Work, membership, decisions, and shared funds.</h2>
+    <div class="columns">
+      <div>
+        <p>Poa means <strong>Perpetual Organization Architect</strong>. The frontend supports organizations with membership and permissions, projects and reviewed tasks, contribution rewards called <strong>Shares</strong>, member voting, and funded distributions.</p>
+        <p>A good fit is a cooperative, collective, community group, or DAO willing to keep its operating records public and agree who may contribute, review work, make decisions, and receive funds. Public guides explain the product without sign-in; setup can be explored before launch.</p>
+      </div>
+      <div class="card">
+        <h3>What the copy must make clear</h3>
+        <p>Shares are participation rights in Poa. They do not automatically grant legal equity or create a legally recognized cooperative. Payment requires funding and the relevant approval. Votes depend on eligibility; an approved action must also execute successfully.</p>
+        <p>Participation needs a passkey account or an existing wallet and appropriate authority. Network or external service costs may apply. Private client and member details belong in private tools.</p>
+      </div>
+    </div>
+    <ol class="flow" aria-label="Poa's practical organization workflow">
+      <li><strong>1. Set up</strong><span>Choose membership, roles, and voting.</span></li>
+      <li><strong>2. Contribute</strong><span>Define a task, its reward, and reviewer.</span></li>
+      <li><strong>3. Review</strong><span>Approve completed work and configured rewards.</span></li>
+      <li><strong>4. Decide</strong><span>Vote on supported actions and shared funds.</span></li>
+    </ol>
+    <p class="small" style="margin-top:16px">Source support: TaskService, MembershipAuthorityService, voting wizard routing, CreateDistributionModal, TreasuryService, tokenLabel, creation frontend, and public docs. Source inspection supports these workflows; it does not prove every live transaction succeeds today. The long-term ownership vision is broader than the software’s legal effect.</p>
+  </section>
+
+  <section id="map">
+    <div class="section-label">02 / Audience and intent</div>
+    <h2>One useful page for each distinct need.</h2>
+    <p>P1 means strong product fit, clear intent, and relatively small implementation effort. P2 means relevant but more ambiguous. These are implementation priorities, not popularity or difficulty scores. All targets below existed before this work.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Keyword map, horizontally scrollable on small screens">
+      <table class="keyword-map">
+        <caption>Candidate query clusters · qualitative web research dated 2026-09-17</caption>
+        <thead><tr><th scope="col">Audience</th><th scope="col">Query cluster</th><th scope="col">Intent &amp; evidence</th><th scope="col">Poa fit &amp; boundary</th><th scope="col">Primary page</th><th scope="col">Priority</th></tr></thead>
+        <tbody>
+          <tr><td>Worker cooperatives</td><td>Worker cooperative software; cooperative management tools</td><td>Operating software. <a href="https://ica.coop/en/tools-and-apps">ICA’s directory</a> separates decisions and work management from accounting and CRM.</td><td>Tasks, member authority, votes, and shared funds. Legal formation, payroll, and accounting remain separate.</td><td class="path">/docs/worker-cooperatives/</td><td><span class="priority">P1</span></td></tr>
+          <tr><td>Member groups and collectives</td><td>Collective decision-making software; member voting tools</td><td>Choose and understand decision tools. <a href="https://www.loomio.com/">Loomio</a> describes context, participation, and retained outcomes.</td><td>Equal or contribution-weighted votes, polls, and supported actions. Public voting; no secret-ballot or electoral-compliance promise.</td><td class="path">/docs/hybridVoting/<br><small>Poll detail: /docs/directDemocracy/</small></td><td><span class="priority">P1</span></td></tr>
+          <tr><td>Contributor collectives</td><td>Contribution tracking for collectives; contributor task rewards</td><td>Recognize work and allocate rewards. <a href="https://www.colony.io/">Colony</a> describes team payments and reputation-based allocations.</td><td>Explicit task → submission → review record, configured Shares and payments. Not automatic effort tracking or donor management.</td><td class="path">/docs/task-manager/<br><small>Rights: /docs/contribution-and-ownership/</small></td><td><span class="priority">P1</span></td></tr>
+          <tr><td>Groups evaluating Poa</td><td>Software for shared ownership; run an organization together</td><td>Understand a product category. <a href="https://ica.coop/en/tools-and-apps">ICA</a> and <a href="https://opencollective.com/">Open Collective</a> use concrete work and financial-coordination needs.</td><td>Explain the combined workflow and conditions. Software participation rights are distinct from legal ownership.</td><td class="path">/<br>/docs/what-is-poa/</td><td><span class="priority">P1</span></td></tr>
+          <tr><td>Clubs and community groups</td><td>Community group decision tools; shared tasks and member voting</td><td>Mixed software intent. <a href="https://getcommunal.com/">Communal</a> emphasizes membership, events, bookings and donations; <a href="https://decidim.org/first-steps/">Decidim</a> emphasizes participation.</td><td>Member responsibilities, preparation tasks, shared decisions and handover. Not an event platform, private CRM, or property-title service.</td><td class="path">/docs/community-groups/</td><td><span class="priority">P1 / P2</span></td></tr>
+          <tr><td>DAO creators</td><td>Create a DAO without coding; DAO creation and governance tools</td><td>Software/action intent. <a href="https://www.aragon.org/get-started">Aragon</a> describes creation and treasury tools; <a href="https://docs.snapshot.box/">Snapshot</a> documents proposals and voting strategies.</td><td>Create a new Poa organization with public blockchain records. Explain accounts, costs and legal limits; no arbitrary DAO import claim.</td><td class="path">/docs/create/<br><small>Walkthrough: /docs/deployment-wizard/</small></td><td><span class="priority">P2</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <h3>Intent boundaries prevent misleading traffic.</h3>
+      <p><strong>Legal cooperative formation</strong> requires work beyond software; the <a href="https://cccd.coop/sites/default/files/resources/Overview%20of%20Starting%20a%20Worker%20Coop.pdf">CCCD formation checklist</a> includes bylaws, counsel, incorporation and capitalization. <strong>Election software</strong> can imply private ballots and formal assemblies, as <a href="https://vocdoni.io/en/solutions/cooperatives/">Vocdoni’s offering</a> illustrates. Neither is a primary target here. Broad “contribution tracking” can mean donations; broad “decentralized platform” can mean infrastructure or remote teams. Poa’s copy qualifies the organizational use.</p>
+    </div>
+  </section>
+
+  <section id="decisions">
+    <div class="section-label">03 / Selected plan and implementation</div>
+    <h2>Improve the pages already doing useful work.</h2>
+    <div class="columns">
+      <article class="card">
+        <h3>1. Explain the product plainly</h3>
+        <p><strong>Changed:</strong> homepage supporting copy now names software, its audiences, and practical actions. Task, voting, funds and joining explanations include their conditions. About copy explains the name and product. Added contextual links to ownership, voting, and treasury guides.</p>
+        <p><strong>Preserved:</strong> emotional hero headline, established visual identity, typography, navigation, and existing product flows.</p>
+      </article>
+      <article class="card">
+        <h3>2. Match useful search intent</h3>
+        <p><strong>Changed:</strong> seven public guides and relevant navigation labels. Member voting and contribution tracking receive clearer titles and introductions. Cooperative and community examples define fit; creation and overview explain DAOs naturally. Shares replace ambiguous reward language in touched examples.</p>
+        <p><strong>Preserved:</strong> existing URLs, detailed workflows, related links, and already useful worker-cooperative and ownership titles. No new public landing pages.</p>
+      </article>
+      <article class="card">
+        <h3>3. Remove claims broader than the product</h3>
+        <p><strong>Changed:</strong> removed universal cash-out, free-use, instant-joining, permanence, unrestricted rule-change, and no-dependence promises. Added legal and funding distinctions. Treasury figures are labeled as a historical Argus example.</p>
+        <p><strong>Why:</strong> account type, available funding, permissions, supported actions and maintained infrastructure affect the outcome. A screenshot’s figures are not platform adoption statistics.</p>
+      </article>
+      <article class="card">
+        <h3>4. Close concrete indexing gaps</h3>
+        <p><strong>Changed:</strong> explicit noindex metadata for six legacy app redirects and error output; restored the intended noindex on the query-driven public-profile shell, where component metadata overrode the page setting; one noindex source for DocsRedirect; legacy <code>/index.html</code> aliases resolve to canonical docs. Expanded export checks for metadata uniqueness, internal link targets, public indexability, and indexing exclusions for application shells and aliases. Updated sitemap dates for edited guides.</p>
+        <p><strong>Preserved:</strong> static export, prerendered public docs, canonical/sitemap architecture and structured-data approach. No rendering migration was justified.</p>
+      </article>
+    </div>
+    <p class="small" style="margin-top:16px">The live legacy blog alias sample contained conflicting index/noindex meta tags. The local change uses SEOHead’s noIndex option instead of adding a second robots tag. Permanent alias handling and guard changes have regression coverage; their deployment still needs release verification.</p>
+  </section>
+
+  <!-- VALIDATION_STATUS_START: update this section and the header status after final root verification. -->
+  <section id="validation">
+    <div class="section-label">04 / Validation status</div>
+    <h2>What has passed, and what remains to check.</h2>
+    <p class="small">Local workspace results as of this handoff. These changes have not been deployed. Checks used Node 22.23.2, the production export, and one passkey-mode E2E development server. No transactions were sent for these content and metadata changes.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Validation results">
+      <table class="validation">
+        <thead><tr><th scope="col">Check</th><th scope="col">Status</th><th scope="col">Evidence / scope</th></tr></thead>
+        <tbody>
+          <tr><td>Full test suite</td><td><span class="status pass">Passed</span></td><td>2,226 passed; 13 skipped. 151 test files passed; one skipped. <a href="../.context/seo-tests.log">Local test log</a>.</td></tr>
+          <tr><td>Lint</td><td><span class="status pass">No errors</span></td><td>Full lint: 0 errors; 47 existing warnings. Final focused lint on changed code also passed with 6 pre-existing redirect-hook warnings. <a href="../.context/seo-lint.log">Local lint log</a>.</td></tr>
+          <tr><td>Product and copy review</td><td><span class="status pass">Reviewed</span></td><td>Source audit and independent review of the six main content revisions, plus a Shares vocabulary correction in the contribution-voting guide. Public vote fields and eligibility checks support the public-voting limitation. No customer, legal, adoption or income claims invented.</td></tr>
+          <tr><td>Production build / export</td><td><span class="status pass">Passed</span></td><td><code>yarn build</code>: 94 exported pages. The SEO guard checked 34 indexable pages, 60 noindex pages, 28 guides and 30 discovery artifacts; unique metadata, canonicals, readable HTML, schemas and internal links passed. <code>yarn e2e:check</code>: 439 bundle files, 18 symbols, no leaks. Existing dependency/module warnings remain. <a href="../.context/seo-build.log">Build log</a>.</td></tr>
+          <tr><td>Desktop / mobile</td><td><span class="status pass">Passed</span></td><td>Playwright MCP checked 10 changed public pages at 1440px and 390px (20 checks): HTTP 200, one H1 and canonical, indexable metadata, no sign-in dialog, no horizontal overflow, and no runtime page errors. Clicked the three new contextual guide links and the setup CTA; setup opened signed out. The voting guide also rendered its complete article with JavaScript disabled. Independent visual review approved. <a href="../.context/seo-verification.gif">GIF walkthrough</a> · <a href="../.context/seo-browser-summary.json">Browser results</a>.</td></tr>
+          <tr><td>Test6 regression</td><td><span class="status pass">Read-only flow passed</span></td><td>Passkey E2E server: Test6 home → task board (32 visible tasks, configured TEST label) → homepage → docs. No runtime page errors. Development console reported existing link deprecation and a cross-chain CREATE2 account-factory mismatch; cross-chain deployment/signing remains unverified. No on-chain writes attempted. <a href="../.context/seo-test6-flow.log">Flow evidence</a>.</td></tr>
+          <tr><td>Shares labels</td><td><span class="status pass">Passed</span></td><td>Checked resolver defaults, disabled symbol, enabled mixed-case symbol, and empty/missing symbol fallback. General product copy uses Shares; live Test6 retained its configured TEST label. No organization setting or live resolver behavior changed.</td></tr>
+          <tr><td>Release / search outcomes</td><td><span class="status pending">Not released</span></td><td>No claim of new live behavior, indexing, ranking, impressions or conversions. Those require deployment and observation.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="small" style="margin-top:12px">Links into <code>.context/</code> are gitignored local QA evidence. They work in this workspace and may not accompany a shared copy of this report. The report’s substantive findings and sources are contained here.</p>
+  </section>
+  <!-- VALIDATION_STATUS_END -->
+
+  <section id="evidence">
+    <div class="section-label">05 / Research method and sources</div>
+    <h2>A qualitative search sample, checked against the product.</h2>
+    <p>Used available web search, then read relevant primary pages on <strong>2026-09-17</strong>. Inspected repository instructions, README, public routes, marketing copy, docs and relevant frontend services. Search results illustrate intent and language; they are not measured Google rankings or search demand. Results vary by date, engine and location.</p>
+    <p class="small"><strong>Query sample:</strong> worker cooperative software management tools; collective decision making software members; community owned organization software; member voting software cooperative election; start worker cooperative legal formation; DAO creation governance tools Aragon Snapshot; contribution tracking rewards DAO contributors tools; decentralized organization platform governance tools; “contribution tracking” software; “participatory governance” software.</p>
+    <ol class="source-list">
+      <li><a href="https://ica.coop/en/tools-and-apps">ICA — Tools and Apps</a><br>Cooperative software categories and vocabulary.</li>
+      <li><a href="https://www.loomio.com/">Loomio</a> and <a href="https://www.loomio.com/docs/en/user_manual/overview">its getting-started guide</a><br>Practical group decisions and retained context.</li>
+      <li><a href="https://www.aragon.org/get-started">Aragon — Get started</a><br>DAO creation, governance and shared assets.</li>
+      <li><a href="https://docs.snapshot.box/">Snapshot documentation</a><br>Voting tools; Snapshot X is documented separately.</li>
+      <li><a href="https://getcommunal.com/">Communal</a> and <a href="https://decidim.org/first-steps/">Decidim — First steps</a><br>Different meanings of community software.</li>
+      <li><a href="https://www.colony.io/">Colony</a> and <a href="https://coordinape.com/">Coordinape</a><br>Adjacent reward problems. Colony states early access is closed; Coordinape says its app sunset in 2025. Neither is presented as an available drop-in substitute.</li>
+      <li><a href="https://opencollective.com/">Open Collective</a><br>Financial coordination and fiscal-host context. Poa does not claim fiscal sponsorship.</li>
+      <li><a href="https://vocdoni.io/en/solutions/cooperatives/">Vocdoni — Cooperatives</a><br>Formal assembly and private-ballot expectations.</li>
+      <li><a href="https://cccd.coop/sites/default/files/resources/Overview%20of%20Starting%20a%20Worker%20Coop.pdf">CCCD — Starting a worker cooperative</a><br>Formation involves legal and operational work beyond creating software accounts.</li>
+    </ol>
+    <p class="small" style="margin-top:18px">Provider pages establish how providers describe their offerings. This research does not independently certify their security, legal claims, adoption or performance. No bulk search scraper was built. No paid keyword access or Search Console access was assumed; no analytics instrumentation was found during this review.</p>
+  </section>
+
+  <section id="measurement">
+    <div class="section-label">06 / After release</div>
+    <h2>Measure relevant discovery and useful participation.</h2>
+    <div class="columns">
+      <div>
+        <h3>Discovery → first useful action</h3>
+        <p>Record the release date and changed URLs. With authorized Search Console access, follow <strong>organic impressions, relevant queries, clicks, and click-through rate</strong> for each mapped page. Separate branded Poa searches from the qualified nonbranded clusters.</p>
+        <p>Observe comparable periods over several weeks and annotate seasonality or other releases. A successful build or corrected robots tag is an immediate technical result; improved search visibility requires later evidence.</p>
+        <p>No conversion instrumentation was found. Agree and implement an appropriate measurement path before claiming a funnel: public landing page → guide/create CTA → setup start → successful organization creation → first member contribution or decision. Prefer aggregate events; account addresses and task contents are unnecessary.</p>
+      </div>
+      <div class="card">
+        <h3>Highest-value next steps</h3>
+        <ol class="tight">
+          <li>After release, verify deployed status codes, canonical redirects, sitemap and indexing boundaries against the passing local checks.</li>
+          <li>Connect an authorized Search Console property and establish a query/page baseline. Add agreed conversion events before evaluating acquisition quality.</li>
+          <li>Replace historical Argus and old-name product captures with current, authorized examples; label sandbox examples clearly.</li>
+          <li>Use observed queries and actual setup friction to improve these pages before considering new audience pages.</li>
+        </ol>
+      </div>
+    </div>
+    <p class="small">Remaining limits: no transaction/signing validation was required for this content change; the observed cross-chain account-factory mismatch needs separate investigation; existing screenshots include historical organizations; skipped tests and lint warnings remain; no field performance or ranking improvement has been measured. Static IPFS hosting still needs its configured edge behavior for HTTP redirects and error statuses. Smithers could not run with the installed dependency/provider constraints, so the work continued in the selected agent with direct implementation and independent reviews.</p>
+  </section>
+  <footer class="small">Prepared for Poa · Research date: 2026-09-17 · Repository decision record · Existing public URLs preserved · Local edits only</footer>
+</main>
+</body>
+</html>

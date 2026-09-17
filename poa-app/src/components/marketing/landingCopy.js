@@ -1,12 +1,13 @@
 // Shared production landing copy. Revenue claims remain conditional on distribution.
 import { PROTO_COPY } from '@/components/marketing/protoCopy';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 
 export const HERO = {
   eyebrow: 'Built together. Owned together.',
   headline: 'Do the work. Own what you build.',
   headlineLines: ['Do the work.', 'Own what', 'you build.'],
-  subline: 'Bring your people together. Turn the work you do into a stake in what you build, a voice in its direction, and a share when revenue is distributed.',
+  subline: 'Software for worker cooperatives, community organizations, and collectives. Organize work, make decisions together, and share value under rules your group chooses.',
   ctaPrimary: 'Start an organization',
   ctaSecondary: 'See how it works',
 };
@@ -84,17 +85,17 @@ export const THE_WORK = {
   kicker: 'The work',
   heading: 'Your work becomes your stake.',
   lead:
-    'Every completed task can become a piece of something bigger. When your work is approved, you earn ownership in the organization you are helping build.',
+    `Turn approved work into ${DEFAULT_TOKEN_LABEL}: a recorded stake that can count in decisions and funded revenue distributions under your group’s rules.`,
   points: [
     {
       title: 'A stake you earn',
       body:
-        'Ownership is earned when your work is approved. It cannot be bought, sold, or given away.',
+        `A task can award ${DEFAULT_TOKEN_LABEL} when a reviewer approves your work. They cannot be bought, sold, or given away.`,
     },
     {
-      title: 'Paid work. Lasting ownership.',
+      title: 'A payment and a lasting stake',
       body:
-        'A task can carry a payout in dollars and a share of ownership. The group decides what each piece of work is worth.',
+        `A task can offer a funded payment alongside ${DEFAULT_TOKEN_LABEL}. See the reward, payment asset, and review requirements before you begin.`,
     },
     {
       title: 'A clear path from idea to done',
@@ -102,9 +103,12 @@ export const THE_WORK = {
         'Post a task, find the right person, and review the result. Your group decides who can do and approve the work.',
     },
   ],
+  ownershipNote: `${DEFAULT_TOKEN_LABEL} are participation rights inside Poa. Creating an organization does not create a legal cooperative or grant legal equity.`,
+  guideLabel: `Understand ${DEFAULT_TOKEN_LABEL} and ownership`,
+  guideHref: '/docs/contribution-and-ownership/',
   fig: {
     id: 'fig 03',
-    txt: 'shared task board · payouts of 5 to 50 shares, posted in the open',
+    txt: 'shared task board · contribution rewards posted in the open',
     anno: 'each column is a stage: open, in progress, in review, completed',
   },
 };
@@ -115,28 +119,30 @@ export const THE_SAY = {
   heading: 'A voice in what comes next.',
   lead:
     'The people building the organization help shape its direction. Choose how your group votes, make decisions in the open, and put them into motion.',
-  earnedLine: 'Voting power is earned by participating, not bought.',
+  earnedLine: 'Give membership, contribution, or both a place in decisions.',
   points: [
     {
       title: 'Choose how you decide',
       body:
-        'One person one vote, votes weighted by contribution, or a blend. The choice is the group’s, and it is written into the rules.',
+        'Equal votes among eligible members, votes weighted by contribution, or a blend. Choose who can take part and how their votes count.',
     },
     {
       title: 'Every decision is on the record',
       body:
-        'Every decision is recorded with its reasoning, permanently and publicly. Anyone can read how a choice was made.',
+        'Proposals, votes, and results have a public record. Describe the reason for each proposal so others can follow the decision.',
     },
     {
       title: 'The rules can change, by vote',
       body:
-        'The group can change its own rules by vote. Nothing about how you govern is fixed by Poa.',
+        'Binding proposals can change supported rules, permissions, and spending. Members can check the result and whether its action completed.',
     },
   ],
+  guideLabel: 'Explore member voting and binding decisions',
+  guideHref: '/docs/hybridVoting/',
   fig: {
     id: 'fig 04',
     txt: 'a real election · five candidates, member votes, a clear winner',
-    anno: 'this vote weight was earned, not bought',
+    anno: 'eligible members choose who takes responsibility',
   },
 };
 
@@ -145,39 +151,41 @@ export const THE_MONEY = {
   kicker: 'The money',
   heading: 'Build something. Share in its success.',
   lead:
-    'When the organization distributes revenue, your share follows the ownership you earned. The work you put in has a place in what comes back.',
+    'When your group approves a funded revenue distribution, each contributor can claim their recorded allocation. The work you put in has a place in what comes back.',
   points: [
     {
       title: 'A treasury spent only by the rules',
       body:
-        'The books are open to every member, and major spending requires a vote. Money moves the way the group agreed it would.',
+        'Members can inspect shared balances and approve treasury spending through binding votes. Task payments follow the rewards and review rules already agreed.',
     },
     {
       title: 'Revenue split by earned share',
       body:
-        'When the organization distributes revenue, it is split in proportion to the ownership each member earned.',
+        `Prepare a distribution in proportion to recorded ${DEFAULT_TOKEN_LABEL} balances. Members vote on that allocation, and recipients claim once it is approved and funded.`,
     },
     {
       title: 'Check your own share',
       body:
-        'You can check your share yourself, without trusting anyone’s spreadsheet, and cash out to Cash App, Venmo, Revolut, or your bank.',
+        'See the amount allocated to you and whether you have claimed it. Each distribution keeps its own record, even as later work earns new rewards.',
     },
   ],
   candor:
-    'The money is held by the organization itself, not by Poa. Poa never holds it, and never takes a cut.',
+    'Revenue sharing depends on available funds and an approved distribution. Earning a stake does not guarantee income.',
+  guideLabel: 'See how shared funds and distributions work',
+  guideHref: '/docs/treasury-management/',
+  exampleLabel: 'Historical example: Argus treasury',
   stats: [
-    { k: 'distributed', v: '3 profit shares' },
-    { k: 'claimed', v: '100%' },
-    { k: 'held by Poa', v: '0', nocaps: true },
+    { k: 'shown in this example', v: '3 distributions' },
+    { k: 'claimed in this example', v: '100%' },
   ],
   fig: {
     id: 'fig 05',
-    txt: 'active profit shares · every share distributed to the members who earned it',
-    anno: 'split by earned share, 100% claimed',
+    txt: 'historical Argus treasury · three fully claimed distributions',
+    anno: 'recorded allocations and claims',
   },
   statsFig: {
     id: 'fig 05a',
-    txt: 'shared treasury · transparent finances for all members, major spending by vote',
+    txt: 'historical treasury view · shared balances and distribution tools',
   },
 };
 
@@ -194,9 +202,9 @@ export const THE_PEOPLE = {
         'Each role spells out exactly what it can do. When officers change, the powers stay put and the organization keeps its shape.',
     },
     {
-      title: 'Join in seconds',
+      title: 'A clear way to join',
       body:
-        'A member vouches for you, or you take an open role, and you are in. An account is a username and a passkey.',
+        'Create an account with a username and passkey, or connect an existing wallet. Follow the group’s joining rules, then accept your role when eligible.',
     },
   ],
   audienceIntro: {
@@ -237,7 +245,7 @@ export const ETHOS = {
   kicker: 'The reason',
   centerpiece: 'What you build together belongs to you.',
   body:
-    'The people who do the work earn the ownership. A simple idea, with room for a different kind of organization. One where your effort builds something that stays yours.',
+    'The people who do the work can build a lasting place in the organization. A simple idea, with room for shared decisions, recognized contributions, and a future you help shape.',
   rented:
     'Your group holds the rules, the money, and the record. Poa is open source, so what you build can keep going on your own terms.',
   selfHost: 'Poa itself runs as an organization on Poa.',
@@ -253,13 +261,13 @@ export const START_CLOSE = {
       no: '01',
       title: 'Choose the rules',
       body:
-        'Pick a template and set how your group decides, pays, and shares. You can change any of it later by vote.',
+        'Pick a template and set how your group decides, rewards work, and shares funds. Supported rules can change later through governance.',
     },
     {
       no: '02',
       title: 'Bring the people',
       body:
-        'Vouch in the first members and hand out roles. Each one carries the powers you wrote for it.',
+        'Invite the first members through your chosen joining process. Give each role the powers it needs to help the group move forward.',
     },
     {
       no: '03',
@@ -268,7 +276,7 @@ export const START_CLOSE = {
         'Post the first task. Make a decision together. Turn a shared idea into something real, one contribution at a time.',
     },
   ],
-  quiet: 'An account is a username and a passkey. Poa charges nothing.',
+  quiet: 'Explore setup before signing in. Use a passkey or existing wallet to launch; network fees may apply.',
   ctaPrimary: 'Start an organization',
   ctaSecondary: 'Browse organizations',
   ctaSecondaryHref: '/explore',

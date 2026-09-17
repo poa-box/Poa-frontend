@@ -4,8 +4,8 @@ import { START_CLOSE } from '@/components/marketing/landingCopy';
 import { SectionShell, RulePair } from '@/components/marketing/primitives';
 
 // Section 9 · Start + close. Convert: the compressed three steps
-// (choose the rules → bring the people → run it in the open), the always-safe
-// charges-nothing line, and the CTA pair. The closing grace note lives in the
+// (choose the rules → bring the people → run it in the open), account and fee
+// expectations, and the CTA pair. The closing grace note lives in the
 // footer colophon, not here (BRIEF §2 demotion).
 
 const C = START_CLOSE;

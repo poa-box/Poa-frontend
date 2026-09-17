@@ -1,12 +1,14 @@
 ---
-title: "Poa for community groups and clubs"
-description: "Turn a recurring meetup into a lasting club. Organize events, welcome members, share decisions, and make your next community idea happen with Poa."
+title: "Shared decisions and tasks for community groups"
+description: "Help your club or community group share responsibilities, coordinate tasks, welcome members, and vote on shared funds with Poa."
 date: "2026-09-06"
-updated: "2026-09-06"
+updated: "2026-09-17"
 category: "Use cases"
 ---
 
-# Poa for community groups and clubs
+# Shared decisions and tasks for community groups
+
+Poa gives clubs and community groups a shared place for tasks, membership responsibilities, and member voting. Use it when the people who keep a group going need a clear way to decide together and pass responsibility to others.
 
 The best part of a club is what its members bring to it: an unexpected film, a skill someone wants to teach, a project nobody would have attempted alone.
 
@@ -14,7 +16,7 @@ Poa gives members a way to take responsibility for the group itself: prepare eve
 
 ## Build a club that outlasts graduation
 
-Imagine a campus blockchain club where people explore ideas and build projects beyond their coursework. The club has a workshop budget, a few unfinished projects, and two coordinators graduating in May.
+Imagine a campus makers' club where people explore ideas and build projects beyond their coursework. The club has a workshop budget, a few unfinished projects, and two coordinators graduating in May.
 
 It could give eligible members equal weight in [binding decisions](/docs/hybridVoting). Coordinator roles handle projects and invitations; reviewers approve submitted work. Those responsibilities let a new organizer help run a workshop before taking over the wider program.
 
@@ -37,6 +39,8 @@ Members could use equal-weight binding proposals to approve parts or room expens
 For food collection or mutual aid, use the public board to coordinate work and keep recipients' details private. Decide how to allocate help separately from contribution rewards.
 
 ## Give someone a way to take part
+
+Keep your existing event calendar, ticketing, and private contact records where they work best. Poa helps members coordinate preparation tasks and shared decisions; its organization records are public. Membership in Poa does not by itself grant ownership of a community building or other legal property.
 
 When you share the organization link, invite people to a specific activity: a screening to help choose, a repair station to prepare, or a discussion to host.
 

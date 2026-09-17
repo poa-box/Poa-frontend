@@ -24,6 +24,10 @@ export default function TheWork() {
           {C.heading}
         </h2>
         <p className="pa-lead">{C.lead}</p>
+        <p className="pa-work-note">
+          {C.ownershipNote}{' '}
+          <a href={C.guideHref}>{C.guideLabel} →</a>
+        </p>
       </div>
 
       <ul className="pa-work-points poa-reveal">
@@ -51,6 +55,17 @@ export default function TheWork() {
       <style jsx>{`
         .pa-work-head {
           grid-column: 2 / 8;
+        }
+        .pa-work-note {
+          font-size: 14px;
+          line-height: 1.6;
+          color: var(--steel);
+          max-width: 48ch;
+          margin: 20px 0 0;
+        }
+        .pa-work-note a {
+          color: var(--signal-deep);
+          text-underline-offset: 3px;
         }
         .pa-work-points {
           grid-column: 8 / 14;

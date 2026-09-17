@@ -2,15 +2,17 @@
 title: "What is Poa? Software for shared ownership and governance"
 description: "Poa is open-source software for worker and community-owned organizations: membership, tasks, earned Shares, member voting, a shared treasury, and revenue sharing."
 date: '2026-09-06'
-updated: '2026-09-11'
+updated: '2026-09-17'
 category: 'Foundations'
 ---
 
-Poa is open-source software for worker-owned businesses, community organizations, and collectives. It brings membership, tasks, contribution rewards, voting, and a shared treasury together under rules the group chooses. The web app lets you create and run an organization without writing code.
+Poa stands for **Perpetual Organization Architect**. It is open-source software for worker-owned businesses, community organizations, and collectives. It brings membership, tasks, contribution rewards, voting, and a shared treasury together under rules the group chooses. The web app lets you create and run an organization without writing code.
 
 People can earn Shares by helping make the organization valuable. Useful work can become a recorded stake, influence over decisions, and a share when the group distributes revenue.
 
 The group chooses how those pieces fit together. Votes can count equally among eligible members, by contribution, or through a blend. You also choose whether to award ownership for work and distribute shared funds. The purpose, membership, and rules are yours to define.
+
+This is also a way to create a **DAO**, short for decentralized autonomous organization: a group whose shared rules and records use public blockchain infrastructure. You do not need to know that term to use Poa. Start with what your group wants to do; the [creation guide](/docs/create/) explains the setup, account requirements, and costs to consider.
 
 ## Your contribution can keep counting
 

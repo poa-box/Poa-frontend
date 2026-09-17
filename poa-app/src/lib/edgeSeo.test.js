@@ -19,6 +19,8 @@ describe('public edge canonical URLs', () => {
     ['https://poa.box/docs/what-is-poa', 'https://poa.box/docs/what-is-poa/'],
     ['https://poa.box/docs/what-is-poa/index.html', 'https://poa.box/docs/what-is-poa/'],
     ['http://www.poa.box/blog/perpetualOrganization?ref=old', 'https://poa.box/docs/what-is-poa/?ref=old'],
+    ['https://poa.box/blog/create/index.html?ref=old', 'https://poa.box/docs/create/?ref=old'],
+    ['https://poa.box/docs/perpetualOrganization/index.html', 'https://poa.box/docs/what-is-poa/'],
   ])('redirects %s directly to %s without fetching the gateway', async (from, to) => {
     const fetch = vi.fn();
     vi.stubGlobal('fetch', fetch);

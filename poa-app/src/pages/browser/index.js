@@ -1,6 +1,13 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/router';
 
+LegacyRedirect.seo = {
+  title: 'Explore organizations | Poa',
+  description: 'Continue to the Poa organization directory.',
+  path: '/explore',
+  noIndex: true,
+};
+
 export default function LegacyRedirect() {
   const router = useRouter();
   useEffect(() => {
