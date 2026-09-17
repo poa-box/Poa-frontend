@@ -30,7 +30,7 @@ export const NAV = {
     { label: 'About', href: '/about', fromMd: true },
   ],
   signIn: 'Sign in',
-  cta: 'Start an organization',
+  cta: 'Join an Organization',
 };
 
 export const FOOTER_FULL = {
