@@ -78,6 +78,14 @@ project creation, authority profiles and joining, and the E2E harness. Integrati
 tests mock data hooks and transaction transport; verify browser layout and live
 flows on Test6 as well. No Prettier. No formatting commands.
 
+## Workspace artifacts
+
+Put disposable build snapshots, static exports, performance traces, browser videos,
+and other heavyweight diagnostics under `.context/tmp/`. The Conductor archive hook
+removes that directory before preserving the workspace context. Keep only final
+review artifacts such as the verification GIF or report outside `.context/tmp/`.
+Never copy `.next`, `node_modules`, or repeated build outputs elsewhere in `.context/`.
+
 ## Frontend changes: verify on Test6
 
 To make AND verify a frontend change, drive it through the **`test6-verify`** Smithers
