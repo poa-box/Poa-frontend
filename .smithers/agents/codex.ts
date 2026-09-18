@@ -1,4 +1,7 @@
 import { CodexAgent as SmithersCodexAgent } from "smithers-orchestrator";
+import { join } from "node:path";
+
+const repoRoot = join(import.meta.dir, "..", "..");
 
 // Built-in Codex CLI agent (cliEngine: "codex").
 // NB: do NOT pin `model` here. The installed ChatGPT-backed Codex CLI rejects an
@@ -9,7 +12,7 @@ import { CodexAgent as SmithersCodexAgent } from "smithers-orchestrator";
 // the exact id your Codex account accepts.
 // Tweak `cwd`, or uncomment extra options below to match your setup.
 export const CodexAgent = new SmithersCodexAgent({
-  cwd: process.cwd(),
+  cwd: repoRoot,
   skipGitRepoCheck: true,
   // model: "<an id your Codex account supports>",
   // systemPrompt: "Add shared instructions for every Codex run.",

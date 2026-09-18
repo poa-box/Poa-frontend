@@ -118,14 +118,19 @@ hand these commands to the user.
   for agents" Test6 flow above — implement → `yarn build` gate → Playwright
   verification on Test6 (real tx + a recorded gif) → independent code review →
   independent design review of the screenshots, looping until all pass:
-  `bunx smithers-orchestrator workflow run test6-verify --prompt "<change>"`
+  `.smithers/scripts/smithers-local.sh workflow run test6-verify --prompt "<change>"`
+  The workflow defaults to Codex; pass `--input '{"prompt":"<change>","provider":"claude"}'`
+  to keep the entire run on Claude instead. Its preflight validates the exact
+  Node/Yarn/Bun/Smithers toolchain before an implementation agent starts.
 - Spawned agents run at the repo root and **read this AGENTS.md** (also imported by `CLAUDE.md`), so the Test6 / E2E
   details above are the shared source of truth for both inline work and Smithers runs
   — keep them here rather than duplicating them into the workflow.
-- **Catalog:** `bunx smithers-orchestrator workflow list`. **Watch a run:**
-  `bunx smithers-orchestrator ps | inspect <id> | logs <id> -f | ui <id>`.
-- Always invoke as `bunx smithers-orchestrator <cmd>` (never bare `smithers` — that's
-  an unrelated npm package).
+- **Catalog:** `.smithers/scripts/smithers-local.sh workflow list`. **Watch a run:**
+  use `.smithers/scripts/smithers-local.sh ps`, `inspect <id>`, `logs <id> -f`, or
+  `ui <id>`.
+- Always invoke through `.smithers/scripts/smithers-local.sh`; it uses the exact
+  release pinned in `.smithers/package.json` and never downloads a newer CLI at
+  runtime. Run `bash .conductor/setup.sh` if its dependencies are missing.
 
 ## Stack
 
