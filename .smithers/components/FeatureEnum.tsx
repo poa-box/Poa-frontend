@@ -12,6 +12,8 @@ export const featureEnumOutputSchema = z.looseObject({
   markdownBody: z.string(),
 });
 
+type FeatureEnumOutput = z.infer<typeof featureEnumOutputSchema>;
+
 type FeatureEnumProps = {
   idPrefix: string;
   agent: AgentLike | AgentLike[];
@@ -81,7 +83,7 @@ export function FeatureEnum({
                 },
               }}
             >
-              {(deps) => (
+              {(deps: { previous: FeatureEnumOutput }) => (
                 <FeatureEnumRefinePrompt
                   existingFeatures={deps.previous.featureGroups}
                   lastCommitHash={deps.previous.lastCommitHash ?? lastCommitHash}
@@ -125,7 +127,7 @@ export function FeatureEnum({
         needs={{ final: refineTaskIds[refineTaskIds.length - 1] ?? scanTaskId }}
         deps={{ final: featureEnumOutputSchema }}
       >
-        {(deps) => deps.final}
+        {(deps: { final: FeatureEnumOutput }) => deps.final}
       </Task>
     </Sequence>
   );

@@ -18,6 +18,8 @@ export const forEachFeatureMergeSchema = z.looseObject({
   markdownBody: z.string(),
 });
 
+type FeatureResult = z.infer<typeof forEachFeatureResultSchema>;
+
 type ForEachFeatureProps = {
   idPrefix: string;
   agent: AgentLike | AgentLike[];
@@ -115,7 +117,7 @@ export function ForEachFeature({
         needs={mergeNeeds}
         deps={mergeDeps}
       >
-        {(deps) => {
+        {(deps: Record<string, FeatureResult>) => {
           const results = workItems.map((_, index) => deps[`item${index}`]);
           const totalGroups = new Set(workItems.map((item) => item.groupName)).size;
           return [

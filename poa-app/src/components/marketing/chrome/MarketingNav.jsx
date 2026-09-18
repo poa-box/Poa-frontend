@@ -5,7 +5,7 @@ import { NAV } from '@/components/marketing/landingCopy';
 // MarketingNav - the direction-A ("public works") masthead, scaled to
 // production. A document masthead, not app chrome: a sticky bone bar, the mark
 // with its registration number, mono nav links, and the auth-aware
-// sign-in / account trigger + Start CTA.
+// sign-in / account trigger + Join CTA.
 //
 // Auth wiring is IDENTICAL to CharterNav (the props contract the page passes):
 //   { mounted, isPasskeyUser, isConnected, isAuthenticated, accountMenuItem, onSignInOpen }
@@ -97,7 +97,7 @@ export default function MarketingNav({
 
         <div className="pa-nav-actions">
           {authControl('pa-nav-auth-desk')}
-          <NextLink href="/create" prefetch={false} className="pa-cta-solid pa-nav-cta">
+          <NextLink href="/explore" prefetch={false} className="pa-cta-solid pa-nav-cta">
             {NAV.cta}
           </NextLink>
           <button
@@ -128,7 +128,7 @@ export default function MarketingNav({
             )
           )}
           {authControl('pa-nav-auth-menu')}
-          <NextLink href="/create" prefetch={false} className="pa-cta-solid pa-cta-lg pa-nav-menu-cta" onClick={() => setMenuOpen(false)}>
+          <NextLink href="/explore" prefetch={false} className="pa-cta-solid pa-cta-lg pa-nav-menu-cta" onClick={() => setMenuOpen(false)}>
             {NAV.cta}
           </NextLink>
         </nav>

@@ -27,6 +27,11 @@ export const buildOutputSchema = z.object({
   failingLog: z.string().nullable().default(null),
 });
 
+export const preflightOutputSchema = z.object({
+  ready: z.literal(true),
+  summary: z.string(),
+});
+
 // One structured record per on-chain mutation (create / each vote / finalize), so
 // a run that fires several transactions keeps EVERY hash instead of clobbering a
 // single field (lesson 8).

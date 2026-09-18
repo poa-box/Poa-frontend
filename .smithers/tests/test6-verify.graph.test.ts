@@ -73,6 +73,11 @@ describe("test6-verify graph — shared shape", () => {
     expect(ui.byId.get("t6:loop")?.tag).toBe("ralph");
     expect(onchain.byId.get("t6:loop")?.tag).toBe("ralph");
   });
+  test("runs the environment preflight before entering the loop", () => {
+    expect(ui.byId.has("t6:preflight")).toBe(true);
+    expect(onchain.byId.has("t6:preflight")).toBe(true);
+    expect(isSubsequence(ui.order, ["t6:preflight", "t6:loop", "t6:implement"])).toBe(true);
+  });
   test("common pipeline nodes exist in both modes", () => {
     for (const id of ["t6:implement", "t6:diff", "t6:build", "t6:freeze", "t6:dev-up", "t6:review:0", "t6:design-review"]) {
       expect(ui.byId.has(id)).toBe(true);
@@ -92,6 +97,18 @@ describe("test6-verify graph — shared shape", () => {
     const source = readFileSync(workflowPath, "utf8");
     expect(source).toContain('ctx.latest("review", `t6:review:${i}`)');
     expect(source).toContain("reviewsApproved(reviews)");
+  });
+  test("build is deterministic and failed builds skip browser verification", () => {
+    const source = readFileSync(workflowPath, "utf8");
+    expect(ui.byId.get("t6:build")?.props.agent).toBeUndefined();
+    expect(source).toContain('for (const command of ["build", "e2e:check"])');
+    expect(source).toContain("shouldRunVerification ?");
+  });
+  test("provider is an explicit workflow input used by all agent tasks", () => {
+    const source = readFileSync(workflowPath, "utf8");
+    expect(source).toContain('provider: z.enum(["codex", "claude"]).default("codex")');
+    expect(source).toContain("agent={[selectedProvider]}");
+    expect(source).toContain("const reviewAgents = [selectedProvider]");
   });
 });
 
