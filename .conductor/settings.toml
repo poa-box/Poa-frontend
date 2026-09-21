@@ -1,4 +1,6 @@
 "$schema" = "https://conductor.build/schemas/settings.repo.schema.json"
 
 [scripts]
-archive = "rm -rf poa-app/node_modules poa-app/.next node_modules .next .context/tmp"
+setup = "bash .conductor/setup.sh"
+archive = "rm -rf poa-app/node_modules poa-app/.next .smithers/node_modules node_modules .next .context/tmp"
+run_mode = "concurrent"

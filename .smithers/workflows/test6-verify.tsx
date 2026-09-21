@@ -15,6 +15,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   buildOutputSchema,
+  preflightOutputSchema,
   verifyOutputSchema,
   designReviewOutputSchema,
   devUpSchema,
@@ -29,6 +30,9 @@ import {
 
 const inputSchema = z.object({
   prompt: z.string().default("Implement and verify the requested poa-app change."),
+  // Preserve the operator's chosen coding provider throughout implementation,
+  // browser verification, and independent review. Codex is the default.
+  provider: z.enum(["codex", "claude"]).default("codex"),
   // "ui" (default) = fast read-only browser check, no tx. "onchain" = full Test6
   // create → vote → durable wait → finalize flow with real tx.
   verifyDepth: z.enum(["ui", "onchain"]).default("ui"),
@@ -46,6 +50,7 @@ const inputSchema = z.object({
 
 const { Workflow, smithers } = createSmithers({
   input: inputSchema,
+  preflight: preflightOutputSchema,
   implement: implementOutputSchema,
   build: buildOutputSchema,
   verify: verifyOutputSchema,
@@ -66,15 +71,18 @@ const repoRoot = join(import.meta.dir, "..", "..");
 const scriptsDir = join(import.meta.dir, "..", "scripts");
 const ensureDevScript = join(scriptsDir, "ensure-dev.sh");
 const fingerprintScript = join(scriptsDir, "source-fingerprint.sh");
+const preflightScript = join(scriptsDir, "preflight.sh");
+const runPoaScript = join(scriptsDir, "run-poa.sh");
 // One source of truth for the code-review agents: both the <Review> node and the
 // approval gate (which reads each node's LATEST row) iterate this list, so the
 // gate can never fall out of sync with the nodes that actually ran (lesson 4).
-const reviewAgents = [providers.claudeSonnet];
-
 export default smithers((ctx) => {
   // Apply defaults defensively: `smithers graph` (and any raw --input) does NOT
   // run values through the input schema's zod defaults, so read them safely here.
   const prompt = ctx.input.prompt ?? "Implement and verify the requested poa-app change.";
+  const providerName = ctx.input.provider ?? "codex";
+  const selectedProvider = providerName === "claude" ? providers.claude : providers.codex;
+  const reviewAgents = [selectedProvider];
   const depth = ctx.input.verifyDepth ?? "ui";
   const maxIterations = ctx.input.maxIterations ?? 2;
   const voteWindow = ctx.input.voteWindow ?? "10m";
@@ -101,6 +109,9 @@ export default smithers((ctx) => {
     .filter((r): r is NonNullable<typeof r> => r != null);
 
   const buildPassed = build?.passed === true;
+  // The initial graph includes verification. After a failed build, omit every
+  // browser/review node so the loop returns directly to implementation.
+  const shouldRunVerification = build == null || buildPassed;
   const verified = verify?.verified === true;
   const reviewApproved = reviewsApproved(reviews);
   const designApproved = design?.approved === true;
@@ -147,16 +158,6 @@ Rules:
 - Keep the diff focused and production-grade; touch only what the change needs.
 - Do NOT start the dev server or a browser here — a later step verifies it.
 - Return a summary and the exact list of files you changed.${feedback ? `\n\nPREVIOUS ATTEMPT FEEDBACK — fix every item before doing anything else:\n${feedback}` : ""}`;
-
-  const buildPrompt = `Run this repo's compile + E2E-leak gate from the repo root. Do NOT edit code in this step.
-
-  cd poa-app && yarn build
-
-If any E2E-intercepted file changed (AuthContext.js, _app.js, passkeySign.js, passkeyCreate.js, ProviderConverter.jsx, or anything under src/services/e2e/), ALSO run:
-
-  cd poa-app && yarn e2e:check
-
-Set passed=true ONLY if \`yarn build\` exits 0 (and e2e:check passes when it was required). On failure, put the tail of the error output in failingLog so the next iteration can fix it.`;
 
   const verifyCommon = `See CLAUDE.md "Frontend changes: verify on Test6" for repo facts (Test6 authorization, identities).
 
@@ -270,95 +271,130 @@ Set reviewer to "design-reviewer". Approve ONLY if the UI looks good AND fits ex
 
   return (
     <Workflow name="test6-verify">
-      <Loop id="t6:loop" until={done} maxIterations={maxIterations} onMaxReached="return-last">
-        <Sequence>
-          <Task id="t6:implement" output={implementOutputSchema} agent={[providers.claude]} timeoutMs={LONG} heartbeatTimeoutMs={HEARTBEAT}>
-            {implementPrompt}
-          </Task>
-          {/* capture implement's diff (uncommitted, else branch-vs-main) for the reviewer */}
-          <Task id="t6:diff" output={diffSchema}>
-            {() => {
-              let d = "";
-              const args = (range: string) => ["--no-pager", "diff", range, "--", "poa-app/src"];
-              try {
-                d = execFileSync("git", args("HEAD"), { cwd: repoRoot, encoding: "utf8", maxBuffer: 20_000_000 });
-                if (!d.trim()) d = execFileSync("git", args("origin/main...HEAD"), { cwd: repoRoot, encoding: "utf8", maxBuffer: 20_000_000 });
-              } catch { /* git unavailable — reviewer falls back to the prompt */ }
-              return { diff: d.slice(0, 60_000) || "(no diff captured — review the change described in the prompt)" };
-            }}
-          </Task>
-          <Task id="t6:build" output={buildOutputSchema} agent={[providers.claudeSonnet]} timeoutMs={LONG} heartbeatTimeoutMs={HEARTBEAT}>
-            {buildPrompt}
-          </Task>
-          {/* Freeze the tested source revision + dirty-diff fingerprint (lesson 2)
-              AFTER build so it captures exactly what gets served + verified. */}
-          <Task id="t6:freeze" output={fingerprintSchema}>
-            {() => {
-              mkdirSync(arts.root, { recursive: true });
-              mkdirSync(arts.screenshots, { recursive: true });
-              mkdirSync(arts.logs, { recursive: true });
-              const out = execFileSync("bash", [fingerprintScript, "freeze", arts.fingerprint], {
-                cwd: repoRoot, encoding: "utf8", timeout: 120_000,
-              });
-              return JSON.parse(out);
-            }}
-          </Task>
-          {/* Deterministically ensure exactly ONE clean node-20.10 dev server. Reuse
-              only when the listener's cwd is THIS workspace AND the served source
-              still matches the frozen snapshot; refuse a foreign checkout (lesson 1). */}
-          <Task id="t6:dev-up" output={devUpSchema}>
-            {() => {
-              const out = execFileSync("bash", [ensureDevScript, String(devPort), arts.fingerprint], {
-                cwd: repoRoot, encoding: "utf8", timeout: 400_000,
-              });
-              process.stdout.write(out);
-              const decision = /reusing/.test(out) ? "reuse" : /restarting/.test(out) ? "restart" : "start-fresh";
-              return { baseUrl: `http://localhost:${devPort}`, port: devPort, decision, started: !/reusing/.test(out) };
-            }}
-          </Task>
-          {/* On-chain only: derive the RUN-STABLE marker for idempotent recovery
-              (lesson 1/3). It is keyed on runId alone, so every loop iteration / retry
-              recomputes the SAME value and recovers the SAME proposal — it never
-              mints a per-iteration duplicate. `attempt` is informational only. */}
-          {onchain ? (
-            <Task id="t6:mark" output={markerSchema}>
+      <Sequence>
+        <Task id="t6:preflight" output={preflightOutputSchema}>
+          {() => {
+            const out = execFileSync("bash", [preflightScript], {
+              cwd: repoRoot, encoding: "utf8", timeout: 120_000,
+            });
+            process.stdout.write(out);
+            return { ready: true as const, summary: out.trim() };
+          }}
+        </Task>
+        <Loop id="t6:loop" until={done} maxIterations={maxIterations} onMaxReached="return-last">
+          <Sequence>
+            <Task id="t6:implement" output={implementOutputSchema} agent={[selectedProvider]} timeoutMs={LONG} heartbeatTimeoutMs={HEARTBEAT}>
+              {implementPrompt}
+            </Task>
+            {/* capture implement's diff (uncommitted, else branch-vs-main) for the reviewer */}
+            <Task id="t6:diff" output={diffSchema}>
               {() => {
-                const attempt = ctx.iterations?.["t6:loop"] ?? ctx.iteration ?? 0;
-                const value = deriveMarker({ runId: ctx.runId, salt: prompt });
-                mkdirSync(arts.root, { recursive: true });
-                // Write the marker file with node fs (lesson 5) — no bash -c string
-                // interpolation, which mangles JSON and is injection-prone.
-                writeFileSync(
-                  arts.marker,
-                  JSON.stringify({ marker: value, attempt, createdAt: new Date().toISOString() }, null, 2),
-                );
-                return { marker: value, attempt, idsFile: arts.ids, markerFile: arts.marker };
+                let d = "";
+                const args = (range: string) => ["--no-pager", "diff", range, "--", "poa-app/src"];
+                try {
+                  d = execFileSync("git", args("HEAD"), { cwd: repoRoot, encoding: "utf8", maxBuffer: 20_000_000 });
+                  if (!d.trim()) d = execFileSync("git", args("origin/main...HEAD"), { cwd: repoRoot, encoding: "utf8", maxBuffer: 20_000_000 });
+                } catch { /* git unavailable — reviewer falls back to the prompt */ }
+                return { diff: d.slice(0, 60_000) || "(no diff captured — review the change described in the prompt)" };
               }}
             </Task>
-          ) : null}
-          {/* verify (browser) and the code review (reads the diff) are independent —
-              run them concurrently to overlap the two slow steps. For on-chain, the
-              parallel verify only CREATES + votes; finalize happens after a durable wait. */}
-          <Parallel>
-            <Task id={onchain ? "t6:verify-create" : "t6:verify"} output={verifyOutputSchema} agent={[providers.claude]} timeoutMs={LONG} heartbeatTimeoutMs={VERIFY_HEARTBEAT}>
-              {onchain ? createPrompt : uiVerifyPrompt}
+            <Task id="t6:build" output={buildOutputSchema}>
+              {() => {
+                const logs: string[] = [];
+                try {
+                  for (const command of ["build", "e2e:check"]) {
+                    logs.push(execFileSync("bash", [runPoaScript, command], {
+                      cwd: repoRoot, encoding: "utf8", timeout: LONG, maxBuffer: 30_000_000,
+                    }));
+                  }
+                  return { passed: true, summary: "yarn build and yarn e2e:check passed", failingLog: null };
+                } catch (error: any) {
+                  const combined = [error?.stdout, error?.stderr, error?.message]
+                    .filter(Boolean)
+                    .map(String)
+                    .join("\n");
+                  return {
+                    passed: false,
+                    summary: "deterministic build gate failed",
+                    failingLog: combined.slice(-20_000) || logs.join("\n").slice(-20_000),
+                  };
+                }
+              }}
             </Task>
-            <Review idPrefix="t6:review" prompt={reviewPrompt} agents={reviewAgents} />
-          </Parallel>
-          {/* Durable split between voting and finalization (lesson 4): the run parks
-              as waiting-timer and survives a crash/redeploy during the vote window. */}
-          {onchain ? <Timer id="t6:vote-window" duration={voteWindow} /> : null}
-          {onchain ? (
-            <Task id="t6:verify-finalize" output={verifyOutputSchema} agent={[providers.claude]} timeoutMs={LONG} heartbeatTimeoutMs={VERIFY_HEARTBEAT}>
-              {finalizePrompt}
-            </Task>
-          ) : null}
-          {/* design review reads the final verify's screenshots, so it stays last */}
-          <Task id="t6:design-review" output={designReviewOutputSchema} agent={[providers.claudeSonnet]} continueOnFail timeoutMs={LONG} heartbeatTimeoutMs={HEARTBEAT}>
-            {designReviewPrompt}
-          </Task>
-        </Sequence>
-      </Loop>
+            {shouldRunVerification ? (
+              <>
+                {/* Freeze the tested source revision + dirty-diff fingerprint (lesson 2)
+                    AFTER build so it captures exactly what gets served + verified. */}
+                <Task id="t6:freeze" output={fingerprintSchema}>
+                  {() => {
+                    mkdirSync(arts.root, { recursive: true });
+                    mkdirSync(arts.screenshots, { recursive: true });
+                    mkdirSync(arts.logs, { recursive: true });
+                    const out = execFileSync("bash", [fingerprintScript, "freeze", arts.fingerprint], {
+                      cwd: repoRoot, encoding: "utf8", timeout: 120_000,
+                    });
+                    return JSON.parse(out);
+                  }}
+                </Task>
+                {/* Deterministically ensure exactly ONE clean Node 22.23.2 dev server. Reuse
+                    only when the listener's cwd is THIS workspace AND the served source
+                    still matches the frozen snapshot; refuse a foreign checkout (lesson 1). */}
+                <Task id="t6:dev-up" output={devUpSchema}>
+                  {() => {
+                    const out = execFileSync("bash", [ensureDevScript, String(devPort), arts.fingerprint], {
+                      cwd: repoRoot, encoding: "utf8", timeout: 400_000,
+                    });
+                    process.stdout.write(out);
+                    const decision = /reusing/.test(out) ? "reuse" : /restarting/.test(out) ? "restart" : "start-fresh";
+                    return { baseUrl: `http://localhost:${devPort}`, port: devPort, decision, started: !/reusing/.test(out) };
+                  }}
+                </Task>
+                {/* On-chain only: derive the RUN-STABLE marker for idempotent recovery
+                    (lesson 1/3). It is keyed on runId alone, so every loop iteration / retry
+                    recomputes the SAME value and recovers the SAME proposal — it never
+                    mints a per-iteration duplicate. `attempt` is informational only. */}
+                {onchain ? (
+                  <Task id="t6:mark" output={markerSchema}>
+                    {() => {
+                      const attempt = ctx.iterations?.["t6:loop"] ?? ctx.iteration ?? 0;
+                      const value = deriveMarker({ runId: ctx.runId, salt: prompt });
+                      mkdirSync(arts.root, { recursive: true });
+                      // Write the marker file with node fs (lesson 5) — no bash -c string
+                      // interpolation, which mangles JSON and is injection-prone.
+                      writeFileSync(
+                        arts.marker,
+                        JSON.stringify({ marker: value, attempt, createdAt: new Date().toISOString() }, null, 2),
+                      );
+                      return { marker: value, attempt, idsFile: arts.ids, markerFile: arts.marker };
+                    }}
+                  </Task>
+                ) : null}
+                {/* verify (browser) and the code review (reads the diff) are independent —
+                    run them concurrently to overlap the two slow steps. For on-chain, the
+                    parallel verify only CREATES + votes; finalize happens after a durable wait. */}
+                <Parallel>
+                  <Task id={onchain ? "t6:verify-create" : "t6:verify"} output={verifyOutputSchema} agent={[selectedProvider]} timeoutMs={LONG} heartbeatTimeoutMs={VERIFY_HEARTBEAT}>
+                    {onchain ? createPrompt : uiVerifyPrompt}
+                  </Task>
+                  <Review idPrefix="t6:review" prompt={reviewPrompt} agents={reviewAgents} />
+                </Parallel>
+                {/* Durable split between voting and finalization (lesson 4): the run parks
+                    as waiting-timer and survives a crash/redeploy during the vote window. */}
+                {onchain ? <Timer id="t6:vote-window" duration={voteWindow} /> : null}
+                {onchain ? (
+                  <Task id="t6:verify-finalize" output={verifyOutputSchema} agent={[selectedProvider]} timeoutMs={LONG} heartbeatTimeoutMs={VERIFY_HEARTBEAT}>
+                    {finalizePrompt}
+                  </Task>
+                ) : null}
+                {/* design review reads the final verify's screenshots, so it stays last */}
+                <Task id="t6:design-review" output={designReviewOutputSchema} agent={[selectedProvider]} continueOnFail timeoutMs={LONG} heartbeatTimeoutMs={HEARTBEAT}>
+                  {designReviewPrompt}
+                </Task>
+              </>
+            ) : null}
+          </Sequence>
+        </Loop>
+      </Sequence>
     </Workflow>
   );
 });

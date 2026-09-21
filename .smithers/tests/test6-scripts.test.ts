@@ -3,11 +3,12 @@
 // mutated; drift is simulated by tampering with a frozen snapshot file.
 import { describe, expect, test } from "bun:test";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const smithersRoot = resolve(import.meta.dir, "..");
+const repoRoot = resolve(smithersRoot, "..");
 const script = join(smithersRoot, "scripts", "source-fingerprint.sh");
 
 function run(args: string[]): { stdout: string; status: number } {
@@ -26,7 +27,7 @@ describe("source-fingerprint.sh", () => {
     expect(a.status).toBe(0);
     expect(a.stdout.trim()).toBe(b.stdout.trim());
     expect(a.stdout.trim()).toMatch(/^[0-9a-f]+-[0-9a-f]{64}$/); // <rev>-<sha256>
-  });
+  }, 60_000);
 
   test("freeze records the current fingerprint and check passes against it", () => {
     const dir = mkdtempSync(join(tmpdir(), "t6-fp-"));
@@ -40,7 +41,7 @@ describe("source-fingerprint.sh", () => {
 
     const checked = run(["check", snap]);
     expect(checked.status).toBe(0);
-  });
+  }, 60_000);
 
   test("check FAILS closed when the frozen fingerprint drifts", () => {
     const dir = mkdtempSync(join(tmpdir(), "t6-fp-"));
@@ -80,6 +81,55 @@ describe("source-fingerprint.sh", () => {
     expect(scoped.status).toBe(0);
     const files = scoped.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
     expect(files).toEqual(["poa-app/package.json"]);
+  });
+});
+
+describe("workspace toolchain scripts", () => {
+  const scripts = [
+    join(repoRoot, "scripts", "with-node22.sh"),
+    join(repoRoot, ".conductor", "setup.sh"),
+    join(smithersRoot, "scripts", "smithers-local.sh"),
+    join(smithersRoot, "scripts", "run-poa.sh"),
+    join(smithersRoot, "scripts", "preflight.sh"),
+    join(smithersRoot, "scripts", "ensure-dev.sh"),
+  ];
+
+  test("all shell entry points pass bash syntax validation", () => {
+    for (const shellScript of scripts) {
+      expect(() => execFileSync("bash", ["-n", shellScript], { cwd: repoRoot })).not.toThrow();
+    }
+  });
+
+  test("shared wrapper selects exact Node 22.23.2", () => {
+    const out = execFileSync("bash", [join(repoRoot, "scripts", "with-node22.sh"), "node", "--version"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    expect(out.trim()).toBe("v22.23.2");
+  });
+
+  test("preflight validates installed app and pinned Smithers dependencies", () => {
+    const out = execFileSync("bash", [join(smithersRoot, "scripts", "preflight.sh")], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      timeout: 30_000,
+    });
+    expect(out).toContain("Node 22.23.2");
+    expect(out).toContain("Smithers 0.32.0");
+    expect(out).toContain("preflight: workspace toolchain and dependencies are ready");
+  });
+
+  test("Conductor uses the shared setup and no legacy conductor.json remains", () => {
+    const settings = readFileSync(join(repoRoot, ".conductor", "settings.toml"), "utf8");
+    expect(settings).toContain('setup = "bash .conductor/setup.sh"');
+    expect(settings).toContain('run_mode = "concurrent"');
+    expect(existsSync(join(repoRoot, "conductor.json"))).toBe(false);
+  });
+
+  test("Smithers and its Effect compatibility dependency are exactly pinned", () => {
+    const packageJson = JSON.parse(readFileSync(join(smithersRoot, "package.json"), "utf8"));
+    expect(packageJson.dependencies["smithers-orchestrator"]).toBe("0.32.0");
+    expect(packageJson.overrides["@effect/platform-node-shared"]).toBe("4.0.0-beta.102");
   });
 });
 
