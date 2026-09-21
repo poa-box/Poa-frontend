@@ -2,5 +2,5 @@
 
 [scripts]
 setup = "bash .conductor/setup.sh"
-archive = "rm -rf poa-app/node_modules poa-app/.next .smithers/node_modules node_modules .next"
+archive = "rm -rf poa-app/node_modules poa-app/.next .smithers/node_modules node_modules .next .context/tmp"
 run_mode = "concurrent"
