@@ -28,6 +28,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd -P)"
 APP="$(cd "$REPO_ROOT/poa-app" 2>/dev/null && pwd -P || echo "$REPO_ROOT/poa-app")"
 URL="http://localhost:$PORT"
 FP_SCRIPT="$(dirname "$0")/source-fingerprint.sh"
+NODE_RUNNER="$REPO_ROOT/scripts/with-node22.sh"
 
 code() { curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL" 2>/dev/null; }
 
@@ -49,12 +50,8 @@ fingerprint_ok() { # 0 if no gate or current matches frozen snapshot
   bash "$FP_SCRIPT" check "$SNAPSHOT_FILE" >/dev/null 2>&1
 }
 
-resolve_node() { # echo an executable node (prefer the repo's Node 22.23.2), or empty
-  local c
-  for c in "$HOME/.nvm/versions/node/v22.23.2/bin/node" "$(command -v node 2>/dev/null || true)"; do
-    [ -n "$c" ] && [ -x "$c" ] && { echo "$c"; return 0; }
-  done
-  return 1
+resolve_node() { # echo the exact Node 22.23.2 executable selected by the shared wrapper
+  bash "$NODE_RUNNER" node -p 'process.execPath' 2>/dev/null
 }
 
 terminate_pid() { # $1=pid — SIGTERM then SIGKILL, SCOPED to this one validated pid

@@ -23,10 +23,18 @@ import {
   devUpSchema,
   fingerprintSchema,
   markerSchema,
+  preflightOutputSchema,
   type DevServerState,
 } from "../lib/test6";
 
 const REPO = "/tmp/example-workspace";
+
+describe("preflight output", () => {
+  test("accepts only a successful readiness result", () => {
+    expect(preflightOutputSchema.parse({ ready: true, summary: "ready" })).toEqual({ ready: true, summary: "ready" });
+    expect(() => preflightOutputSchema.parse({ ready: false, summary: "broken" })).toThrow();
+  });
+});
 
 describe("resolveDevPort — port precedence (lesson 1)", () => {
   test("prefers TEST6_DEV_PORT over everything", () => {
