@@ -47,7 +47,7 @@ export default function LandingPage() {
   return (
     <>
       <SEOHead
-        title="Poa | Worker ownership, shared treasury & member voting"
+        title="Poa (poa.box) | Worker & community ownership software"
         description={POA_DESCRIPTION}
         path="/"
         ogImageAlt="Poa.box — Build together. Own Together"

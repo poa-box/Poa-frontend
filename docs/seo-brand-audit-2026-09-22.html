@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Poa search visibility: evidence and action plan · September 22, 2026</title>
+  <style>
+    :root{color-scheme:light;--paper:#f7f5ef;--card:#fffefa;--ink:#20372f;--muted:#5b6a61;--line:#d9dfd5;--accent:#9b402c;--soft:#edf1e9}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--paper);color:var(--ink);font:17px/1.65 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}main{max-width:1100px;margin:auto;padding:48px 28px 80px}h1{font-size:clamp(2.2rem,5vw,3.7rem);letter-spacing:-.035em;line-height:1.1;max-width:850px;margin:.3em 0 .6em}h2{font-size:1.65rem;line-height:1.25;letter-spacing:-.02em;margin:0 0 20px}h3{font-size:1.1rem;margin:24px 0 8px}p{margin:12px 0}a{color:var(--accent);text-underline-offset:3px;overflow-wrap:anywhere}code{font-size:.87em;overflow-wrap:anywhere}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:var(--soft);padding:18px;border-radius:8px;font-size:.88rem}section{border-top:1px solid var(--line);margin-top:36px;padding-top:30px}.eyebrow,.muted,small{color:var(--muted)}.eyebrow{font-size:.8rem;text-transform:uppercase;letter-spacing:.09em}.lead{font-size:1.2rem;max-width:870px}.note{border-left:4px solid var(--accent);padding:16px 20px;background:#f0e9df;margin:24px 0}.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:28px 0}.fact{background:var(--card);border:1px solid var(--line);padding:20px;border-radius:10px}.fact strong{display:block;font-size:2rem;line-height:1.2}.fact span{font-size:.9rem;color:var(--muted)}nav{display:flex;gap:12px 22px;flex-wrap:wrap;font-size:.88rem}table{width:100%;border-collapse:collapse;font-size:.92rem}th,td{padding:14px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:var(--soft)}.table-wrap{overflow-x:auto}ul,ol{padding-left:24px}li{margin:10px 0}.tag{font-size:.75rem;font-weight:650;display:inline-block;border-radius:4px;background:var(--soft);padding:2px 7px}.tag.priority{background:#f1ded7;color:#792f20}.draft{background:var(--card);padding:20px;border:1px solid var(--line);border-radius:8px}.draft p:first-child{margin-top:0}.draft p:last-child{margin-bottom:0}details{border:1px solid var(--line);border-radius:8px;padding:14px 18px;margin:14px 0}summary{cursor:pointer;font-weight:650}footer{border-top:1px solid var(--line);margin-top:36px;padding-top:20px;font-size:.88rem;color:var(--muted)}@media(max-width:650px){main{padding:28px 18px 48px}.facts{grid-template-columns:1fr;gap:10px}.fact{padding:16px}th,td{min-width:140px;padding:12px 10px}h2{font-size:1.4rem}}@media print{body{background:white;font-size:11pt}main{max-width:none;padding:0}nav{display:none}section{break-inside:auto}.fact,.note,.draft,tr{break-inside:avoid}a{color:inherit}details{display:block}details>*{display:block}h2,h3{break-after:avoid}}
+ </style>
+</head>
+<body><main>
+  <header>
+    <p class="eyebrow">Poa · Search visibility audit · September 22, 2026</p>
+    <h1>Make the official Poa easier to find.</h1>
+    <p class="lead">The strongest immediate work is correcting broken official links, confirming Google's indexing of the homepage, and making Poa's identity and real use unmistakable. The current public site already passes the main technical SEO checks.</p>
+    <p>Audience: English-speaking people worldwide, including worker cooperatives, community organizations, collectives, developers, and AI-agent builders. This audit separates verified defects, reasonable opportunities, and questions that require Search Console data.</p>
+    <aside class="note"><strong>Implementation follow-up, September 22:</strong> Hudson reports that the GitHub website links have been corrected; the MOROS NET page cannot be changed. The approved homepage title and introduction, plus consistent homepage/About organization metadata, are now implemented in this workspace, not deployed. Kansas Blockchain is another planned source of a genuine project link and usage story; no story or endorsement has been invented. The findings below preserve the original audit snapshot.</aside>
+    <div class="facts" aria-label="Audit summary">
+      <div class="fact"><strong>34 / 34</strong><span>Sitemap pages load and allow indexing</span></div>
+      <div class="fact"><strong>2 clicks</strong><span>Maximum crawlable link distance from homepage</span></div>
+      <div class="fact"><strong>Not measured</strong><span>Google positions and branded search demand</span></div>
+    </div>
+    <nav aria-label="Report sections"><a href="#findings">Verified findings</a><a href="#targets">Search targets</a><a href="#repairs">First repairs</a><a href="#content">Content and credibility</a><a href="#measurement">Measurement</a><a href="#schedule">Execution order</a></nav>
+  </header>
+
+  <section id="findings">
+    <h2>What the evidence establishes</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Finding</th><th>Evidence</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><span class="tag priority">Confirmed defect</span><br>Frontend repository website typo</td><td>The live <a href="https://api.github.com/repos/poa-box/Poa-frontend">GitHub repository API</a> reports <code>homepage: https://poa.bix</code>.</td><td>An official project listing sends visitors to the wrong address. Correct to <code>https://poa.box</code>. This is a real defect, not a proven explanation of every missing ranking.</td></tr>
+        <tr><td><span class="tag priority">Confirmed mismatch</span><br>GitHub organization links to an old domain</td><td>The <a href="https://github.com/poa-box">organization profile</a> and <a href="https://api.github.com/orgs/poa-box">live API</a> identify <code>https://poa.community</code> as the website. The old <code>Poa-site</code> repository also uses it.</td><td>The organization's README already links to poa.box, but its profile field contradicts it. Unify the current website references.</td></tr>
+        <tr><td><span class="tag priority">Observed failure</span><br>Old domain has a certificate problem</td><td>A normal HTTPS request to <code>https://poa.community/</code> failed certificate hostname validation. <code>https://www.poa.community/</code> instead redirects to a noindex organization home page on that hostname.</td><td>Old public references can lead to a browser failure or an application shell. Check domain control and repair certificates and page-matched redirects if still controlled. This observation is from this audit, not a historical uptime assessment.</td></tr>
+        <tr><td><span class="tag">Technical checks pass</span><br>Public pages are crawlable in ordinary requests</td><td>All 34 sitemap URLs: HTTP 200, one self-canonical, indexing allowed, distinct titles and descriptions, one H1. All reachable within two HTML-link clicks.</td><td>No broad current canonical, robots, missing-title, or link-discovery defect was reproduced. This is not confirmation of Google's index or historical crawler access.</td></tr>
+        <tr><td><span class="tag">Content gap</span><br>Organization directory depends on JavaScript</td><td><code>/explore/</code> initially contains approximately 22 body words, including “Organizations” and “Loading…”, with no organization descriptions.</td><td>It offers little initial content for organization searches. Inspect Google's rendered result before concluding it cannot index the page.</td></tr>
+        <tr><td><span class="tag priority">Retirement dependency</span><br>The expiring domain still serves the frontend upstream</td><td><code>cloudflare-worker/worker.mjs:4</code> hardcodes <code>https://ipfs.poa.earth</code>. Related-origin authorization also includes poa.earth.</td><td>Move and verify the gateway before expiry; remove retired authentication trust. This prevents a future outage. It is not evidence of today's ranking cause.</td></tr>
+      </tbody>
+    </table></div>
+    <p>The live crawl ran at 19:05 UTC on September 22 with four concurrent ordinary requests. Articles contain substantial initial HTML. Homepage structured data already includes <code>Organization</code>, <code>WebSite</code>, and <code>SoftwareApplication</code>. Sampled HTTP/www/old-guide redirects work; a nonexistent URL returns a real 404. Initial HTML response timings of 189–581 ms in this sample are <em>not</em> Core Web Vitals measurements.</p>
+    <p class="note">Unresolved: whether Google's stored index includes the canonical homepage; the exact 25 discovered URLs; impressions, clicks, positions, countries, and devices; production Googlebot logs; field performance; and a complete backlink inventory. No verified Google ranking or search-volume numbers are available in this audit.</p>
+  </section>
+
+  <section id="targets">
+    <h2>Win the specific name first; build toward the broad name</h2>
+    <p><code>poa</code> has many established meanings. Sample search results include dictionaries, botanical pages, and other organizations. Unquoted <code>poa box</code> also returned postal-box results. These research snapshots demonstrate ambiguity; they are not a controlled Google rank report. Dictionary publishers themselves document the unrelated <a href="https://www.collinsdictionary.com/us/dictionary/english/poa">power-of-attorney and grass meanings</a>.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Search family</th><th>Intended destination</th><th>Objective and priority</th></tr></thead>
+      <tbody>
+        <tr><td><code>poa.box</code>, <code>poa box</code>, <code>Poa Perpetual Organization Architect</code></td><td>Homepage, with About and introductory guide supporting it</td><td>First priority: make the official site reliably findable. Top-three branded visibility is a target to measure, not a promised outcome.</td></tr>
+        <tr><td><code>Poa organization</code>, <code>Poa org</code>, <code>Poa cooperative</code></td><td>Homepage and a clear explanation of the Poa project on About</td><td>Explain which Poa this is. “Org” alone remains ambiguous; do not invent a new “Poa Org” brand.</td></tr>
+        <tr><td>Worker cooperative software; contribution-based ownership; shared treasury and member voting</td><td>Existing <a href="https://poa.box/docs/worker-cooperatives/">cooperative</a>, <a href="https://poa.box/docs/contribution-and-ownership/">ownership</a>, and <a href="https://poa.box/docs/treasury-management/">treasury</a> guides</td><td>Acquire relevant new members. Improve these existing destinations with examples and evidence before adding overlapping pages.</td></tr>
+        <tr><td>Community decision-making; shared funds; coordinating collective work</td><td>Existing <a href="https://poa.box/docs/community-groups/">community guide</a> and relevant voting guides</td><td>Answer the workflow, limits, and setup questions. Do not imply private ballots or legal election certification unless actually supported.</td></tr>
+        <tr><td>AI-agent organizations; contribution rewards for agents; integrating agents with Poa</td><td><a href="https://poa.box/docs/ai-agent-coordination/">Agent coordination</a> and <a href="https://poa.box/docs/ai-agent-integration/">integration</a> guides</td><td>Use a distinct technical path. Broad “AI governance” often means enterprise risk/compliance, which is not automatically Poa's product category.</td></tr>
+        <tr><td><code>poa</code></td><td>Homepage</td><td>A longer-term recognition goal. No engineering patch can guarantee that Poa displaces established alternative meanings for everyone.</td></tr>
+      </tbody>
+    </table></div>
+    <p>A useful category comparison is <a href="https://www.loomio.com/worker-cooperatives/">Loomio's cooperative page</a>: a focused use case with named organizations and practical evidence. Poa already has a corresponding guide. The next improvement is stronger original proof, rather than another generic article targeting the same phrase. Keyword choices above are hypotheses to validate; no volume or difficulty estimates are implied.</p>
+  </section>
+
+  <section id="repairs">
+    <h2>The first repairs, with a clear definition of done</h2>
+    <ol>
+      <li><strong>Correct controlled public website fields.</strong> GitHub organization, <code>Poa-frontend</code>, and the old <code>Poa-site</code> listing should direct current users to <code>https://poa.box</code>. Preserve historical project context where needed. Done: each public link lands on the intended canonical page and each live API field shows the correct URL.</li>
+      <li><strong>Consolidate old public references.</strong> If poa.community is still controlled, restore valid HTTPS before setting redirects to the corresponding poa.box pages. An HTTPS redirect cannot help users who cannot complete TLS. If control is gone, correct incoming references instead. For poa.earth, migrate the hardcoded gateway first, verify assets and a fresh deployment, then retire the white-label routing and authentication/CORS allowlists. Preserve Test6 context in old organization links where appropriate. Keep redirect routes only while the domain remains controlled.</li>
+      <li><strong>Confirm the homepage in Google's stored index.</strong> Inspect <code>https://poa.box/</code> itself. Record indexing status, last crawl, and Google-selected canonical when available. A successful live test proves present accessibility, not index inclusion. If absent, investigate its actual reason and request indexing after a meaningful fix. Check Manual actions and Security issues once if absence is unexplained.</li>
+      <li><strong>Make the product's name explicit in visible copy.</strong> Keep the expressive headline. Improve the existing title and opening paragraph using the drafts below. This is clearer identity and result presentation, not a promise of a ranking lift.</li>
+      <li><strong>Reuse one organization identity in structured data.</strong> About currently redefines the same organization ID with a different logo, aliases, and social URLs. Reuse the homepage identity and align the About schema description with its visible, qualified ownership/cost wording. Keep <code>Poa</code> as the name and <code>poa.box</code> as a truthful alternate; the site already has this basic configuration.</li>
+    </ol>
+    <h3>Ready-to-review copy</h3>
+    <div class="draft">
+      <p><strong>Homepage title:</strong><br>Poa (poa.box) | Worker &amp; community ownership software</p>
+      <p><strong>Opening paragraph:</strong><br>Poa is open-source software for worker cooperatives, community organizations, and collectives. Organize work, make decisions together, and share value under rules your group chooses.</p>
+      <p><strong>Identity sentence for About or footer:</strong><br>Poa, the Perpetual Organization Architect, is the open-source project behind poa.box.</p>
+      <p><strong>Short public profile description:</strong><br>Poa is open-source software for worker and community-owned organizations: shared work, member voting, contribution rewards, and shared funds. Start at https://poa.box.</p>
+    </div>
+    <p>Implementation locations: <code>LandingPage.jsx:49</code>, <code>landingCopy.js:6</code>, <code>lib/seo.mjs:21</code>, and <code>pages/about/index.js:43</code>, all under <code>poa-app/src/</code>. The About wrapper should stay thin; shared identity logic belongs in the SEO helper. The WebSite name should remain consistent with visible branding, per <a href="https://developers.google.com/search/docs/appearance/site-names">Google's site-name guidance</a>. <a href="https://developers.google.com/search/docs/appearance/structured-data/organization">Organization markup</a> can clarify identity, but it is not a substitute for recognition or useful content.</p>
+  </section>
+
+  <section id="content">
+    <h2>Use the evidence Poa already has</h2>
+    <p>Relevant public mentions already exist. The opportunity is to make the connections accurate and useful, then publish original material that supports them.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Existing reference</th><th>Observed opportunity</th><th>Proposed action</th></tr></thead>
+      <tbody>
+        <tr><td><a href="https://morosnet.com/project/poa-perpetual-organization-architect/">MOROS NET grant page</a></td><td>Links to poa.community and describes an earlier AI-chatbot version.</td><td>Request a current website link and a dated update about today's product, while preserving the historical grant record.</td></tr>
+        <tr><td><a href="https://dwebcamp.org/people/">DWeb Camp biography</a></td><td>Mentions Poa and Hudson; the inspected HTML did not contain an ordinary link to poa.box.</td><td>Ask whether the existing project mention can link to the official website.</td></tr>
+        <tr><td><a href="https://talx.dod.ngo/dwebcamp-2026/talk/CNRNLU/">DWeb Camp talk</a></td><td>Already names the project and contains project links through the organizer's redirect mechanism.</td><td>Verify the destination, and publish a companion explanation or recording with the present product and a useful canonical guide.</td></tr>
+        <tr><td><a href="https://www.fundingthecommons.io/ba2025">Funding the Commons speaker page</a></td><td>Identifies Hudson with Poa. The inspected HTML did not contain a Poa website link.</td><td>Request a link on that genuine existing association where editorially appropriate.</td></tr>
+      </tbody>
+    </table></div>
+    <p>These are suggested editorial corrections, not messages already sent. No claim is made about the PageRank passed by a particular link. Avoid purchased links or mass directory submissions; useful citations from organizations that actually know Poa are the focus.</p>
+    <h3>Three concrete content deliverables</h3>
+    <ol>
+      <li><strong>One real organization story.</strong> With permission, document how Kansas Blockchain or Decentral Park used Poa for a specific task, decision, or funded payment. Include the situation, actual workflow, dated screenshots, outcome, limitations, and an attributable quote if one is provided. Link from the relevant existing guide and ask the organization to reference the story from its own site. Do not invent metrics or imply testimonials.</li>
+      <li><strong>A specific About section.</strong> Add verifiable project history, who maintains it, public code, and a clear distinction between the Poa software, the Poa organization, and the underlying protocol. Identify current people and roles only after confirming them. Explain how readers can contact or contribute to the project.</li>
+      <li><strong>A reproducible agent example.</strong> Improve the existing integration guide with a tested example of joining a sandbox, completing an authorized task, and receiving contribution credit. Include exact supported releases, prerequisites, and limits. Keep member-facing copy plain; technical vocabulary belongs in this developer guide.</li>
+    </ol>
+    <p>Improve <code>/explore/</code> with a useful static introduction and, if organization discovery is a product priority, stable public organization profiles with genuinely distinct content. Any build-time snapshot must apply the repository's supported-organization predicate, include an appropriate freshness strategy, and preserve its authority boundaries. Do not index empty parameterized app shells to increase page counts. The observed lack of initial directory content does not prove a rendering failure in Google.</p>
+    <p>Google emphasizes original, useful material and clear information about its creators; there is no minimum word-count target or guaranteed benefit from publishing more pages. <a href="https://developers.google.com/search/docs/fundamentals/creating-helpful-content">People-first content guidance</a>.</p>
+  </section>
+
+  <section id="measurement">
+    <h2>Measure the actual problem before judging a change</h2>
+    <p>Use Search Console Performance → Search results → Web. Start with the last three months for context, then compare complete 28-day periods. Keep exact-brand, ambiguous-brand, and product-category queries separate. Break out countries and desktop/mobile where there is enough data; country is not a proxy for language, so retain relevant English queries from any country.</p>
+    <p><strong>Suggested exact-brand query filter:</strong></p>
+    <pre>(?i)^(poa[ .-]?box|www\.poa\.box|perpetual organization architect)$</pre>
+    <p>Track <code>poa</code>, <code>poa org</code>, <code>poa organization</code>, and category phrases separately. This regex is a starting segment, not an exhaustive definition of brand demand.</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Observed situation</th><th>Next decision</th></tr></thead>
+      <tbody>
+        <tr><td>Homepage absent from Google's stored index</td><td>Investigate its inspection reason, canonical selection, rendered content, and verified crawl delivery before treating this as a ranking problem.</td></tr>
+        <tr><td>Homepage indexed; exact-brand impressions show poor positions</td><td>Prioritize official-link corrections, coherent identity, relevant mentions, and the page's relevance to those queries.</td></tr>
+        <tr><td>Good positions but low click-through</td><td>Inspect the displayed title/snippet and query intent. Compare within similar countries, devices, and positions before judging copy.</td></tr>
+        <tr><td>Very few query impressions</td><td>Do not conclude that nobody searches for Poa. Low demand and low visibility can both produce this. Search Console does not show total market search volume.</td></tr>
+        <tr><td>Pages remain “discovered” despite successful live tests</td><td>Compare the exact URLs with current sitemap targets and verify ordinary Googlebot requests in Cloudflare logs. A spoofed user-agent or user-triggered live test is not equivalent evidence.</td></tr>
+      </tbody>
+    </table></div>
+    <p>Record indexed priority pages, exact-brand impressions/clicks/CTR/position, non-brand visits to each guide, and a small number of meaningful adoption events. If product analytics are introduced, use privacy-conscious aggregate events without member addresses or financial details. Annotate the dates of changes; a before/after comparison is useful but cannot isolate every cause.</p>
+    <p>Search Console results vary with location, device, time, and search history. Its <a href="https://support.google.com/webmasters/answer/7576553?hl=en">Performance report</a> is more useful than repeatedly searching yourself. A search-tool <code>site:poa.box</code> query returned no results in this audit; that is <em>not proof of zero Google-indexed pages</em>. Google itself documents <a href="https://developers.google.com/search/docs/monitor-debug/search-operators/all-search-site">limitations of site searches</a>.</p>
+  </section>
+
+  <section id="schedule">
+    <h2>Execution order</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>When</th><th>Work</th><th>Acceptance evidence</th></tr></thead>
+      <tbody>
+        <tr><td>First, before domain expiry</td><td>Replace the poa.earth gateway dependency, verify production delivery, remove retired trust, and keep appropriate redirects during remaining control.</td><td>Verified replacement gateway, assets and new deployment; functioning passkeys on retained domains; no required production request depends on the retired domain.</td></tr>
+        <tr><td>First working session</td><td>Correct GitHub fields; capture Search Console homepage inspection and query baseline; establish which older domains remain controlled.</td><td>Correct API fields and working destinations; dated stored-index and Performance evidence.</td></tr>
+        <tr><td>Next release</td><td>Ship the small brand-copy/schema consistency patch; improve the directory's static explanation if retained as an indexable landing page.</td><td>Existing tests, production build and SEO checks; required production E2E guard; public-page and Test6 browser verification under the repository workflow, with a GIF. Preserve all existing canonical and noindex behavior.</td></tr>
+        <tr><td>Following weeks</td><td>Update genuine external references and publish one original case study plus the tested agent example.</td><td>Accurate public links, participant-approved evidence, and crawlable links from existing guides.</td></tr>
+        <tr><td>Every four weeks</td><td>Compare the same query groups and priority pages; investigate persistent failures and improve the pages receiving relevant impressions.</td><td>Recorded changes in indexed pages, relevant clicks and adoption. Timings describe work and measurement, not a ranking guarantee.</td></tr>
+      </tbody>
+    </table></div>
+    <h3>Work to avoid</h3>
+    <p>Do not remove healthy redirects, repeatedly resubmit the same URL, manipulate sitemap dates, add keyword-stuffed pages, or buy backlinks. Do not migrate away from <code>.box</code> solely on the assumption that it is penalized. Google says it does not use meta-keywords, domain keywords have little effect by themselves, and generic top-level domain choice is not the obstacle suggested here. <a href="https://developers.google.com/search/docs/fundamentals/seo-starter-guide">Google's SEO Starter Guide</a>. Keep the stable sitemap; <a href="https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl">repeated indexing requests do not accelerate crawling</a>.</p>
+  </section>
+  <footer>
+    <p><strong>Original audit deliverable:</strong> a read-only audit, live crawl evidence, concrete repair targets, draft copy, and an execution/measurement plan. The implementation follow-up above records subsequent local code changes. No deployment, domain settings, Search Console submissions, or external messages were made by the agent.</p>
+    <p>Local evidence: <code>.context/seo-audit-2026-09-22/live-crawl.json</code> and its diagnostic script. Earlier context: <a href="seo-research-2026-09-17.html">September 17 content audit</a> and <a href="sitemap-discovery-2026-09-17.html">sitemap investigation</a>. Essential findings and sources are included in this self-contained page; no external scripts, fonts, or stylesheets are required.</p>
+  </footer>
+</main></body>
+</html>
