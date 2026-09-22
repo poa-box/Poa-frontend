@@ -1,6 +1,7 @@
 import React from "react";
 import Head from "next/head";
 import SEOHead from "@/components/common/SEOHead";
+import { getPoaAboutSchema, POA_ABOUT_DESCRIPTION } from "@/lib/seo.mjs";
 
 // Marketing /about, direction A ("public works"), rebuilt on the same marketing
 // chrome + primitives as the landing (P2). Five blocks (BRIEF §6): the belief,
@@ -29,7 +30,7 @@ export default function AboutPage() {
     <>
       <SEOHead
         title="About Poa: built by the people who own it"
-        description="Why Poa exists: the belief that the people who build a thing should own it, the problem it answers, and how we hold ourselves to it. Poa runs on Poa."
+        description={POA_ABOUT_DESCRIPTION}
         path="/about"
         keywords={[
           "about poa",
@@ -40,26 +41,7 @@ export default function AboutPage() {
           "group governance",
           "poa.box",
         ]}
-        jsonLd={{
-          "@context": "https://schema.org",
-          "@type": "AboutPage",
-          "name": "About Poa",
-          "description":
-            "Why Poa exists: the belief that the people who build a thing should own it. Poa turns a group into an organization it owns together, where finished work earns ownership, a say in decisions and a share when revenue is distributed. Poa runs as an organization on Poa, with its books public. Open-source and free.",
-          "url": "https://poa.box/about/",
-          "mainEntity": {
-            "@type": "Organization",
-            "@id": "https://poa.box/#organization",
-            "name": "Poa",
-            "alternateName": ["poa.box", "poa box", "Poa.box"],
-            "url": "https://poa.box",
-            "logo": "https://poa.box/images/poa_og.webp",
-            "sameAs": [
-              "https://twitter.com/PoaPerpetual",
-              "https://discord.gg/9SD6u4QjTt",
-            ],
-          },
-        }}
+        jsonLd={getPoaAboutSchema()}
       />
 
       {/* Preload the two marketing display/body faces the first paint needs; the

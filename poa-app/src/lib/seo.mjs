@@ -2,6 +2,7 @@
 export const SITE_URL = 'https://poa.box';
 export const PUBLIC_INDEXABLE_ROUTES = ['/', '/about/', '/docs/', '/explore/', '/protocol/', '/create/'];
 export const POA_DESCRIPTION = 'Open-source software for worker and community ownership: shared treasury, member voting, tasks, and contribution-based rewards.';
+export const POA_ABOUT_DESCRIPTION = 'Why Poa exists: the belief that the people who build a thing should own it, the problem it answers, and how we hold ourselves to it. Poa runs on Poa.';
 
 export function canonicalUrl(path = '/') {
   // Canonicals identify the page, not a campaign, fragment, or saved org filter.
@@ -18,16 +19,33 @@ export function serializeJsonLd(value) {
   return JSON.stringify(value).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
 }
 
-export function getPoaSchema() {
-  const publisher = { '@id': `${SITE_URL}/#organization` };
+export function getPoaOrganizationSchema() {
+  return {
+    '@context': 'https://schema.org', '@type': 'Organization', '@id': `${SITE_URL}/#organization`,
+    name: 'Poa', alternateName: ['poa.box', 'Perpetual Organization Architect'],
+    url: `${SITE_URL}/`, logo: `${SITE_URL}/images/poa_logo.png`,
+    description: POA_DESCRIPTION,
+    sameAs: ['https://github.com/poa-box', 'https://x.com/PoaPerpetual', 'https://discord.gg/9SD6u4QjTt'],
+  };
+}
+
+export function getPoaAboutSchema() {
+  const organization = getPoaOrganizationSchema();
   return [
+    organization,
     {
-      '@context': 'https://schema.org', '@type': 'Organization', ...publisher,
-      name: 'Poa', alternateName: ['poa.box', 'Perpetual Organization Architect'],
-      url: `${SITE_URL}/`, logo: `${SITE_URL}/images/poa_logo.png`,
-      description: POA_DESCRIPTION,
-      sameAs: ['https://github.com/poa-box', 'https://x.com/PoaPerpetual', 'https://discord.gg/9SD6u4QjTt'],
+      '@context': 'https://schema.org', '@type': 'AboutPage', '@id': `${canonicalUrl('/about/')}#webpage`,
+      name: 'About Poa', url: canonicalUrl('/about/'), description: POA_ABOUT_DESCRIPTION,
+      mainEntity: { '@id': organization['@id'] },
     },
+  ];
+}
+
+export function getPoaSchema() {
+  const organization = getPoaOrganizationSchema();
+  const publisher = { '@id': organization['@id'] };
+  return [
+    organization,
     {
       '@context': 'https://schema.org', '@type': 'WebSite', '@id': `${SITE_URL}/#website`,
       name: 'Poa', alternateName: 'poa.box', url: `${SITE_URL}/`,

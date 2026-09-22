@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { canonicalUrl, getPoaSchema, serializeJsonLd } from '@/lib/seo.mjs';
+import { canonicalUrl, getPoaAboutSchema, getPoaOrganizationSchema, getPoaSchema, POA_ABOUT_DESCRIPTION, POA_DESCRIPTION, serializeJsonLd } from '@/lib/seo.mjs';
 
 describe('public SEO metadata', () => {
   it('gives slash aliases and tracking links the same HTTPS canonical', () => {
@@ -29,5 +29,36 @@ describe('public SEO metadata', () => {
     expect(website).not.toHaveProperty('potentialAction');
     expect(software).not.toHaveProperty('aggregateRating');
     expect(software.offers.description).toContain('Network');
+  });
+
+  it('uses the same complete organization identity on the homepage and About page', () => {
+    const [homepageOrganization] = getPoaSchema();
+    const [aboutOrganization, aboutPage] = getPoaAboutSchema();
+    expect(aboutOrganization).toEqual(homepageOrganization);
+    expect(aboutOrganization).toEqual(getPoaOrganizationSchema());
+    expect(aboutOrganization).toMatchObject({
+      '@type': 'Organization',
+      '@id': 'https://poa.box/#organization',
+      name: 'Poa',
+      alternateName: ['poa.box', 'Perpetual Organization Architect'],
+      url: 'https://poa.box/',
+      logo: 'https://poa.box/images/poa_logo.png',
+      description: POA_DESCRIPTION,
+    });
+    expect(aboutOrganization.sameAs).toContain('https://github.com/poa-box');
+    expect(aboutPage.mainEntity).toEqual({ '@id': homepageOrganization['@id'] });
+  });
+
+  it('gives About its own canonical identity and the same description as its page metadata', () => {
+    const [, aboutPage] = getPoaAboutSchema();
+    expect(aboutPage).toMatchObject({
+      '@type': 'AboutPage',
+      '@id': 'https://poa.box/about/#webpage',
+      name: 'About Poa',
+      url: canonicalUrl('/about/'),
+      description: POA_ABOUT_DESCRIPTION,
+    });
+    expect(aboutPage.description).not.toContain('finished work earns ownership');
+    expect(aboutPage.description).not.toContain('Open-source and free');
   });
 });

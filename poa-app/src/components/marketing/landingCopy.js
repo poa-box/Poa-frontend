@@ -7,7 +7,7 @@ export const HERO = {
   eyebrow: 'Built together. Owned together.',
   headline: 'Do the work. Own what you build.',
   headlineLines: ['Do the work.', 'Own what', 'you build.'],
-  subline: 'Software for worker cooperatives, community organizations, and collectives. Organize work, make decisions together, and share value under rules your group chooses.',
+  subline: 'Poa is open-source software for worker cooperatives, community organizations, and collectives. Organize work, make decisions together, and share value under rules your group chooses.',
   ctaPrimary: 'Start an organization',
   ctaSecondary: 'See how it works',
 };
