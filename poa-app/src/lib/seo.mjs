@@ -22,7 +22,7 @@ export function serializeJsonLd(value) {
 export function getPoaOrganizationSchema() {
   return {
     '@context': 'https://schema.org', '@type': 'Organization', '@id': `${SITE_URL}/#organization`,
-    name: 'Poa', alternateName: ['poa.box', 'Perpetual Organization Architect'],
+    name: 'Poa', alternateName: ['poa.box'],
     url: `${SITE_URL}/`, logo: `${SITE_URL}/images/poa_logo.png`,
     description: POA_DESCRIPTION,
     sameAs: ['https://github.com/poa-box', 'https://x.com/PoaPerpetual', 'https://discord.gg/9SD6u4QjTt'],

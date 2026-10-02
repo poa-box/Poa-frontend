@@ -40,7 +40,7 @@ describe('public SEO metadata', () => {
       '@type': 'Organization',
       '@id': 'https://poa.box/#organization',
       name: 'Poa',
-      alternateName: ['poa.box', 'Perpetual Organization Architect'],
+      alternateName: ['poa.box'],
       url: 'https://poa.box/',
       logo: 'https://poa.box/images/poa_logo.png',
       description: POA_DESCRIPTION,
