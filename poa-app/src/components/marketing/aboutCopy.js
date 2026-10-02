@@ -67,7 +67,7 @@ export const WHAT = {
   kicker: 'What Poa is',
   heading: 'A place to turn a group into an organization it owns',
   sentences: [
-    'Poa means Perpetual Organization Architect. It is open-source software for worker cooperatives, community organizations, and collectives to organize work, membership, votes, and shared funds.',
+    'Poa is open-source software for worker cooperatives, community organizations, and collectives to organize work, membership, votes, and shared funds.',
     `Approved work can earn ${DEFAULT_TOKEN_LABEL}: participation rights that can count toward voting and funded revenue distributions under the group’s rules. Legal ownership arrangements are separate.`,
     'The core record is public and compatible tools can work with the same organization. You can read before signing in, then use a passkey or an existing wallet to participate. Network fees may apply.',
   ],

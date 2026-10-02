@@ -21,7 +21,7 @@ export function getBundlerUrl(chainId = DEFAULT_CHAIN_ID) {
 }
 
 // WebAuthn Relying Party configuration
-export const WEBAUTHN_RP_NAME = 'Perpetual Organization Architect';
+export const WEBAUTHN_RP_NAME = 'Poa';
 
 // Fixed RP ID scoped to the registrable domain so passkeys created on www.poa.box
 // (or any subdomain) can later be used on custom domains via Related Origin Requests.
