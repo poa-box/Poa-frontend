@@ -1,17 +1,16 @@
 # Core package integration
 
-The current dependency is the reviewed **core 2.1.0** candidate
-`poa-box-core-2.1.0-rc-f64e7bbbbcb6.tgz` (SHA-256
-`f64e7bbbbcb6ead53a48bfc012cbe03a1e223ebf870066f8c6062c1f51f50849`).
-All 371 installed files match this archive. It preserves the published 2.0.0
+The application installs exact **`@poa-box/core@2.1.0` from npm**. The published
+archive is byte-for-byte identical to the reviewed candidate (SHA-256
+`f64e7bbbbcb6ead53a48bfc012cbe03a1e223ebf870066f8c6062c1f51f50849`), and
+all 371 installed files match its payload. It preserves the published 2.0.0
 execution/recovery fixes and adds the frontend's staged role-operation API.
 
-[Core release PR #39](https://github.com/poa-box/poa-cli/pull/39) must be published
-before this frontend can pin `@poa-box/core` to registry version `2.1.0` and replace
-the archive lock entry. Published `2.0.0` lacks the role-operation imports used
-here. Do not substitute it or treat this file dependency as a completed registry
-migration. After publication, compare the installed registry payload against the
-reviewed candidate and rerun the integration gates.
+[Core release PR #39](https://github.com/poa-box/poa-cli/pull/39) published this
+version from commit `e83140f7c3788d832d3b60fe7f0d0898ee660a4d`.
+The Yarn lock records its registry URL and SHA-512 integrity. Published `2.0.0`
+lacks the role-operation imports used here. Historical archives remain local
+diagnostic evidence, are ignored by Git, and are not application dependencies.
 
 Fresh acceptance covers production WebAuthn signing and cancellation in Chrome,
 Test6 passkey and direct-wallet poll creation/ballots with canonical receipts,

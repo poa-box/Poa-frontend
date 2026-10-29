@@ -13,6 +13,9 @@ subgraph-pop/
 # Verification artifacts (screenshots, gifs, logs, ids, fingerprints)
 .context/
 
+# Historical local package candidates; the application installs from npm.
+/poa-app/vendor/*.tgz
+
 # Smithers CLI can drop a SQLite db at the repo root — never commit it
 /smithers.db
 /smithers.db-shm
