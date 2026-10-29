@@ -1,6 +1,23 @@
 # Core package integration
 
-The application installs exact **`@poa-box/core@2.1.0` from npm**. The published
+The application now installs **one unpublished `@poa-box/core@2.2.0` candidate**
+from `poa-box-core-2.2.0-4d2c3b8ebb5d.tgz`. Its SHA-256 is
+`4d2c3b8ebb5d50bf20184ecbceaa316aa5f8e43675bf7793fdea97f8988b913d`.
+All 434 installed files match the archive, and there is exactly one core copy.
+
+This combines the protocol APIs with optional `@poa-box/core/browser/*` adapters
+and `@poa-box/core/workflows`. There is no separate browser dependency or release.
+Core 2.1.0’s 364 compiled files are unchanged. The tracked archive makes CI
+reproducible while core PR #40 is under review; it is not an npm publication.
+After publication, replace the file dependency with exact version `2.2.0` only
+after verifying the registry payload against this reviewed archive.
+
+See [the integration guide](../../docs/browser-package-integration.md). Current
+verification is recorded in `.context/core-consolidation/` at the repository root.
+
+## Previous published core 2.1.0 integration
+
+The previous dependency installed exact **`@poa-box/core@2.1.0` from npm**. The published
 archive is byte-for-byte identical to the reviewed candidate (SHA-256
 `f64e7bbbbcb6ead53a48bfc012cbe03a1e223ebf870066f8c6062c1f51f50849`), and
 all 371 installed files match its payload. It preserves the published 2.0.0

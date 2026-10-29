@@ -1,6 +1,6 @@
 /** Frontend configuration and E2E seam for the shared WebAuthn runtime. */
 import { startRegistration } from '@simplewebauthn/browser';
-import { createPasskeyCredential as createCredential } from '@poa-box/browser/passkeys';
+import { createPasskeyCredential as createCredential } from '@poa-box/core/browser/passkeys';
 import { WEBAUTHN_RP_NAME, getWebAuthnRpId } from '@/config/passkey';
 
 export async function createPasskeyCredential(username) {

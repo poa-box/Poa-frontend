@@ -1,2 +1,2 @@
 /** Canonical digest for the public WebAuthn credential pointer. */
-export { computeCredentialId } from '@poa-box/browser/passkeys';
+export { computeCredentialId } from '@poa-box/core/browser/passkeys';

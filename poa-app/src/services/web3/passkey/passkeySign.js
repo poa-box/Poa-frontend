@@ -1,6 +1,6 @@
 /** Frontend passkey configuration and E2E seam; ceremony validation is shared. */
 import { startAuthentication } from '@simplewebauthn/browser';
-import { getWebAuthnAssertion as getAssertion } from '@poa-box/browser/passkeys';
+import { getWebAuthnAssertion as getAssertion } from '@poa-box/core/browser/passkeys';
 import { pad, toHex } from 'viem';
 import { registrationChallenge, packPasskeySignature } from '@poa-box/core/accounts/codecs';
 import { computeCredentialId } from '@/services/web3/passkey/passkeyUtils';

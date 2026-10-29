@@ -1,5 +1,5 @@
 import { startAuthentication } from '@simplewebauthn/browser';
-import { authenticateWithRpFallback as authenticate } from '@poa-box/browser/passkeys';
+import { authenticateWithRpFallback as authenticate } from '@poa-box/core/browser/passkeys';
 
 /** Preserve the browser's explicit RP rejection policy through the shared runtime. */
 export function authenticateWithRpFallback(optionsForRp, primaryRpId) {

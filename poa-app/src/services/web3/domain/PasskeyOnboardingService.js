@@ -11,7 +11,7 @@
  */
 
 import { encodeFunctionData } from 'viem';
-import { computeCounterfactualAddress } from '@poa-box/browser/passkeys';
+import { computeCounterfactualAddress } from '@poa-box/core/browser/passkeys';
 import { encodeIntent } from '@poa-box/core/tx/intent';
 import { buildRegisterAccount, buildRegisterAndQuickJoinWithPasskey } from '@poa-box/core/tx/user';
 import { PasskeyAccountAbi as PasskeyAccountABI } from '@poa-box/core/abis/PasskeyAccount';

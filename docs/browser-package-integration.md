@@ -1,32 +1,27 @@
-# Shared browser integration
+# Single-package browser integration
 
-The protocol dependency stays on the published `@poa-box/core@2.1.0`. This branch
-also consumes the reviewed `@poa-box/browser@0.1.0` candidate as a committed,
-content-addressed archive under `poa-app/vendor/`. The exact filename is in
-`poa-app/package.json`; Yarn records its integrity. It is not yet an npm release.
-After browser package publication, replace the file dependency with that exact
-registry version and repeat the package, frontend and browser acceptance checks.
+The frontend consumes one `@poa-box/core@2.2.0` release candidate, using a
+content-addressed archive committed under `poa-app/vendor/` until that version is
+published. There is no separate browser package, dependency, version or release.
+The exact archive is recorded in `poa-app/package.json` and Yarn's lockfile.
 
-The application's service layer now imports the shared package for:
+Use `@poa-box/core` and its existing domain subpaths for protocol functionality,
+`@poa-box/core/browser/*` for optional browser adapters, and
+`@poa-box/core/workflows` for complete operation controllers. The core root keeps
+browser code and DOM types out of Node/CLI consumers. The package has no React
+requirement and does not select a wallet or open a passkey prompt on import.
 
-- passkey creation, discovery, assertion validation and credential codecs;
-- account deployment readiness and counterfactual factory address prediction;
-- compatible credential hint storage and account submission locks;
-- the final ethers dispatch boundary, preserving receipt and event behavior.
+The frontend service layer uses the browser subpaths for passkey creation,
+discovery, assertion validation and codecs; account readiness and factory address
+prediction; compatible credential hint storage and account locks; and the final
+ethers dispatch boundary. Its UI, provider state, E2E seams, domain controllers
+and cache refresh remain here. High-level poll, ballot, task and enrollment
+controllers are verified independently; not every existing frontend domain
+controller is replaced by this import migration.
 
-The frontend keeps its UI, selected wallet and passkey configuration, E2E seams,
-service wrappers, domain controllers, cache refresh and existing core workflows.
-The new browser package's high-level poll, ballot, task and enrollment controllers
-are available to other integrations and tested independently; this migration does
-not replace all existing frontend domain controllers with them.
-
-Package documentation ships in the candidate archive under `README.md` and
-`docs/integration.md`; `docs/features.v1.json` identifies supported operations,
-required ports, units, side effects and unsupported services. The shared package
-has no React dependency. Core policies and encodings remain in core; browser
-lifecycle concerns belong in the optional browser package; presentation belongs
-here.
-
-Do not reproduce package source in frontend services. Keep application-specific
-wrappers small, preserve user approval and the existing account-generation guards,
-and recover uncertain submissions rather than automatically retrying them.
+Documentation ships in the same core archive: `docs/browser.md`,
+`docs/browser-integration.md` and `docs/browser-features.v1.json`. It specifies
+supported operations, injected services, units, side effects and recovery states.
+After core 2.2.0 is published, replace the archive dependency with that exact npm
+version and repeat artifact/frontend verification. Core 2.1.0 remains the currently
+published release; this branch does not publish, merge or deploy anything.

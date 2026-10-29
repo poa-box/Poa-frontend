@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
-import { createBrowserSubmissionLock as sdkLock, createPasskeyCredentialStore } from '@poa-box/browser/storage';
+import { createBrowserSubmissionLock as sdkLock, createPasskeyCredentialStore } from '@poa-box/core/browser/storage';
 import { validateCredentialKeys as sdkValidateKeys, restoreCredentialKeys as sdkRestoreKeys,
-  resolveAccountDeployment as sdkResolveDeployment } from '@poa-box/browser/passkeys';
+  resolveAccountDeployment as sdkResolveDeployment } from '@poa-box/core/browser/passkeys';
 import { derivePasskeySalt } from '@poa-box/core/accounts/codecs';
 import { createBrowserSubmissionLock } from '@/services/web3/core/browserSubmissionLock';
 import { validateCredentialKeys, restoreCredentialKeys, resolveAccountDeployment } from '@/services/web3/passkey/accountReadiness';

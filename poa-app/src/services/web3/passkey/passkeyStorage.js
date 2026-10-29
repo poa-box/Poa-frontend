@@ -1,7 +1,7 @@
 /** Historical public credential pointers and migration records share the SDK store.
  * Resolve browser globals only when used, so public/SSR readers remain inert.
  */
-import { createPasskeyCredentialStore } from '@poa-box/browser/storage';
+import { createPasskeyCredentialStore } from '@poa-box/core/browser/storage';
 
 const credentials = createPasskeyCredentialStore({
   storage: {

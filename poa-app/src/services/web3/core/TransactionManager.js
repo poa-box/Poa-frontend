@@ -10,7 +10,7 @@ import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 import { parseError, Web3ErrorCategory } from '@/lib/errors';
 import { calculateGasLimit, createGasOptions, getNetworkByChainId } from '@/config';
 import { BigNumber } from 'ethers';
-import { guardedRpcSigner } from '@poa-box/browser/wallet';
+import { guardedRpcSigner } from '@poa-box/core/browser/wallet';
 
 /**
  * Transaction states for tracking progress

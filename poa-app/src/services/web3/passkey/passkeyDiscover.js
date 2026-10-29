@@ -5,7 +5,7 @@
  */
 
 import { startAuthentication } from '@simplewebauthn/browser';
-import { discoverPasskeyCredential as discoverCredential } from '@poa-box/browser/passkeys';
+import { discoverPasskeyCredential as discoverCredential } from '@poa-box/core/browser/passkeys';
 import { readCredentialFacts } from '@poa-box/core/reads/protocol';
 import { findPendingCredentialByCredentialId } from '@/services/web3/passkey/passkeyStorage';
 import { getAllSubgraphUrls } from '@/config/networks';

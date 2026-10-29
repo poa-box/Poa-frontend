@@ -37,7 +37,7 @@
     "@noble/curves": "^1.9.1",
     "@noble/hashes": "^1.8.0",
     "@openzeppelin/merkle-tree": "^1.0.8",
-    "@poa-box/core": "2.1.0",
+    "@poa-box/core": "file:vendor/poa-box-core-2.2.0-4d2c3b8ebb5d.tgz",
     "@rainbow-me/rainbowkit": "2.2.11",
     "@simplewebauthn/browser": "^13.3.0",
     "@tanstack/react-query": "^5.102.8",
@@ -91,8 +91,7 @@
     "viem": "^2.56.3",
     "vm-browserify": "^1.1.2",
     "wagmi": "^2.19.5",
-    "zod": "^4.5.4",
-    "@poa-box/browser": "file:vendor/poa-box-browser-0.1.0-5d141798592c.tgz"
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/react": "18.3.31",

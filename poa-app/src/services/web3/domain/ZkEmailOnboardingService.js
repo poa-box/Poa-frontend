@@ -14,7 +14,7 @@
  */
 
 import { encodeFunctionData } from 'viem';
-import { computeCounterfactualAddress } from '@poa-box/browser/passkeys';
+import { computeCounterfactualAddress } from '@poa-box/core/browser/passkeys';
 import { PasskeyAccountAbi as PasskeyAccountABI } from '@poa-box/core/abis/PasskeyAccount';
 import { enrollmentJournal, submitEnrollment, reconcileEnrollment, persistPending } from '@/services/web3/domain/enrollmentSubmission';
 import { UniversalAccountRegistryAbi as UniversalAccountRegistryABI } from '@poa-box/core/abis/UniversalAccountRegistry';
