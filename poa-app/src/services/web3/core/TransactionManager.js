@@ -9,6 +9,56 @@ import { managerIntentKey, DELEGATED_SUBMISSION_LEASE, snapshotCallValue, snapsh
 import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 import { parseError, Web3ErrorCategory } from '@/lib/errors';
 import { calculateGasLimit, createGasOptions, getNetworkByChainId } from '@/config';
+import { BigNumber, providers } from 'ethers';
+
+/** Keep ethers' ContractTransaction/wait behavior, but guard its actual wallet
+ * request after JsonRpcSigner's internal async block/name/transaction setup.
+ * This provider is request-local; the application's shared provider is untouched.
+ */
+async function guardedRpcSigner(signer, { beforeSend, assertCurrent, assertIntent, onDispatch, onHash }) {
+  if (!(signer instanceof providers.JsonRpcSigner) || !(signer.provider instanceof providers.Web3Provider)) return null;
+  const transport = signer.provider.provider;
+  const account = (await signer.getAddress()).toLowerCase();
+  const network = await signer.provider.getNetwork();
+  const request = typeof transport?.request === 'function' ? transport.request.bind(transport)
+    : ({ method, params }) => signer.provider.send(method, params);
+  let walletChanged = false;
+  let dispatched = false;
+  const changed = () => { walletChanged = true; };
+  const listens = typeof transport?.on === 'function' && typeof transport?.removeListener === 'function';
+  if (listens) { transport.on('accountsChanged', changed); transport.on('chainChanged', changed); }
+  const current = () => {
+    assertCurrent();
+    if (walletChanged) throw new Error('Your account or network changed. Please try again.');
+  };
+  const provider = new providers.Web3Provider({ request: async payload => {
+    if (payload.method !== 'eth_sendTransaction') return request(payload);
+    current();
+    if (dispatched) throw new Error('This transaction has already been submitted. Check its status before trying again.');
+    const accounts = await request({ method: 'eth_accounts', params: [] });
+    const chain = await request({ method: 'eth_chainId', params: [] });
+    current();
+    if (!Array.isArray(accounts) || accounts[0]?.toLowerCase() !== account) throw new Error('Your account changed. Please try again.');
+    if (typeof chain !== 'string' || !/^0x[\da-f]+$/i.test(chain) || BigInt(chain) !== BigInt(network.chainId)) throw new Error('Your network changed. Please try again.');
+    await beforeSend();
+    // Only synchronous checks follow this final authority read. Invoke the
+    // original EIP-1193 wallet boundary directly, without another ethers send.
+    current();
+    const tx = payload.params?.[0];
+    if (tx?.from?.toLowerCase() !== account || (tx.chainId !== undefined && BigInt(tx.chainId) !== BigInt(network.chainId))) throw new Error('The transaction account or network changed. Please try again.');
+    assertIntent(tx);
+    dispatched = true;
+    onDispatch();
+    const hash = await request(payload);
+    // Persist the acknowledged identity before ethers' transaction lookup/wait.
+    onHash(hash);
+    return hash;
+  } }, network);
+  return { signer: provider.getSigner(account), dispose() {
+    try { if (listens) { transport.removeListener('accountsChanged', changed); transport.removeListener('chainChanged', changed); } } catch { /* Cleanup cannot replace a known result. */ }
+    try { provider.removeAllListeners(); } catch { /* The shared provider is never modified. */ }
+  } };
+}
 
 /**
  * Transaction states for tracking progress
@@ -147,6 +197,11 @@ export class TransactionManager {
     let release;
     let submission;
     let sendStarted = false;
+    let rpcBoundary;
+    let expectedData;
+    let expectedTarget;
+    let expectedValue;
+    let expectedNonce;
 
     try {
       args = snapshotCallValue(args);
@@ -178,6 +233,25 @@ export class TransactionManager {
           activeSigner = boundSigner;
         }
       }
+
+      rpcBoundary = await guardedRpcSigner(activeSigner, {
+        beforeSend: () => assertBeforeSend(this, opts.beforeSend),
+        assertCurrent: () => { this.assertCurrent(); this.submissionJournal?.assertLease(); },
+        assertIntent: tx => {
+          if (!tx || tx.to?.toLowerCase() !== expectedTarget || tx.data?.toLowerCase() !== expectedData
+            || BigInt(tx.value ?? '0x0') !== BigInt(expectedValue)
+            || (expectedNonce !== undefined && BigInt(tx.nonce) !== BigInt(expectedNonce))) {
+            throw new Error('The transaction changed. Review this action again.');
+          }
+        },
+        onDispatch: () => { sendStarted = true; },
+        onHash: hash => {
+          if (!submission) return;
+          if (typeof hash !== 'string' || !/^0x[0-9a-f]{64}$/i.test(hash)) throw new Error('Transaction status is not available.');
+          submission = this.submissionJournal.write({ ...submission, phase: 'submitted', txHash: hash });
+        },
+      });
+      if (rpcBoundary) activeSigner = rpcBoundary.signer;
 
       // The manager's checked signer must own the actual contract call, even
       // when no chain switch was needed and a caller retained an older factory.
@@ -214,6 +288,12 @@ export class TransactionManager {
         if (activeSigner.getChainId && await activeSigner.getChainId() !== this.submissionChainId) throw new Error('Your network changed. Please try again.');
         this.assertCurrent();
       }
+      if (rpcBoundary) {
+        expectedTarget = contract.address.toLowerCase();
+        expectedData = contract.interface.encodeFunctionData(method, args).toLowerCase();
+        expectedValue = BigNumber.from(opts.value ?? 0).toString();
+        expectedNonce = nonce;
+      }
       // Wallet signing and dispatch share one call. Refresh AFTER all awaited
       // setup and identity reads; only synchronous scope/lease checks follow.
       await assertBeforeSend(this, opts.beforeSend);
@@ -230,13 +310,13 @@ export class TransactionManager {
       // The wallet owns signing + broadcast as one awaited call. Persist safe identity first.
       this.assertCurrent();
       this.submissionJournal?.assertLease();
-      sendStarted = true;
+      if (!rpcBoundary) sendStarted = true;
       const tx = await contract[method](...args, gasOptions);
 
       if (submission) {
         if (typeof tx?.hash !== 'string' || !/^0x[0-9a-f]{64}$/i.test(tx.hash)) throw new Error('Transaction status is not available.');
-        submission = { ...submission, phase: 'submitted', txHash: tx.hash };
-        submission = this.submissionJournal.write(submission);
+        if (submission.txHash && submission.txHash.toLowerCase() !== tx.hash.toLowerCase()) throw new Error('Transaction status is not available.');
+        if (!submission.txHash) submission = this.submissionJournal.write({ ...submission, phase: 'submitted', txHash: tx.hash });
       }
       // State: Pending
       this._notifyState(opts.onStateChange, TransactionState.PENDING, {
@@ -317,6 +397,7 @@ export class TransactionManager {
       if (!pendingError && (cancelled || !sendStarted)) result.submissionState = 'not-submitted';
       return result;
     } finally {
+      rpcBoundary?.dispose();
       if (release) {
         try { this.submissionJournal.abandonUnsent(); } catch { /* Preserve unavailable state. */ }
         await release();
