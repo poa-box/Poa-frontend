@@ -1,3 +1,4 @@
+import { getTemplateDefaults } from '@/features/deployer/templates/templateDefinitions';
 /**
  * Creative Collective Template
  *
@@ -477,36 +478,7 @@ whether this is sustainable for your collective's size and engagement patterns.`
   },
 
   // Default configuration
-  defaults: {
-    roles: [
-      {
-        name: 'Artist',
-        hierarchy: { adminRoleIndex: null },
-        vouching: { enabled: false, quorum: 0, voucherRoleIndex: 0 },
-        hatConfig: { maxSupply: 50 },
-      },
-    ],
-    permissions: {
-      taskManagers: [0],
-      projectCreators: [0],
-      taskCreators: [0],
-      taskReviewers: [0],
-      taskClaimers: [0],
-      nftCreators: [0],
-      quickJoinRoles: [],
-      memberManagers: [0],
-      ddVoters: [0],
-    },
-    voting: {
-      mode: 'HYBRID',
-      democracyWeight: 90,
-      participationWeight: 10,
-    },
-    features: {
-      educationHubEnabled: false,
-      electionHubEnabled: false,
-    },
-  },
+  defaults: getTemplateDefaults('creative-collective'),
 
   // UI guidance
   ui: {

@@ -62,6 +62,7 @@ export const RefreshEvent = {
   // Treasury events
   TREASURY_DEPOSITED: 'treasury:deposited',
   GAS_POOL_DEPOSITED: 'gaspool:deposited',
+  SOLIDARITY_DONATED: 'protocol:solidarity_donated',
 
   // User events
   USER_CREATED: 'user:created',

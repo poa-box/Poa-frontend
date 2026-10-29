@@ -36,7 +36,9 @@ import {
 } from '@chakra-ui/react';
 import { AddIcon, CloseIcon } from '@chakra-ui/icons';
 import { PiListChecks } from 'react-icons/pi';
-import { useDeployer } from '../../context/DeployerContext';
+import { useDeployer } from '@/features/deployer/context/DeployerContext';
+import { buildOrgMetadata } from '@/features/deployer/utils/orgMetadata';
+import { resolveTokenLabel } from '@/util/tokenLabel';
 import { AddressListInput } from '../common/AddressListInput';
 
 // Toggleable role tags (stores an array of role indices).
@@ -96,7 +98,7 @@ function BountyRows({ bounties = [], onChange }) {
   );
 }
 
-function ProjectCard({ project, index, roles, actions, borderColor }) {
+function ProjectCard({ project, index, roles, actions, borderColor, tokenLabel }) {
   const up = (patch) => actions.updateBootstrapProject(index, patch);
   return (
     <Box border="1px solid" borderColor={borderColor} borderRadius="xl" p={4}>
@@ -112,7 +114,7 @@ function ProjectCard({ project, index, roles, actions, borderColor }) {
           onChange={(e) => up({ description: e.target.value })} rows={2} />
         <HStack spacing={3}>
           <Box flex="1">
-            <Text fontSize="xs" fontWeight="600" color="warmGray.600" mb={1}>Participation-token cap (optional)</Text>
+            <Text fontSize="xs" fontWeight="600" color="warmGray.600" mb={1}>{tokenLabel} cap (optional)</Text>
             <Input size="sm" type="number" placeholder="0 = uncapped" value={project.cap || ''}
               onChange={(e) => up({ cap: e.target.value })} />
           </Box>
@@ -134,7 +136,7 @@ function ProjectCard({ project, index, roles, actions, borderColor }) {
   );
 }
 
-function TaskCard({ task, index, projects, actions, borderColor }) {
+function TaskCard({ task, index, projects, actions, borderColor, tokenLabel }) {
   const up = (patch) => actions.updateBootstrapTask(index, patch);
   return (
     <Box border="1px solid" borderColor={borderColor} borderRadius="xl" p={4}>
@@ -157,7 +159,7 @@ function TaskCard({ task, index, projects, actions, borderColor }) {
           onChange={(e) => up({ description: e.target.value })} rows={2} />
         <HStack spacing={3}>
           <Box flex="1">
-            <Text fontSize="xs" fontWeight="600" color="warmGray.600" mb={1}>Payout (participation tokens) — required, &gt; 0</Text>
+            <Text fontSize="xs" fontWeight="600" color="warmGray.600" mb={1}>Reward ({tokenLabel}) — required, &gt; 0</Text>
             <Input size="sm" type="number" placeholder="e.g. 100" value={task.payout || ''}
               isInvalid={task.payout !== '' && task.payout != null && !(parseFloat(task.payout) > 0)}
               onChange={(e) => up({ payout: e.target.value })} />
@@ -185,6 +187,7 @@ function TaskCard({ task, index, projects, actions, borderColor }) {
 
 export function BootstrapSection() {
   const { state, actions } = useDeployer();
+  const tokenLabel = resolveTokenLabel({ useTokenSymbol: buildOrgMetadata(state).useTokenSymbol, symbol: state.organization?.tokenSymbol });
   const cardBg = useColorModeValue('rgba(255, 255, 255, 0.8)', 'rgba(51, 48, 44, 0.8)');
   const borderColor = useColorModeValue('warmGray.200', 'warmGray.600');
 
@@ -215,7 +218,7 @@ export function BootstrapSection() {
             <VStack align="stretch" spacing={4}>
               {/* Projects */}
               {projects.map((p, idx) => (
-                <ProjectCard key={p.id || idx} project={p} index={idx} roles={roles} actions={actions} borderColor={borderColor} />
+                <ProjectCard key={p.id || idx} project={p} index={idx} roles={roles} actions={actions} borderColor={borderColor} tokenLabel={tokenLabel} />
               ))}
               <Button size="sm" variant="outline" leftIcon={<AddIcon boxSize={3} />} onClick={() => actions.addBootstrapProject()} alignSelf="flex-start">
                 Add project
@@ -226,7 +229,7 @@ export function BootstrapSection() {
                 <>
                   <Divider />
                   {tasks.map((t, idx) => (
-                    <TaskCard key={t.id || idx} task={t} index={idx} projects={projects} actions={actions} borderColor={borderColor} />
+                    <TaskCard key={t.id || idx} task={t} index={idx} projects={projects} actions={actions} borderColor={borderColor} tokenLabel={tokenLabel} />
                   ))}
                   <Button size="sm" variant="outline" leftIcon={<AddIcon boxSize={3} />} onClick={() => actions.addBootstrapTask(0)} alignSelf="flex-start">
                     Add task

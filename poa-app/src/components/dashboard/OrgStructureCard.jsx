@@ -29,7 +29,7 @@ const glassLayerStyle = {
 
 export function OrgStructureCard({
   roles = [],
-  totalMembers = 0,
+  totalMembers = null,
   governance,
   votingClasses = [],
   userDAO,
@@ -129,7 +129,7 @@ export function OrgStructureCard({
               {roles.length === 1 ? 'Role' : 'Roles'}
               <Text as="span" color="gray.500"> · </Text>
               <Text as="span" fontWeight="bold" color="white">
-                {totalMembers}
+                {totalMembers ?? '—'}
               </Text>{' '}
               {totalMembers === 1 ? 'Member' : 'Members'}
             </Text>

@@ -1,327 +1,32 @@
-/**
- * contractErrors.js
- * Shared contract-revert decoding used by BOTH transaction paths:
- *   - EOA / direct ethers tx  → ErrorParser.parseError
- *   - Passkey / ERC-4337 UserOp → SmartAccountTransactionManager._parseAAError
- *
- * The goal is that any revert from a POA contract surfaces a specific, actionable
- * message to the user regardless of which signing path produced it.
- *
- * Three pieces:
- *   1. CONTRACT_ERROR_SELECTORS — authoritative 4-byte selector → error name map,
- *      GENERATED from the contracts' compiled ABIs, UNIONed with what is already
- *      here (see the note on CONTRACT_ERROR_SELECTORS below). This is the
- *      cross-contract fallback; when a built ethers Interface is available, ABI
- *      decoding is preferred (it also recovers error args).
- *   2. CONTRACT_ERROR_MESSAGES — error name → friendly, user-facing message.
- *   3. Decode helpers that extract the revert bytes from the wildly different
- *      error envelopes ethers v5 and viem/Pimlico produce, then turn them into a
- *      message.
- */
-
+/** Core owns protocol error bytes and envelopes; the host owns member-facing copy. */
 import { ethers } from 'ethers';
+import { ALL_ABIS } from '@poa-box/core/abis';
+import { ExecutorAbi } from '@poa-box/core/abis/Executor';
+import { decodeRevertTree, extractRevertEvidence } from '@poa-box/core/errors/envelope';
+import { historicalExternalErrorInterface, HISTORICAL_EXTERNAL_ERROR_NAMES } from '@poa-box/core/errors/compat';
 
-// Standard Solidity revert selectors.
-const ERROR_STRING_SELECTOR = '0x08c379a0'; // Error(string)  — require(cond, "msg")
-const PANIC_SELECTOR = '0x4e487b71'; // Panic(uint256) — assert/overflow/div-by-zero
+const compatibilityInterface = historicalExternalErrorInterface();
 
-/**
- * Authoritative selector → error name, generated from every ABI the frontend
- * sends a write transaction to, PLUS the delegatecall libraries whose reverts
- * bubble up unchanged but never appear in a contract's own ABI (VotingErrors,
- * RoleResolver, ModuleDeploymentLib, the Paymaster* libs) and the Hats-protocol
- * errors that surface on every join/claim path.
- *
- * DO NOT hand-edit selectors — regenerate from the contracts' compiled ABIs. The
- * generator must UNION with what is already here, never replace: contracts are
- * upgraded chain-by-chain, so a name deleted upstream (e.g. `NotAuthorizedAdmin`,
- * removed by POP PR #185) is still emitted by every not-yet-upgraded proxy.
- *
- * This map only matters when no Interface is in scope (e.g. a revert that
- * originated in a *different* contract than the one we called).
- */
-export const CONTRACT_ERROR_SELECTORS = {
-  '0xc22f9f2c': 'AccountExists',
-  '0xf1fc16eb': 'AccountUnknown',
-  '0x9996b315': 'AddressEmptyCode',
-  '0x0cd96ab8': 'AllHatsWorn',
-  '0xc39f6ac4': 'AllowlistNotActive',
-  '0x00a81806': 'AlreadyApplied',
-  '0x101f817a': 'AlreadyApproved',
-  '0x646cf558': 'AlreadyClaimed',
-  '0x195332a5': 'AlreadyCompleted',
-  '0x0dc10197': 'AlreadyExecuted',
-  '0x475a2535': 'AlreadyFinalized',
-  '0xa741a045': 'AlreadySet',
-  '0x7c9a1cf9': 'AlreadyVoted',
-  '0xbde702e3': 'AlreadyVouched',
-  '0x643d2083': 'AlreadyWearingHat',
-  '0x0b792c8f': 'ApplicationAlreadyExists',
-  '0xa24a13a6': 'ArrayLengthMismatch',
-  '0x1b96a06a': 'ArrayLenMismatch',
-  '0xbe9faef2': 'AutoUpgradeRequired',
-  '0x5c975bda': 'BadStatus',
-  '0xee755c3e': 'BeaconNotSet',
-  '0x50b2c4e1': 'BudgetExceeded',
-  '0x5c0dee5d': 'CallFailed',
-  '0xd2f2c18b': 'CannotRemoveLastCredential',
-  '0xd8d6426c': 'CannotVouchForSelf',
-  '0xd2aff4b8': 'CapBelowCommitted',
-  '0x2520601d': 'CheckpointUnorderedInsertion',
-  '0x283dc311': 'ClaimerNotEligible',
-  '0x4dece07e': 'ClaimPeriodNotExpired',
-  '0xc02d3ee3': 'ContractNotDeployed',
-  '0x371bf39e': 'ContractUnknown',
-  '0xaa3ea2ac': 'CredentialExists',
-  '0x115267f3': 'CredentialNotActive',
-  '0xb7199d4c': 'CredentialNotFound',
-  '0x70414907': 'DefaultEligibilityConflictsWithVouch',
-  '0xa6461e39': 'DistributionAlreadyFinalized',
-  '0x3a35c2f9': 'DistributionNotFound',
-  '0x13b1cf58': 'DuplicateIndex',
-  '0x7cdd5ac5': 'DurationOutOfRange',
-  '0xf645eedf': 'ECDSAInvalidSignature',
-  '0xfce698f7': 'ECDSAInvalidSignatureLength',
-  '0xd78bce0c': 'ECDSAInvalidSignatureS',
-  '0x341f54fd': 'EmailAlreadyRegistered',
-  '0xc2e5347d': 'EmptyBatch',
-  '0xdf296b44': 'EmptyHats',
-  '0x3e89cbb3': 'EmptyInit',
-  '0xecd7b0d1': 'EmptyString',
-  '0xa5bb9bde': 'EmptyTitle',
-  '0xd93c0665': 'EnforcedPause',
-  '0x63e8b3e8': 'EPOnly',
-  '0x4c9c8ce3': 'ERC1967InvalidImplementation',
-  '0xb398979f': 'ERC1967NonPayable',
-  '0x1cb15d26': 'ERC20ExceededSafeSupply',
-  '0xfb8f41b2': 'ERC20InsufficientAllowance',
-  '0xe450d38c': 'ERC20InsufficientBalance',
-  '0xe602df05': 'ERC20InvalidApprover',
-  '0xec442f05': 'ERC20InvalidReceiver',
-  '0x96c6fd1e': 'ERC20InvalidSender',
-  '0x94280d62': 'ERC20InvalidSpender',
-  '0xecd3f81e': 'ERC5805FutureLookup',
-  '0x6ff07140': 'ERC6372InconsistentClock',
-  '0xb12d13eb': 'ETHTransferFailed',
-  '0xacfdb444': 'ExecutionFailed',
-  '0x8dfc202b': 'ExpectedPause',
-  '0xd6bda275': 'FailedCall',
-  '0xcd4e6167': 'FeeTooHigh',
-  '0x6a1abd22': 'FoldersRootStale',
-  '0xb2577430': 'GasTooHigh',
-  '0x11af4dd6': 'GracePeriodSpendLimitReached',
-  '0xfecca77f': 'GuardianAlreadyExists',
-  '0x6677f3c8': 'GuardianDoesNotExist',
-  '0xb45a4631': 'HasNotVouched',
-  '0xe629aba3': 'HatNotActive',
-  '0x748382d5': 'HatOpenlyClaimable',
-  '0xe12b1f85': 'ImplZero',
-  '0x3cb97240': 'Ineligible',
-  '0x9f8dcc9b': 'InitFailed',
-  '0x0710b3e1': 'InsufficientDelivery',
-  '0xcb15adf1': 'InsufficientDepositForSolidarity',
-  '0x356680b7': 'InsufficientFunds',
-  '0xd0c84c62': 'InsufficientOrgBalance',
-  '0x752d88c0': 'InvalidAccountNonce',
-  '0xe6c4247b': 'InvalidAddress',
-  '0xb5f71a2e': 'InvalidAnswer',
-  '0x391ab2ea': 'InvalidApplicationHash',
-  '0x94ef741a': 'InvalidChars',
-  '0x0f0f97d1': 'InvalidCheckpoint',
-  '0x1e565eaa': 'InvalidClassCount',
-  '0x769d11e4': 'InvalidDeadline',
-  '0x165a0726': 'InvalidDKIMKey',
-  '0x88ac0897': 'InvalidEpochLength',
-  '0xb43a0650': 'InvalidHatId',
-  '0x63df8171': 'InvalidIndex',
-  '0xf92ee8a9': 'InvalidInitialization',
-  '0xade46c67': 'InvalidJoinTime',
-  '0x5fbda299': 'InvalidMaxDailyVouches',
-  '0xd5f24564': 'InvalidMembershipHat',
-  '0x9dd854d3': 'InvalidMerkleRoot',
-  '0x756688fe': 'InvalidNonce',
-  '0x82ed6225': 'InvalidOnboardingRequest',
-  '0x83c2a767': 'InvalidOrgDeployRequest',
-  '0xc1144a2c': 'InvalidOrgId',
-  '0xd2529034': 'InvalidParam',
-  '0x25d8dfa4': 'InvalidPaymasterData',
-  '0xe3813bd4': 'InvalidPayout',
-  '0x09bde339': 'InvalidProof',
-  '0xee032808': 'InvalidProposal',
-  '0xa2d0fee8': 'InvalidPublicKey',
-  '0xd1735779': 'InvalidQuorum',
-  '0x25bf35eb': 'InvalidRoleConfiguration',
-  '0x394e0cef': 'InvalidRuleId',
-  '0x8baa579f': 'InvalidSignature',
-  '0x815e1d64': 'InvalidSigner',
-  '0xfea59956': 'InvalidSliceSum',
-  '0x3b00c964': 'InvalidString',
-  '0x6c27c5f2': 'InvalidSubjectType',
-  '0xaabd5a09': 'InvalidThreshold',
-  '0xfd684c3b': 'InvalidUser',
-  '0xa9146eeb': 'InvalidVersion',
-  '0x585b9263': 'InvalidWeight',
-  '0xff633a38': 'LengthMismatch',
-  '0x4028a50d': 'MaxCredentialsReached',
-  '0xbdf91dc1': 'ModuleExists',
-  '0x10e2e5bb': 'ModuleUnknown',
-  '0x594ea677': 'NewUserVouchingRestricted',
-  '0xa4f5cfae': 'NoActiveApplication',
-  '0xffe68de3': 'NoApplicationRequired',
-  '0xd1e1fa49': 'NoPendingRecovery',
-  '0x7bfa4b9f': 'NotAdmin',
-  // Hats-protocol `NotAdmin(address,uint256)`. Deliberately NOT called `NotAdmin`:
-  // PaymasterHub already owns that name at 0x7bfa4b9f. Keep this alias when
-  // regenerating — a raw ABI dump would name it `NotAdmin` and collide.
-  '0xf921ec01': 'NotAdminHats',
-  '0x475d03f7': 'NotAGuardian',
-  '0xb287a82f': 'NotApplicant',
-  '0x65f84cc0': 'NotApprover',
-  '0x9fa7b4bb': 'NotAuthorizedAdmin',
-  '0x9d28e06e': 'NotAuthorizedEmailVerifier',
-  '0x69d6514c': 'NotAuthorizedExecutor',
-  '0xd059c6eb': 'NotAuthorizedToVouch',
-  '0x95530668': 'NotClaimer',
-  '0x93687c0b': 'NotCreator',
-  '0x8b906c97': 'NotDeployer',
-  '0xf8eb54de': 'NotEligible',
-  '0xc32d1d76': 'NotExecutor',
-  '0xc5723b51': 'NotFound',
-  '0x57afcad4': 'NotInAllowlist',
-  '0xd7e6bcf8': 'NotInitializing',
-  '0x291fc442': 'NotMember',
-  '0x7c214f04': 'NotOperator',
-  '0x8f40e9c4': 'NotOrganizer',
-  '0x77a74ec9': 'NotOrgExecutor',
-  '0xa810544a': 'NotOrgMetadataAdmin',
-  '0x30cd7471': 'NotOwner',
-  '0x00bd7754': 'NotPoaManager',
-  '0xe39da59e': 'NotRequester',
-  '0x16c726b1': 'NotSuperAdmin',
-  '0x87517b30': 'NotTaskOrEdu',
-  '0xb8d29e28': 'NotToggleAdmin',
-  '0x68c00a8a': 'NoUsername',
-  '0xcad2ae02': 'NullifierAlreadyUsed',
-  '0xda522463': 'OnboardingDailyLimitExceeded',
-  '0x8ce687c3': 'OnboardingDisabled',
-  '0x0d9680c5': 'OnboardingLimitExceeded',
-  '0xbd07c551': 'OnlyEntryPoint',
-  '0xcae1d956': 'OnlyGuardian',
-  '0xe4e906bd': 'OnlyGuardianOrSelf',
-  '0x1eba6865': 'OnlyMasterDeploy',
-  '0x14d4a4e8': 'OnlySelf',
-  '0xacf09f4f': 'OptedOut',
-  '0xaa969a7e': 'OrgAlreadyRegistered',
-  '0xc0f1a1e0': 'OrgDeployDailyLimitExceeded',
-  '0x18b96352': 'OrgDeployDisabled',
-  '0x5408dab9': 'OrgDeployLimitExceeded',
-  '0x031cc96e': 'OrgExists',
-  '0x3821115b': 'OrgExistsMismatch',
-  '0xad3bba04': 'OrgIsBanned',
-  '0xe09046c4': 'OrgNotRegistered',
-  '0xa513ba5e': 'OrgUnknown',
-  '0x03135f5a': 'OverClaimed',
-  '0x35278d12': 'Overflow',
-  '0x1e4fbdf7': 'OwnableInvalidOwner',
-  '0x118cdaa7': 'OwnableUnauthorizedAccount',
-  '0x00e1e703': 'OwnerOnlyDuringBootstrap',
-  '0xc832858d': 'PasskeyFactoryNotSet',
-  '0x9e87fac8': 'Paused',
-  '0xe3985b98': 'RecoveryAlreadyPending',
-  '0x0a9a2f0e': 'RecoveryDelayNotPassed',
-  '0x94c07f8b': 'RecoveryDisabled',
-  '0xfab70774': 'RecoveryNotPending',
-  '0x3ee5aeb5': 'ReentrancyGuardReentrantCall',
-  '0xed3ba6a6': 'Reentrant',
-  '0x15236fdf': 'RequestHashAlreadyFailed',
-  '0x36838924': 'RequestUnknown',
-  '0x235dddba': 'RequiresApplication',
-  '0x3665a1ba': 'RoleNotAllowed',
-  '0x2240f884': 'RuleDenied',
-  '0x6dfcc650': 'SafeCastOverflowedUintDowncast',
-  '0x5274afe7': 'SafeERC20FailedOperation',
-  '0x4c3b76bf': 'SameImplementation',
-  '0xd133618f': 'SelfReviewNotAllowed',
-  '0x0819bdcd': 'SignatureExpired',
-  '0x08c60247': 'SolidarityDistributionIsPaused',
-  '0xa438d5df': 'SolidarityLimitExceeded',
-  '0xd4a04991': 'SpentUnderflow',
-  '0xb11b2ad8': 'StringTooLong',
-  '0x9eec2ff8': 'SweepFailed',
-  '0x48cbf26d': 'TargetNotAllowed',
-  '0x48502cd8': 'TargetSelf',
-  '0xb61fefab': 'ThresholdExceedsGuardianCount',
-  '0x621e25c3': 'TimelockNotExpired',
-  '0x24a25c57': 'TitleTooLong',
-  '0x2fe9c4b2': 'TokenNotWired',
-  '0xf5dedbff': 'TooManyCalls',
-  '0x50d51d8b': 'TooManyClasses',
-  '0xc07a9fb9': 'TooManyHats',
-  '0x1bca9042': 'TooManyOptions',
-  '0x68ed5629': 'TooManyPollHats',
-  '0x90b8ec18': 'TransferFailed',
-  '0x8574adcf': 'TransfersDisabled',
-  '0x8953e7e0': 'TypeExists',
-  '0x633cee1a': 'TypeTaken',
-  '0x3ebe849b': 'TypeUnknown',
-  '0x82b42900': 'Unauthorized',
-  '0x5c427cd9': 'UnauthorizedCaller',
-  '0x4cd3e2eb': 'UnregisteredRole',
-  '0xc6de466a': 'UnsupportedType',
-  '0x16d17376': 'UsernameEmpty',
-  '0x6bc324ad': 'UsernameTaken',
-  '0xfb98085e': 'UsernameTooLong',
-  '0xe07c8dba': 'UUPSUnauthorizedCallContext',
-  '0xaa1d49a4': 'UUPSUnsupportedProxiableUUID',
-  '0xb305d11d': 'VersionExists',
-  '0x23b81033': 'VersionUnknown',
-  '0x4683af0e': 'VotesExpiredSignature',
-  '0x1e34f61a': 'VotingExpired',
-  '0x8089789a': 'VotingOpen',
-  '0xf536e173': 'VouchingNotEnabled',
-  '0x76370673': 'VouchingRateLimitExceeded',
-  '0xd7dbfbb3': 'WeightSumNot100',
-  '0xde7ad8ef': 'WouldDrainRecoveryFunds',
-  '0x2d6ac127': 'WrongToken',
-  '0xd92e233d': 'ZeroAddress',
-  '0x1f2a2005': 'ZeroAmount',
-  '0x40ab3afe': 'ZeroClaimer',
-  '0xe5d19efb': 'ZeroDepositor',
-  '0xe0830f6b': 'ZeroUser',
+// Preserve the diagnostic selector-map export using canonical ABI fragments and
+// core's explicit historical/external aliases. No local protocol selector catalog.
+export const CONTRACT_ERROR_SELECTORS = Object.freeze(Object.assign(
+  Object.fromEntries(Object.values(ALL_ABIS).flatMap(abi => abi
+    .filter(fragment => fragment.type === 'error')
+    .map(fragment => {
+      const error = ethers.utils.ErrorFragment.from(fragment);
+      return [ethers.utils.id(error.format()).slice(0, 10), error.name];
+    }))),
+  HISTORICAL_EXTERNAL_ERROR_NAMES,
+));
 
-  // ---- MembershipAuthority (access v2) ----
-  // Generated from `abi/MembershipAuthority.json` (union, per the note above — nothing was
-  // replaced). These are what an access-v2 governance batch reverts WITH, so they are the payload
-  // `Executor.CallFailed` carries; without them a failed role proposal reads as a bare selector.
-  // Names already present under a DIFFERENT selector (NotMember, NotExecutor, Paused, ZeroAddress,
-  // AlreadyVouched, HasNotVouched, ArrayLengthMismatch, CannotVouchForSelf, InvalidMaxDailyVouches)
-  // are deliberately not re-listed — the map is selector-keyed and they already resolve.
-  '0x810074be': 'AlreadyMember',
-  '0x48e708d1': 'ForceRequired',
-  '0x851ab6e2': 'GrantBlockedByGovernanceBan',
-  '0x8a1d92d8': 'GroupSizeLimit',
-  '0x138a9d9f': 'GroupsPerRoleLimit',
-  '0x0ef9ab66': 'MaxMembersOnGroup',
-  '0x5ba4d769': 'NoPendingAction',
-  '0x0596c757': 'NotAGroup',
-  '0x85e045ee': 'NotAuthorizedManager',
-  '0x6247a84e': 'NotClaimable',
-  '0xdd3637db': 'NotInOrg',
-  '0x7a936074': 'NotRegisteredModule',
-  '0x7ab20abd': 'NotYetActive',
-  '0x153639c7': 'PendingActionExists',
-  '0x34d382b8': 'PermFanoutLimit',
-  '0x0c55addc': 'RemovalIneffective',
-  '0xf2271ea8': 'RemoveBlockedByStickyGovernance',
-  '0x31286a16': 'RoleLimit',
-  '0x249ea75e': 'RuleNotDelegable',
-  '0xf7ff5abb': 'SelfManagedCycle',
-  '0x2fa36b95': 'SubjectExists',
-  '0x5d975623': 'SubjectFull',
-  '0xcff887c5': 'UnknownSubject',
-  '0x7f1b58f9': 'VouchRateLimited',
-  '0x07d3660b': 'WiringIncompatible',
-};
+function protocolRevertTree(data, abi, maxDepth = 4) {
+  return decodeRevertTree(data, {
+    iface: toInterface(abi),
+    compatibilityInterfaces: [compatibilityInterface],
+    compatibilityNames: HISTORICAL_EXTERNAL_ERROR_NAMES,
+    maxDepth,
+  });
+}
 
 /**
  * Error name → friendly, actionable, user-facing message.
@@ -376,7 +81,7 @@ export const CONTRACT_ERROR_MESSAGES = {
   // sponsored-gas path should surface their own copy before consulting this map.
   BudgetExceeded: "This would go over a configured budget — either the project's token budget or the organization's gas allowance. Lower the amount, or ask an admin to raise the budget.",
   EmptyBatch: 'No items were selected for this bulk action. Select at least one task and try again.',
-  NotCreator: "You don't have permission to create projects or tasks here. Ask an admin to grant your role the create permission.",
+  NotCreator: "You don't have permission to create this item here. Ask an admin to grant your role the create permission.",
   NotExecutor: "This action can only be run by the organization's executor, usually via a passed governance proposal. It can't be triggered directly.",
   NotOrganizer: "You don't hold a folder-organizer role. Ask an admin to grant your role the organizer permission to reorganize the board.",
   EmptyTitle: "The task title can't be blank. Enter a title and try again.",
@@ -665,7 +370,7 @@ function looksLikeRevertData(s) {
  * this proposal failed" for every possible cause, and on the completed-poll surface it produced
  * raw hex (`executionStatus` interpolated `proposal.executionError` verbatim).
  */
-export const EXECUTOR_CALL_FAILED_SELECTOR = '0x5c0dee5d';
+export const EXECUTOR_CALL_FAILED_SELECTOR = new ethers.utils.Interface(ExecutorAbi).getSighash('CallFailed');
 
 /** The 4-byte selector prefix of a revert blob, as the user-facing fallback identifier. */
 export function shortSelector(hex) {
@@ -719,19 +424,37 @@ export function decodeExecutorCallFailure(data, abi = null, depth = 0) {
   const hex = data.trim().toLowerCase();
   if (hex.slice(0, 10) !== EXECUTOR_CALL_FAILED_SELECTOR) return null;
 
-  let index = null;
-  let innerData = null;
-  try {
-    const [i, ret] = ethers.utils.defaultAbiCoder.decode(['uint256', 'bytes'], '0x' + hex.slice(10));
-    index = Number(i.toString());
-    innerData = String(ret || '0x').toLowerCase();
-  } catch {
-    // A truncated/odd payload still tells us WHICH wrapper fired — keep the generic copy rather
-    // than falling through to the raw-hex surface.
-  }
+  const tree = protocolRevertTree(hex, abi, Math.max(1, 4 - depth));
+  return hostCallFailure(tree);
+}
 
-  const inner = depth < 3 ? decodeRevertData(innerData, abi, depth + 1) : null;
+function hostCallFailure(tree) {
+  const rawIndex = tree.callIndex;
+  const index = rawIndex !== undefined && BigInt(rawIndex) <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(rawIndex) : null;
+  const innerData = tree.inner?.data ?? null;
+  const inner = tree.inner ? hostRevert(tree.inner) : null;
   return { index, innerData, inner, message: callFailedMessage({ index, innerData, inner }) };
+}
+
+function hostRevert(tree) {
+  if (tree.kind === 'string') {
+    const reason = tree.args[0];
+    if (!reason) return null;
+    return { name: 'Error', reason, message: messageForErrorName(reason) || messageForRequireString(reason), isStringError: true };
+  }
+  if (tree.kind === 'panic') {
+    return { name: 'Panic', reason: 'Panic', message: 'The transaction hit an internal contract error. Please refresh and try again, or contact an admin if it persists.' };
+  }
+  if (tree.kind === 'empty' || tree.kind === 'malformed' || tree.kind === 'bounded') return null;
+  // Bare historical selectors can lack their ABI arguments. They remain diagnostic names only.
+  const name = tree.kind === 'custom' ? tree.name : CONTRACT_ERROR_SELECTORS[shortSelector(tree.data)];
+  if (!name) return null;
+  if (name === 'CallFailed') {
+    const failure = hostCallFailure(tree);
+    return { name, reason: failure.inner?.name ? `CallFailed: ${failure.inner.name}` : name, message: failure.message, callFailure: failure };
+  }
+  return { name, reason: name, message: messageForErrorName(name), ...(tree.args.length ? { args: tree.args } : {}) };
+
 }
 
 /**
@@ -797,66 +520,7 @@ function toInterface(abi) {
  */
 export function decodeRevertData(data, abi = null, depth = 0) {
   if (!looksLikeRevertData(data)) return null;
-  const hex = data.trim().toLowerCase();
-  const selector = hex.slice(0, 10);
-
-  // Error(string) — the classic require/revert string (e.g. "Not eligible to claim hat")
-  if (selector === ERROR_STRING_SELECTOR) {
-    try {
-      const [reason] = ethers.utils.defaultAbiCoder.decode(['string'], '0x' + hex.slice(10));
-      if (!reason) return null;
-      return {
-        name: 'Error',
-        reason,
-        message: messageForErrorName(reason) || messageForRequireString(reason),
-        isStringError: true,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  // Panic(uint256) — assert / arithmetic overflow / etc.
-  if (selector === PANIC_SELECTOR) {
-    return {
-      name: 'Panic',
-      reason: 'Panic',
-      message: 'The transaction hit an internal contract error. Please refresh and try again, or contact an admin if it persists.',
-    };
-  }
-
-  // Executor.CallFailed(index, lowLevelData) — decode the INNER revert and speak about that.
-  // This runs BEFORE the Interface branch on purpose: every voting ABI declares CallFailed, so
-  // `iface.parseError` would resolve it first and return the generic wrapper copy, throwing the
-  // one piece of information the member needs (which action, and why) away.
-  if (selector === EXECUTOR_CALL_FAILED_SELECTOR) {
-    const failure = decodeExecutorCallFailure(hex, abi, depth);
-    if (failure) {
-      return {
-        name: 'CallFailed',
-        reason: failure.inner?.name ? `CallFailed: ${failure.inner.name}` : 'CallFailed',
-        message: failure.message,
-        callFailure: failure,
-      };
-    }
-  }
-
-  // Custom error: prefer the contract's own Interface (recovers args + exact name).
-  const iface = toInterface(abi);
-  if (iface) {
-    try {
-      const decoded = iface.parseError(hex);
-      return { name: decoded.name, reason: decoded.name, message: messageForErrorName(decoded.name), args: decoded.args };
-    } catch {
-      /* fall through to selector map */
-    }
-  }
-
-  // Cross-contract fallback: selector → name map.
-  const name = CONTRACT_ERROR_SELECTORS[selector];
-  if (name) return { name, reason: name, message: messageForErrorName(name) };
-
-  return null;
+  return hostRevert(protocolRevertTree(data.trim().toLowerCase(), abi, Math.max(1, 4 - depth)));
 }
 
 /**
@@ -867,29 +531,12 @@ export function decodeRevertData(data, abi = null, depth = 0) {
  * / error.error.data) before the top-level (error.data) used by sent-tx reverts.
  */
 export function extractRevertDataFromError(error) {
-  if (!error || typeof error !== 'object') return null;
-  const candidates = [];
-  const seen = new Set();
-  const visit = (node, depth) => {
-    if (!node || depth > 6 || seen.has(node)) return;
-    if (typeof node === 'string') {
-      if (looksLikeRevertData(node)) candidates.push(node);
-      return;
-    }
-    if (typeof node !== 'object') return;
-    seen.add(node);
-    // Gas-estimation wrapper: revert bytes nested under error.error.data(.data)
-    if (node.error && typeof node.error === 'object') visit(node.error, depth + 1);
-    if (node.data !== undefined) visit(node.data, depth + 1);
-    if (node.originalError) visit(node.originalError, depth + 1);
-    if (node.cause && typeof node.cause === 'object') visit(node.cause, depth + 1);
-  };
-  // Probe the nested gas-estimation path first, then the whole tree.
-  visit(error.error?.data?.data, 0);
-  visit(error.error?.data, 0);
-  visit(error.data, 0);
-  if (candidates.length === 0) visit(error, 0);
-  return candidates.find(looksLikeRevertData) || null;
+  // Preserve gas-estimation precedence when a provider also attaches outer data.
+  for (const input of [error?.error?.data?.data, error?.error?.data, error, error?.originalError, error?.cause]) {
+    const evidence = extractRevertEvidence(input);
+    if (looksLikeRevertData(evidence.data)) return evidence.data;
+  }
+  return null;
 }
 
 /**

@@ -5,9 +5,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import apolloClient from '@/util/apolloClient';
-import { FETCH_USERNAME_NEW } from '@/util/queries';
-import { searchUsersByUsernameAcrossChains } from '@/util/crossChainUsername';
+import { searchUsersByUsernameAcrossChains, findUsernameAcrossChains } from '@/util/crossChainUsername';
 
 // Username validation regex (alphanumeric + underscore)
 const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
@@ -87,17 +85,13 @@ export function useUserSearch({ debounceMs = 300 } = {}) {
       try {
         if (inputType === 'address') {
           // Exact address lookup — get username if one is registered.
-          const { data } = await apolloClient.query({
-            query: FETCH_USERNAME_NEW,
-            variables: { id: searchQuery.trim().toLowerCase() },
-            fetchPolicy: 'network-only',
-          });
+          const result = await findUsernameAcrossChains(searchQuery.trim().toLowerCase());
           if (cancelled) return;
 
           // An address is always a valid target, even without a username.
           setSearchResults([{
             address: searchQuery.trim().toLowerCase(),
-            username: data?.account?.username || null,
+            username: result.username || null,
           }]);
           setError(null);
         } else {
@@ -110,7 +104,6 @@ export function useUserSearch({ debounceMs = 300 } = {}) {
         }
       } catch (err) {
         if (cancelled) return;
-        console.error('[useUserSearch] Search failed:', err);
         setSearchResults([]);
         setError('Search failed. Please try again.');
       } finally {

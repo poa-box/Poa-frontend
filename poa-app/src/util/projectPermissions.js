@@ -12,6 +12,10 @@
  * No React, no network — keeps the modal thin and these functions unit-testable.
  */
 
+import { effectiveTaskPermissionMask } from '@/util/permissions';
+import { normalizeSubjectId } from '@poa-box/core/authority/ids';
+import { TASK_PERMISSION_BITS } from '@/lib/accessV2/taskPermissions';
+
 /**
  * The 8 TaskPerm bits as [subgraph flag, short role name] pairs, in TaskPerm.sol bit order
  * (low -> high). The short role name builds column keys `TaskManager_<Role>` that line up
@@ -34,8 +38,7 @@ export const TASK_PERM_BITS = [
  * so project/global/role hat IDs from the subgraph compare consistently.
  */
 function normalizeHatId(hatId) {
-  if (hatId === null || hatId === undefined) return '';
-  return String(hatId).trim();
+  try { return normalizeSubjectId(hatId); } catch { return ''; }
 }
 
 /**
@@ -63,8 +66,7 @@ export function buildProjectPermissionColumns() {
 /**
  * Build a project-scoped permission matrix from the project's per-project `rolePermissions`
  * and the org-wide `globalRolePermissions`, applying the contract's `_permMask` fallback
- * PER ROLE: if a role's project entry has `mask !== 0`, its can* flags REPLACE the global
- * (no fall-back even for bits left unset); otherwise the global entry's flags are used.
+ * PER ROLE: a present project row overrides global, including zero; explicit inheritGlobal combines both.
  *
  * @param {Object} args
  * @param {Array}  args.roles - org roles [{ id, hatId, name, memberCount }]
@@ -77,11 +79,10 @@ export function buildProjectPermissionsMatrix({
   rolePermissions = [],
   globalRolePermissions = [],
 } = {}) {
-  // Index project entries by hat. mask=0 is treated as absent because the contract's
-  // _permMask falls back to global when the per-project mask is zero.
+  // Index current authority projections, keeping present zero overrides.
   const projectByHat = new Map();
   (rolePermissions || []).forEach((p) => {
-    if (p && Number(p.mask || 0) > 0) projectByHat.set(normalizeHatId(p.hatId), p);
+    if (p) projectByHat.set(normalizeHatId(p.hatId), p);
   });
 
   const globalByHat = new Map();
@@ -93,30 +94,37 @@ export function buildProjectPermissionsMatrix({
   const rolesWithGrants = [];
   const overrideHatIds = new Set();
   let hasAnyGrant = false;
+  let hasUnknown = false;
 
   (roles || []).forEach((role) => {
     const hat = normalizeHatId(role.hatId);
     const projectEntry = projectByHat.get(hat);
-    // Project entry (non-zero mask) shadows global entirely; else fall back to global.
-    const effectiveEntry = projectEntry || globalByHat.get(hat) || null;
+    // Core resolves explicit context overrides and inheritance before presentation.
+    let mask = null;
+    const row = projectEntry || globalByHat.get(hat);
+    try {
+      if (row?.resolved) { if (row.permissionFact?.state === 'known') mask = BigInt(row.permissionFact.value); }
+      else if (row && row.mask != null) mask = BigInt(effectiveTaskPermissionMask(globalByHat.get(hat), projectEntry));
+    } catch { /* Unavailable stays distinct from an observed zero override. */ }
+    if (mask === null) hasUnknown = true;
 
     const cells = {};
     let roleHasGrant = false;
     TASK_PERM_BITS.forEach(([flag, shortRole]) => {
-      const allowed = Boolean(effectiveEntry && effectiveEntry[flag]);
+      const allowed = mask === null ? null : (mask & BigInt(TASK_PERMISSION_BITS[flag])) !== 0n;
       cells[`TaskManager_${shortRole}`] = allowed;
       if (allowed) roleHasGrant = true;
     });
 
     permissionsMatrix[role.hatId] = cells;
-    if (projectEntry) overrideHatIds.add(hat);
-    if (roleHasGrant) {
+    if (projectEntry && (!projectEntry.resolved || projectEntry.hasProjectOverride === true)) overrideHatIds.add(hat);
+    if (roleHasGrant || mask === null) {
       rolesWithGrants.push(role);
-      hasAnyGrant = true;
+      if (roleHasGrant) hasAnyGrant = true;
     }
   });
 
-  return { permissionsMatrix, rolesWithGrants, hasAnyGrant, overrideHatIds };
+  return { permissionsMatrix, rolesWithGrants, hasAnyGrant, hasUnknown, overrideHatIds };
 }
 
 /**

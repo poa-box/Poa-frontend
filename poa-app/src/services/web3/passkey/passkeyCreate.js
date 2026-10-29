@@ -6,9 +6,10 @@
 
 import { startRegistration } from '@simplewebauthn/browser';
 import { base64URLStringToBuffer, bufferToBase64URLString } from '@simplewebauthn/browser';
-import { keccak256, encodePacked, pad, toHex } from 'viem';
-import { WEBAUTHN_RP_NAME, getWebAuthnRpId } from '../../../config/passkey';
-import { computeCredentialId } from './passkeyUtils';
+import { pad, toHex } from 'viem';
+import { derivePasskeySalt } from '@poa-box/core/accounts/codecs';
+import { WEBAUTHN_RP_NAME, getWebAuthnRpId } from '@/config/passkey';
+import { computeCredentialId } from '@/services/web3/passkey/passkeyUtils';
 
 /**
  * Create a new WebAuthn credential (passkey).
@@ -78,9 +79,7 @@ export async function createPasskeyCredential(username) {
   const credentialId = computeCredentialId(rawCredentialId);
 
   // Derive salt deterministically from credentialId
-  const salt = BigInt(
-    keccak256(encodePacked(['bytes32', 'string'], [credentialId, 'poa-salt-v1']))
-  );
+  const salt = BigInt(derivePasskeySalt(credentialId));
 
   const publicKeyX = pad(toHex(x), { size: 32 });
   const publicKeyY = pad(toHex(y), { size: 32 });

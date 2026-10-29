@@ -11,9 +11,7 @@ import TaskColumn from './TaskColumn';
 import ColumnTabBar from './ColumnTabBar';
 import { useSwipeNavigation } from '../../hooks/useSwipeNavigation';
 import { mobileGlassStyle, TAB_BAR_HEIGHT_PX } from './styles/taskBoardStyles';
-import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
-import { projectTaskPermissions } from '@/util/permissions';
 import { isClaimExpired } from '@/util/deadlineUtils';
 import { useNow } from '@/hooks/useNow';
 import { useTaskFilters } from './views/useTaskFilters';
@@ -40,10 +38,8 @@ const TaskBoardMobile = forwardRef(({
     initialIndex: 0,
   });
 
-  const { userData, address } = useUserContext();
-  const { projectsData } = useProjectContext();
+  const { projectsData, getTaskActions } = useProjectContext();
 
-  const userHatIds = useMemo(() => userData?.hatIds || [], [userData]);
 
   const currentProject = useMemo(() => {
     return projectsData?.find(p => p.name === projectName || p.title === projectName);
@@ -52,8 +48,8 @@ const TaskBoardMobile = forwardRef(({
   // CREATE on this project (or being one of its managers) — the same gate
   // `createTask` enforces on-chain.
   const canCreateTask = useMemo(
-    () => projectTaskPermissions(currentProject, userHatIds, address).canCreate,
-    [currentProject, userHatIds, address],
+    () => getTaskActions(null, currentProject).create.state === 'allowed',
+    [currentProject, getTaskActions],
   );
 
   useImperativeHandle(ref, () => ({

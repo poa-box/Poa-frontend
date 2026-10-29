@@ -4,9 +4,11 @@
  */
 
 import { ethers } from 'ethers';
-import ParticipationTokenABI from '../../../../abi/ParticipationToken.json';
-import { ipfsCidToBytes32 } from '../utils/encoding';
-import { requireAddress, requirePositiveNumber } from '../utils/validation';
+import { ParticipationTokenAbi as ParticipationTokenABI } from '@poa-box/core/abis/ParticipationToken';
+import { parseRequestAmount, buildRequestTokens, buildApproveRequest, buildCancelRequest } from '@poa-box/core/tx/token';
+import { buildTokenRequestMetadataAtSeconds, serializeTokenRequestMetadata } from '@poa-box/core/metadata/token';
+import { executeCoreIntent } from '@/services/web3/core/coreIntent';
+import { requireAddress } from '@/services/web3/utils/validation';
 
 /**
  * TokenRequestService - Token request and approval management
@@ -38,7 +40,8 @@ export class TokenRequestService {
    */
   async requestTokens(contractAddress, amount, metadata, options = {}) {
     requireAddress(contractAddress, 'ParticipationToken contract address');
-    requirePositiveNumber(amount, 'Token amount');
+    // Parse and bound before storage, preserving all 18 decimal places.
+    const amountWei = parseRequestAmount(amount);
 
     if (!metadata?.reason || metadata.reason.trim() === '') {
       throw new Error('Request reason is required');
@@ -51,32 +54,10 @@ export class TokenRequestService {
       throw new Error('IPFS service required for token requests');
     }
 
-    let ipfsHash = '';
-    const ipfsData = {
-      reason: metadata.reason,
-      submittedAt: Math.floor(Date.now() / 1000),
-    };
-    const ipfsResult = await ipfsService.addToIpfs(JSON.stringify(ipfsData));
-    ipfsHash = ipfsResult.path;
-
-    const contract = this.factory.createWritable(contractAddress, ParticipationTokenABI);
-
-    // Convert amount to wei (18 decimals for participation token)
-    // The contract stores amount as uint96 which is the wei amount
-    const amountWei = ethers.utils.parseUnits(amount.toString(), 18);
-
-    // Validate that the amount fits in uint96 (max ~79 billion tokens)
-    const MAX_UINT96 = ethers.BigNumber.from('79228162514264337593543950335');
-    if (amountWei.gt(MAX_UINT96)) {
-      throw new Error('Amount exceeds maximum allowed (uint96 overflow)');
-    }
-
-    return this.txManager.execute(
-      contract,
-      'requestTokens',
-      [amountWei, ipfsHash],
-      options
-    );
+    const ipfsData = buildTokenRequestMetadataAtSeconds(metadata.reason, Math.floor(Date.now() / 1000));
+    const ipfsResult = await ipfsService.addToIpfs(serializeTokenRequestMetadata(ipfsData));
+    return executeCoreIntent(this.factory, this.txManager,
+      buildRequestTokens({ participationTokenAddress: contractAddress, amountWei, ipfsHash: ipfsResult.path }), options);
   }
 
   // ============================================
@@ -93,15 +74,8 @@ export class TokenRequestService {
   async approveRequest(contractAddress, requestId, options = {}) {
     requireAddress(contractAddress, 'ParticipationToken contract address');
 
-    const contract = this.factory.createWritable(contractAddress, ParticipationTokenABI);
-    const id = ethers.BigNumber.from(requestId);
-
-    return this.txManager.execute(
-      contract,
-      'approveRequest',
-      [id],
-      options
-    );
+    return executeCoreIntent(this.factory, this.txManager,
+      buildApproveRequest({ participationTokenAddress: contractAddress, requestId: ethers.BigNumber.from(requestId) }), options);
   }
 
   // ============================================
@@ -119,15 +93,8 @@ export class TokenRequestService {
   async cancelRequest(contractAddress, requestId, options = {}) {
     requireAddress(contractAddress, 'ParticipationToken contract address');
 
-    const contract = this.factory.createWritable(contractAddress, ParticipationTokenABI);
-    const id = ethers.BigNumber.from(requestId);
-
-    return this.txManager.execute(
-      contract,
-      'cancelRequest',
-      [id],
-      options
-    );
+    return executeCoreIntent(this.factory, this.txManager,
+      buildCancelRequest({ participationTokenAddress: contractAddress, requestId: ethers.BigNumber.from(requestId) }), options);
   }
 
   // ============================================

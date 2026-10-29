@@ -18,6 +18,7 @@
  * "Propose a change" rows) should hide the button entirely rather than let it toast.
  */
 
+import { classifyGovernanceConfigKey } from '@poa-box/core/governance/capabilities';
 import {
   SETTER_TEMPLATES,
   RAW_FUNCTIONS,
@@ -183,9 +184,13 @@ export function rawSetterUnavailableReason(proposal = {}) {
   const fn = RAW_FUNCTIONS[proposal.setterContract]?.find(entry => entry.name === proposal.setterFunction);
   if (fn?.legacyOnly) return 'This setting is retired. Change the role’s permissions instead.';
   if (proposal.setterFunction !== 'setConfig') return null;
-  const key = Number(proposal.setterParams?.[0]);
-  if ((proposal.setterContract === 'directDemocracyVoting' && key === 3)
-      || (proposal.setterContract === 'taskManager' && key === 2)) {
+  if (proposal.setterParams?.[0] == null || proposal.setterParams[0] === '') return null;
+  const key = Number(proposal.setterParams[0]);
+  const lane = { hybridVoting: 'hybrid', directDemocracyVoting: 'dd' }[proposal.setterContract];
+  if (lane && classifyGovernanceConfigKey(lane, key)?.status !== 'live') {
+    return 'This setting is retired or unavailable. Change the role’s permissions or choose a supported rule change instead.';
+  }
+  if (proposal.setterContract === 'taskManager' && key === 2) {
     return 'This setting is retired. Change the role’s permissions instead.';
   }
   return null;

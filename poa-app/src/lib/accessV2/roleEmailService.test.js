@@ -1,3 +1,5 @@
+import { projectGroth16Proof } from '@poa-box/core/email/proof';
+import { retainEmailProofProjection } from '@/lib/zkemail/proofProjection';
 import { describe, expect, it, vi } from 'vitest';
 import { createZkEmailInvitesService } from '@/services/web3/domain/ZkEmailInvitesService';
 
@@ -30,10 +32,14 @@ describe('v2 email service routing', () => {
     expect(await service.getActiveAllowlist(MODULE)).toEqual({ root: ROOT, cid: CID });
     expect(await service.isEmailRegistered(MODULE, ROOT)).toBe(false);
     const options = { paymasterClaimTarget: MODULE, paymasterHatIds: ['42'] };
-    await service.claimRoleByEmail(MODULE, { proof: true }, AUTHORITY, ['42'], [], options);
+    const proof = retainEmailProofProjection(projectGroth16Proof({
+      version: 'v2', claimer: AUTHORITY, publicSignals: ['1', '2', BigInt(AUTHORITY).toString(), '3', '4'],
+      proof: { pi_a: ['1', '2', '1'], pi_b: [['3', '4'], ['5', '6'], ['1', '0']], pi_c: ['7', '8', '1'] },
+    }));
+    await service.claimRoleByEmail(MODULE, proof, AUTHORITY, ['42'], [], options);
     expect(factory.createReadOnly).not.toHaveBeenCalled();
     expect(readFactory.createReadOnly).toHaveBeenCalled();
-    expect(txManager.execute).toHaveBeenCalledWith({ address: MODULE }, 'claimRoleByEmail', [{ proof: true }, AUTHORITY, ['42'], []], options);
+    expect(txManager.execute).toHaveBeenCalledWith({ address: MODULE }, 'claimRoleByEmail', [proof, AUTHORITY, ['42'], []], { ...options, value: '0' });
   });
 
   it('verifies the migrated Executor authority surface and allows authorization to be granted by the proposal', async () => {

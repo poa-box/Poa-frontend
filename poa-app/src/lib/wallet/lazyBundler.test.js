@@ -16,7 +16,7 @@ describe('lazy bundler application interface', () => {
   it('initializes once for parallel operations and preserves arguments, results and this', async () => {
     let resolveClient;
     const realClient = { name: 'real client' };
-    const methods = ['estimateUserOperationGas', 'getUserOperationGasPrice', 'sendUserOperation', 'waitForUserOperationReceipt'];
+    const methods = ['estimateUserOperationGas', 'getUserOperationGasPrice', 'sendUserOperation', 'waitForUserOperationReceipt', 'getUserOperationReceipt'];
     methods.forEach((method) => {
       realClient[method] = vi.fn(function (...args) {
         expect(this).toBe(realClient);

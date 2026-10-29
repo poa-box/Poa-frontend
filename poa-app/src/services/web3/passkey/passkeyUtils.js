@@ -3,7 +3,7 @@
  * Shared passkey credential utilities.
  */
 
-import { keccak256, toHex } from 'viem';
+import { credentialIdDigest } from '@poa-box/core/accounts/codecs';
 import { base64URLStringToBuffer } from '@simplewebauthn/browser';
 
 /**
@@ -15,5 +15,5 @@ import { base64URLStringToBuffer } from '@simplewebauthn/browser';
  */
 export function computeCredentialId(rawCredentialIdBase64) {
   const rawIdBytes = new Uint8Array(base64URLStringToBuffer(rawCredentialIdBase64));
-  return keccak256(toHex(rawIdBytes));
+  return credentialIdDigest(rawIdBytes);
 }

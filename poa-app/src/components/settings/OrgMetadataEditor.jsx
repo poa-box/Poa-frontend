@@ -40,17 +40,18 @@ import { useIPFScontext } from '@/context/ipfsContext';
 import { useAuth } from '@/context/authState';
 import { useWeb3Services } from '@/hooks/useWeb3Services';
 import { useTransactionWithNotification } from '@/hooks/useTransactionWithNotification';
-import { ipfsCidToBytes32, stringToBytes } from '@/services/web3/utils/encoding';
+import { executeCoreIntent } from '@/services/web3/core/coreIntent';
+import { ORG_INFRASTRUCTURE_QUERY, prepareOrganizationMetadataUpdate } from '@/lib/organization/metadataUpdate';
+import { useOrganizationWriteScope } from '@/lib/organization/useOrganizationWriteScope';
 import {
   validateImageFile,
   MAX_LOGO_SIZE_BYTES,
   ACCEPTED_IMAGE_MIME,
 } from '@/util/imageUpload';
+import { resolveTokenLabel } from '@/util/tokenLabel';
 import { normalizeHourlyRate, DEFAULT_HOURLY_RATE } from '@/util/taskUtils';
-import { FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { getSubgraphUrl, getNetworkByChainId } from '@/config/networks';
-import OrgRegistryABI from '../../../abi/OrgRegistry.json';
 
 // IPFS gateway - matches pattern used elsewhere in codebase
 const IPFS_GATEWAY = 'https://ipfs.io/ipfs/';
@@ -58,7 +59,7 @@ const IPFS_GATEWAY = 'https://ipfs.io/ipfs/';
 /**
  * Logo Upload Component
  */
-function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChange }) {
+function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChange, captureScope }) {
   const [isUploading, setIsUploading] = useState(false);
   const { addToIpfs } = useIPFScontext();
   const toast = useToast();
@@ -67,6 +68,7 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChan
   const previewSrc = localPreview || (logoURL ? `${IPFS_GATEWAY}${logoURL}` : null);
 
   const onDrop = useCallback(async (acceptedFiles) => {
+    const scope = captureScope();
     const file = acceptedFiles[0];
     if (!file) return;
 
@@ -85,6 +87,7 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChan
     onUploadingChange?.(true);
     try {
       const result = await addToIpfs(file);
+      if (!scope.isCurrent()) return;
       if (result && result.path) {
         const blobUrl = URL.createObjectURL(file);
         onUpload(result.path, blobUrl);
@@ -95,6 +98,7 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChan
         });
       }
     } catch (error) {
+      if (!scope.isCurrent()) return;
       console.error('Logo upload error:', error);
       toast({
         title: 'Upload failed',
@@ -103,10 +107,12 @@ function LogoUpload({ logoURL, localPreview, onUpload, onRemove, onUploadingChan
         duration: 3000,
       });
     } finally {
-      setIsUploading(false);
-      onUploadingChange?.(false);
+      if (scope.isCurrent()) {
+        setIsUploading(false);
+        onUploadingChange?.(false);
+      }
     }
-  }, [addToIpfs, onUpload, onUploadingChange, toast]);
+  }, [addToIpfs, onUpload, onUploadingChange, toast, captureScope]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -262,10 +268,11 @@ export default function OrgMetadataEditor({
   currentTaskPayoutHourlyRate,
 }) {
   const toast = useToast();
-  const { addToIpfs } = useIPFScontext();
+  const { addToIpfs, safeFetchFromIpfs } = useIPFScontext();
   const { factory, txManager, isReady } = useWeb3Services();
   const { executeWithNotification } = useTransactionWithNotification();
-  const { isPasskeyUser } = useAuth();
+  const { isPasskeyUser, accountAddress } = useAuth();
+  const captureScope = useOrganizationWriteScope({ orgId, chainId: orgChainId, account: accountAddress, factory, txManager });
   const { chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();
 
@@ -274,7 +281,7 @@ export default function OrgMetadataEditor({
   const orgSubgraphUrl = orgChainId ? getSubgraphUrl(orgChainId) : null;
   const orgClient = useMemo(() => getClient(orgSubgraphUrl), [orgSubgraphUrl]);
   const { data: infraData, loading: infraLoading, error: infraError } = useQuery(
-    FETCH_INFRASTRUCTURE_ADDRESSES,
+    ORG_INFRASTRUCTURE_QUERY,
     {
       client: orgClient,
       skip: !orgSubgraphUrl,
@@ -288,6 +295,7 @@ export default function OrgMetadataEditor({
   const [name, setName] = useState(currentName || '');
   const [description, setDescription] = useState(currentDescription || '');
   const [logoURL, setLogoURL] = useState(currentLogoHash || '');
+  const [logoEdited, setLogoEdited] = useState(false);
   const [logoPreview, setLogoPreview] = useState(null); // Local blob URL for instant preview
   const [logoUploading, setLogoUploading] = useState(false);
   const [links, setLinks] = useState(
@@ -303,6 +311,27 @@ export default function OrgMetadataEditor({
   const [taskPayoutHourlyRate, setTaskPayoutHourlyRate] = useState(
     String(currentTaskPayoutHourlyRate ?? DEFAULT_HOURLY_RATE)
   );
+
+  useEffect(() => {
+    setLogoURL(currentLogoHash || '');
+    setLogoEdited(false);
+    setLogoPreview(null);
+    setLogoUploading(false);
+    setIsSubmitting(false);
+    // Indexed logo changes must not replace an in-progress same-org draft.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgId, orgChainId]);
+
+  useEffect(() => () => {
+    if (logoPreview) URL.revokeObjectURL(logoPreview);
+  }, [logoPreview]);
+
+  useEffect(() => {
+    setIsSubmitting(false);
+    setLogoUploading(false);
+  }, [orgId, orgChainId, accountAddress, factory, txManager]);
+
+  const tokenLabel = resolveTokenLabel({ useTokenSymbol, symbol: currentTokenSymbol });
 
   // Update form when props change (e.g., after successful save + subgraph re-index).
   // Do NOT reset logoURL here — it's set by user actions (upload/remove) only.
@@ -323,6 +352,7 @@ export default function OrgMetadataEditor({
   }, [currentName, currentDescription, currentLinks, currentHideTreasury, currentBackgroundColor, currentUseTokenSymbol, currentTaskPayoutHoursOnly, currentTaskPayoutHourlyRate]);
 
   const handleSubmit = async () => {
+    const scope = captureScope();
     if (!name.trim()) {
       toast({
         title: 'Name is required',
@@ -360,36 +390,25 @@ export default function OrgMetadataEditor({
         return;
       }
 
-      const metadata = {
-        description: description.trim(),
-        links: validLinks,
-        template: 'default',
-        logo: logoURL || null,
-        backgroundColor: bgColor.trim() || null,
-        hideTreasury,
-        useTokenSymbol,
-        taskPayoutHoursOnly,
-        taskPayoutHourlyRate: normalizeHourlyRate(taskPayoutHourlyRate),
-      };
-
-      // 2. Upload metadata to IPFS
-      const metadataJson = JSON.stringify(metadata);
-      const ipfsResult = await addToIpfs(metadataJson);
-
-      if (!ipfsResult || !ipfsResult.path) {
-        throw new Error('Failed to upload metadata to IPFS');
-      }
-
-      // 3. Convert IPFS CID to bytes32
-      const metadataHash = ipfsCidToBytes32(ipfsResult.path);
-
-      // 4. Encode name as bytes
-      const nameBytes = stringToBytes(name.trim());
-
-      // 5. Validate OrgRegistry address from infrastructure query
-      if (!orgRegistryAddress) {
-        throw new Error('OrgRegistry address not found. Infrastructure may not be deployed.');
-      }
+      const { intent } = await prepareOrganizationMetadataUpdate({
+        client: orgClient,
+        orgId,
+        orgRegistryAddress,
+        name,
+        updates: {
+          description: description.trim(),
+          links: validLinks,
+          ...(logoEdited ? { logoCid: logoURL || null } : {}),
+          backgroundColor: bgColor.trim() || null,
+          hideTreasury,
+          useTokenSymbol,
+          taskPayoutHoursOnly,
+          taskPayoutHourlyRate: normalizeHourlyRate(taskPayoutHourlyRate),
+        },
+        fetchMetadata: safeFetchFromIpfs,
+        uploadMetadata: addToIpfs,
+        assertCurrent: scope.assertCurrent,
+      });
 
       // 5b. Switch EOA wallet to org's chain if needed
       if (!isPasskeyUser && orgChainId && connectedChain?.id !== orgChainId) {
@@ -403,11 +422,12 @@ export default function OrgMetadataEditor({
         await switchChainAsync({ chainId: orgChainId });
       }
 
-      // 6. Call updateOrgMetaAsAdmin via txManager for proper result handling
-      const contract = factory.createWritable(orgRegistryAddress, OrgRegistryABI);
-
-      const result = await executeWithNotification(
-        () => txManager.execute(contract, 'updateOrgMetaAsAdmin', [orgId, nameBytes, metadataHash]),
+      scope.assertCurrent();
+      await executeWithNotification(
+        () => {
+          scope.assertCurrent();
+          return executeCoreIntent(factory, txManager, intent);
+        },
         {
           pendingMessage: 'Updating organization metadata...',
           successMessage: 'Organization metadata updated successfully!',
@@ -416,6 +436,7 @@ export default function OrgMetadataEditor({
         }
       );
     } catch (error) {
+      if (!scope.isCurrent()) return;
       console.error('Error updating metadata:', error);
       toast({
         title: 'Error',
@@ -424,7 +445,7 @@ export default function OrgMetadataEditor({
         duration: 5000,
       });
     } finally {
-      setIsSubmitting(false);
+      if (scope.isCurrent()) setIsSubmitting(false);
     }
   };
 
@@ -526,14 +547,18 @@ export default function OrgMetadataEditor({
               Logo
             </FormLabel>
             <LogoUpload
+              key={`${orgId}:${orgChainId}:${accountAddress}`}
+              captureScope={captureScope}
               logoURL={logoURL}
               localPreview={logoPreview}
               onUpload={(cid, blobUrl) => {
                 setLogoURL(cid);
+                setLogoEdited(true);
                 setLogoPreview(blobUrl);
               }}
               onRemove={() => {
                 setLogoURL('');
+                setLogoEdited(true);
                 setLogoPreview(null);
               }}
               onUploadingChange={setLogoUploading}
@@ -620,12 +645,12 @@ export default function OrgMetadataEditor({
             <HStack justifyContent="space-between" alignItems="center">
               <Box>
                 <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={0} htmlFor="use-token-symbol">
-                  Show token symbol instead of &quot;Shares&quot;
+                  Use the short name instead of &quot;Shares&quot;
                 </FormLabel>
                 <FormHelperText color="warmGray.400" fontSize="xs" mt={1}>
                   {currentTokenSymbol
                     ? `When on, the UI shows "${currentTokenSymbol}" wherever it currently says "Shares".`
-                    : 'When on, the UI shows your participation token symbol wherever it currently says "Shares".'}
+                    : 'When on, the UI shows your Shares short name wherever it currently says "Shares".'}
                 </FormHelperText>
               </Box>
               <Switch
@@ -660,7 +685,7 @@ export default function OrgMetadataEditor({
             {taskPayoutHoursOnly && (
               <FormControl mt={4}>
                 <FormLabel color="warmGray.600" fontSize="sm" fontWeight="500" mb={2} htmlFor="task-payout-hourly-rate">
-                  Tokens per hour
+                  {tokenLabel} per hour
                 </FormLabel>
                 <Input
                   id="task-payout-hourly-rate"
@@ -700,7 +725,7 @@ export default function OrgMetadataEditor({
             borderColor="amethyst.100"
           >
             <Text fontSize="sm" color="amethyst.700">
-              Changes will be submitted as a blockchain transaction and may take a moment to appear.
+              Confirm your changes to save them. They may take a moment to appear.
             </Text>
           </Box>
 

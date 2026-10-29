@@ -6,7 +6,7 @@ import { useAccount, useSwitchChain, useConfig, getConnectorClient, clientToSign
  * Pre-flight gas check prevents cryptic bundler errors.
  */
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -29,21 +29,20 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { ethers } from 'ethers';
-import { encodeFunctionData } from 'viem';
 import { useAuth } from '@/context/authState';
-import { createChainClients } from '@/services/web3/utils/chainClients';
-import { buildUserOp, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
-import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';
-import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
+import { parseDecimalAmountToRaw } from '@poa-box/core/amounts';
 import { formatTokenAmount } from '@/util/formatToken';
-import ERC20ABI from '../../../abi/ERC20.json';
-import PasskeyAccountABI from '../../../abi/PasskeyAccount.json';
+import { useOrganizationWriteScope } from '@/lib/organization/useOrganizationWriteScope';
+import { useTransactionWithNotification } from '@/hooks/useTransactionWithNotification';
 
 const isValidAddress = (addr) => /^0x[0-9a-fA-F]{40}$/.test(addr);
 
 function TransferModal({ isOpen, onClose, token, accountAddress, nativeBalance, onSuccess }) {
   const toast = useToast();
-  const { isPasskeyUser, passkeyState } = useAuth();
+  const { isPasskeyUser, passkeyState, accountAddress: resolvedAccount, isSessionCurrent, isAuthHydrated } = useAuth();
+  const { executeWithNotification } = useTransactionWithNotification();
+  const sendingRef = useRef(false);
+  const captureScope = useOrganizationWriteScope({ orgId: `${isOpen}:${token?.address}:${passkeyState?.rawCredentialId}`, chainId: token?.chainId, account: resolvedAccount });
   const { switchChainAsync } = useSwitchChain();
   const wagmiConfig = useConfig();
   const { chain: currentChain } = useAccount();
@@ -59,7 +58,7 @@ function TransferModal({ isOpen, onClose, token, accountAddress, nativeBalance, 
     setAmount('');
     setStep('form');
     setError(null);
-  }, [token?.address, token?.chainId]);
+  }, [token?.address, token?.chainId, accountAddress, isOpen]);
 
   const hasGas = useMemo(() => {
     if (!nativeBalance) return false;
@@ -69,7 +68,7 @@ function TransferModal({ isOpen, onClose, token, accountAddress, nativeBalance, 
   const parsedAmount = useMemo(() => {
     if (!amount || !token) return 0n;
     try {
-      return ethers.utils.parseUnits(amount, token.decimals).toBigInt();
+      return BigInt(parseDecimalAmountToRaw(amount, token.decimals));
     } catch {
       return 0n;
     }
@@ -97,92 +96,44 @@ function TransferModal({ isOpen, onClose, token, accountAddress, nativeBalance, 
   };
 
   const handleSend = async () => {
-    if (!canSend) return;
-
+    if (!canSend || sendingRef.current) return;
+    sendingRef.current = true;
+    const scope = captureScope();
+    const guard = () => {
+      scope.assertCurrent();
+      if (isAuthHydrated === false || !resolvedAccount || resolvedAccount.toLowerCase() !== accountAddress?.toLowerCase()
+        || (isSessionCurrent && !isSessionCurrent())) throw new Error('Your account changed. Please sign in and try again.');
+    };
     setStep('sending');
     setError(null);
-
     try {
-      if (isPasskeyUser) {
-        await sendViaPasskey();
-      } else {
-        await sendViaEOA();
-      }
+      const { createAccountTransferService } = await import('@/services/web3/domain/AccountTransferService');
+      guard();
+      const service = await createAccountTransferService({ chainId: token.chainId, accountAddress,
+        isPasskeyUser, rawCredentialId: passkeyState?.rawCredentialId, guard,
+        getSigner: async () => {
+          guard();
+          if (currentChain?.id !== token.chainId) await switchChainAsync({ chainId: token.chainId });
+          guard();
+          return clientToSigner(await getConnectorClient(wagmiConfig, { chainId: token.chainId }));
+        } });
+      const result = await executeWithNotification(async () => {
+        guard();
+        const result = await service.transferERC20(token.address, recipient, parsedAmount.toString());
+        guard();
+        return result;
+      }, { pendingMessage: 'Sending transfer…', successMessage: 'Transfer sent!', errorMessage: 'Transfer could not be completed. Please try again.' });
+      if (!scope.isCurrent()) return;
+      if (!result.success) throw result.error;
       setStep('success');
       toast({ title: 'Transfer sent!', status: 'success', duration: 5000 });
       onSuccess?.();
     } catch (err) {
-      console.error('[Transfer] Error:', err);
-      setError(err.message || 'Transfer failed');
+      if (!scope.isCurrent()) return;
+      setError(err?.userMessage || 'Transfer could not be completed. Please try again.');
       setStep('form');
-    }
+    } finally { sendingRef.current = false; }
   };
-
-  async function sendViaEOA() {
-    // Switch chain if needed
-    if (currentChain?.id !== token.chainId) {
-      await switchChainAsync({ chainId: token.chainId });
-    }
-
-    const freshClient = await getConnectorClient(wagmiConfig, { chainId: token.chainId });
-    const signer = clientToSigner(freshClient);
-    const contract = new ethers.Contract(token.address, ERC20ABI, signer);
-    const tx = await contract.transfer(recipient, parsedAmount.toString());
-    await tx.wait();
-  }
-
-  async function sendViaPasskey() {
-    const clients = createChainClients(token.chainId);
-    if (!clients) throw new Error(`Chain ${token.chainId} not supported`);
-
-    // Check if account is deployed on this chain
-    const bytecode = await clients.publicClient.getBytecode({ address: accountAddress });
-    if (!bytecode) {
-      throw new Error(`Your account is not deployed on ${token.chainName} yet. Join an organization on this chain first.`);
-    }
-
-    // Encode ERC20 transfer
-    const innerCallData = encodeFunctionData({
-      abi: ERC20ABI,
-      functionName: 'transfer',
-      args: [recipient, parsedAmount],
-    });
-
-    // Wrap in execute(tokenAddress, 0, transferCallData)
-    const callData = encodeFunctionData({
-      abi: PasskeyAccountABI,
-      functionName: 'execute',
-      args: [token.address, 0n, innerCallData],
-    });
-
-    // Build self-funded UserOp (no paymaster — account pays gas)
-    const userOp = await buildUserOp({
-      sender: accountAddress,
-      callData,
-      bundlerClient: clients.bundlerClient,
-      publicClient: clients.publicClient,
-    });
-
-    // Sign
-    const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, token.chainId);
-    const signature = await signUserOpWithPasskey(userOpHash, passkeyState.rawCredentialId);
-    userOp.signature = signature;
-
-    // Submit
-    const submittedHash = await clients.bundlerClient.sendUserOperation({
-      ...userOp,
-      entryPointAddress: ENTRY_POINT_ADDRESS,
-    });
-
-    const receipt = await clients.bundlerClient.waitForUserOperationReceipt({
-      hash: submittedHash,
-      timeout: 120_000,
-    });
-
-    if (!receipt.success) {
-      throw new Error(receipt.reason || 'Transfer UserOp failed on-chain');
-    }
-  }
 
   if (!token) return null;
 

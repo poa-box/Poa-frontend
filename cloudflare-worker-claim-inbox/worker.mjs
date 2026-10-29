@@ -22,9 +22,19 @@
  * path avoids it. Lock ALLOWED_ORIGIN to your app to reduce casual scraping.
  */
 
-const SUBJECT_RE = /Claim POP role for (0x[0-9a-fA-F]{40})/;
+const SUBJECT_RE = /Claim POP role for (0x[0-9a-fA-F]{40})(?![0-9a-fA-F])/;
 const TTL_SECONDS = 3600; // hold a received email at most 1 hour
 const MAX_BYTES = 1_000_000; // claim emails are tiny; reject anything larger
+
+/** A binary string: each code unit is exactly the source octet, including 0x80..0x9f. */
+function bytesToRawString(bytes) {
+  let raw = '';
+  // Bound spread arguments even for mail near MAX_BYTES.
+  for (let offset = 0; offset < bytes.length; offset += 0x8000) {
+    raw += String.fromCharCode(...bytes.subarray(offset, offset + 0x8000));
+  }
+  return raw;
+}
 
 /**
  * Decode RFC 2047 encoded-words (`=?charset?B|Q?...?=`) in a raw header value. Some providers
@@ -32,7 +42,12 @@ const MAX_BYTES = 1_000_000; // claim emails are tiny; reject anything larger
  * claim". Unknown charsets fall back to latin1 (byte-preserving); undecodable words are left as-is.
  */
 function decodeRfc2047(value) {
-  if (!value || !value.includes('=?')) return value;
+  if (!value) return value;
+  value = value.replace(/\r?\n[ \t]+/g, ' ');
+  if (!value.includes('=?')) return value;
+  // RFC 2047 ignores separating whitespace between adjacent encoded-words. Retain whitespace
+  // encoded INSIDE a word; never rewrite the stored DKIM-signed message itself.
+  value = value.replace(/(=\?[^?]+\?[bBqQ]\?[^?]*\?=)[ \t]+(?==\?[^?]+\?[bBqQ]\?)/g, '$1');
   return value.replace(/=\?([^?]+)\?([bBqQ])\?([^?]*)\?=/g, (whole, charset, enc, text) => {
     try {
       let bytes;
@@ -47,7 +62,7 @@ function decodeRfc2047(value) {
       try {
         return new TextDecoder(charset.split('*')[0]).decode(bytes);
       } catch (_) {
-        return new TextDecoder('latin1').decode(bytes);
+        return bytesToRawString(bytes);
       }
     } catch (_) {
       return whole;
@@ -77,15 +92,19 @@ async function streamToString(stream, maxBytes) {
   const reader = stream.getReader();
   const chunks = [];
   let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.length;
-    if (total > maxBytes) {
-      await reader.cancel();
-      throw new Error('too large');
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.length;
+      if (total > maxBytes) {
+        try { await reader.cancel(); } catch (_) { /* Still reject the oversized message. */ }
+        throw new Error('too large');
+      }
+      chunks.push(value);
     }
-    chunks.push(value);
+  } finally {
+    reader.releaseLock();
   }
   const merged = new Uint8Array(total);
   let off = 0;
@@ -93,10 +112,10 @@ async function streamToString(stream, maxBytes) {
     merged.set(c, off);
     off += c.length;
   }
-  // latin1 (not utf-8): a 1:1 byte<->codepoint map that round-trips EVERY octet losslessly. utf-8
-  // would replace any 8bit non-ASCII byte in the DKIM-signed header block with U+FFFD, corrupting
-  // the bytes the proof is computed over. The client reads it back as a raw string the same way.
-  return new TextDecoder('latin1').decode(merged);
+  // WHATWG TextDecoder('latin1') actually uses Windows-1252, changing 27 octets in 0x80..0x9f.
+  // UTF-8 decoding is also lossy for arbitrary raw mail. JSON carries these byte-valued code units
+  // losslessly; clients must reconstruct bytes rather than UTF-8-encode the returned eml string.
+  return bytesToRawString(merged);
 }
 
 export default {
@@ -115,7 +134,8 @@ export default {
       // A delivered, provable message carries a DKIM-Signature. If it doesn't (third-party composer,
       // etc.), storing it would just hand the browser an unprovable file — bounce it so the sender
       // learns immediately rather than discovering it after a failed proof.
-      if (!/^DKIM-Signature:/im.test(raw)) {
+      const headerBlock = raw.split(/\r?\n\r?\n/, 1)[0];
+      if (!/^DKIM-Signature:/im.test(headerBlock)) {
         message.setReject('Message has no DKIM signature — send it from your provider’s own website.');
         return;
       }
@@ -132,15 +152,24 @@ export default {
     if (request.method === 'OPTIONS') return new Response(null, { headers: cors });
 
     const url = new URL(request.url);
-    const json = (obj, status = 200) =>
-      new Response(JSON.stringify(obj), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+    const json = (obj, status = 200, headers = {}) =>
+      new Response(JSON.stringify(obj), { status, headers: { ...cors, 'Content-Type': 'application/json', ...headers } });
+
+    if ((url.pathname === '/health' || url.pathname === '/claim-email') && request.method !== 'GET') {
+      return json({ error: 'method not allowed' }, 405, { Allow: 'GET, OPTIONS' });
+    }
 
     if (url.pathname === '/health') return json({ ok: true });
 
     if (url.pathname === '/claim-email' && request.method === 'GET') {
       const claimer = (url.searchParams.get('claimer') || '').toLowerCase();
       if (!/^0x[0-9a-f]{40}$/.test(claimer)) return json({ error: 'invalid claimer address' }, 400);
-      const raw = await env.CLAIM_EMAILS.get(`claim:${claimer}`);
+      let raw;
+      try {
+        raw = await env.CLAIM_EMAILS.get(`claim:${claimer}`);
+      } catch (_) {
+        return json({ error: 'Could not load claim email.' }, 503);
+      }
       if (!raw) return json({ status: 'pending' }, 404);
       return json({ status: 'ready', eml: raw });
     }

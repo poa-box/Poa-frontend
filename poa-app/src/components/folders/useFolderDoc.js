@@ -28,16 +28,24 @@ export function useFolderDoc(foldersRoot) {
     let cancelled = false;
     async function run() {
       setError(null);
+      setLoadedRoot(null);
+      if (foldersRoot == null) {
+        setDoc(makeEmptyFolderDoc());
+        setLoading(false);
+        return;
+      }
       if (isZeroRoot(foldersRoot)) {
         setDoc(makeEmptyFolderDoc());
         setLoadedRoot(ZERO_FOLDER_ROOT);
+        setLoading(false);
         return;
       }
       setLoading(true);
       try {
         const fetched = await fetchFromIpfs(foldersRoot);
         if (cancelled) return;
-        const parsed = fetched ?? makeEmptyFolderDoc();
+        if (!fetched) throw new Error('The saved folder tree is unavailable. Please try again.');
+        const parsed = fetched;
         const { valid, errors } = validateFolderDoc(parsed);
         if (!valid) {
           setError(new Error(errors.join(' ')));
@@ -45,7 +53,7 @@ export function useFolderDoc(foldersRoot) {
         } else {
           setDoc(parsed);
         }
-        setLoadedRoot(foldersRoot);
+        if (valid) setLoadedRoot(foldersRoot);
       } catch (e) {
         if (!cancelled) {
           setError(e);
@@ -61,5 +69,6 @@ export function useFolderDoc(foldersRoot) {
     };
   }, [foldersRoot, fetchFromIpfs]);
 
-  return { doc, loading, error, loadedRoot };
+  const current = loadedRoot === foldersRoot || (foldersRoot != null && isZeroRoot(foldersRoot) && loadedRoot === ZERO_FOLDER_ROOT);
+  return { doc: current ? doc : null, loading, error, loadedRoot: current ? loadedRoot : null };
 }

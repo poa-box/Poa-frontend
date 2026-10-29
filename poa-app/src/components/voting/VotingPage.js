@@ -39,11 +39,12 @@ import { useOrgAuthority } from "@/hooks/accessV2/useOrgAuthority";
 import { useAuthoritySubjects } from "@/hooks/accessV2/useAuthoritySubjects";
 import { useAuthorityMemberships } from "@/hooks/accessV2/useAuthorityMemberships";
 import { useRoleCreationContext } from '@/hooks/accessV2/useRoleCreationContext';
-import { parseCreatedProposalId } from "@/lib/voting/proposalReceipt";
 import { recordGasFloor } from "@/lib/accessV2/gasFloors";
+import RoleContinuationPanel from '@/components/accessV2/RoleContinuationPanel';
+import { submitTrackedRoleProposal } from '@/hooks/runtime/roleSubmissionTransport';
 import { defaultRoleForm } from '@/lib/accessV2/roleFormBatch';
 import { estimateBatchGas } from "@/lib/accessV2/proposalBuilders";
-import { preflightRoleRemovals } from "@/lib/accessV2/roleRemoval";
+import { recheckGovernanceSubmission } from '@/lib/voting/governanceSubmission';
 import { votingLaneForBatches, isBindingType } from "./create/wizardSteps";
 import { TRANSFER_DESTINATION, FUND_BOUNTIES_DEEP_LINK } from "@/lib/voting/treasuryBatches";
 import { resolveSetterTemplate } from "@/lib/voting/setterAvailability";
@@ -115,6 +116,7 @@ const VotingPage = () => {
     executorContractAddress,
     paymentManagerAddress,
     orgChainId,
+    orgId,
     eligibilityModuleAddress,
     participationTokenAddress,
     zkEmailInvitesAddress,
@@ -199,7 +201,6 @@ const VotingPage = () => {
     handleVote,
     handleFinalize,
     voting,
-    membershipAuthority,
     executeWithNotification,
   } = useVoteActions(votingTypeSelected);
 
@@ -218,10 +219,9 @@ const VotingPage = () => {
     return all.find((p) => p.id === selectedPoll.id) || selectedPoll;
   }, [selectedPoll, hybridVotingOngoing, hybridVotingCompleted, democracyVotingOngoing, democracyVotingCompleted]);
 
-  // Proposal creation. Resolves `true` when the proposal landed and `false`
-  // when it did not — useProposalForm keeps the member's draft on `false`.
-  const handleProposalSubmit = useCallback(async (proposalData) => {
-    if (!voting) return false;
+  // Preserve the public manager result and the staged role's exact lookup identity.
+  const handleProposalSubmit = useCallback(async (proposalData, roleSubmission) => {
+    if (!voting) { roleSubmission?.notSubmitted(); return false; }
 
     // Every authority removal is one call in a single atomic Executor batch. A stale member or a
     // newly-acquired eligibility source would make the ENTIRE winning batch revert later, while
@@ -241,11 +241,11 @@ const VotingPage = () => {
       if ((selectedRole.name || '') !== (proposalData.roleRemovalConfig?.subjectName || '')) {
         throw new Error('The selected role was renamed. Go back to review the updated vote wording.');
       }
-      await preflightRoleRemovals({
-        membershipAuthority,
-        authority: authority.address,
-        config: proposalData.roleRemovalConfig,
-      });
+    }
+
+    if (proposalData.type === 'removeRoleMembers' || proposalData.type === 'election') {
+      if (typeof proposalData.beforeExecute !== 'function') throw new Error('Review the current role choices before creating this vote.');
+      recheckGovernanceSubmission(proposalData, proposalData.governancePlanning);
     }
 
     const proposalParams = {
@@ -259,6 +259,10 @@ const VotingPage = () => {
       // Forward human-readable action previews so the metadata JSON carries
       // them (useProposalForm emits this; the old VotingPage dropped it).
       actionSummaries: proposalData.actionSummaries || [],
+      createsSubject: proposalData.createsSubject,
+      promotedFrom: proposalData.promotedFrom,
+      schemaVersion: proposalData.schemaVersion,
+      extensions: proposalData.extensions,
     };
 
     // The BATCH decides the contract, not the intent name. Anything that runs
@@ -277,9 +281,9 @@ const VotingPage = () => {
       : directDemocracyVotingContractAddress;
 
     const result = await executeWithNotification(
-      () => (lane === 'hybrid'
-        ? voting.createHybridProposal(contractAddress, proposalParams)
-        : voting.createDDProposal(contractAddress, proposalParams)),
+      () => submitTrackedRoleProposal(voting, roleSubmission, scoped => (lane === 'hybrid'
+        ? scoped.createHybridProposal(contractAddress, proposalParams, { beforeExecute: proposalData.beforeExecute })
+        : scoped.createDDProposal(contractAddress, proposalParams, { beforeExecute: proposalData.beforeExecute }))),
       {
         pendingMessage: 'Creating proposal...',
         successMessage: 'Proposal created successfully!',
@@ -291,7 +295,7 @@ const VotingPage = () => {
     // shows the failure and resolves { success: false }. That used to be
     // dropped here, so the form read a revert as success (reset, draft wiped,
     // green toast). Hand the answer back instead.
-    if (!result?.success) return false;
+    if (!result?.success) { roleSubmission?.notSubmitted(); return result || false; }
 
     // announceWinner runs the winning batch inside a try/catch, so every gas
     // estimator prices only the cheap caught-failure path; an under-funded
@@ -300,6 +304,7 @@ const VotingPage = () => {
     // id so useVoteActions.handleFinalize can apply it — the same thing
     // useAccessV2Proposal does for the /team wizard.
     if (lane === 'hybrid') {
+      const { parseCreatedProposalId } = await import('@/lib/voting/proposalReceipt');
       const proposalId = parseCreatedProposalId(result.receipt, contractAddress);
       const perOption = proposalParams.batches.map((b) => estimateBatchGas(b || []));
       const floor = proposalData.gasLimit
@@ -308,10 +313,9 @@ const VotingPage = () => {
     }
 
     setShowCreatePoll(false);
-    return true;
+    return result;
   }, [
     voting,
-    membershipAuthority,
     authoritySubjects.roles,
     authority.enabled,
     authority.address,
@@ -366,6 +370,7 @@ const VotingPage = () => {
   // id-prediction race). Empty on a legacy org.
   const accessV2 = useMemo(() => ({
     roleCreation,
+    orgId,
     enabled: !!authority.enabled,
     authority: authority.enabled ? (authority.address || '') : '',
     subjects: authoritySubjects.subjects || [],
@@ -389,7 +394,7 @@ const VotingPage = () => {
     // buy a role exactly zero votes, silently.
     votingClasses: votingClasses || [],
   }), [
-    roleCreation, authority.enabled, authority.address,
+    roleCreation, orgId, authority.enabled, authority.address,
     authoritySubjects.subjects, authoritySubjects.indexedSubjects,
     authoritySubjects.roles, authoritySubjects.groups,
     authorityMemberships.inOrgUsers, authorityMemberships.members,
@@ -397,8 +402,8 @@ const VotingPage = () => {
     hybridVotingOngoing, votingClasses,
   ]);
 
-  const handlePollCreated = useCallback(() => {
-    return handleSubmit(eligibilityModuleAddress, contractAddresses, { accessV2 });
+  const handlePollCreated = useCallback((transient = {}) => {
+    return handleSubmit(eligibilityModuleAddress, contractAddresses, { ...transient, accessV2: { ...accessV2, ...transient.accessV2 } });
   }, [handleSubmit, eligibilityModuleAddress, contractAddresses, accessV2]);
 
   // True only when the modal was opened by a deep link that pre-filled the
@@ -633,6 +638,11 @@ const VotingPage = () => {
               modalOpen={isDetailOpen || showCreatePoll}
             />
           </Box>
+
+          <RoleContinuationPanel ctx={roleCreation} onResume={form => {
+            restoreProposal({ type: 'createRole', name: `Configure ${form.name}`, description: `Apply the saved settings for ${form.name}.`, roleFormV2: form });
+            setDeepLinkedOpen(true); setShowCreatePoll(true);
+          }} />
 
           {/* Board panel — the dark glass container the whole board lives in.
               Lane headers, chips, and cards are unreadable directly on themed

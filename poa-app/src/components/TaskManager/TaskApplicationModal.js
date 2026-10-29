@@ -154,7 +154,7 @@ const TaskApplicationModal = ({ isOpen, onClose, onApply, task }) => {
                   <Text fontSize="xs" color="green.300" fontWeight="bold">
                     {task.Payout} {tokenLabel}
                   </Text>
-                  {checkHasBounty(task.bountyToken, task.bountyPayout) && (() => {
+                  {checkHasBounty(task.bountyToken, task.bountyPayoutRaw) && (() => {
                     const tokenInfo = getTokenByAddress(task.bountyToken);
                     return (
                       <HStack spacing={1}>

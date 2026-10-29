@@ -13,10 +13,13 @@
 import { utils } from 'ethers';
 import { parseTokenAmount } from '@/util/formatToken';
 import { authorityInterface } from '@/lib/accessV2/txBuilders';
-import ZkEmailInvitesABI from '../../../abi/ZkEmailInvites.json';
+import { ZkEmailInvitesAbi as ZkEmailInvitesABI } from '@poa-box/core/abis/ZkEmailInvites';
+import { PaymasterHubAbi } from '@poa-box/core/abis/PaymasterHub';
+import { encodeExecutorCall } from '@poa-box/core/tx/governance';
+import { SUBJECT_TYPE, paymasterSubjectKey } from '@poa-box/core/sponsorship/codec';
 
 /** PaymasterHub subject-type tags (PaymasterHub.sol). Only HAT is relevant to a role/subject. */
-export const PAYMASTER_SUBJECT_TYPE = Object.freeze({ ACCOUNT: 0x00, HAT: 0x01, CLAIM: 0x05 });
+export const PAYMASTER_SUBJECT_TYPE = Object.freeze({ ACCOUNT: SUBJECT_TYPE.ACCOUNT, HAT: SUBJECT_TYPE.HAT, CLAIM: SUBJECT_TYPE.CLAIM });
 
 /** MIN_EPOCH_LENGTH / MAX_EPOCH_LENGTH, in seconds. */
 export const EPOCH_BOUNDS = Object.freeze({ minSecs: 60 * 60, maxSecs: 365 * 24 * 60 * 60 });
@@ -33,11 +36,9 @@ export const DEFAULT_SUBJECT_BUDGET = Object.freeze({
   epochLabel: '30 days',
 });
 
-export const DEFAULT_SPONSORSHIP = Object.freeze({ enabled: true, capNative: '0.25', epochDays: 30, supportPasskeys: true });
-export const paymasterBudgetInterface = new utils.Interface([
-  'function setBudget(bytes32 orgId, bytes32 subjectKey, uint128 capPerEpoch, uint32 epochLen)',
-  'function setRulesBatch(bytes32 orgId, address[] targets, bytes4[] selectors, bool[] allowed, uint32[] maxCallGasHints)',
-]);
+export const DEFAULT_SPONSORSHIP = Object.freeze({ enabled: true, capNative: '0.25', epochDays: 30,
+  supportPasskeys: true, includeConfiguredEmailRules: false, initializeClaimBudget: false });
+export const paymasterBudgetInterface = new utils.Interface(PaymasterHubAbi);
 const emailInterface = new utils.Interface(ZkEmailInvitesABI);
 
 /**
@@ -61,10 +62,7 @@ export const SPONSORED_MEMBER_ACTIONS = Object.freeze([
 export function subjectBudgetKey(subjectId, subjectType = PAYMASTER_SUBJECT_TYPE.HAT) {
   const id = BigInt(String(subjectId ?? '0'));
   if (id <= 0n || id >= (1n << 256n)) throw new Error('A gas budget needs a valid subject.');
-  return utils.solidityKeccak256(
-    ['uint8', 'bytes32'],
-    [subjectType, utils.hexZeroPad(utils.hexlify(id), 32)]
-  );
+  return paymasterSubjectKey(subjectType, id);
 }
 
 /**
@@ -117,13 +115,10 @@ export function buildSubjectBudgetCall({ paymasterHub, orgId, subjectId, config,
     throw new Error('The org id has not loaded.');
   }
   const { capWei, epochSecs } = sponsorshipAmounts(config);
-  return {
-    target: utils.getAddress(paymasterHub),
-    value: '0',
-    data: paymasterBudgetInterface.encodeFunctionData('setBudget', [
-      orgId, subjectBudgetKey(subjectId, subjectType), capWei, epochSecs,
-    ]),
-  };
+  const call = encodeExecutorCall('PaymasterHub', utils.getAddress(paymasterHub), 'setBudget', [
+    orgId, subjectBudgetKey(subjectId, subjectType), capWei, epochSecs,
+  ], '0');
+  return { target: call.target, value: String(call.value), data: call.calldata };
 }
 
 /** Org-local rules only; selectors come from the shipped ABIs, including both passkey proof shapes. */
@@ -142,13 +137,11 @@ export function buildPasskeyRulesCall({ paymasterHub, orgId, authority, zkEmailA
   if (editOrgDetails && orgRegistry) entries.push({
     target: orgRegistry, selector: utils.id('updateOrgMetaAsAdmin(bytes32,bytes,bytes32)').slice(0, 10), hint: 0,
   });
-  return {
-    target: utils.getAddress(paymasterHub), value: '0',
-    data: paymasterBudgetInterface.encodeFunctionData('setRulesBatch', [
-      orgId, entries.map((e) => e.target), entries.map((e) => e.selector),
-      entries.map(() => true), entries.map((e) => e.hint),
-    ]),
-  };
+  const call = encodeExecutorCall('PaymasterHub', utils.getAddress(paymasterHub), 'setRulesBatch', [
+    orgId, entries.map(e => e.target), entries.map(e => e.selector),
+    entries.map(() => true), entries.map(e => e.hint),
+  ], '0');
+  return { target: call.target, value: String(call.value), data: call.calldata };
 }
 
 export const SPONSORSHIP_SCOPE_NOTE =

@@ -5,10 +5,10 @@ import { motion } from 'framer-motion';
 const MotionBox = motion.create(Box);
 
 const ChainStatCard = ({ chain }) => {
-  const orgs = chain.orgStats?.totalOrgs || '0';
-  const contracts = chain.orgStats?.totalContracts || '0';
-  const accounts = chain.accountStats?.totalAccounts || '0';
-  const beacons = chain.infrastructure?.beaconCount || '0';
+  const orgs = chain.orgStats?.totalOrgs ?? '—';
+  const contracts = chain.orgStats?.totalContracts ?? '—';
+  const accounts = chain.accountStats?.totalAccounts ?? '—';
+  const beacons = chain.infrastructure?.beaconCount ?? '—';
 
   return (
     <Box

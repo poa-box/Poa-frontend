@@ -3,6 +3,10 @@
  * Unified transaction handling with gas estimation, error parsing, and state tracking
  */
 
+import { createSubmissionJournal, pendingSubmissionError } from '@/services/web3/core/submissionJournal';
+import { unknownSubmissionError, reconcileUserOperationSubmission } from '@/services/web3/core/userOperationSubmission';
+import { managerIntentKey, DELEGATED_SUBMISSION_LEASE, snapshotCallValue, snapshotExecutionArguments, assertBeforeSend } from '@/services/web3/core/managerSubmissionScope';
+import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 import { parseError, Web3ErrorCategory } from '@/lib/errors';
 import { calculateGasLimit, createGasOptions, getNetworkByChainId } from '@/config';
 
@@ -71,6 +75,19 @@ const DEFAULT_OPTIONS = {
   gasLimit: null,
 };
 
+/** Recovery owns a fresh lock; scope must still match when that lock is acquired. */
+export async function clearRecoveredSubmission(journal, submission, assertCurrent) {
+  assertCurrent();
+  const release = await journal.acquire();
+  try {
+    assertCurrent();
+    if (await journal.clear(submission) !== true) throw pendingSubmissionError(submission);
+  } finally {
+    await release();
+  }
+  assertCurrent();
+}
+
 /**
  * TransactionManager - Handles the full transaction lifecycle
  *
@@ -84,6 +101,25 @@ export class TransactionManager {
    */
   constructor(signer, config = {}) {
     this.signer = signer;
+    this.submissionChainId = config.chainId;
+    this.accountAddress = config.accountAddress;
+    this.publicClient = config.publicClient;
+    this.assertCurrent = config.scopeGuard || (() => {});
+    this.submissionJournal = config.accountAddress && config.chainId ? createSubmissionJournal({
+      accountAddress: config.accountAddress, chainId: config.chainId, entryPoint: ENTRY_POINT_ADDRESS, context: config.submissionContext, storage: config.submissionStorage, locks: config.submissionLocks,
+    }) : null;
+    this.getPendingSubmission = () => this.submissionJournal?.read() || null;
+    this.reconcileSubmission = async (submission = this.getPendingSubmission()) => {
+      this.assertCurrent();
+      if (!submission || submission.chainId !== config.chainId || (submission.accountAddress && submission.accountAddress.toLowerCase() !== config.accountAddress?.toLowerCase()) || !config.publicClient || (submission.kind !== 'transaction' && !config.bundlerClient)) {
+        throw new Error('Check this transaction on the network where it was submitted.');
+      }
+      const result = await reconcileUserOperationSubmission(submission, config.bundlerClient, config.publicClient);
+      this.assertCurrent();
+      if (result.outcome.status !== 'unknown') await clearRecoveredSubmission(this.submissionJournal, submission, this.assertCurrent);
+      this.assertCurrent();
+      return result;
+    };
     this._chainId = null; // resolved lazily in _getChainContext()
     // Optional async guard injected by useWeb3Services. Called before every
     // send to guarantee the wallet + signer are bound to the intended (org)
@@ -108,8 +144,27 @@ export class TransactionManager {
     // `this.signer`) so a chain switch during one execute can't leave the shared
     // manager instance in a half-mutated state for a concurrent/next call.
     let activeSigner = this.signer;
+    let release;
+    let submission;
+    let sendStarted = false;
 
     try {
+      args = snapshotCallValue(args);
+      if (opts.value !== undefined) opts.value = snapshotCallValue(opts.value);
+      this.assertCurrent();
+      if (this.submissionJournal) {
+        const delegated = opts[DELEGATED_SUBMISSION_LEASE] === this.submissionJournal && this.submissionJournal.hasLease();
+        if (!delegated) release = await this.submissionJournal.acquire();
+        this.assertCurrent();
+        if (!delegated) this.submissionJournal.abandonUnsent();
+        const pending = delegated ? this.submissionJournal.read() : this.submissionJournal.readPendingAccount();
+        if (pending && !delegated) {
+          const error = unknownSubmissionError(pendingSubmissionError(pending));
+          this._notifyState(opts.onStateChange, TransactionState.ERROR, { error });
+          return TransactionResult.failure(error);
+        }
+        if (!pending) this.submissionJournal.begin(managerIntentKey('execute', [contract, method, args, opts]));
+      }
       // Bind to the intended chain BEFORE we estimate/sign/send. An EOA tx
       // broadcasts through the wallet's *connected* chain — if that's the wrong
       // network the contract address has no code there. Depending on the wallet,
@@ -121,10 +176,14 @@ export class TransactionManager {
         const boundSigner = await this.ensureChain();
         if (boundSigner) {
           activeSigner = boundSigner;
-          contract = contract.connect(boundSigner);
         }
       }
 
+      // The manager's checked signer must own the actual contract call, even
+      // when no chain switch was needed and a caller retained an older factory.
+      if (typeof contract.connect === 'function') contract = contract.connect(activeSigner);
+
+      this.assertCurrent();
       // State: Estimating gas
       this._notifyState(opts.onStateChange, TransactionState.ESTIMATING);
 
@@ -141,12 +200,44 @@ export class TransactionManager {
         gasOptions.value = opts.value;
       }
 
-      // State: Awaiting signature
+      let nonce;
+      let fromBlock;
+      if (this.submissionJournal) {
+        if (activeSigner.getAddress && (await activeSigner.getAddress()).toLowerCase() !== this.accountAddress.toLowerCase()) throw new Error('Your account changed. Please try again.');
+        if (activeSigner.getChainId && await activeSigner.getChainId() !== this.submissionChainId) throw new Error('Your network changed. Please try again.');
+        nonce = await activeSigner.getTransactionCount('pending');
+        this.assertCurrent();
+        fromBlock = this.publicClient?.getBlockNumber ? await this.publicClient.getBlockNumber() : undefined;
+      }
+      if (this.submissionJournal) {
+        if (activeSigner.getAddress && (await activeSigner.getAddress()).toLowerCase() !== this.accountAddress.toLowerCase()) throw new Error('Your account changed. Please try again.');
+        if (activeSigner.getChainId && await activeSigner.getChainId() !== this.submissionChainId) throw new Error('Your network changed. Please try again.');
+        this.assertCurrent();
+      }
+      // Wallet signing and dispatch share one call. Refresh AFTER all awaited
+      // setup and identity reads; only synchronous scope/lease checks follow.
+      await assertBeforeSend(this, opts.beforeSend);
+      this.submissionJournal?.signing();
       this._notifyState(opts.onStateChange, TransactionState.AWAITING_SIGNATURE);
-
-      // Send transaction
+      if (this.submissionJournal) {
+        this.submissionJournal.assertLease();
+        submission = { kind: 'transaction', phase: 'submitting', chainId: this.submissionChainId, nonce: String(nonce),
+          callKey: managerIntentKey('execute', [contract, method, args, opts]),
+          ...(fromBlock === undefined ? {} : { fromBlock: String(fromBlock) }) };
+        submission = this.submissionJournal.write(submission);
+        gasOptions.nonce = nonce;
+      }
+      // The wallet owns signing + broadcast as one awaited call. Persist safe identity first.
+      this.assertCurrent();
+      this.submissionJournal?.assertLease();
+      sendStarted = true;
       const tx = await contract[method](...args, gasOptions);
 
+      if (submission) {
+        if (typeof tx?.hash !== 'string' || !/^0x[0-9a-f]{64}$/i.test(tx.hash)) throw new Error('Transaction status is not available.');
+        submission = { ...submission, phase: 'submitted', txHash: tx.hash };
+        submission = this.submissionJournal.write(submission);
+      }
       // State: Pending
       this._notifyState(opts.onStateChange, TransactionState.PENDING, {
         txHash: tx.hash,
@@ -160,6 +251,12 @@ export class TransactionManager {
       // Wait for confirmation
       const receipt = await tx.wait(opts.confirmations);
 
+      if (submission) {
+        if (receipt.transactionHash?.toLowerCase() !== submission.txHash?.toLowerCase() || ![0, 1, 0n, 1n, '0', '1', '0x0', '0x1'].includes(receipt.status)) throw new Error('Transaction status is not available.');
+        if (this.submissionJournal.clear(submission) !== true) throw pendingSubmissionError(submission);
+      }
+      if ([0, 0n, '0', '0x0'].includes(receipt.status)) throw new Error('This action did not complete. Please try again.');
+      // Preserve a known original outcome after navigation; callbacks remain scope-guarded.
       // State: Success
       this._notifyState(opts.onStateChange, TransactionState.SUCCESS, {
         receipt,
@@ -171,32 +268,59 @@ export class TransactionManager {
       return TransactionResult.success(receipt);
 
     } catch (error) {
-      // Enhanced error logging for debugging
-      console.error('=== TRANSACTION ERROR DEBUG ===');
-      console.error('Method:', method);
-      console.error('Args:', args);
-      console.error('Raw error:', error);
-      console.error('Error message:', error.message);
-      console.error('Error reason:', error.reason);
-      console.error('Error code:', error.code);
-      console.error('Error data:', error.data);
-      console.error('Nested error:', error.error);
-      console.error('Nested error data:', error.error?.data);
-      console.error('Nested error message:', error.error?.message);
-      console.error('=== END TRANSACTION ERROR DEBUG ===');
-
-      const parsedError = parseError(error, abi, await this._getChainContext(activeSigner));
+      // The wallet's replacement hash selects one candidate. RPC transaction, receipt and canonical
+      // block observations establish its outcome; wallet diagnostics alone cannot settle the barrier.
+      if (submission?.recovery && error.code === 'TRANSACTION_REPLACED' && typeof error.replacement?.hash === 'string' && error.receipt) {
+        let recovered;
+        try {
+          recovered = await reconcileUserOperationSubmission(submission, null, this.publicClient, { candidateTxHash: error.replacement.hash });
+        }
+        catch { /* Unverifiable replacement retains the original barrier. */ }
+        const outcome = recovered?.outcome;
+        if (outcome && outcome.status !== 'unknown' && this.submissionJournal.clear(submission) === true) {
+          if (outcome.status === 'succeeded') {
+            this._notifyState(opts.onStateChange, TransactionState.SUCCESS, { receipt: recovered.receipt, txHash: outcome.txHash });
+            return TransactionResult.success(recovered.receipt);
+          }
+          const parsed = { category: outcome.status === 'replaced' ? 'transaction_replaced' : 'transaction_failed',
+            userMessage: outcome.status === 'replaced' ? 'This action was replaced by another transaction. You can try the action again.' : 'This action did not complete. Please try again.' };
+          this._notifyState(opts.onStateChange, TransactionState.ERROR, { error: parsed });
+          return TransactionResult.failure(parsed);
+        }
+      }
+      const cancelled = !submission?.txHash && (error?.code === 4001 || error?.code === 'ACTION_REJECTED');
+      const failedReceipt = error.code !== 'TRANSACTION_REPLACED' && error.receipt && [0, 0n, '0', '0x0'].includes(error.receipt.status)
+        && error.receipt.transactionHash?.toLowerCase() === submission?.txHash?.toLowerCase();
+      let pendingError = null;
+      try {
+        if (submission && (cancelled || failedReceipt || !sendStarted) && this.submissionJournal.clear(submission) !== true) {
+          pendingError = unknownSubmissionError(pendingSubmissionError(submission));
+        }
+        if (submission && sendStarted && !cancelled && !failedReceipt && this.submissionJournal.read()) {
+          pendingError = unknownSubmissionError(pendingSubmissionError(submission));
+        }
+      } catch {
+        pendingError = { category: 'account_unavailable', userMessage: 'Saved transaction status is unavailable. Check this account before trying again.' };
+      }
+      const parsedError = pendingError || parseError(error, abi, await this._getChainContext(activeSigner));
 
       // State: Error
       this._notifyState(opts.onStateChange, TransactionState.ERROR, {
         error: parsedError,
       });
 
-      console.error(`Transaction failed: ${method}`, parsedError.technicalMessage);
-      console.error('Parsed error category:', parsedError.category);
-      console.error('Parsed error userMessage:', parsedError.userMessage);
+      console.error('Transaction failed:', { method, category: parsedError.category });
 
-      return TransactionResult.failure(parsedError);
+      const result = TransactionResult.failure(parsedError);
+      // A guard failure before the wallet call or a definite wallet rejection is
+      // positive non-submission evidence. Failed journal cleanup keeps its barrier.
+      if (!pendingError && (cancelled || !sendStarted)) result.submissionState = 'not-submitted';
+      return result;
+    } finally {
+      if (release) {
+        try { this.submissionJournal.abandonUnsent(); } catch { /* Preserve unavailable state. */ }
+        await release();
+      }
     }
   }
 
@@ -208,6 +332,7 @@ export class TransactionManager {
    * @returns {Promise<Array<TransactionResult>>} Array of results
    */
   async executeBatch(transactions, batchOptions = {}) {
+    [transactions, batchOptions] = snapshotExecutionArguments('executeBatch', [transactions, batchOptions]);
     const results = [];
 
     for (const tx of transactions) {
@@ -297,7 +422,8 @@ export class TransactionManager {
    */
   _notifyState(callback, state, data = {}) {
     if (typeof callback === 'function') {
-      callback(state, data);
+      try { this.assertCurrent(); } catch { return; }
+      try { callback(state, data); } catch { /* Observers cannot change a known transaction outcome. */ }
     }
   }
 }

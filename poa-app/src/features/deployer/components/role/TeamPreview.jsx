@@ -71,7 +71,7 @@ function PreviewNode({ role, roleIndex, depth, isLast, parentLines = [], isYou }
         spacing={2}
       >
         <Icon
-          as={isTopLevel ? PiCrown : PiUser}
+          as={PiUser}
           boxSize={3}
           color={isTopLevel ? 'amethyst.500' : 'warmGray.400'}
         />
@@ -97,7 +97,7 @@ function PreviewNode({ role, roleIndex, depth, isLast, parentLines = [], isYou }
             px={1.5}
             borderRadius="full"
           >
-            Leader
+            Role
           </Badge>
         )}
       </HStack>

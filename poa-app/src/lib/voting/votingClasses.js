@@ -14,13 +14,13 @@
  */
 
 import { utils } from 'ethers';
+import { HybridVotingNewAbi } from '@poa-box/core/abis/HybridVotingNew';
+import { encodeExecutorCall } from '@poa-box/core/tx/governance';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 export const CLASS_STRATEGY = Object.freeze({ DIRECT: 'DIRECT', PARTICIPATION: 'PARTICIPATION' });
 
-export const hybridVotingClassInterface = new utils.Interface([
-  'function addHatToClass(uint8 classIdx, uint256 hatId)',
-  'function removeHatFromClass(uint8 classIdx, uint256 hatId)',
-]);
+export const hybridVotingClassInterface = new utils.Interface(HybridVotingNewAbi);
 
 /** The subgraph spells strategy as a string; the contract as an enum (0 = DIRECT). */
 export function isDirectClass(cls) {
@@ -35,10 +35,10 @@ export function directClassIndex(votingClasses = []) {
 }
 
 /** The member-facing name of a class — the same words SetterActionSelector's rule diff uses. */
-export function classLabel(cls, idx = 0, { withShare = true } = {}) {
+export function classLabel(cls, idx = 0, { withShare = true, tokenLabel = DEFAULT_TOKEN_LABEL } = {}) {
   if (!cls) return `Class ${idx + 1}`;
   const base = isDirectClass(cls) ? 'Members' : 'Contributors';
-  const how = isDirectClass(cls) ? 'one vote each' : 'weighted by shares';
+  const how = isDirectClass(cls) ? 'one vote each' : `weighted by ${tokenLabel}`;
   const pct = withShare && cls.slicePct !== undefined && cls.slicePct !== null ? ` · ${Number(cls.slicePct)}%` : '';
   return `${base} (${how})${pct}`;
 }
@@ -95,18 +95,16 @@ export function buildClassVoterCall({ hybridVoting, classIdx, subjectId, add = t
   if (!Number.isInteger(idx) || idx < 0 || idx > 255) throw new Error('Pick which voting class to change.');
   const id = BigInt(String(subjectId ?? '0'));
   if (id <= 0n) throw new Error('Pick the role whose voters should change.');
-  return {
-    target: utils.getAddress(String(hybridVoting).toLowerCase()),
-    value: '0',
-    data: hybridVotingClassInterface.encodeFunctionData(add ? 'addHatToClass' : 'removeHatFromClass', [idx, id.toString()]),
-  };
+  const call = encodeExecutorCall('HybridVotingNew', utils.getAddress(String(hybridVoting).toLowerCase()),
+    add ? 'addHatToClass' : 'removeHatFromClass', [idx, id.toString()], '0');
+  return { target: call.target, value: String(call.value), data: call.calldata };
 }
 
 /** The sentence voters read for a class-voter change. */
-export function classVoterSummary({ roleName = 'this role', classIdx = 0, votingClasses = [], add = true }) {
+export function classVoterSummary({ roleName = 'this role', classIdx = 0, votingClasses = [], add = true, tokenLabel = DEFAULT_TOKEN_LABEL }) {
   // A ballot sentence names the class, not its share of the vote: “· 80%” next to a role name
   // reads as if the role were being handed 80% of the vote.
-  const label = classLabel(classByIndex(votingClasses, classIdx), classIdx, { withShare: false });
+  const label = classLabel(classByIndex(votingClasses, classIdx), classIdx, { withShare: false, tokenLabel });
   return add
     ? `Let members of “${roleName}” vote in binding votes as ${label}.`
     : `Stop members of “${roleName}” voting in binding votes as ${label}.`;

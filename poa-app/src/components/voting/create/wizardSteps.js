@@ -82,9 +82,13 @@ export function supportsVotingRestrictions(type) {
  * @param {Array<Array>} batches - per-option call lists from buildProposalData
  * @returns {'hybrid'|'dd'}
  */
-export function votingLaneForBatches(batches) {
-  const executes = (batches || []).some((b) => Array.isArray(b) && b.length > 0);
-  return executes ? 'hybrid' : 'dd';
+import { votingLaneForBatches as coreVotingLane } from '@poa-box/core/governance/capabilities';
+
+export function votingLaneForBatches(batches = []) {
+  return coreVotingLane(batches.map(batch => batch.map(call => ({
+    target: call.target ?? call[0], value: call.value ?? call[1] ?? '0',
+    calldata: call.calldata ?? call.data ?? call[2],
+  }))));
 }
 
 /**

@@ -53,37 +53,23 @@ export const V2_MATRIX_COLUMNS = [
   }),
 ];
 
-/** The folded (own ∪ groups) org-wide value of one column for one subject. */
-function columnValue(subject, col) {
-  if (typeof subject?.permEffective !== 'function') return false;
-  let value;
+const cellValue = (fact, col) => {
+  if (fact?.state !== 'known') return null;
+  try { return col.maskBit === undefined ? BigInt(fact.value) !== 0n : (BigInt(fact.value) & BigInt(col.maskBit)) !== 0n; }
+  catch { return null; }
+};
+function values(subject, col) {
   try {
-    value = BigInt(subject.permEffective(col.permKey) || 0);
-  } catch {
-    return false;
-  }
-  if (col.maskBit !== undefined) return (value & BigInt(col.maskBit)) !== 0n;
-  return value !== 0n;
-}
-
-/** One column's value from a subject's OWN global row (no group fold). */
-function ownColumnValue(subject, col) {
-  if (typeof subject?.permGlobal !== 'function') return false;
-  const row = subject.permGlobal(col.permKey);
-  if (!row || !row.exists) return false;
-  let value;
-  try {
-    value = BigInt(row.value);
-  } catch {
-    return false;
-  }
-  if (col.maskBit !== undefined) return (value & BigInt(col.maskBit)) !== 0n;
-  return value !== 0n;
-}
-
-/** One column's value contributed by a role's GROUPS alone. */
-function groupsColumnValue(subject, col) {
-  return (subject?.groups || []).some((g) => ownColumnValue(g, col));
+    const facts = subject.permFacts(col.permKey);
+    const effective = cellValue(facts.value, col);
+    const own = facts.contributions.find(c => c.subjectId === subject.subjectId);
+    const contribution = c => c.context?.state === 'known'
+      ? cellValue({ state: 'known', value: c.context.value.value }, col) : null;
+    const ownValue = own ? contribution(own) : null;
+    const groups = facts.contributions.filter(c => c.subjectId !== subject.subjectId).map(contribution);
+    const groupValue = groups.includes(true) ? true : groups.includes(null) ? null : false;
+    return { effective, own: ownValue, groups: groupValue };
+  } catch { return { effective: null, own: null, groups: null }; }
 }
 
 /**
@@ -112,16 +98,20 @@ export function buildV2MatrixView(subjects = []) {
     const cells = {};
     let hasOwnBeyond = false;
     let hasAnything = false;
+    let hasUnknown = false;
     for (const col of V2_MATRIX_COLUMNS) {
-      const effective = columnValue(s, col);
-      if (!effective) continue;
+      const { effective, own, groups } = values(s, col);
+      if (effective === false) { cells[col.key] = false; continue; }
+      if (effective === null || own === null || (!s.isGroup && own && groups === null)) {
+        cells[col.key] = null; hasUnknown = true; continue;
+      }
       hasAnything = true;
-      const beyond = s.isGroup ? ownColumnValue(s, col) : ownColumnValue(s, col) && !groupsColumnValue(s, col);
+      const beyond = s.isGroup ? own : own && !groups;
       if (beyond) hasOwnBeyond = true;
       cells[col.key] = beyond ? true : 'inherited';
     }
 
-    if (hasOwnBeyond) {
+    if (hasOwnBeyond || hasUnknown) {
       rows.push(s);
       matrix[s.hatId ?? s.subjectId] = cells;
     } else if (hasAnything) {
@@ -135,7 +125,7 @@ export function buildV2MatrixView(subjects = []) {
   }
 
   const columns = V2_MATRIX_COLUMNS.filter((col) =>
-    rows.some((s) => matrix[s.hatId ?? s.subjectId]?.[col.key])
+    rows.some((s) => matrix[s.hatId ?? s.subjectId][col.key] !== false)
   );
   return { columns, matrix, rows, hidden };
 }
@@ -145,13 +135,13 @@ export function buildV2MatrixView(subjects = []) {
  * roster — the ACTIVE roster, same rule as the v2 panel — with groups deriving theirs through
  * their member roles.
  */
-export function buildV2LegacyRoles({ roles = [], groups = [], membersOf, groupMembers } = {}) {
+export function buildV2LegacyRoles({ roles = [], groups = [], membersOf, groupMembers, complete = false } = {}) {
   const roleRows = (roles || []).map((r) => ({
     id: r.subjectId,
     hatId: r.hatId ?? r.subjectId,
     name: r.name || 'Untitled',
     isGroup: false,
-    memberCount: membersOf ? membersOf(r.subjectId).length : (r.activeMemberCount ?? 0),
+    memberCount: !complete ? null : membersOf ? membersOf(r.subjectId).length : (r.activeMemberCount ?? 0),
     vouchingEnabled: Boolean(r.vouchConfig?.enabled),
   }));
   const groupRows = (groups || []).map((g) => ({
@@ -159,7 +149,7 @@ export function buildV2LegacyRoles({ roles = [], groups = [], membersOf, groupMe
     hatId: g.hatId ?? g.subjectId,
     name: g.name || 'Untitled',
     isGroup: true,
-    memberCount: groupMembers ? (groupMembers.get(g.subjectId) || []).length : 0,
+    memberCount: !complete ? null : groupMembers ? (groupMembers.get(g.subjectId) || []).length : 0,
     vouchingEnabled: false,
   }));
   return [...roleRows, ...groupRows];

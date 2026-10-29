@@ -29,6 +29,7 @@ describe('toSec', () => {
     expect(toSec('0')).toBeNull();
     expect(toSec('')).toBeNull();
     expect(toSec('garbage')).toBeNull();
+    expect(toSec('9007199254740993')).toBeNull();
   });
 });
 
@@ -125,5 +126,18 @@ describe('date input round trip', () => {
   it('rejects garbage', () => {
     expect(localDateStrToEndOfDaySec('')).toBeNull();
     expect(localDateStrToEndOfDaySec(null)).toBeNull();
+  });
+});
+
+
+describe('current core cutoff with optimistic host fallback', () => {
+  it('an earlier edited calendar cutoff expires a still-later claim window', () => {
+    const task = { claimDeadline: '2000', absoluteDeadline: '1000' };
+    expect(effectiveDeadlineSec(task)).toBe(1000);
+    expect(isClaimExpired(task, 1000 * 1000)).toBe(false);
+    expect(isClaimExpired(task, 1100 * 1000)).toBe(true);
+  });
+  it('takes the earlier cutoff when the claim deadline has not indexed', () => {
+    expect(effectiveDeadlineSec({ assignedAt: '1000', completionWindow: '500', absoluteDeadline: '1200' })).toBe(1200);
   });
 });

@@ -21,6 +21,7 @@ import {
 } from '@chakra-ui/react';
 import { FaCheck, FaExclamationTriangle, FaFingerprint, FaWallet } from 'react-icons/fa';
 import useOnboardingColors from '@/components/shared/useOnboardingColors';
+import EnrollmentRecoveryNotice from '@/components/passkey/EnrollmentRecoveryNotice';
 import { OnboardingStep } from '@/services/web3/domain/PasskeyOnboardingService';
 
 const STEP_PROGRESS = {
@@ -94,7 +95,8 @@ export default function PasskeyOnboardingDialog({
   };
 
   const handleStart = async () => {
-    const trimmed = username.trim();
+    const trimmed = onboarding.pendingEnrollment?.credential?.flow === 'onboarding'
+      ? onboarding.pendingEnrollment.credential.username : username.trim();
     if (!trimmed) {
       inputRef.current?.focus();
       toast({
@@ -159,6 +161,7 @@ export default function PasskeyOnboardingDialog({
         {!isInProgress && <ModalCloseButton />}
 
         <ModalBody px={6} pb={4}>
+          <EnrollmentRecoveryNotice enrollment={onboarding} />
           {!isInProgress && !isSuccess && !isError && (
             <VStack spacing={5}>
               <Box textAlign={isJoin ? 'left' : 'center'}>
@@ -308,7 +311,9 @@ export default function PasskeyOnboardingDialog({
                 _hover={{ bg: 'amethyst.600', transform: 'translateY(-1px)', boxShadow: 'lg' }}
                 _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
                 onClick={handleStart}
-                isDisabled={!isReady || !username.trim()}
+                isDisabled={!isReady || (onboarding.hasPendingEnrollment
+                  ? !(onboarding.pendingEnrollment?.credential?.flow === 'onboarding' && ['not-submitted', 'failed'].includes(onboarding.recoveryStatus))
+                  : !username.trim())}
                 leftIcon={<FaFingerprint />}
                 {...joinButtonStyle}
               >

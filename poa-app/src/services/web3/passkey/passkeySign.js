@@ -3,23 +3,15 @@
  * Sign ERC-4337 UserOp hashes and registration challenges using WebAuthn (passkey).
  */
 
-import { startAuthentication, base64URLStringToBuffer, bufferToBase64URLString } from '@simplewebauthn/browser';
-import { encodeAbiParameters, parseAbiParameters, keccak256, pad, toBytes, toHex } from 'viem';
-import { computeCredentialId } from './passkeyUtils';
-import { getWebAuthnRpId } from '../../../config/passkey';
+import { base64URLStringToBuffer, bufferToBase64URLString } from '@simplewebauthn/browser';
+import { pad, toBytes, toHex } from 'viem';
+import { registrationChallenge, packPasskeySignature } from '@poa-box/core/accounts/codecs';
+import { computeCredentialId } from '@/services/web3/passkey/passkeyUtils';
+import { getWebAuthnRpId } from '@/config/passkey';
+import { authenticateWithRpFallback } from '@/services/web3/passkey/authenticate';
 
 // P-256 curve order
 const P256_N = BigInt('0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551');
-
-// EIP-712 constants matching UniversalAccountRegistry.sol
-const DOMAIN_TYPEHASH = keccak256(
-  toBytes('EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)')
-);
-const NAME_HASH = keccak256(toBytes('UniversalAccountRegistry'));
-const VERSION_HASH = keccak256(toBytes('1'));
-const REGISTER_PASSKEY_TYPEHASH = keccak256(
-  toBytes('RegisterPasskeyAccount(address user,string username,uint256 nonce,uint256 deadline)')
-);
 
 /**
  * Perform a WebAuthn assertion (biometric prompt) and parse the response.
@@ -33,6 +25,9 @@ async function getWebAuthnAssertion(challengeHash, rawCredentialIdBase64) {
     const { signVirtualAssertion } = await import('@/services/e2e/virtualPasskey');
     return signVirtualAssertion(challengeHash);
   }
+  if (typeof challengeHash !== 'string' || !/^0x[0-9a-f]{64}$/i.test(challengeHash)) throw new Error('Invalid passkey challenge.');
+  const expectedCredential = computeCredentialId(rawCredentialIdBase64);
+  const expectedOrigin = window.location.origin;
   const hashBytes = toBytes(challengeHash);
   const challenge = bufferToBase64URLString(hashBytes);
 
@@ -52,17 +47,9 @@ async function getWebAuthnAssertion(challengeHash, rawCredentialIdBase64) {
     },
   });
 
-  let assertion;
-  try {
-    assertion = await startAuthentication(opts(primaryRpId));
-  } catch (err) {
-    // Legacy passkeys were created with the full hostname (e.g. "www.poa.box")
-    // as RP ID. When allowCredentials lists a credential whose RP ID doesn't
-    // match, the browser filters it out and rejects without a biometric prompt,
-    // so this retry is transparent to the user.
-    const fallbackRpId = window.location.hostname;
-    if (fallbackRpId === primaryRpId) throw err;
-    assertion = await startAuthentication(opts(fallbackRpId));
+  const assertion = await authenticateWithRpFallback(opts, primaryRpId);
+  if (typeof assertion?.rawId !== 'string' || computeCredentialId(assertion.rawId) !== expectedCredential) {
+    throw new Error('The selected passkey does not match this account. Please sign in again.');
   }
 
   const authenticatorDataBuffer = base64URLStringToBuffer(assertion.response.authenticatorData);
@@ -75,7 +62,12 @@ async function getWebAuthnAssertion(challengeHash, rawCredentialIdBase64) {
   const signatureBytes = new Uint8Array(signatureBuffer);
   const { r, s } = parseDERSignature(signatureBytes);
 
-  const clientDataString = new TextDecoder().decode(clientDataJSON);
+  const clientDataString = new TextDecoder('utf-8', { fatal: true }).decode(clientDataJSON);
+  const signed = JSON.parse(clientDataString);
+  if (signed.type !== 'webauthn.get' || signed.challenge !== challenge
+    || (expectedOrigin && signed.origin !== expectedOrigin)) {
+    throw new Error('The passkey response does not match this request. Please try again.');
+  }
   const challengeIndex = findFieldIndex(clientDataString, 'challenge');
   const typeIndex = findFieldIndex(clientDataString, 'type');
 
@@ -109,19 +101,14 @@ export async function signUserOpWithPasskey(userOpHash, rawCredentialIdBase64) {
 
   const credentialIdBytes32 = computeCredentialId(auth.rawId);
 
-  const authEncoded = encodeAbiParameters(
-    parseAbiParameters('(bytes, bytes, uint256, uint256, bytes32, bytes32)'),
-    [[
-      toHex(auth.authenticatorData),
-      toHex(auth.clientDataJSON),
-      BigInt(auth.challengeIndex),
-      BigInt(auth.typeIndex),
-      pad(toHex(auth.r), { size: 32 }),
-      pad(toHex(auth.s), { size: 32 }),
-    ]]
-  );
-
-  return credentialIdBytes32 + authEncoded.slice(2);
+  return packPasskeySignature(credentialIdBytes32, {
+    authenticatorData: toHex(auth.authenticatorData),
+    clientDataJSON: toHex(auth.clientDataJSON),
+    challengeIndex: auth.challengeIndex,
+    typeIndex: auth.typeIndex,
+    r: pad(toHex(auth.r), { size: 32 }),
+    s: pad(toHex(auth.s), { size: 32 }),
+  });
 }
 
 /**
@@ -140,26 +127,7 @@ export async function signUserOpWithPasskey(userOpHash, rawCredentialIdBase64) {
  * @returns {string} bytes32 hex challenge hash
  */
 export function computeRegistrationChallenge({ accountAddress, username, nonce, deadline, chainId, registryAddress }) {
-  // Domain separator: keccak256(abi.encode(DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, chainId, verifyingContract))
-  const domainSeparator = keccak256(
-    encodeAbiParameters(
-      parseAbiParameters('bytes32, bytes32, bytes32, uint256, address'),
-      [DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, BigInt(chainId), registryAddress]
-    )
-  );
-
-  // Struct hash: keccak256(abi.encode(TYPEHASH, user, keccak256(username), nonce, deadline))
-  const structHash = keccak256(
-    encodeAbiParameters(
-      parseAbiParameters('bytes32, address, bytes32, uint256, uint256'),
-      [REGISTER_PASSKEY_TYPEHASH, accountAddress, keccak256(toBytes(username)), nonce, deadline]
-    )
-  );
-
-  // EIP-712 digest: keccak256("\x19\x01" || domainSeparator || structHash)
-  return keccak256(
-    `0x1901${domainSeparator.slice(2)}${structHash.slice(2)}`
-  );
+  return registrationChallenge({ user: accountAddress, username, nonce, deadline, chainId, registryAddress }, 'passkey');
 }
 
 /**
@@ -190,38 +158,25 @@ export async function signRegistrationChallenge(challengeHash, rawCredentialIdBa
  * DER format: 0x30 <total_len> 0x02 <r_len> <r_bytes> 0x02 <s_len> <s_bytes>
  */
 function parseDERSignature(derBytes) {
-  if (derBytes[0] !== 0x30) {
-    throw new Error('Invalid DER signature: expected sequence marker 0x30');
+  if (derBytes.length < 8 || derBytes[0] !== 0x30 || derBytes[1] !== derBytes.length - 2 || (derBytes[1] & 0x80)) {
+    throw new Error('Invalid passkey DER signature.');
   }
-
-  let offset = 2; // skip 0x30 and total length byte
-
-  // Parse r
-  if (derBytes[offset] !== 0x02) {
-    throw new Error('Invalid DER: expected 0x02 for r integer');
-  }
-  offset++;
-  const rLen = derBytes[offset];
-  offset++;
-  const rBytes = derBytes.slice(offset, offset + rLen);
-  let r = BigInt(toHex(rBytes));
-  offset += rLen;
-
-  // Parse s
-  if (derBytes[offset] !== 0x02) {
-    throw new Error('Invalid DER: expected 0x02 for s integer');
-  }
-  offset++;
-  const sLen = derBytes[offset];
-  offset++;
-  const sBytes = derBytes.slice(offset, offset + sLen);
-  let s = BigInt(toHex(sBytes));
-
-  // Normalize s to low-s form (required by P-256 verification)
-  if (s > P256_N / 2n) {
-    s = P256_N - s;
-  }
-
+  let offset = 2;
+  const integer = () => {
+    if (derBytes[offset++] !== 0x02) throw new Error('Invalid passkey DER integer.');
+    const length = derBytes[offset++];
+    if (!length || length > 33 || offset + length > derBytes.length) throw new Error('Invalid passkey DER integer length.');
+    const bytes = derBytes.slice(offset, offset + length);
+    offset += length;
+    if ((bytes[0] & 0x80) || (length > 1 && bytes[0] === 0 && !(bytes[1] & 0x80))) throw new Error('Noncanonical passkey DER integer.');
+    const value = BigInt(toHex(bytes));
+    if (value <= 0n || value >= P256_N) throw new Error('Invalid passkey signature coordinate.');
+    return value;
+  };
+  const r = integer();
+  let s = integer();
+  if (offset !== derBytes.length) throw new Error('Trailing passkey DER signature bytes.');
+  if (s > P256_N / 2n) s = P256_N - s;
   return { r, s };
 }
 
@@ -243,5 +198,5 @@ function findFieldIndex(jsonString, fieldName) {
     throw new Error(`Could not find "${fieldName}" in clientDataJSON`);
   }
   // Return index of first char of the value (right after the opening quote of the value)
-  return idx + searchStr.length;
+  return new TextEncoder().encode(jsonString.slice(0, idx + searchStr.length)).length;
 }

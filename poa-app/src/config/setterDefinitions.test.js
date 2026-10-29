@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { utils } from 'ethers';
 import { diffInvites, summarizeProposal } from '@/lib/zkemail/inviteDisplay';
 import {
-  SETTER_TEMPLATES,
+  SETTER_TEMPLATES as ALL_SETTER_TEMPLATES,
   SETTER_CATEGORIES,
   CONTRACT_MAP,
-  RAW_FUNCTIONS,
+  RAW_FUNCTIONS as ALL_RAW_FUNCTIONS,
   getTemplateById,
   isContractAvailable,
   isBytes32,
@@ -41,6 +41,9 @@ import {
   EVERYONE_GROUP_ID,
 } from '@/lib/accessV2/fixtures';
 
+const SETTER_TEMPLATES = ALL_SETTER_TEMPLATES.filter(template => !template.legacyOnly);
+const RAW_FUNCTIONS = Object.fromEntries(Object.entries(ALL_RAW_FUNCTIONS).map(([key, rows]) => [key, rows.filter(row => !row.legacyOnly)]));
+
 // ── Title copy members read (from #465) ──────────────────────────────────
 /** Every id the create-a-vote wizard can reach today. */
 const TEMPLATE_IDS = [
@@ -51,14 +54,11 @@ const TEMPLATE_IDS = [
   'change-voting-split',
   'change-class-voters',
   'change-quorum-dd',
-  'allow-proposal-creator-hybrid',
-  'allow-voter-dd',
   'edit-role-permissions',
   'pause-hybrid-voting',
   'unpause-hybrid-voting',
   'pause-dd-voting',
   'unpause-dd-voting',
-  'set-project-permissions',
   'allow-task-creator',
   'allow-organizer-hat',
   'change-token-metadata',
@@ -250,7 +250,7 @@ describe('setter template wiring', () => {
         case 'permissionMask': return 1;
         case 'votingClassWeights': return [
           { strategy: 'DIRECT', slicePct: 50, quadratic: false, minBalance: '0', hatIds: [] },
-          { strategy: 'ERC20_BAL', slicePct: 50, quadratic: false, minBalance: '0', hatIds: ['1'] },
+          { strategy: 'ERC20_BAL', slicePct: 50, quadratic: false, minBalance: '0', asset: `0x${'11'.repeat(20)}`, hatIds: ['1'] },
         ];
         default: return input.default ?? '1';
       }
@@ -600,37 +600,11 @@ describe('a template can sharpen its own title', () => {
 // The picker's value is the SUBGRAPH id, `{taskManagerAddress}-{n}`. `pid` is a bytes32, so
 // handing that string to ethers threw INVALID_ARGUMENT at submit — the template could be
 // configured, reviewed and then never actually proposed.
-describe('set-project-permissions encodes a real project id', () => {
+it('retired saved project-permission drafts carry no executable encoder', () => {
   const template = getTemplateById('set-project-permissions');
-  const TM = `0x${'cc'.repeat(20)}`;
-  const ROLE = '1';
-
-  const encodeWith = (values) => {
-    const fn = RAW_FUNCTIONS[template.contract].find(f => f.name === template.functionName);
-    const iface = new utils.Interface([fn.signature]);
-    return iface.encodeFunctionData(template.functionName, template.encode(values));
-  };
-
-  it('accepts the composite subgraph id the project picker supplies', () => {
-    const data = encodeWith({ project: `${TM}-5`, role: ROLE, permissions: [1, 2] });
-    const [pid, hatId, mask] = utils.defaultAbiCoder.decode(
-      ['bytes32', 'uint256', 'uint8'], `0x${data.slice(10)}`,
-    );
-    expect(pid).toBe(`0x${'0'.repeat(62)}05`);
-    expect(hatId.toString()).toBe(ROLE);
-    expect(mask).toBe(3);
-  });
-
-  it('leaves an already-bytes32 id untouched', () => {
-    const pid = `0x${'cd'.repeat(32)}`;
-    const data = encodeWith({ project: pid, role: ROLE, permissions: [4] });
-    expect(utils.defaultAbiCoder.decode(['bytes32', 'uint256', 'uint8'], `0x${data.slice(10)}`)[0])
-      .toBe(pid);
-  });
-
-  it('no longer throws on the value the picker actually produces', () => {
-    expect(() => encodeWith({ project: `${TM}-5`, role: ROLE, permissions: [1] })).not.toThrow();
-  });
+  expect(isTemplateAvailable(template, { authorityEnabled: true })).toBe(false);
+  expect(template.encode).toBeUndefined();
+  expect(template.buildBatch).toBeUndefined();
 });
 
 // ── access v2: edit-role-permissions ─────────────────────────────────────
@@ -965,7 +939,7 @@ describe('change-class-voters', () => {
     expect(line).not.toMatch(/0x|hat|class \d|addHatToClass/i);
 
     expect(template.preview(values({ classIdx: '1', action: 'Remove' }), ctx.roleNames))
-      .toBe('Stop members of “Treasurer” voting in binding votes as Contributors (weighted by shares).');
+      .toBe('Stop members of “Treasurer” voting in binding votes as Contributors (weighted by Shares).');
     // No role-name map (the deep-link path passes {}) still reads as a sentence.
     expect(template.preview(values(), {})).toContain('“this role”');
   });

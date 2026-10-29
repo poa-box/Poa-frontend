@@ -10,9 +10,6 @@ import {
   embeddedAuthority,
   localSeq,
   composeSubjectId,
-  predictNextSubjectId,
-  predictNextSubjectIds,
-  hasCompetingSubjectCreation,
 } from './ids';
 
 // A real Hats tophat id: uint256(1) << 224.
@@ -99,61 +96,5 @@ describe('composeSubjectId / embeddedAuthority / localSeq', () => {
 
   it('returns null authority for a legacy id', () => {
     expect(embeddedAuthority(CHILD_HAT)).toBeNull();
-  });
-});
-
-describe('predictNextSubjectIds', () => {
-  it('starts at seq 1 for an org with only ADOPTED legacy subjects', () => {
-    const subjects = [{ subjectId: TOPHAT }, { subjectId: CHILD_HAT }];
-    expect(predictNextSubjectId(AUTH, subjects)).toBe(composeSubjectId(AUTH, 1));
-  });
-
-  it('continues from the highest existing localSeq, not the subject COUNT', () => {
-    // 4 subjects, but only 2 of them consumed the localSeq counter — adopted ids never do.
-    const subjects = [
-      { subjectId: TOPHAT },
-      { subjectId: CHILD_HAT },
-      { subjectId: composeSubjectId(AUTH, 1) },
-      { subjectId: composeSubjectId(AUTH, 2) },
-    ];
-    expect(predictNextSubjectId(AUTH, subjects)).toBe(composeSubjectId(AUTH, 3));
-  });
-
-  it('ignores ids belonging to a different authority', () => {
-    const subjects = [
-      { subjectId: composeSubjectId(OTHER_AUTH, 50) },
-      { subjectId: composeSubjectId(AUTH, 2) },
-    ];
-    expect(predictNextSubjectId(AUTH, subjects)).toBe(composeSubjectId(AUTH, 3));
-  });
-
-  it('predicts a run of ids in allocation order for a multi-subject batch', () => {
-    const subjects = [{ subjectId: composeSubjectId(AUTH, 5) }];
-    expect(predictNextSubjectIds(AUTH, subjects, 3)).toEqual([
-      composeSubjectId(AUTH, 6),
-      composeSubjectId(AUTH, 7),
-      composeSubjectId(AUTH, 8),
-    ]);
-  });
-
-  it('accepts bare id strings as well as row objects', () => {
-    expect(predictNextSubjectId(AUTH, [composeSubjectId(AUTH, 9)])).toBe(composeSubjectId(AUTH, 10));
-  });
-
-  it('handles an empty org', () => {
-    expect(predictNextSubjectId(AUTH, [])).toBe(composeSubjectId(AUTH, 1));
-  });
-});
-
-describe('hasCompetingSubjectCreation', () => {
-  it('flags an unexecuted proposal that would allocate an id (the prediction race)', () => {
-    expect(hasCompetingSubjectCreation([{ createsSubject: true, executed: false }])).toBe(true);
-  });
-
-  it('ignores executed or expired ones, and proposals that create nothing', () => {
-    expect(hasCompetingSubjectCreation([{ createsSubject: true, executed: true }])).toBe(false);
-    expect(hasCompetingSubjectCreation([{ createsSubject: true, expired: true }])).toBe(false);
-    expect(hasCompetingSubjectCreation([{ createsSubject: false, executed: false }])).toBe(false);
-    expect(hasCompetingSubjectCreation([])).toBe(false);
   });
 });

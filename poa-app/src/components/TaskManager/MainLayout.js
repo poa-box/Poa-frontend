@@ -23,6 +23,8 @@ import { useProjectContext } from '@/context/ProjectContext';
 import { resolveTokenLabel } from '@/util/tokenLabel';
 import { useOrgName } from '@/hooks/useOrgName';
 import { useRouter } from 'next/router';
+import { buildProjectMetadata, serializeProjectMetadata } from '@poa-box/core/metadata/task';
+import { assertTaskHostScope } from '@/lib/tasks/hostScope';
 import { SimpleGrid, Avatar } from '@chakra-ui/react';
 import { TimeIcon } from '@chakra-ui/icons';
 import { useTour } from '@/features/tour/TourContext';
@@ -179,11 +181,15 @@ const MainLayout = () => {
     setSelectedProject,
     handleUpdateColumns,
   } = useDataBaseContext();
-  const { projectsData } = useProjectContext();
+  const { projectsData, assertProjectCreator } = useProjectContext();
 
-  const { accountAddress: account } = useAuth();
+  const { accountAddress: account, isAuthHydrated } = useAuth();
   const { task: taskService, executeWithNotification, isReady, getNotReadyMessage } = useWeb3();
-  const { taskManagerContractAddress, roleHatIds, roleNames, creatorHatIds, useTokenSymbol, participationTokenSymbol } = usePOContext();
+  const { orgId, orgChainId, subgraphUrl, taskManagerContractAddress, roleHatIds, roleNames, creatorHatIds, useTokenSymbol, participationTokenSymbol } = usePOContext();
+  const creationScope = { orgId, chainId: orgChainId, endpoint: subgraphUrl, contract: taskManagerContractAddress,
+    account, hydrated: isAuthHydrated };
+  const creationScopeRef = useRef(creationScope);
+  creationScopeRef.current = creationScope;
   // The tour's example board is a new member's first impression — it should teach
   // them this org's word for its shares, not the protocol's ticker.
   const tokenLabel = resolveTokenLabel({ useTokenSymbol, symbol: participationTokenSymbol });
@@ -299,26 +305,17 @@ const MainLayout = () => {
   const handleCreateProject = useCallback(async (projectData) => {
     if (!taskService || !isReady) throw new Error(getNotReadyMessage());
 
+    assertProjectCreator();
+
     // Handle both simple string (for backwards compat) and full object
     const isSimpleCreate = typeof projectData === 'string';
     const projectName = isSimpleCreate ? projectData : projectData.name;
-
-    // Upload description to IPFS if provided
-    let metadataHash = '';
-    if (!isSimpleCreate && projectData.description && addToIpfs) {
-      try {
-        const result = await addToIpfs(JSON.stringify({ description: projectData.description }));
-        metadataHash = result.path;
-      } catch (error) {
-        console.warn('Failed to upload project metadata to IPFS:', error);
-      }
-    }
 
     // New projects inherit current authority permissions. Never refill the retired
     // role arrays from a legacy list; explicit old inputs are rejected by TaskService.
     const createProjectData = {
       name: projectName,
-      metadataHash,
+      metadataHash: '',
       cap: isSimpleCreate ? 0 : (projectData.cap || 0),
       managers: isSimpleCreate ? [] : (projectData.managers || []),
       createHats: isSimpleCreate ? [] : (projectData.createHats || []),
@@ -328,16 +325,30 @@ const MainLayout = () => {
       bountyTokens: isSimpleCreate ? [] : (projectData.bountyTokens || []),
       bountyCaps: isSimpleCreate ? [] : (projectData.bountyCaps || []),
     };
+    const captured = { ...creationScopeRef.current };
+    const assertCurrent = () => { assertTaskHostScope(creationScopeRef.current, captured); assertProjectCreator(); };
+    assertCurrent();
+    taskService.prepareCreateProject(taskManagerContractAddress, createProjectData);
+    if (!isSimpleCreate && projectData.description) {
+      if (!addToIpfs) throw new Error('Project details are still loading. Please try again.');
+      try {
+        const result = await addToIpfs(serializeProjectMetadata(buildProjectMetadata(projectData.description)));
+        assertCurrent();
+        createProjectData.metadataHash = result.path;
+      } catch {
+        throw new Error('Project details could not be saved. Please try again.');
+      }
+    }
 
     return executeWithNotification(
-      () => taskService.createProject(taskManagerContractAddress, createProjectData),
+      () => taskService.createProject(taskManagerContractAddress, createProjectData, { assertCurrent }),
       {
         pendingMessage: 'Creating project...',
         successMessage: 'Project created successfully!',
         refreshEvent: 'project:created',
       }
     );
-  }, [taskService, isReady, getNotReadyMessage, executeWithNotification, taskManagerContractAddress, addToIpfs]);
+  }, [taskService, isReady, getNotReadyMessage, executeWithNotification, taskManagerContractAddress, addToIpfs, assertProjectCreator]);
 
   // Toggle sidebar visibility
   const toggleSidebar = () => {

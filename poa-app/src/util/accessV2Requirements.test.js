@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { gql } from '@apollo/client';
 import { print } from 'graphql';
 import { deriveRequirements, TYPE_OF_FIELD } from './accessV2Requirements';
-import { ACCESS_V2_REQUIREMENTS, CAPABILITY } from './subgraphCapabilities';
+import { ACCESS_V2_REQUIREMENTS, CAPABILITY, satisfies } from './subgraphCapabilities';
 import * as accessV2 from './queriesAccessV2';
 
 const documents = Object.values(accessV2).filter((d) => d && d.kind === 'Document');
@@ -44,7 +44,7 @@ describe('the ACCESS_V2 requirement list is generated from the documents', () =>
     // entity types — so this cannot pass just because the walker agrees with itself.
     const probed = new Set(ACCESS_V2_REQUIREMENTS.map((r) => r.field));
     const roots = new Set(Object.keys(TYPE_OF_FIELD).filter((k) => [
-      'organization', 'membershipAuthorityContract', 'subjectMemberships', 'pendingActions',
+      '_meta', 'organization', 'membershipAuthorityContract', 'subjectMemberships', 'pendingActions',
       'subjectVouchRecords', 'subjectMembershipEvents', 'configLintEvents',
     ].includes(k)));
 
@@ -67,6 +67,33 @@ describe('the ACCESS_V2 requirement list is generated from the documents', () =>
 });
 
 describe('deriveRequirements', () => {
+  it('requires the canonical metadata block shape, including each requested scalar', () => {
+    const requirements = deriveRequirements([gql`query X {
+      _meta { block { number hash timestamp } hasIndexingErrors }
+    }`]);
+    expect(requirements).toEqual([
+      { type: '_Meta_', field: 'block' },
+      { type: '_Block_', field: 'number' },
+      { type: '_Block_', field: 'hash' },
+      { type: '_Block_', field: 'timestamp' },
+      { type: '_Meta_', field: 'hasIndexingErrors' },
+    ]);
+    const schema = new Map([
+      ['_Meta_', new Set(['block', 'hasIndexingErrors'])],
+      ['_Block_', new Set(['number', 'hash', 'timestamp'])],
+    ]);
+    expect(satisfies(schema, requirements)).toBe(true);
+    schema.get('_Block_').delete('timestamp');
+    expect(satisfies(schema, requirements)).toBe(false);
+  });
+
+  it('still rejects unknown application selections beside recognized metadata', () => {
+    const doc = gql`query X { _meta { block { number hash } } organization(id: "x") { futureRules { id } } }`;
+    expect(() => deriveRequirements([doc])).toThrow(/futureRules/);
+    const scalar = deriveRequirements([gql`query X { organization(id: "x") { futureRule } }`]);
+    expect(satisfies(new Map([['Organization', new Set(['id'])]]), scalar)).toBe(false);
+  });
+
   it('walks nested selections and attributes each field to its own entity', () => {
     const doc = gql`
       query X($a: ID!) {

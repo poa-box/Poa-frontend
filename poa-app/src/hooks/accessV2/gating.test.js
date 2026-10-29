@@ -75,17 +75,19 @@ describe('v2 hooks invalidate their indexed view models after writes', () => {
   const sourceOf = (file) => sources.find((s) => s.file === file)?.src || '';
 
   it('refreshes the shared subject source after a proposal creates or edits a role/group', () => {
-    const src = sourceOf('useAuthoritySubjects.js');
+    expect(sourceOf('useAuthoritySubjects.js')).toContain('useAuthorityEvidence');
+    const src = sourceOf('useAuthorityEvidence.js');
     expect(src).toContain('useRefreshSubscription');
     expect(src).toContain('RefreshEvent.PROPOSAL_COMPLETED');
-    expect(src).toMatch(/PROPOSAL_COMPLETED[\s\S]*refetch/);
+    expect(src).toMatch(/PROPOSAL_COMPLETED[\s\S]*refresh/);
   });
 
   it('refreshes org-wide and per-user membership projections after access-v2 writes', () => {
-    const src = sourceOf('useAuthorityMemberships.js');
+    expect(sourceOf('useAuthorityMemberships.js')).toContain('useAuthorityEvidence');
+    const src = sourceOf('useAuthorityEvidence.js');
     expect(src).toContain('RefreshEvent.ROLE_CLAIMED');
     expect(src).toContain('RefreshEvent.ROLE_RENOUNCED');
     expect(src).toContain('RefreshEvent.MEMBERSHIP_CHANGED');
-    expect(src.match(/useRefreshSubscription\(/g)).toHaveLength(2);
+    expect(src.match(/useRefreshSubscription\(/g)).toHaveLength(1);
   });
 });

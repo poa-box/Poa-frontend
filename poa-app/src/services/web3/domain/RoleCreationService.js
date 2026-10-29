@@ -1,58 +1,63 @@
 /** Read-only preflights for proposal configuration, always on the org's chain. */
-import { utils, constants } from 'ethers';
-
-const PAYMASTER_ABI = [
-  'function setBudget(bytes32 orgId, bytes32 subjectKey, uint128 capPerEpoch, uint32 epochLen)',
-  'function getOrgConfig(bytes32 orgId) view returns (tuple(uint256 adminHatId,uint256 operatorHatId,bool paused,uint40 registeredAt,bool bannedFromSolidarity))',
-  'function getBudget(bytes32 orgId,bytes32 key) view returns (tuple(uint128 capPerEpoch,uint128 usedInEpoch,uint32 epochLen,uint32 epochStart))',
-];
-const REGISTRY_ABI = [
-  'function metadataAdminHatOf(bytes32 orgId) view returns (uint256)',
-];
-const AUTHORIZATION_ERRORS = new Set([
-  utils.id('NotOperator()').slice(0, 10), utils.id('NotAdmin()').slice(0, 10),
-]);
-
+import { providers } from 'ethers';
+import { ContractFactory } from '@/services/web3/core/ContractFactory';
+import { getAbi } from '@poa-box/core/contracts';
 export class RoleCreationService {
   constructor(readFactory) { this.readFactory = readFactory; }
 
-  async getMetadataAdmin(orgRegistry, orgId) {
-    const registry = this.readFactory.createReadOnly(orgRegistry, REGISTRY_ABI);
-    return String(await registry.metadataAdminHatOf(orgId));
+  async getProposalPowerEvidence(input) {
+    const { observeProposalPower } = await import('@/lib/voting/observeProposalPower');
+    return observeProposalPower({ ...input, readFactory: this.readFactory });
   }
 
-  async getSponsorshipConfig({ paymasterHub, executor, orgId, zkEmailAddress }) {
-    if (!paymasterHub || !executor || !orgId) {
-      return { ready: true, canConfigure: false, error: 'Gas sponsorship is not configured for this org.' };
-    }
-    const hub = this.readFactory.createReadOnly(paymasterHub, PAYMASTER_ABI);
-    const org = await hub.getOrgConfig(orgId);
-    if (String(org.adminHatId ?? org[0]) === '0') {
-      return { ready: true, canConfigure: false, error: 'This org has not registered for gas sponsorship.' };
-    }
-    try {
-      // eth_call only: exercise the live operator gate as the batch's actual sender. Authority
-      // migration changes how the admin subject resolves, so an indexed role label is not proof.
-      await hub.callStatic.setBudget(orgId, constants.HashZero, '1', 3600, { from: executor });
-      let claimBudget = null;
-      if (zkEmailAddress) {
-        const key = utils.solidityKeccak256(['uint8', 'bytes32'], [5, utils.hexZeroPad(zkEmailAddress, 32)]);
-        const budget = await hub.getBudget(orgId, key);
-        claimBudget = { capWei: String(budget.capPerEpoch ?? budget[0]), epochSecs: Number(budget.epochLen ?? budget[2]) };
-      }
-      return {
-        ready: true, canConfigure: true, paused: Boolean(org.paused ?? org[2]), error: null,
-        claimBudget, claimBudgetMissing: claimBudget ? claimBudget.epochSecs === 0 : false,
-      };
-    } catch (error) {
-      const data = error?.error?.data?.data || error?.error?.data || error?.data;
-      if (AUTHORIZATION_ERRORS.has(typeof data === 'string' ? data.slice(0, 10) : '')) {
-        return {
-          ready: true, canConfigure: false,
-          error: 'This org’s gas sponsor is managed by an operator. A role-creation vote cannot change its budgets.',
-        };
-      }
-      throw error;
-    }
+  async getDDPowerEvidence(input) {
+    const { observeDDVotingEligibility } = await import('@/lib/voting/ddEligibility');
+    return observeDDVotingEligibility({ ...input, readFactory: this.readFactory });
   }
+
+  async getElectionPlanningEvidence(input) {
+    const { observeElection } = await import('@/lib/accessV2/electionObservation');
+    return observeElection({ ...input, readFactory: this.readFactory });
+  }
+
+  async roleOperations() {
+    const { createRoleOperationHost } = await import('@/lib/accessV2/roleOperationHost');
+    this.roleOperationHost ||= createRoleOperationHost(this.readFactory);
+    return this.roleOperationHost;
+  }
+
+  async getRolePlanningEvidence(input) { return (await this.roleOperations()).read(input); }
+  async reviewRoleOperation(input) { return (await this.roleOperations()).review(input); }
+  async prepareRoleOperation(input) { return (await this.roleOperations()).prepare(input); }
+  async revalidatePreparedRoleOperation(input) { return (await this.roleOperations()).revalidate(input); }
+
+  async getRoleContinuation(input) {
+    const { roleCreationReference, roleConfigurationReference } = await import('@/lib/accessV2/roleFormRequest');
+    return (await this.roleOperations()).status({ ...input, creation: roleCreationReference(input.creation),
+      ...(input.configuration ? { configuration: roleConfigurationReference(input.configuration) } : {}) });
+  }
+
+  async getElectionAcceptance(authorityAddress, requests) {
+    const authority = this.readFactory.createReadOnly(authorityAddress, getAbi('MembershipAuthority'));
+    const entries = await Promise.all(requests.map(async ({ subjectId, addresses }) => {
+      const unique = [...new Set(addresses.filter(Boolean).map(address => String(address).toLowerCase()))];
+      const statuses = await Promise.all(unique.map(async address => {
+        const status = await authority.getStatus(subjectId, address);
+        const accepted = status?.accepted ?? status?.[0];
+        if (typeof accepted !== 'boolean') throw new Error('Current role acceptance is unavailable.');
+        return [address, accepted];
+      }));
+      return [String(subjectId), Object.fromEntries(statuses)];
+    }));
+    return Object.fromEntries(entries);
+  }
+
+}
+
+/** Submission-only compatibility preflight. Never runs in a page's read/render path. */
+export async function readElectionAcceptance({ authority, rpcUrl, chainId, networkName, requests, readFactory }) {
+  const factory = readFactory || new ContractFactory(null, new providers.JsonRpcProvider(
+    rpcUrl, { chainId, name: networkName || `chain-${chainId}` },
+  ));
+  return new RoleCreationService(factory).getElectionAcceptance(authority, requests);
 }

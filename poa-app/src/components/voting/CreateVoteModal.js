@@ -1,4 +1,7 @@
+import { ACTION_REASON } from '@poa-box/core/authority/lifecycle';
 import React, { useMemo, useState, useCallback, useEffect } from "react";
+import { useElectionPlanning } from '@/hooks/accessV2/useElectionPlanning';
+import { electionPlanningFingerprint } from '@poa-box/core/governance/elections';
 import { useTour } from "@/features/tour";
 import {
   Modal,
@@ -39,7 +42,6 @@ import { InfoOutlineIcon, AddIcon, CloseIcon } from "@chakra-ui/icons";
 import SubjectRestrictionPicker from '@/components/accessV2/SubjectRestrictionPicker';
 import { useRoleNames } from '@/hooks/useRoleNames';
 import { subjectNamesLabel } from "@/lib/accessV2/subjectNames";
-import { hasCompetingSubjectCreation } from "@/lib/accessV2/ids";
 import { usePOContext } from "@/context/POContext";
 import { useProjectContext } from "@/context/ProjectContext";
 import { getNetworkByChainId } from "../../config/networks";
@@ -60,7 +62,7 @@ import SetterActionSelector from "./SetterActionSelector";
 import ElectionConfigurator from "./ElectionConfigurator";
 import RoleConfigurator, { parseAutoTitle as parseRoleAutoTitle } from "./RoleConfigurator";
 import RoleForm from "@/components/accessV2/RoleForm";
-import { ROLE_FORM_KIND, resolveRoleForm, roleConfigToRoleForm, roleFormCopy } from "@/lib/accessV2/roleFormBatch";
+import { ROLE_FORM_KIND, roleOptionNames, resolveRoleForm, roleConfigToRoleForm, roleFormCopy } from "@/lib/accessV2/roleFormBatch";
 import RoleRemovalConfigurator from "./RoleRemovalConfigurator";
 import { inputStyles } from '@/components/shared/glassStyles';
 import IntentGallery, { INTENT_OPTIONS } from "./create/IntentGallery";
@@ -212,6 +214,7 @@ const CreateVoteModal = ({
     return stable ? 2 : 4;
   }, [proposal.transferToken, orgNetwork]);
   const fmtPot = useCallback((wei) => {
+    if (wei == null) return '—';
     const s = formatTokenAmount(wei, transferDecimals, potPrecision);
     return s === '0' ? `0.${'0'.repeat(potPrecision)}` : s;
   }, [transferDecimals, potPrecision]);
@@ -221,25 +224,25 @@ const CreateVoteModal = ({
   // why). Read them live for the selected asset, work out which one can cover
   // the amount, and write the answer into the form so submit encodes exactly
   // what this screen showed.
-  const pots = useOrgPotBalances({ token: proposal.transferToken || '', enabled: isOpen && isTransfer });
+  const pots = useOrgPotBalances({ token: proposal.transferToken || '', decimals: transferDecimals, enabled: isOpen && isTransfer });
   const pmAvailability = useMemo(() => paymentManagerAvailability({
-    balance: pots.paymentManager,
-    distributions: pots.distributions,
-    token: proposal.transferToken || '',
-  }), [pots.paymentManager, pots.distributions, proposal.transferToken]);
+    evidence: pots.planningEvidence,
+  }), [pots.planningEvidence]);
   const transferAmountWei = useMemo(
     () => amountToWei(proposal.transferAmount, transferDecimals),
     [proposal.transferAmount, transferDecimals],
   );
   const sourceResolution = useMemo(() => resolveTransferSource({
     amountWei: transferAmountWei ?? 0n,
-    executorBalance: pots.executor,
+    evidence: pots.planningEvidence,
+    recipient: /^0x[0-9a-fA-F]{40}$/.test(proposal.transferAddress || '') ? proposal.transferAddress : undefined,
     paymentManager: pmAvailability,
-  }), [transferAmountWei, pots.executor, pmAvailability]);
+  }), [transferAmountWei, pots.planningEvidence, proposal.transferAddress, pmAvailability]);
   // A single pot must cover the whole amount (the batch never splits a payout).
   const transferAvailableWei = useMemo(() => {
-    const exec = BigInt(pots.executor || '0');
-    const pm = BigInt(pmAvailability.spendableAfterRelease || '0');
+    if (pots.executor == null || pmAvailability.spendableAfterRelease == null) return null;
+    const exec = BigInt(pots.executor);
+    const pm = BigInt(pmAvailability.spendableAfterRelease);
     return (exec > pm ? exec : pm).toString();
   }, [pots.executor, pmAvailability.spendableAfterRelease]);
   const potsSettled = !pots.loading && !pots.error;
@@ -336,6 +339,44 @@ const CreateVoteModal = ({
   // so useProposalForm's empty-type branches (buildProposalData's trailing else,
   // the validator switchboard, VotingPage's DD-vs-hybrid routing) stay dead.
   const [step, setStep] = useState(STEP_INTENT);
+  const electionLike = proposal.type === 'election' || proposal.type === 'removeRoleMembers';
+  const planningSubject = proposal.type === 'election' ? proposal.electionRoleId : proposal.roleRemovalConfig?.subjectId;
+  const governancePlanning = useElectionPlanning({ enabled: isOpen && accessV2Enabled && electionLike,
+    subjectId: planningSubject,
+    fallbackSubjectId: proposal.type === 'election' ? proposal.electionFallbackRoleId : undefined,
+    candidates: proposal.type === 'election' ? (proposal.electionCandidates || []).map(row => row.address) : [],
+  });
+  const selectedRemovals = useMemo(() => proposal.type === 'election' ? proposal.electionSelectedIncumbents || [] : proposal.roleRemovalConfig?.members || [],
+    [proposal.type, proposal.electionSelectedIncumbents, proposal.roleRemovalConfig?.members]);
+  const bansConfirmed = proposal.type === 'election' ? proposal.electionConfirmBans === true : proposal.roleRemovalConfig?.confirmBans === true;
+  const choiceKey = JSON.stringify([proposal.type, planningSubject, selectedRemovals, bansConfirmed,
+    proposal.electionCandidates, proposal.electionFallbackRoleId, proposal.electionIncludeNoOneOption]);
+  const [reviewedGovernance, setReviewedGovernance] = useState(null);
+  useEffect(() => {
+    if (step !== STEP_REVIEW || !electionLike) { setReviewedGovernance(null); return; }
+    if (!governancePlanning.evidence) return;
+    setReviewedGovernance(previous => previous?.choiceKey === choiceKey ? previous : {
+      choiceKey, evidence: { ...governancePlanning.evidence,
+        expectedFingerprint: electionPlanningFingerprint(governancePlanning.evidence.context.data, governancePlanning.evidence.preflights.data),
+        confirmedBans: bansConfirmed ? selectedRemovals.filter(row => row.ban).map(row => ({
+          subjectId: planningSubject, account: row.address, reason: row.expectedReason, sourceSet: row.expectedSourceSet,
+        })) : [] },
+    });
+  }, [step, electionLike, governancePlanning.evidence, choiceKey, bansConfirmed, selectedRemovals, planningSubject]);
+  const governanceError = !electionLike ? null : governancePlanning.loading ? 'Checking the current role choices…'
+    : governancePlanning.error ? governancePlanning.error.message : !governancePlanning.evidence ? 'Current role choices could not be verified.'
+      : selectedRemovals.some(row => {
+        const check = governancePlanning.evidence.preflights.data.find(check => check.account.toLowerCase() === row.address.toLowerCase());
+        return !check || check.reason !== row.expectedReason || check.sourceSet !== row.expectedSourceSet || row.ban !== (check.reason === ACTION_REASON.RemovalIneffective);
+      }) ? 'The selected role choices changed. Select the current people again and review the result.'
+      : reviewedGovernance?.choiceKey === choiceKey && reviewedGovernance.evidence.expectedFingerprint !==
+        electionPlanningFingerprint(governancePlanning.evidence.context.data, governancePlanning.evidence.preflights.data)
+        ? 'The role settings changed. Return to the choices and review them again.'
+      : selectedRemovals.some(row => row.expectedReason === undefined || row.expectedSourceSet === undefined)
+        ? 'Review the selected people against the current role. Select them again if needed.'
+        : selectedRemovals.some(row => row.ban) && !bansConfirmed ? 'Confirm the blocks that prevent the selected people from reclaiming this role.' : null;
+
+
 
   const steps = useMemo(() => stepsForType(proposal.type), [proposal.type]);
   const stepIndex = steps.indexOf(step);
@@ -417,9 +458,9 @@ const CreateVoteModal = ({
       // The v2 form can be making a GROUP — the ballot has to name what it actually creates.
       // The same resolution the encoder uses, so the review can never say “group” to a ballot
       // that creates a role.
-      return accessV2Enabled && resolveRoleForm(proposal).kind === ROLE_FORM_KIND.GROUP
-        ? ['Create group', 'Reject']
-        : ['Create role', 'Reject'];
+      const roleForm = resolveRoleForm(proposal);
+      return roleOptionNames({ kind: accessV2Enabled ? roleForm.kind : ROLE_FORM_KIND.ROLE,
+        stage: accessV2Enabled && roleForm.continuationId ? 'existing' : 'create' });
     }
     if (proposal.type === 'removeRoleMembers') return ['Remove from role', 'Keep current members'];
     if (proposal.type === 'election') {
@@ -428,13 +469,7 @@ const CreateVoteModal = ({
     }
     // normal + transferFunds already derive correctly inside BallotReview.
     return undefined;
-  }, [
-    proposal.type,
-    proposal.electionCandidates,
-    proposal.electionIncludeNoOneOption,
-    proposal.roleFormV2?.kind,
-    accessV2Enabled,
-  ]);
+  }, [proposal, accessV2Enabled]);
   const roleRemovalOutcome = useMemo(() => {
     if (proposal.type !== 'removeRoleMembers') return null;
     const config = proposal.roleRemovalConfig || defaultRoleRemovalConfig;
@@ -544,15 +579,6 @@ const CreateVoteModal = ({
     };
   }, [accessV2Enabled, accessV2?.memberships, leaderboardData]);
 
-  // The id-prediction race, v2 flavour: ANY open proposal that creates a role or a group shifts
-  // the next subject id — not just one under the same parent, because there are no parents.
-  const v2SubjectRaceWarning = useMemo(() => (
-    accessV2Enabled && hasCompetingSubjectCreation(ongoingProposals || [])
-      ? 'Another open proposal creates a role or group. If it passes first, this role’s '
-        + 'permissions and members would land on the wrong role — finish or close that one first.'
-      : ''
-  ), [accessV2Enabled, ongoingProposals]);
-
   /**
    * Everything RoleForm needs to describe the org back to the member, and everything the encoder
    * needs to predict the new subject's id. The SAME facts /team's modal assembles — this is one
@@ -623,7 +649,7 @@ const CreateVoteModal = ({
           // Over the cap: said right under the field, in red, the moment it is
           // typed — a disabled Next with a hover-only tooltip is no feedback on
           // a money screen. Only on a SETTLED balance read.
-          potsSettled && transferAmountWei !== null && transferAmountWei > BigInt(transferAvailableWei || '0')
+          potsSettled && transferAvailableWei !== null && transferAmountWei !== null && transferAmountWei > BigInt(transferAvailableWei)
         ) {
           errors.transferAmount = overLimitMessage;
         }
@@ -672,7 +698,7 @@ const CreateVoteModal = ({
     () => ({ ...(transferCtx || {}), accessV2: { enabled: accessV2Enabled } }),
     [transferCtx, accessV2Enabled],
   );
-  const configError = useMemo(() => computeConfigError(proposal, checkCtx), [proposal, checkCtx]);
+  const configError = useMemo(() => governanceError || computeConfigError(proposal, checkCtx), [governanceError, proposal, checkCtx]);
 
   // Only complain about something the member can actually see. A blank title on
   // the details step must not disable Next on the config step, and the
@@ -707,7 +733,7 @@ const CreateVoteModal = ({
     || (BINDING_TYPES.has(proposal.type) ? canCreateProposal : canCreatePoll);
 
   // Gates leaving the current step (and, on the last step, submitting).
-  const canSubmit = !firstError && !isTourStep && typeAllowed && !roleFormMidFlow && !roleFormBlocked;
+  const canSubmit = !firstError && (!electionLike || step !== STEP_REVIEW || reviewedGovernance?.choiceKey === choiceKey) && !isTourStep && typeAllowed && !roleFormMidFlow && !roleFormBlocked;
 
   const whoCanVoteLabel = useMemo(() => {
     // A payout is binding (Blended voting) but can still be restricted to roles,
@@ -761,6 +787,7 @@ const CreateVoteModal = ({
     ) {
       restored.roleFormV2 = roleConfigToRoleForm(restored.roleConfig);
     }
+    if (restored.type === 'election') restored.electionConfirmBans = false;
     if (restored.type === 'removeRoleMembers') {
       restored.roleRemovalConfig = {
         ...(restored.roleRemovalConfig || defaultRoleRemovalConfig),
@@ -792,14 +819,20 @@ const CreateVoteModal = ({
 
   // ---- Submit ----
   const doSubmit = useCallback(async () => {
-    const result = await handlePollCreated();
+    const transient = isTransfer ? { treasury: { planningEvidence: pots.planningEvidence,
+      refetch: pots.refetch, transferDecimals } } : {};
+    if (electionLike) transient.accessV2 = {
+      [proposal.type === 'election' ? 'electionPlanning' : 'removalPlanning']: reviewedGovernance?.evidence,
+      refreshGovernancePlanning: governancePlanning.refresh,
+    };
+    const result = await handlePollCreated(transient);
     if (result === true) {
       draft.clear();
       // Leave a clean gallery behind rather than a review screen over a form
       // that useProposalForm has already reset.
       setStep(STEP_INTENT);
     }
-  }, [handlePollCreated, draft]);
+  }, [handlePollCreated, draft, isTransfer, pots.planningEvidence, pots.refetch, transferDecimals, electionLike, proposal.type, reviewedGovernance, governancePlanning.refresh]);
 
   const handleFooterPrimary = useCallback(() => {
     if (isTourStep) return;
@@ -1057,7 +1090,8 @@ const CreateVoteModal = ({
                         allRoles={allRoles}
                         leaderboardData={leaderboardData}
                         resolveHolders={v2HolderResolver}
-                        holdersReady={accessV2Enabled ? v2HoldersReady : undefined}
+                        holdersReady={accessV2Enabled ? v2HoldersReady && !governancePlanning.loading : undefined}
+                        removalPreflights={governancePlanning.evidence?.preflights.data || []}
                       />
                     )}
 
@@ -1084,12 +1118,12 @@ const CreateVoteModal = ({
                         leaderboardData={leaderboardData}
                         activeCreateRoleProposals={activeCreateRoleProposals}
                         accessV2Enabled={accessV2Enabled}
-                        subjectRaceWarning={v2SubjectRaceWarning}
                       />
                     ))}
 
                     {proposal.type === "removeRoleMembers" && (
                       <RoleRemovalConfigurator
+                        planning={governancePlanning}
                         proposal={proposal}
                         onChange={handleSetterChange}
                       />

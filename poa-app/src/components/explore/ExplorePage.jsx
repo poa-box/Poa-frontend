@@ -18,6 +18,7 @@ import { useIPFScontext } from "@/context/ipfsContext";
 import { useProfileHubContext } from "@/context/profileHubContext";
 import { useTour } from "@/features/tour";
 import { useGlobalAccount } from "@/hooks/useGlobalAccount";
+import { getNetworkByChainId } from '@/config/networks';
 import { isHiddenOrg } from "@/util/hiddenOrgs";
 
 const AVATAR_COLORS = [
@@ -72,11 +73,11 @@ function OrgAvatar({ org }) {
 }
 
 function MemberCount({ count }) {
-  const members = Number(count) || 0;
+  const members = count == null ? null : Number(count);
   return (
     <HStack spacing={1.5} color="warmGray.600">
       <Icon as={FiUsers} boxSize="14px" aria-hidden="true" />
-      <Text fontSize="13px">{members.toLocaleString("en-US")} {members === 1 ? "member" : "members"}</Text>
+      <Text fontSize="13px">{members == null ? 'Members unavailable' : `${members.toLocaleString('en-US')} ${members === 1 ? 'member' : 'members'}`}</Text>
     </HStack>
   );
 }
@@ -175,10 +176,10 @@ function OrgSkeleton() {
 
 export default function ExplorePage() {
   const router = useRouter();
-  const { perpetualOrganizations, isLoading: isOrgsLoading } = useProfileHubContext();
+  const { perpetualOrganizations, isLoading: isOrgsLoading, isComplete, unavailableChains = [], refetch } = useProfileHubContext();
   const { isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
-  const { hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
+  const { hasAccount, isLoading: isAccountLoading, isUnavailable: isAccountUnavailable, refetchAccount } = useGlobalAccount();
   const { isPasskeyUser, isAuthenticated, isAuthHydrated } = useAuth();
   const { startTour } = useTour();
   const [searchTerm, setSearchTerm] = useState("");
@@ -195,6 +196,7 @@ export default function ExplorePage() {
     if (mounted && isPasskeyUser) return { text: "My Account", onClick: () => router.push("/account") };
     if (!isConnected) return { text: "Connect Wallet", onClick: openConnectModal };
     if (isAccountLoading) return { text: "Loading...", onClick: () => {} };
+    if (isAccountUnavailable && !hasAccount) return { text: "Retry Account", onClick: refetchAccount };
     if (hasAccount) return { text: "My Account", onClick: () => router.push("/account") };
     return { text: "Sign Up", onClick: () => {} };
   };
@@ -252,7 +254,7 @@ export default function ExplorePage() {
               <HStack spacing={2.5}>
                 <Heading as="h2" id="organizations-heading" fontSize="15px" fontWeight="600">Organizations</Heading>
                 <Text role="status" fontFamily="mono" fontSize="12px" color="warmGray.600">
-                  {isOrgsLoading ? "Loading…" : query ? `${filteredOrganizations.length} of ${organizations.length}` : organizations.length}
+                  {isOrgsLoading ? "Loading…" : isComplete ? (query ? `${filteredOrganizations.length} of ${organizations.length}` : organizations.length) : `${filteredOrganizations.length} available`}
                 </Text>
               </HStack>
               <InputGroup w={{ base: "100%", md: "320px" }}>
@@ -279,7 +281,15 @@ export default function ExplorePage() {
               </InputGroup>
             </Flex>
 
-            {isOrgsLoading ? (
+            {!isComplete && (!isOrgsLoading || organizations.length > 0) && (
+              <HStack mb={6} spacing={3} role="status">
+                <Text fontSize="14px" color="warmGray.600">
+                  Some organizations are unavailable{unavailableChains.length > 0 ? ` on ${unavailableChains.map(id => getNetworkByChainId(id)?.name || `network ${id}`).join(', ')}` : ''}. Known organizations remain available.
+                </Text>
+                <Button size="sm" variant="outline" onClick={refetch} isLoading={isOrgsLoading}>Try again</Button>
+              </HStack>
+            )}
+            {isOrgsLoading && organizations.length === 0 ? (
               <SimpleGrid columns={{ base: 1, md: 2 }} spacing={4}>
                 {Array.from({ length: 6 }, (_, index) => <OrgSkeleton key={index} />)}
               </SimpleGrid>
@@ -295,10 +305,10 @@ export default function ExplorePage() {
                   <Icon as={FiSearch} boxSize={5} aria-hidden="true" />
                 </Flex>
                 <Heading as="h3" fontSize="20px" fontWeight="600" mb={2}>
-                  {query ? "No matches yet" : "No organizations yet"}
+                  {!isComplete ? "Organizations unavailable" : query ? "No matches yet" : "No organizations yet"}
                 </Heading>
                 <Text fontSize="14px" color="warmGray.600" mb={5}>
-                  {query ? "Try another name or keyword." : "Check back soon."}
+                  {!isComplete ? "Try again to load the remaining organizations." : query ? "Try another name or keyword." : "Check back soon."}
                 </Text>
                 {query && <Button variant="outline" size="sm" onClick={clearSearch}>Clear search</Button>}
               </Flex>

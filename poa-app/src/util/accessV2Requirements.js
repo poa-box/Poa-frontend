@@ -24,6 +24,8 @@
  */
 export const TYPE_OF_FIELD = {
   // roots
+  // Canonical core documents select indexed block evidence alongside application rows.
+  _meta: '_Meta_',
   organization: 'Organization',
   membershipAuthorityContract: 'MembershipAuthorityContract',
   subjectMemberships: 'SubjectMembership',
@@ -32,6 +34,7 @@ export const TYPE_OF_FIELD = {
   subjectMembershipEvents: 'SubjectMembershipEvent',
   configLintEvents: 'ConfigLintEvent',
   // nested
+  block: '_Block_',
   membershipAuthority: 'MembershipAuthorityContract',
   authority: 'MembershipAuthorityContract',
   subjects: 'Subject',

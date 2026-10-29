@@ -10,25 +10,9 @@
  * This module encodes the remaining 78 bytes (version through mailboxCommit).
  */
 
-import { concat, toHex, pad } from 'viem';
+import { encodeSponsorshipPayload, SUBJECT_TYPE, ZERO_SUBJECT } from '@poa-box/core/sponsorship/codec';
 
-/** Paymaster data version */
-const PAYMASTER_VERSION = 0x01;
-
-/** Default rule ID (0 = no specific rule) */
-const DEFAULT_RULE_ID = 0;
-
-/** Default mailbox commit (0 = not used) */
-const DEFAULT_MAILBOX_COMMIT = 0n;
-
-/** Subject types matching PaymasterHub contract */
-export const SubjectType = {
-  ACCOUNT: 0x00,
-  HAT: 0x01,
-  ONBOARDING: 0x03,
-  ORG_DEPLOY: 0x04,
-  CLAIM: 0x05,
-};
+export const SubjectType = SUBJECT_TYPE;
 
 /**
  * Encode paymaster data (everything after the paymaster address).
@@ -43,23 +27,15 @@ export const SubjectType = {
  * @param {bigint} [params.mailboxCommit=0n] - Mailbox commit (uint64)
  * @returns {string} Hex-encoded paymaster data (78 bytes)
  */
-export function encodePaymasterData({ subjectType, subjectId, orgId, ruleId = DEFAULT_RULE_ID, mailboxCommit = DEFAULT_MAILBOX_COMMIT }) {
-  const versionByte = toHex(PAYMASTER_VERSION, { size: 1 });
-  const orgIdPadded = pad(orgId, { size: 32 });
-  const subjectTypeByte = toHex(subjectType, { size: 1 });
-  const subjectIdPadded = pad(subjectId, { size: 32 });
-  const ruleIdBytes = toHex(ruleId, { size: 4 });
-  const mailboxCommitBytes = toHex(mailboxCommit, { size: 8 });
-
-  return concat([versionByte, orgIdPadded, subjectTypeByte, subjectIdPadded, ruleIdBytes, mailboxCommitBytes]);
+export function encodePaymasterData(params) {
+  return encodeSponsorshipPayload(params);
 }
 
 /**
  * Encode paymaster data for org-based onboarding (account creation within an org).
  * Uses SubjectType.HAT (0x01) so the budget is checked against the hat's shared
- * budget (set by OrgDeployer) rather than a per-account budget (which doesn't exist
- * for new accounts). The EligibilityModule's isEligible returns true for vouched
- * accounts and for direct-join members via default rules.
+ * budget rather than a per-account budget. Current eligibility is resolved by
+ * MembershipAuthority.
  *
  * @param {string} hatId - The hat ID (uint256 hex) the user will claim/wear
  * @param {string} orgId - bytes32 org ID hex string
@@ -67,7 +43,7 @@ export function encodePaymasterData({ subjectType, subjectId, orgId, ruleId = DE
 export function encodeOnboardingPaymasterData({ hatId, orgId }) {
   return encodePaymasterData({
     subjectType: SubjectType.HAT,
-    subjectId: toHex(BigInt(hatId), { size: 32 }),
+    subjectId: hatId,
     orgId,
   });
 }
@@ -81,8 +57,8 @@ export function encodeOnboardingPaymasterData({ hatId, orgId }) {
 export function encodeSolidarityOnboardingPaymasterData() {
   return encodePaymasterData({
     subjectType: SubjectType.ONBOARDING,
-    subjectId: '0x0000000000000000000000000000000000000000000000000000000000000000',
-    orgId: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    subjectId: ZERO_SUBJECT,
+    orgId: ZERO_SUBJECT,
   });
 }
 
@@ -95,8 +71,8 @@ export function encodeSolidarityOnboardingPaymasterData() {
 export function encodeOrgDeployPaymasterData() {
   return encodePaymasterData({
     subjectType: SubjectType.ORG_DEPLOY,
-    subjectId: '0x0000000000000000000000000000000000000000000000000000000000000000',
-    orgId: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    subjectId: ZERO_SUBJECT,
+    orgId: ZERO_SUBJECT,
   });
 }
 
@@ -123,7 +99,7 @@ export function encodeAccountPaymasterData({ accountAddress, orgId }) {
 export function encodeHatPaymasterData({ hatId, orgId }) {
   return encodePaymasterData({
     subjectType: SubjectType.HAT,
-    subjectId: toHex(BigInt(hatId), { size: 32 }),
+    subjectId: hatId,
     orgId,
   });
 }

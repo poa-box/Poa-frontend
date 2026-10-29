@@ -256,8 +256,8 @@ describe('BINDING_TYPES', () => {
 
 describe('votingLaneForBatches', () => {
   it('sends anything that would execute a call to Blended (Hybrid) voting', () => {
-    expect(votingLaneForBatches([[{ target: '0x1', value: '0', data: '0x' }], []])).toBe('hybrid');
-    expect(votingLaneForBatches([[], [{ target: '0x1', value: '0', data: '0x' }]])).toBe('hybrid');
+    expect(votingLaneForBatches([[{ target: '0x1111111111111111111111111111111111111111', value: '0', data: '0x' }], []])).toBe('hybrid');
+    expect(votingLaneForBatches([[], [{ target: '0x1111111111111111111111111111111111111111', value: '0', data: '0x' }]])).toBe('hybrid');
   });
 
   it('sends a batch-less poll to DirectDemocracy', () => {

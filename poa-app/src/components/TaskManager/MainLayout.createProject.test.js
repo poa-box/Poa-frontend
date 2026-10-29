@@ -6,7 +6,7 @@ import { TaskService } from '@/services/web3/domain/TaskService';
 import { bytes32ToIpfsCid } from '@/services/web3/utils/encoding';
 import MainLayout from '@/components/TaskManager/MainLayout';
 
-const state = vi.hoisted(() => ({ modal: null, roles: ['123'], task: null, notify: null, upload: null, ready: true }));
+const state = vi.hoisted(() => ({ modal: null, roles: ['123'], task: null, notify: null, upload: null, ready: true, creator: true }));
 vi.mock('@chakra-ui/react', async () => {
   const chakra = (await import('@/test/mockChakra')).mockChakra();
   chakra.useDisclosure = () => ({ isOpen: true, onOpen() {}, onClose() {} });
@@ -36,7 +36,7 @@ vi.mock('@/context/ipfsContext', () => ({ useIPFScontext: () => ({ addToIpfs: st
 vi.mock('@/context/UserContext', () => ({ useUserContext: () => ({ userData: {} }) }));
 vi.mock('@/context/authState', () => ({ useAuth: () => ({ accountAddress: '0x' + 'a'.repeat(40) }) }));
 vi.mock('@/context/POContext', () => ({ usePOContext: () => ({ taskManagerContractAddress: '0x' + '1'.repeat(40), roleHatIds: state.roles, creatorHatIds: ['123'] }) }));
-vi.mock('@/context/ProjectContext', () => ({ useProjectContext: () => ({ projectsData: [] }) }));
+vi.mock('@/context/ProjectContext', () => ({ useProjectContext: () => ({ projectsData: [], assertProjectCreator: () => { if (!state.creator) throw new Error('Project permission unavailable'); } }) }));
 vi.mock('@/hooks/useWeb3Services', () => ({ useWeb3: () => ({
   task: state.task, executeWithNotification: state.notify, isReady: state.ready,
   getNotReadyMessage: () => 'Your account is still loading',
@@ -52,6 +52,7 @@ describe('MainLayout project submission through TaskService', () => {
   const hash = '0x' + '2'.repeat(64);
   beforeEach(() => {
     state.roles = ['123'];
+    state.creator = true;
     state.ready = true;
     state.modal = null;
     execute = vi.fn().mockResolvedValue({ success: true });
@@ -79,7 +80,7 @@ describe('MainLayout project submission through TaskService', () => {
     expect(contract.address).toBe('0x' + '1'.repeat(40));
     expect(method).toBe('createProject');
     expect(ethers.utils.toUtf8String(tuple[0])).toBe('A native project');
-    expect(tuple.slice(1)).toEqual([hash, cap, [manager], [], [], [], [], [bounty], ['4500000']]);
+    expect(tuple.slice(1)).toEqual([hash, cap.toString(), [manager], [], [], [], [], [bounty], ['4500000']]);
     expect(state.notify.mock.calls[0][1].refreshEvent).toBe('project:created');
   });
 
@@ -88,7 +89,7 @@ describe('MainLayout project submission through TaskService', () => {
     await render()('Quick project');
     const tuple = execute.mock.calls[0][2][0];
     expect(ethers.utils.toUtf8String(tuple[0])).toBe('Quick project');
-    expect(tuple.slice(1)).toEqual([ethers.constants.HashZero, 0, [], [], [], [], [], [], []]);
+    expect(tuple.slice(1)).toEqual([ethers.constants.HashZero, '0', [], [], [], [], [], [], []]);
     expect(state.upload).not.toHaveBeenCalled();
   });
 
@@ -102,8 +103,26 @@ describe('MainLayout project submission through TaskService', () => {
   });
 
   it.each(['createHats', 'claimHats', 'reviewHats', 'assignHats'])('rejects explicit retired %s before preparing a transaction', async field => {
-    await expect(render()({ name: 'Old draft', [field]: ['123'] })).rejects.toThrow(/membership authority/);
+    await expect(render()({ name: 'Old draft', description: 'Do not upload an invalid project', [field]: ['123'] })).rejects.toThrow(/membership authority/);
+    expect(state.upload).not.toHaveBeenCalled();
     expect(createWritable).not.toHaveBeenCalled();
     expect(execute).not.toHaveBeenCalled();
   });
+
+  it('does not create a project with discarded details after a failed upload', async () => {
+    state.upload.mockRejectedValue(new Error('Mock storage unavailable'));
+    await expect(render()({ name: 'Project', description: 'Keep these details' })).rejects.toThrow(/could not be saved/);
+    expect(execute).not.toHaveBeenCalled();
+  });
+  it('rechecks creator authorization after metadata preparation before sending', async () => {
+    state.upload.mockImplementation(async () => { state.creator = false; return { path: bytes32ToIpfsCid(hash) }; });
+    await expect(render()({ name: 'Revoked', description: 'Pending details' })).rejects.toThrow();
+    expect(execute).not.toHaveBeenCalled();
+  });
+  it('blocks project metadata upload without current creator evidence', async () => {
+    state.creator = false;
+    await expect(render()({ name: 'Unknown', description: 'Not uploaded' })).rejects.toThrow(/permission/);
+    expect(state.upload).not.toHaveBeenCalled();
+  });
+
 });

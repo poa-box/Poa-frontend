@@ -4,7 +4,7 @@
  * The authorization is included in the UserOp for the bundler to wrap in a type-4 transaction.
  */
 
-import { EOA_DELEGATION_ADDRESS } from '../../../config/contracts';
+import { EOA_DELEGATION_ADDRESS } from '@/config/contracts';
 
 /**
  * Build a signed EIP-7702 authorization delegating the EOA to the EOADelegation contract.
@@ -13,10 +13,10 @@ import { EOA_DELEGATION_ADDRESS } from '../../../config/contracts';
  * @returns {Promise<Object>} Signed authorization object for the bundler
  * @throws {Error} WALLET_7702_UNSUPPORTED if wallet doesn't support signAuthorization
  */
-export async function buildEOAAuthorization(walletClient) {
+export async function buildEOAAuthorization(walletClient, delegationAddress = EOA_DELEGATION_ADDRESS) {
   try {
     const authorization = await walletClient.signAuthorization({
-      contractAddress: EOA_DELEGATION_ADDRESS,
+      contractAddress: delegationAddress,
     });
     return authorization;
   } catch (err) {

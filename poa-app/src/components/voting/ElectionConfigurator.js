@@ -1,3 +1,4 @@
+import { ACTION_REASON } from '@poa-box/core/authority/lifecycle';
 /**
  * ElectionConfigurator
  * Template-style election configuration component with guided flow.
@@ -132,6 +133,7 @@ const ElectionConfigurator = ({
   // in `leaderboardData`. Absent on a legacy org, where every path below is byte-identical.
   resolveHolders = null,
   holdersReady = undefined,
+  removalPreflights = [],
 }) => {
   const [step, setStep] = useState(proposal.electionRoleId ? 2 : 1);
   const [searchQuery, setSearchQuery] = useState('');
@@ -343,11 +345,13 @@ const ElectionConfigurator = ({
 
       const updated = isSelected
         ? current.filter(h => h.address.toLowerCase() !== holder.address.toLowerCase())
-        : [...current, { name: holder.name, address: holder.address }];
+        : [...current, { name: holder.name, address: holder.address,
+          ...(() => { const row = removalPreflights.find(row => row.account.toLowerCase() === holder.address.toLowerCase());
+            return row ? { ban: row.reason === ACTION_REASON.RemovalIneffective, expectedReason: row.reason, expectedSourceSet: row.sourceSet } : {}; })() }];
 
-      onChange({ electionSelectedIncumbents: updated });
+      onChange({ electionSelectedIncumbents: updated, electionConfirmBans: false });
     },
-    [onChange, proposal.electionSelectedIncumbents]
+    [onChange, proposal.electionSelectedIncumbents, removalPreflights]
   );
 
   // Handle adding a candidate from member list
@@ -724,6 +728,13 @@ const ElectionConfigurator = ({
                   : '. Add them as candidates if they should be eligible to keep it.'}
               </Text>
             </Alert>
+          )}
+
+          {selectedIncumbents.some(person => person.ban) && (
+            <Checkbox isChecked={proposal.electionConfirmBans === true}
+              onChange={event => onChange({ electionConfirmBans: event.target.checked })}>
+              Block the selected losing incumbents from reclaiming this role. A later vote can restore access.
+            </Checkbox>
           )}
 
           {/* Fallback Role for Losers — only show when incumbents are selected */}

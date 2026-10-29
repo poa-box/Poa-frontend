@@ -1,499 +1,130 @@
 import { gql } from '@apollo/client';
-import { ORGANIZATION_SUPPORT_FIELDS } from '@/lib/supportedOrganizations';
+import { print } from 'graphql';
+import { coreDocument, coreFields } from '@/lib/graphql/coreDocuments';
+import * as org from '@poa-box/core/graph/documents/org';
+import * as user from '@poa-box/core/graph/documents/user';
+import * as voting from '@poa-box/core/graph/documents/voting';
+import * as infrastructure from '@poa-box/core/graph/documents/infrastructure';
+import * as treasury from '@poa-box/core/graph/documents/treasury';
+import * as token from '@poa-box/core/graph/documents/token';
+import * as task from '@poa-box/core/graph/documents/task';
+import * as financialHistory from '@poa-box/core/graph/documents/financial-history';
 
 // ============================================
 // POP SUBGRAPH QUERIES (Arbitrum + Gnosis)
 // Endpoints are configured per-chain in src/config/networks.js
 // ============================================
 
-// Access v2 (MembershipAuthority) documents live in their own module because every field they
-// select is absent from the endpoints the app reads until the Wave-E gateway publish, and one
-// unknown field fails the whole document. They are re-exported here so callers keep importing
-// from `util/queries`. Consumers MUST gate on CAPABILITY.ACCESS_V2 — see util/subgraphCapabilities.
-export * from './queriesAccessV2';
+// MembershipAuthority documents stay isolated because one unavailable field fails
+// the whole document. Callers retain their exports and endpoint capability gates.
+export * from '@/util/queriesAccessV2';
 
 // Fetch single organization by orgId (bytes)
-export const FETCH_ORG_BY_ID = gql`
-  query FetchOrgById($id: Bytes!) {
-    organization(id: $id) {
-      id
-      name
-      metadataHash
-      deployedAt
-      topHatId
-      roleHatIds
-      participationToken {
-        id
-        name
-        symbol
-        totalSupply
-      }
-      quickJoin {
-        id
-      }
-      hybridVoting {
-        id
-        thresholdPct
-        quorum
-      }
-      directDemocracyVoting {
-        id
-        thresholdPct
-        quorum
-      }
-      taskManager {
-        id
-        projects {
-          id
-          title
-          deleted
-        }
-      }
-      educationHub {
-        id
-        nextModuleId
-      }
-      executorContract {
-        id
-      }
-      users {
-        id
-        address
-        account {
-          username
-          metadata {
-            avatar
-          }
-        }
-        participationTokenBalance
-        membershipStatus
-        currentHatIds
-      }
-      roles(where: { isUserRole: true }) {
-        id
-        hatId
-        name
-        image
-        canVote
-        isUserRole
-      }
-    }
+export const FETCH_ORG_BY_ID = coreDocument(org.FETCH_ORG_BY_ID, {
+  variables: '$id: ID!',
+  "fields": {
+    "organization.membershipAuthority": false,
+    "organization.paymentManager": false,
+    "organization.zkEmailInvites": false
   }
-`;
+});
 
 // Fetch username from UniversalAccountRegistry
-export const FETCH_USERNAME_NEW = gql`
-  query FetchUsernameNew($id: Bytes!) {
-    account(id: $id) {
-      id
-      username
-      profileMetadataHash
-      metadata {
-        id
-        bio
-        avatar
-        github
-        twitter
-        website
-      }
-    }
-  }
-`;
+export const FETCH_USERNAME_NEW = coreDocument(user.FETCH_USERNAME, { variables: '$id: ID!' });
 
 // Lookup account by username (returns address)
-export const GET_ACCOUNT_BY_USERNAME = gql`
-  query GetAccountByUsername($username: String!) {
-    accounts(where: { username: $username }, first: 1) {
-      id
-      user
-      username
-    }
-  }
-`;
+export const GET_ACCOUNT_BY_USERNAME = gql(user.GET_ACCOUNT_BY_USERNAME);
 
 // Lookup multiple accounts by usernames (batch lookup)
+// Compatibility document; complete cross-chain resolution uses reads/identity instead.
 export const GET_ACCOUNTS_BY_USERNAMES = gql`
   query GetAccountsByUsernames($usernames: [String!]!) {
-    accounts(where: { username_in: $usernames }) {
-      id
-      user
-      username
-    }
+    accounts(where: { username_in: $usernames }) { ${coreFields(user.GET_ACCOUNT_BY_USERNAME, 'accounts')} }
   }
 `;
 
 // Fetch all organizations where user is an active member
-export const FETCH_USER_ORGANIZATIONS = gql`
-  query FetchUserOrganizations($userAddress: Bytes!) {
-    users(where: { address: $userAddress, membershipStatus: Active }) {
-      id
-      membershipStatus
-      participationTokenBalance
-      totalTasksCompleted
-      totalVotes
-      organization {
-        ${ORGANIZATION_SUPPORT_FIELDS}
-        id
-        name
-        metadataHash
-        participationToken {
-          symbol
-        }
-      }
-    }
-  }
-`;
+// Compatibility historical User rows; current/historical cards use readMembershipCardFacts.
+export const FETCH_USER_ORGANIZATIONS = coreDocument(org.FETCH_USER_ORGANIZATIONS, {
+  fields: { users: { args: 'where: { address: $userAddress, membershipStatus: Active }' } },
+});
 
 // Lookup organization by name (returns ID for further queries)
-export const GET_ORG_BY_NAME = gql`
-  query GetOrgByName($name: String!) {
-    organizations(where: { name: $name }, first: 1) {
-      id
-      name
+export const GET_ORG_BY_NAME = coreDocument(org.GET_ORG_BY_NAME, {
+  "fields": {
+    "organizations.membershipAuthority": false,
+    "organizations": {
+      "args": "where: {name: $name}, first: 1"
     }
   }
-`;
+});
 
 // Fetch full organization data
-export const FETCH_ORG_FULL_DATA = gql`
-  query FetchOrgFullData($orgId: Bytes!) {
-    organization(id: $orgId) {
-      id
-      name
-      metadataHash
-      metadataAdminHatId
-      metadata {
-        id
-        description
-        template
-        backgroundColor
-        logo
-        hideTreasury
-        useTokenSymbol
-        taskPayoutHoursOnly
-        taskPayoutHourlyRate
-        links {
-          name
-          url
-          index
-        }
-      }
-      deployedAt
-      topHatId
-      roleHatIds
-      participationToken {
-        id
-        name
-        symbol
-        totalSupply
-      }
-      quickJoin {
-        id
-      }
-      hybridVoting {
-        id
-        thresholdPct
-        quorum
-      }
-      directDemocracyVoting {
-        id
-        thresholdPct
-        quorum
-      }
-      # Who may open votes / vote in polls. Creator + DDV voting hats are seeded
-      # inside initialize() without events, but subgraph-pop #186 backfills them
-      # at Initialized, so these rows match the contracts' own getters. Consumed
-      # by useVoteCreateGate and the "Who can open a vote" rules section.
-      #
-      # first: 1000 (the max page size) is NOT decorative. Nested collections
-      # default to 100, and HatPermission ids start with the CONTRACT ADDRESS,
-      # so the default ordering (id asc) truncates in contract-sized blocks
-      # rather than sampling evenly — one org's whole HybridVoting creator set
-      # disappears while another's survives, purely on address sort order. At
-      # ~3.2 rows per role that cap is reached around 32 roles. Losing those
-      # rows would fail useVoteCreateGate OPEN (every member offered a Create
-      # button that reverts Unauthorized) and make the rules panel claim only a
-      # passed vote can open one. Keep the argument identical in
-      # FETCH_ORG_STRUCTURE_DATA: Apollo keys cache fields by args, so matching
-      # them lets both queries share one Organization.hatPermissions entry.
-      hatPermissions(first: 1000) {
-        hatId
-        permissionRole
-        contractType
-        allowed
-      }
-      taskManager {
-        id
-        creatorHatIds
-        # organizerHatIds pending subgraph-pop #177 (lives on TaskManager).
-        # foldersRoot lives on Organization in subgraph PR #177 (not here);
-        # consumer code reads it from org.foldersRoot.
-        # Until #177 deploys, POContext falls back to lens reads via
-        # useTaskManagerV4State.
-        projects(where: { deleted: false }, first: 100) {
-          id
-          tasks(first: 1000) {
-            id
-            status
-          }
-        }
-      }
-      zkEmailInvites {
-        id
-      }
-      educationHub {
-        id
-        modules {
-          id
-          moduleId
-          title
-          contentHash
-          metadata {
-            description
-            link
-            quiz
-            answersJson
-          }
-          payout
-          status
-          completions {
-            learner
-          }
-        }
-      }
-      executorContract {
-        id
-      }
-      eligibilityModule {
-        id
-        eligibilityModuleAdminHat
-      }
-      paymentManager {
-        id
-      }
-      users(orderBy: participationTokenBalance, orderDirection: desc, first: 100) {
-        id
-        address
-        account {
-          username
-          metadata {
-            avatar
-          }
-        }
-        participationTokenBalance
-        membershipStatus
-        currentHatIds
-        totalTasksCompleted
-        totalVotes
-        firstSeenAt
-      }
-      roles(where: { isUserRole: true }) {
-        id
-        hatId
-        name
-        image
-        canVote
-        isUserRole
-        hat {
-          name
-          metadataCID
-          metadata {
-            name
-          }
-        }
-      }
+export const FETCH_ORG_FULL_DATA = coreDocument(org.FETCH_ORG_FULL_DATA, {
+  variables: '$orgId: ID!',
+  "fields": {
+    "organization.educationHub.modules": false,
+    "organization": {
+      "add": "hatPermissions(first: 1000) {\n  hatId\n  permissionRole\n  contractType\n  allowed\n}\neligibilityModule {\n  id\n  eligibilityModuleAdminHat\n}"
+    },
+    "organization.roles.hat": {
+      "add": "metadataCID\nmetadata {\n  name\n}"
     }
   }
-`;
+});
 
 // Fetch voting data (proposals for both hybrid and DD voting)
-export const FETCH_VOTING_DATA_NEW = gql`
-  query FetchVotingDataNew($orgId: Bytes!, $first: Int!, $hybridBefore: BigInt!, $ddBefore: BigInt!) {
-    organization(id: $orgId) {
-      id
-      hybridVoting {
-        id
-        thresholdPct
-        quorum
-        votingClasses(first: 1000, orderBy: classIndex, orderDirection: asc) {
-          id
-          classIndex
-          version
-          strategy
-          slicePct
-          quadratic
-          minBalance
-          asset
-          hatIds
-          isActive
-        }
-        proposals(orderBy: startTimestamp, orderDirection: desc, first: $first, where: { proposalId_lt: $hybridBefore }) {
-          id
-          proposalId
-          classesVersion
-          title
-          descriptionHash
-          metadata {
-            id
-            description
-            optionNames
-            actionSummaries
-          }
-          numOptions
-          startTimestamp
-          endTimestamp
-          status
-          winningOption
-          isValid
-          wasExecuted
-          executionFailed
-          executionError
-          isHatRestricted
-          restrictedHatIds
-          votes {
-            voter
-            voterUsername
-            optionIndexes
-            optionWeights
-            classRawPowers
-            votedAt
-          }
-        }
-      }
-      directDemocracyVoting {
-        id
-        thresholdPct
-        quorum
-        ddvProposals(orderBy: startTimestamp, orderDirection: desc, first: $first, where: { proposalId_lt: $ddBefore }) {
-          id
-          proposalId
-          title
-          descriptionHash
-          metadata {
-            id
-            description
-            optionNames
-            actionSummaries
-          }
-          numOptions
-          startTimestamp
-          endTimestamp
-          status
-          winningOption
-          isValid
-          executionFailed
-          executionError
-          isHatRestricted
-          restrictedHatIds
-          votes {
-            voter
-            optionIndexes
-            optionWeights
-          }
-        }
-      }
+export const FETCH_VOTING_DATA_NEW = coreDocument(voting.FETCH_VOTING_DATA_LEGACY, {
+  "variables": "$orgId: ID!, $first: Int!, $hybridBefore: BigInt!, $ddBefore: BigInt!",
+  "fields": {
+    "organization.hybridVoting.votingClasses": {
+      "args": "first: 1000, orderBy: classIndex, orderDirection: asc"
+    },
+    "organization.hybridVoting.proposals": {
+      "args": "orderBy: startTimestamp, orderDirection: desc, first: $first, where: {proposalId_lt: $hybridBefore}",
+      add: coreFields(voting.FETCH_VOTING_DATA, 'organization.hybridVoting.proposals', { only: ['classesVersion'] })
+    },
+    "organization.hybridVoting.proposals.metadata": {
+      add: coreFields(voting.FETCH_HYBRID_PROPOSALS_PAGE, 'proposals.metadata', { only: ['actionSummaries'] })
+    },
+    "organization.directDemocracyVoting.ddvProposals": {
+      "args": "orderBy: startTimestamp, orderDirection: desc, first: $first, where: {proposalId_lt: $ddBefore}"
+    },
+    "organization.directDemocracyVoting.ddvProposals.metadata": {
+      add: coreFields(voting.FETCH_HYBRID_PROPOSALS_PAGE, 'proposals.metadata', { only: ['actionSummaries'] })
     }
   }
-`;
+});
 
 // Same query with proposer attribution (subgraph-pop #195 fields). Only used
 // once the serving subgraph is confirmed to have Proposal.proposer — an
 // unknown field errors the ENTIRE org query (see subgraphCapabilities.js).
-export const FETCH_VOTING_DATA_WITH_PROPOSER = gql`
-  query FetchVotingDataWithProposer($orgId: Bytes!, $first: Int!, $hybridBefore: BigInt!, $ddBefore: BigInt!) {
-    organization(id: $orgId) {
-      id
-      hybridVoting {
-        id
-        thresholdPct
-        quorum
-        votingClasses(first: 1000, orderBy: classIndex, orderDirection: asc) {
-          id
-          classIndex
-          version
-          strategy
-          slicePct
-          quadratic
-          minBalance
-          asset
-          hatIds
-          isActive
-        }
-        proposals(orderBy: startTimestamp, orderDirection: desc, first: $first, where: { proposalId_lt: $hybridBefore }) {
-          id
-          proposalId
-          classesVersion
-          proposer
-          proposerUsername
-          title
-          descriptionHash
-          metadata {
-            id
-            description
-            optionNames
-            actionSummaries
-            promotedFrom
-          }
-          numOptions
-          startTimestamp
-          endTimestamp
-          status
-          winningOption
-          isValid
-          wasExecuted
-          executionFailed
-          executionError
-          isHatRestricted
-          restrictedHatIds
-          votes {
-            voter
-            voterUsername
-            optionIndexes
-            optionWeights
-            classRawPowers
-            votedAt
-          }
-        }
-      }
-      directDemocracyVoting {
-        id
-        thresholdPct
-        quorum
-        ddvProposals(orderBy: startTimestamp, orderDirection: desc, first: $first, where: { proposalId_lt: $ddBefore }) {
-          id
-          proposalId
-          proposer
-          proposerUsername
-          title
-          descriptionHash
-          metadata {
-            id
-            description
-            optionNames
-            actionSummaries
-            promotedFrom
-          }
-          numOptions
-          startTimestamp
-          endTimestamp
-          status
-          winningOption
-          isValid
-          executionFailed
-          executionError
-          isHatRestricted
-          restrictedHatIds
-          votes {
-            voter
-            voterUsername
-            optionIndexes
-            optionWeights
-          }
-        }
-      }
+export const FETCH_VOTING_DATA_WITH_PROPOSER = coreDocument(voting.FETCH_VOTING_DATA, {
+  "name": "FetchVotingDataWithProposer",
+  "variables": "$orgId: ID!, $first: Int!, $hybridBefore: BigInt!, $ddBefore: BigInt!",
+  "fields": {
+    "organization.hybridVoting.classVersion": false,
+    "organization.hybridVoting.proposals.creatorUsername": false,
+    "organization.hybridVoting.votingClasses": {
+      "args": "first: 1000, orderBy: classIndex, orderDirection: asc"
+    },
+    "organization.hybridVoting.proposals": {
+      "args": "orderBy: startTimestamp, orderDirection: desc, first: $first, where: {proposalId_lt: $hybridBefore}"
+    },
+    "organization.hybridVoting.proposals.metadata": {
+      add: coreFields(voting.FETCH_HYBRID_PROPOSALS_PAGE, 'proposals.metadata', { only: ['actionSummaries', 'promotedFrom'] })
+    },
+    "organization.directDemocracyVoting.ddvProposals": {
+      "args": "orderBy: startTimestamp, orderDirection: desc, first: $first, where: {proposalId_lt: $ddBefore}"
+    },
+    "organization.directDemocracyVoting.ddvProposals.metadata": {
+      add: coreFields(voting.FETCH_HYBRID_PROPOSALS_PAGE, 'proposals.metadata', { only: ['actionSummaries', 'promotedFrom'] })
+    },
+    "organization.directDemocracyVoting.ddvProposals.votes": {
+      "add": "voterUsername"
     }
   }
-`;
+});
 
 
 /**
@@ -514,65 +145,8 @@ export const FETCH_VOTING_DATA_WITH_PROPOSER = gql`
  */
 export const FETCH_PROPOSAL_BY_ID = gql`
   query FetchProposalById($proposalId: ID!) {
-    proposal(id: $proposalId) {
-      id
-      proposalId
-      classesVersion
-      title
-      descriptionHash
-      metadata {
-        id
-        description
-        optionNames
-        actionSummaries
-      }
-      numOptions
-      startTimestamp
-      endTimestamp
-      status
-      winningOption
-      isValid
-      wasExecuted
-      executionFailed
-      executionError
-      isHatRestricted
-      restrictedHatIds
-      votes {
-        voter
-        voterUsername
-        optionIndexes
-        optionWeights
-        classRawPowers
-        votedAt
-      }
-    }
-    ddvProposal: ddvproposal(id: $proposalId) {
-      id
-      proposalId
-      title
-      descriptionHash
-      metadata {
-        id
-        description
-        optionNames
-        actionSummaries
-      }
-      numOptions
-      startTimestamp
-      endTimestamp
-      status
-      winningOption
-      isValid
-      executionFailed
-      executionError
-      isHatRestricted
-      restrictedHatIds
-      votes {
-        voter
-        optionIndexes
-        optionWeights
-      }
-    }
+    proposal(id: $proposalId) { ${coreFields(FETCH_VOTING_DATA_NEW, 'organization.hybridVoting.proposals')} }
+    ddvProposal: ddvproposal(id: $proposalId) { ${coreFields(FETCH_VOTING_DATA_NEW, 'organization.directDemocracyVoting.ddvProposals')} }
   }
 `;
 
@@ -584,250 +158,46 @@ export const FETCH_PROPOSAL_BY_ID = gql`
  */
 export const FETCH_PROPOSAL_BY_ID_WITH_PROPOSER = gql`
   query FetchProposalByIdWithProposer($proposalId: ID!) {
-    proposal(id: $proposalId) {
-      id
-      proposalId
-      classesVersion
-      proposer
-      proposerUsername
-      title
-      descriptionHash
-      metadata {
-        id
-        description
-        optionNames
-        actionSummaries
-        promotedFrom
-      }
-      numOptions
-      startTimestamp
-      endTimestamp
-      status
-      winningOption
-      isValid
-      wasExecuted
-      executionFailed
-      executionError
-      isHatRestricted
-      restrictedHatIds
-      votes {
-        voter
-        voterUsername
-        optionIndexes
-        optionWeights
-        classRawPowers
-        votedAt
-      }
-    }
-    ddvProposal: ddvproposal(id: $proposalId) {
-      id
-      proposalId
-      proposer
-      proposerUsername
-      title
-      descriptionHash
-      metadata {
-        id
-        description
-        optionNames
-        actionSummaries
-        promotedFrom
-      }
-      numOptions
-      startTimestamp
-      endTimestamp
-      status
-      winningOption
-      isValid
-      executionFailed
-      executionError
-      isHatRestricted
-      restrictedHatIds
-      votes {
-        voter
-        voterUsername
-        optionIndexes
-        optionWeights
-      }
-    }
+    proposal(id: $proposalId) { ${coreFields(FETCH_VOTING_DATA_WITH_PROPOSER, 'organization.hybridVoting.proposals')} }
+    ddvProposal: ddvproposal(id: $proposalId) { ${coreFields(FETCH_VOTING_DATA_WITH_PROPOSER, 'organization.directDemocracyVoting.ddvProposals')} }
   }
 `;
 
 
-/**
- * Claim-release fields (subgraph-pop #201, TaskManager v7). Spliced into the
- * task selection ONLY when the serving endpoint is confirmed to have them —
- * see util/subgraphCapabilities CAPABILITY.TASK_RELEASES. One unknown field
- * fails the whole document, and this one backs the entire task board, so an
- * ungated splice would blank the board on every not-yet-upgraded endpoint
- * (which today includes both decentralized-gateway defaults).
- */
-const TASK_RELEASE_FIELDS = `
-            releaseCount
-            lastReleasedAt
-            releases(orderBy: releasedAt, orderDirection: desc, first: 5) {
-              id
-              previousClaimer
-              previousClaimerUsername
-              caller
-              callerUsername
-              selfRelease
-              releasedAt
-            }`;
-
-/**
- * Both projects documents come from this one builder rather than being copied,
- * so the base and release-aware variants cannot drift — the task selection is
- * ~60 fields and this query backs the whole board.
- */
-const projectsDataQuery = (operationName, releaseFields) => gql`
-  query ${operationName}($orgId: Bytes!) {
-    organization(id: $orgId) {
-      id
-      taskManager {
-        id
-        creatorHatIds
-        # Org-wide TaskPerm grants set via setConfig(ROLE_PERM, ...) — required for
-        # _permMask fallback. A hat with no project-specific mask falls back to its
-        # global mask (e.g. Test6's Executive EDIT_FULL governance grant).
-        globalRolePermissions {
-          hatId
-          mask
-          canCreate
-          canClaim
-          canReview
-          canAssign
-          canSelfReview
-          canBudget
-          canEditMeta
-          canEditFull
-        }
-        projects(where: { deleted: false }, first: 50) {
-          id
-          title
-          metadataHash
-          metadata {
-            id
-            description
-          }
-          cap
-          bountyCaps {
-            token
-            cap
-          }
-          createdAt
-          rolePermissions {
-            hatId
-            mask
-            canCreate
-            canClaim
-            canReview
-            canAssign
-            canSelfReview
-            canBudget
-            canEditMeta
-            canEditFull
-          }
-          tasks(first: 1000, orderBy: taskId, orderDirection: desc) {
-            id
-            taskId
-            title
-            metadataHash
-            submissionHash
-            rejectionHash
-            rejectionCount
-            metadata {
-              id
-              name
-              description
-              difficulty
-              estimatedHours
-              submission
-              rejection
-              dueDate
-            }
-            rejections(orderBy: rejectedAt, orderDirection: desc, first: 10) {
-              rejectorUsername
-              rejectedAt
-              metadata {
-                rejection
-              }
-            }
-            payout
-            bountyToken
-            bountyPayout
-            status
-            assignee
-            assigneeUsername
-            completer
-            completerUsername
-            requiresApplication
-            completionWindow
-            absoluteDeadline
-            claimDeadline
-            reclaimCount
-            claimExpiries(orderBy: expiredAt, orderDirection: desc, first: 5) {
-              previousClaimer
-              previousClaimerUsername
-              newClaimer
-              expiredAt
-            }${releaseFields}
-            createdAt
-            assignedAt
-            submittedAt
-            completedAt
-            applications {
-              applicant
-              applicantUsername
-              applicationHash
-              metadata {
-                notes
-                experience
-              }
-              approved
-              approver
-              approverUsername
-              appliedAt
-            }
-          }
-        }
-      }
+// Canonical task fields retain the host's 50-project window and historical permission display.
+export const FETCH_PROJECTS_DATA_NEW = coreDocument(task.FETCH_PROJECTS_DATA, {
+  "variables": "$orgId: ID!",
+  "fields": {
+    "organization.taskManager.projects.tasks.metadata.location": false,
+    "organization.taskManager": {
+      "add": "globalRolePermissions {\n  hatId\n  mask\n  canCreate\n  canClaim\n  canReview\n  canAssign\n  canSelfReview\n  canBudget\n  canEditMeta\n  canEditFull\n}"
+    },
+    "organization.taskManager.projects": {
+      "args": "where: {deleted: false}, first: 50",
+      "add": "rolePermissions {\n  hatId\n  mask\n  canCreate\n  canClaim\n  canReview\n  canAssign\n  canSelfReview\n  canBudget\n  canEditMeta\n  canEditFull\n}"
+    },
+    "organization.taskManager.projects.tasks": {
+      add: `claimExpiries(orderBy: expiredAt, orderDirection: desc, first: 5) { ${coreFields(task.TASK_CLAIM_EXPIRY_FRAGMENT, '', { only: ['previousClaimer', 'newClaimer', 'expiredAt'] })} previousClaimerUsername }`
     }
   }
-`;
+});
 
-// Fetch projects and tasks data. Base variant — safe against every deployed
-// subgraph version.
-export const FETCH_PROJECTS_DATA_NEW = projectsDataQuery('FetchProjectsDataNew', '');
-
-// Same query plus the v7 claim-release fields. Gated on CAPABILITY.TASK_RELEASES.
-export const FETCH_PROJECTS_DATA_WITH_RELEASES = projectsDataQuery(
-  'FetchProjectsDataWithReleases',
-  TASK_RELEASE_FIELDS
+export const FETCH_PROJECTS_DATA_WITH_RELEASES = coreDocument(
+  print(FETCH_PROJECTS_DATA_NEW), {
+    name: 'FetchProjectsDataWithReleases',
+    fields: {
+      'organization.taskManager.projects.tasks': { add: coreFields(task.FETCH_PROJECTS_DATA_WITH_RELEASES, 'organization.taskManager.projects.tasks', { only: ['releaseCount', 'lastReleasedAt'] }) +
+        'releases(orderBy: releasedAt, orderDirection: desc, first: 5) {' +
+        coreFields(task.FETCH_TASK_RELEASE_HISTORY, 'task.releases', { omit: ['releasedAtBlock', 'transactionHash'] }) + '}' },
+    },
+  }
 );
 
 // Kept separate from the board query so a frontend can be deployed before the
 // TaskSubmission schema finishes syncing without one unknown field blanking the
 // whole board. Once available, latestRejection points to the exact immutable
 // submission that was reviewed, even after the mutable Task state was cleared.
-export const FETCH_LATEST_REJECTED_SUBMISSION = gql`
-  query FetchLatestRejectedSubmission($taskId: ID!) {
-    task(id: $taskId) {
-      id
-      latestRejection {
-        id
-        submission {
-          id
-          submissionHash
-          metadata {
-            id
-            submission
-          }
-        }
-      }
-    }
-  }
-`;
+export { FETCH_LATEST_REJECTED_SUBMISSION } from '@/util/taskSubmissionHistory';
 
 /**
  * Per-project managers — the `_isPM` half of TaskManager's permission check
@@ -842,16 +212,11 @@ export const FETCH_LATEST_REJECTED_SUBMISSION = gql`
  * Verified present on both production gateway endpoints (Arbitrum + Gnosis).
  */
 export const FETCH_PROJECT_MANAGERS = gql`
-  query FetchProjectManagers($orgId: Bytes!) {
+  query FetchProjectManagers($orgId: ID!) {
     organization(id: $orgId) {
-      id
-      taskManager {
-        id
-        projects(where: { deleted: false }, first: 50) {
-          id
-          managers(where: { isActive: true }) {
-            manager
-          }
+      id taskManager {
+        id projects(where: { deleted: false }, first: 50) {
+          id managers(where: { isActive: true }) { ${coreFields(task.FETCH_PROJECT_MANAGERS_PAGE, 'projectManagers', { only: ['manager'] })} }
         }
       }
     }
@@ -859,467 +224,94 @@ export const FETCH_PROJECT_MANAGERS = gql`
 `;
 
 // Fetch user data within an organization
-export const FETCH_USER_DATA_NEW = gql`
-  query FetchUserDataNew($orgUserID: String!, $userAddress: Bytes!) {
-    user(id: $orgUserID) {
-      id
-      address
-      participationTokenBalance
-      membershipStatus
-      currentHatIds
-      joinMethod
-      totalTasksCompleted
-      totalVotes
-      totalModulesCompleted
-      firstSeenAt
-      lastActiveAt
-      # ProjectDeleted is a soft delete, so the User -> assignedTasks relation
-      # still contains work from removed projects unless it is filtered here.
-      # This feed powers the Profile Hub's "Your work" section; the board and
-      # dashboard already inherit the same rule from their filtered projects.
-      assignedTasks(where: { project_: { deleted: false } }, first: 20) {
-        id
-        taskId
-        title
-        payout
-        status
-      }
-      completedTasks(first: 20) {
-        id
-        taskId
-        title
-        payout
-      }
-      hybridProposalsCreated(first: 20) {
-        id
-        proposalId
-        title
-        status
-        startTimestamp
-        endTimestamp
-      }
-      modulesCompleted(first: 20) {
-        moduleId
-        completedAt
-      }
-    }
-    account(id: $userAddress) {
-      id
-      username
+export const FETCH_USER_DATA_NEW = coreDocument(user.FETCH_USER_DATA, {
+  variables: '$orgUserID: ID!, $userAddress: ID!',
+  "fields": {
+    "user.modulesCompleted": false,
+    "user.assignedTasks": {
+      "args": "where: {project_: {deleted: false}}, first: 20"
     }
   }
-`;
-
-// Fetch education hub data
-export const FETCH_EDUCATION_DATA = gql`
-  query FetchEducationData($orgId: Bytes!) {
-    organization(id: $orgId) {
-      id
-      educationHub {
-        id
-        modules(first: 50) {
-          id
-          moduleId
-          title
-          contentHash
-          metadata {
-            description
-            link
-            quiz
-            answersJson
-          }
-          payout
-          status
-          createdAt
-          completions {
-            learner
-            completedAt
-          }
-        }
-      }
-    }
-  }
-`;
+});
 
 // Fetch organization structure data for /org-structure page
-export const FETCH_ORG_STRUCTURE_DATA = gql`
-  query FetchOrgStructureData($orgId: Bytes!) {
-    organization(id: $orgId) {
-      id
-      name
-      metadataHash
-      metadataAdminHatId
-      metadata {
-        id
-        description
-        template
-        backgroundColor
-        logo
-        hideTreasury
-        links {
-          name
-          url
-        }
-      }
-      deployedAt
-      topHatId
-      roleHatIds
-
-      eligibilityModule {
-        id
-        eligibilityModuleAdminHat
-      }
-
-      roles(where: { isUserRole: true }) {
-        id
-        hatId
-        name
-        image
-        canVote
-        isUserRole
-        hat {
-          hatId
-          parentHatId
-          level
-          defaultEligible
-          mintedCount
-          name
-          metadataCID
-          metadata {
-            name
-            description
-          }
-          metadataUpdatedAt
-          metadataUpdatedAtBlock
-          wearers {
-            wearer
-            wearerUsername
-            eligible
-            standing
-          }
-          vouchConfig {
-            enabled
-            quorum
-            membershipHatId
-          }
-        }
-        permissions {
-          permissionRole
-          contractType
-          allowed
-        }
-        wearers {
-          wearer
-          wearerUsername
-          isActive
-        }
-      }
-
-      hybridVoting {
-        id
-        thresholdPct
-        quorum
-      }
-
-      directDemocracyVoting {
-        id
-        thresholdPct
-        quorum
-      }
-
-      # first: 1000 must stay identical to FETCH_ORG_FULL_DATA's — see the note
-      # there. Nested collections default to 100 and truncate in whole-contract
-      # blocks, which would silently drop entire columns from this matrix.
-      hatPermissions(first: 1000) {
-        hatId
-        permissionRole
-        contractType
-        allowed
-      }
-
-      # TaskManager v4/v5 — org-wide TaskPerm grants set via setConfig(ROLE_PERM, ...).
-      # Surfaced on the org structure page so the role/permission matrix shows which
-      # hats hold CREATE / CLAIM / REVIEW / ASSIGN / BUDGET / EDIT_META / EDIT_FULL globally.
-      taskManager {
-        id
-        # Hats allowed to create PROJECTS (distinct from the per-task TaskPerm bits
-        # below). Surfaced as the "Create Project" column in the permissions matrix.
-        creatorHatIds
-        globalRolePermissions {
-          hatId
-          mask
-          canCreate
-          canClaim
-          canReview
-          canAssign
-          canSelfReview
-          canBudget
-          canEditMeta
-          canEditFull
-        }
-      }
-
-      users(first: 200) {
-        id
-        address
-        account {
-          username
-          metadata {
-            avatar
-          }
-        }
-        participationTokenBalance
-        membershipStatus
-        currentHatIds
-        totalTasksCompleted
-        totalVotes
-        firstSeenAt
-        lastActiveAt
-      }
-
-      quickJoin {
-        id
-        memberHatIds
-      }
-
-      taskManager {
-        id
-      }
-
-      educationHub {
-        id
-      }
-
-      executorContract {
-        id
-      }
-
-      participationToken {
-        id
-        name
-        symbol
-        totalSupply
-      }
-
-      eligibilityModule {
-        id
-      }
+// Historical names/hierarchy remain display data; current permissions use the shared authority snapshot.
+export const FETCH_ORG_STRUCTURE_DATA = coreDocument(org.FETCH_ORG_FULL_DATA, {
+  "name": "FetchOrgStructureData",
+  "variables": "$orgId: ID!",
+  "fields": {
+    "organization.metadata.useTokenSymbol": false,
+    "organization.metadata.taskPayoutHoursOnly": false,
+    "organization.metadata.taskPayoutHourlyRate": false,
+    "organization.metadata.links.index": false,
+    "organization.zkEmailInvites": false,
+    "organization.taskManager.projects": false,
+    "organization.educationHub.modules": false,
+    "organization.membershipAuthority": false,
+    "organization.paymentManager": false,
+    "organization": {
+      "add": "eligibilityModule {\n  id\n}"
+    },
+    "organization.roles.hat": {
+      "add": "hatId\nparentHatId\nlevel\nmintedCount\nmetadataCID\nmetadata {\n  name\n  description\n}\nmetadataUpdatedAt\nmetadataUpdatedAtBlock\nwearers {\n  wearer\n  wearerUsername\n  eligible\n  standing\n}"
+    },
+    "organization.roles": {
+      "add": "wearers {\n  wearer\n  wearerUsername\n  isActive\n}"
+    },
+    "organization.taskManager.creatorHatIds": false,
+    "organization.roles.canVote": false,
+    "organization.users": {
+      "args": "first: 200",
+      "add": "lastActiveAt"
+    },
+    "organization.quickJoin": {
+      "add": "memberHatIds"
     }
   }
-`;
+});
 
 // Fetch infrastructure contract addresses from the subgraph
 // This replaces hardcoded addresses with dynamic lookups
 // Fetches: PoaManager (with infrastructure proxies), OrgRegistry, UniversalAccountRegistry, and all Beacons
-export const FETCH_INFRASTRUCTURE_ADDRESSES = gql`
-  query FetchInfrastructureAddresses {
-    universalAccountRegistries(first: 1) {
-      id
-      totalAccounts
-    }
-    poaManagerContracts(first: 1) {
-      id
-      registry
-      # Infrastructure proxy addresses (the actual contracts to call)
-      orgDeployerProxy
-      orgRegistryProxy
-      paymasterHubProxy
-      globalAccountRegistryProxy
-    }
-    orgRegistryContracts(first: 1) {
-      id
-      totalOrgs
-    }
-    beacons {
-      id
-      typeName
-      beaconAddress
-      currentImplementation
-      version
-    }
-  }
-`;
+export const FETCH_INFRASTRUCTURE_ADDRESSES = gql(infrastructure.FETCH_INFRASTRUCTURE_ADDRESSES);
 
 // ============================================
 // TREASURY QUERIES
 // ============================================
 
 // Fetch treasury data including distributions, payments, and executor info
-export const FETCH_TREASURY_DATA = gql`
-  query FetchTreasuryData($orgId: Bytes!) {
-    organization(id: $orgId) {
-      id
-      executorContract {
-        id
-        isPaused
-        owner
-        allowedCaller
-        sweeps(first: 50, orderBy: sweptAt, orderDirection: desc) {
-          id
-          to
-          amount
-          sweptAt
-          transactionHash
+// Treasury UI windows remain local; these are capped histories, not complete totals.
+export const FETCH_TREASURY_DATA = coreDocument(treasury.FETCH_TREASURY_DATA, {
+  variables: '$orgId: ID!',
+  fields: {
+    'organization.paymentManager.distributions.createdAtBlock': false,
+    organization: { add: `taskManager {
+      id projects(where: { deleted: false }, first: 100) {
+        id title bountyTasks: tasks(where: { status_in: [Open, Assigned, Submitted], bountyPayout_gt: "0" }, first: 500) {
+          ${coreFields(treasury.FETCH_PROMISED_BOUNTIES_PAGE, 'tasks', { only: ['id', 'bountyToken', 'bountyPayout'] })}
         }
       }
-      participationToken {
-        id
-        name
-        symbol
-        totalSupply
-      }
-      paymentManager {
-        id
-        owner
-        revenueShareToken
-        distributionCounter
-        distributions(first: 100, orderBy: createdAt, orderDirection: desc) {
-          id
-          distributionId
-          payoutToken
-          totalAmount
-          totalClaimed
-          checkpointBlock
-          merkleRoot
-          status
-          createdAt
-          finalizedAt
-          unclaimedAmount
-          claims(first: 200) {
-            id
-            claimer
-            claimerUsername
-            amount
-            claimedAt
-            transactionHash
-          }
-        }
-        payments(first: 100, orderBy: receivedAt, orderDirection: desc) {
-          id
-          payer
-          payerUsername
-          amount
-          token
-          receivedAt
-          transactionHash
+      activityProjects: projects(first: 100) {
+        tasks(where: { status: Completed }, first: 500, orderBy: completedAt, orderDirection: desc) {
+          ${coreFields(task.FETCH_PROJECTS_DATA, 'organization.taskManager.projects.tasks', { only: ['id', 'taskId', 'title', 'payout', 'assignee', 'assigneeUsername', 'completer', 'completerUsername', 'completedAt'] })}
         }
       }
-      taskManager {
-        id
-        projects(where: { deleted: false }, first: 100) {
-          id
-          title
-          bountyTasks: tasks(
-            where: { status_in: ["Open", "Assigned", "Submitted"], bountyPayout_gt: "0" }
-            first: 500
-          ) {
-            id
-            bountyToken
-            bountyPayout
-          }
-        }
-        activityProjects: projects(first: 100) {
-          tasks(where: { status: "Completed" }, first: 500, orderBy: completedAt, orderDirection: desc) {
-            id
-            taskId
-            title
-            payout
-            assignee
-            assigneeUsername
-            completer
-            completerUsername
-            completedAt
-          }
-        }
-      }
-    }
-  }
-`;
+    }` },
+  },
+});
 
 // ============================================
 // TOKEN REQUEST QUERIES
 // ============================================
 
 // Fetch pending token requests for approvers to review
-export const FETCH_PENDING_TOKEN_REQUESTS = gql`
-  query FetchPendingTokenRequests($tokenAddress: String!) {
-    tokenRequests(
-      where: { participationToken: $tokenAddress, status: Pending }
-      orderBy: createdAt
-      orderDirection: desc
-      first: 100
-    ) {
-      id
-      requestId
-      requester
-      amount
-      ipfsHash
-      metadata {
-        reason
-        submittedAt
-      }
-      status
-      createdAt
-      createdAtBlock
-      transactionHash
-    }
-  }
-`;
+export const FETCH_PENDING_TOKEN_REQUESTS = gql(token.FETCH_PENDING_TOKEN_REQUESTS);
 
 // Fetch a user's own token request history
-export const FETCH_USER_TOKEN_REQUESTS = gql`
-  query FetchUserTokenRequests($tokenAddress: String!, $userAddress: Bytes!) {
-    tokenRequests(
-      where: { participationToken: $tokenAddress, requester: $userAddress }
-      orderBy: createdAt
-      orderDirection: desc
-      first: 50
-    ) {
-      id
-      requestId
-      amount
-      ipfsHash
-      metadata {
-        reason
-        submittedAt
-      }
-      status
-      createdAt
-      approvedAt
-      cancelledAt
-      approver
-      transactionHash
-    }
-  }
-`;
+export const FETCH_USER_TOKEN_REQUESTS = gql(token.FETCH_USER_TOKEN_REQUESTS);
 
 // Fetch all token requests for an organization (admin view)
-export const FETCH_ALL_TOKEN_REQUESTS = gql`
-  query FetchAllTokenRequests($tokenAddress: String!) {
-    tokenRequests(
-      where: { participationToken: $tokenAddress }
-      orderBy: createdAt
-      orderDirection: desc
-      first: 100
-    ) {
-      id
-      requestId
-      requester
-      amount
-      ipfsHash
-      metadata {
-        reason
-        submittedAt
-      }
-      status
-      createdAt
-      approvedAt
-      cancelledAt
-      approver
-      transactionHash
-    }
-  }
-`;
+export const FETCH_ALL_TOKEN_REQUESTS = gql(token.FETCH_ALL_TOKEN_REQUESTS);
 
 // Fetch approver hat permissions for a participation token
 export const FETCH_TOKEN_APPROVER_HATS = gql`
@@ -1339,68 +331,14 @@ export const FETCH_TOKEN_APPROVER_HATS = gql`
 // ============================================
 
 // Fetch active role applications for a user in an eligibility module
-export const FETCH_USER_ROLE_APPLICATIONS = gql`
-  query FetchUserRoleApplications($eligibilityModuleId: Bytes!, $applicant: Bytes!) {
-    roleApplications(
-      where: { eligibilityModule: $eligibilityModuleId, applicant: $applicant, active: true }
-      first: 50
-    ) {
-      id
-      hatId
-      applicant
-      applicantUsername
-      applicationHash
-      active
-      appliedAt
-    }
-  }
-`;
 
 // Fetch all active role applications for an eligibility module (admin view)
-export const FETCH_ALL_ROLE_APPLICATIONS = gql`
-  query FetchAllRoleApplications($eligibilityModuleId: Bytes!) {
-    roleApplications(
-      where: { eligibilityModule: $eligibilityModuleId, active: true }
-      orderBy: appliedAt
-      orderDirection: desc
-      first: 200
-    ) {
-      id
-      hatId
-      applicant
-      applicantUsername
-      applicationHash
-      active
-      appliedAt
-    }
-  }
-`;
 
 // ============================================
 // VOUCHING QUERIES
 // ============================================
 
 // Fetch all active vouches for an organization's eligibility module
-export const FETCH_VOUCHES_FOR_ORG = gql`
-  query FetchVouchesForOrg($eligibilityModuleId: Bytes!) {
-    vouches(
-      where: { eligibilityModule: $eligibilityModuleId, isActive: true }
-      orderBy: createdAt
-      orderDirection: desc
-      first: 200
-    ) {
-      id
-      hatId
-      wearer
-      wearerUsername
-      voucher
-      voucherUsername
-      vouchCount
-      isActive
-      createdAt
-    }
-  }
-`;
 
 // ============================================
 // Distribution claim — find executed proposals with merkle tree CIDs
@@ -1408,16 +346,8 @@ export const FETCH_VOUCHES_FOR_ORG = gql`
 
 export const FETCH_DISTRIBUTION_PROPOSALS = gql`
   query FetchDistributionProposals($hybridVotingId: String!) {
-    proposals(
-      where: { hybridVoting: $hybridVotingId, wasExecuted: true }
-      orderBy: executedAt
-      orderDirection: desc
-      first: 50
-    ) {
-      id
-      metadata {
-        description
-      }
+    proposals(where: { hybridVoting: $hybridVotingId, wasExecuted: true }, orderBy: executedAt, orderDirection: desc, first: 50) {
+      ${coreFields(financialHistory.FETCH_EXECUTED_DISTRIBUTION_PROPOSALS_PAGE, 'proposals', { only: ['id', 'metadata'] })}
     }
   }
 `;

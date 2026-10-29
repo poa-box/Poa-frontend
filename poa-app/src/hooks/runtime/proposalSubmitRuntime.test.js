@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { utils, constants } from 'ethers';
+import { getAbi } from '@poa-box/core/contracts';
+import { knownFact } from '@poa-box/core/data/facts';
+import { electionPlanningFingerprint } from '@poa-box/core/governance/elections';
+import { observeElection } from '@/lib/accessV2/electionObservation';
 import { submitProposalRuntime } from './proposalSubmitRuntime';
-import PaymentManagerABI from '../../../abi/PaymentManager.json';
-import { authorityInterface } from '@/lib/accessV2/txBuilders';
-import { AUTHORITY_ADDRESS, ALICE, CAROL, EXECS_ID } from '@/lib/accessV2/fixtures';
+import { AUTHORITY_ADDRESS, ALICE, CAROL, EXECS_ID, ORG_ID, MEMBERS_ID } from '@/lib/accessV2/fixtures';
 
 const RECIPIENT = '0x0000000000000000000000000000000000000011';
 const PAYMENT_MANAGER = '0x0000000000000000000000000000000000000022';
@@ -75,21 +77,12 @@ describe('actual proposal submission runtime', () => {
     expect(ctx.setLoadingSubmit.mock.calls).toEqual([[true], [false]]);
   });
 
-  it('encodes the chosen PaymentManager pot and payout order without network access', async () => {
+  it('refuses an unreviewed treasury draft before encoding or submitting a payment', async () => {
     const ctx = context();
     ctx.proposal = { ...ctx.proposal, type: 'transferFunds', transferAddress: RECIPIENT, transferAmount: '1.25', transferToken: '', transferSource: 'paymentManager', transferFinalizeIds: ['7'], transferDestination: 'address', isRestricted: false };
-    expect(await submitReady(ctx, null, { paymentManagerAddress: PAYMENT_MANAGER })).toBe(true);
-    const payload = ctx.onSubmit.mock.calls[0][0];
-    expect(payload.time).toBe(75); expect(payload.numOptions).toBe(2); expect(payload.hatIds).toEqual([]);
-    expect(payload.batches).toHaveLength(2); expect(payload.batches[1]).toEqual([]);
-    const iface = new utils.Interface(PaymentManagerABI);
-    const calls = payload.batches[0]; expect(calls).toHaveLength(2);
-    expect(calls.map(call => [call.target, call.value])).toEqual([[PAYMENT_MANAGER, '0'], [PAYMENT_MANAGER, '0']]);
-    const finalize = iface.decodeFunctionData('finalizeDistribution', calls[0].data);
-    expect(finalize[0].toString()).toBe('7'); expect(finalize[1].toString()).toBe('0');
-    const withdraw = iface.decodeFunctionData('withdraw', calls[1].data);
-    expect(withdraw[0]).toBe(constants.AddressZero); expect(withdraw[1]).toBe(RECIPIENT); expect(withdraw[2].toString()).toBe('1250000000000000000');
-    expect(ctx.addToIpfs).not.toHaveBeenCalled();
+    expect(await submitReady(ctx, null, { paymentManagerAddress: PAYMENT_MANAGER })).toBe(false);
+    expect(ctx.onSubmit).not.toHaveBeenCalled(); expect(ctx.addToIpfs).not.toHaveBeenCalled();
+    expect(ctx.resetForm).not.toHaveBeenCalled();
   });
 
   it('encodes an advanced setter and preserves the member-authored title', async () => {
@@ -147,19 +140,67 @@ describe('authority-only deferred submission', () => {
     expect(ctx.toast).toHaveBeenCalledWith(expect.objectContaining({ status: 'error', description: expect.stringMatching(/retired|unavailable/) }));
   });
 
-  it('submits an election through the authority encoder after the lazy-runtime split', async () => {
+  it('refuses historical membership rows as a substitute for reviewed current election evidence', async () => {
     const ctx = context();
     ctx.proposal = { ...ctx.proposal, type: 'election', electionRoleId: EXECS_ID, electionCandidates: [{ name: 'Alice', address: ALICE }], electionSelectedIncumbents: [{ name: 'Carol', address: CAROL }], electionIncludeNoOneOption: true };
     expect(await submitReady(ctx, null, {}, {
-      memberships: [{ subjectId: EXECS_ID, user: CAROL, accepted: true }],
-      inOrgUsers: new Set([ALICE, CAROL]),
+      memberships: [{ subjectId: EXECS_ID, user: CAROL, accepted: true }], inOrgUsers: new Set([ALICE, CAROL]),
       roles: [{ subjectId: EXECS_ID, name: 'Executives' }],
-    })).toBe(true);
-    const payload = ctx.onSubmit.mock.calls[0][0];
-    expect(payload.optionNames).toEqual(['Alice', 'No One']);
-    expect(payload.batches[1]).toEqual([]);
-    expect(payload.batches[0].every(call => call.target.toLowerCase() === AUTHORITY_ADDRESS.toLowerCase())).toBe(true);
-    expect(payload.batches[0].map(call => authorityInterface.parseTransaction({ data: call.data }).name)).toEqual(['remove', 'grant']);
-    expect(ctx.addToIpfs).not.toHaveBeenCalled();
+    })).toBe(false);
+    expect(ctx.onSubmit).not.toHaveBeenCalled(); expect(ctx.addToIpfs).not.toHaveBeenCalled();
+    expect(ctx.resetForm).not.toHaveBeenCalled();
   });
+});
+
+it('submits the exact reviewed PaymentManager payout after re-observing the same qualified plan', async () => {
+  const executor = '0x' + '8'.repeat(40), block = { number: '100', hash: '0x' + '7'.repeat(64) };
+  const scope = { chainId: 100, orgId: ORG_ID, contracts: { executor, paymentManager: PAYMENT_MANAGER } };
+  const source = contract => ({ ...scope, contract, endpoint: 'https://rpc.invalid', method: 'eth_call', indexed: false, snapshot: 'pinned', block });
+  const coverage = { status: 'complete', receivedKeys: [], failedIds: [], missingIds: [], issues: [] };
+  const asset = { chainId: 100, address: constants.AddressZero, decimals: 18 };
+  const rounds = Array.from({ length: 7 }, (_, i) => ({ distributionId: String(i + 1), payoutToken: constants.AddressZero,
+    totalAmount: i < 6 ? '1' : '1000000000000000000', totalClaimed: i < 6 ? '1' : '1000000000000000000', finalized: i < 6, checkpointBlock: '10', creationBlock: knownFact('20', source(PAYMENT_MANAGER)) }));
+  const evidence = { scope, block, asset, executor: { source: source(executor), coverage, data: { asset, rawAmount: '0' } },
+    paymentManager: { source: source(PAYMENT_MANAGER), coverage: { ...coverage, receivedKeys: rounds.map(row => row.distributionId) },
+      data: { asset, balanceRaw: '2000000000000000000', distributionCounterRaw: '7', rounds } } };
+  const ctx = context(); ctx.proposal = { ...ctx.proposal, type: 'transferFunds', transferAddress: RECIPIENT, transferAmount: '1.25', transferToken: '',
+    transferSource: 'paymentManager', transferFinalizeIds: ['7'], transferDestination: 'address', isRestricted: false };
+  const refetch = vi.fn(async () => ({ planningEvidence: evidence }));
+  const succeeded = await submitProposalRuntime(ctx, null, { membershipAuthorityAddress: AUTHORITY_ADDRESS, paymentManagerAddress: PAYMENT_MANAGER, treasuryContractAddress: executor }, {
+    accessV2: { enabled: true, authority: AUTHORITY_ADDRESS, orgId: ORG_ID }, treasury: { transferDecimals: 18, planningEvidence: evidence, refetch },
+  });
+  expect(succeeded, JSON.stringify(ctx.toast.mock.calls)).toBe(true);
+  expect(refetch).toHaveBeenCalledOnce();
+  const calls = ctx.onSubmit.mock.calls[0][0].batches[0];
+  const iface = new utils.Interface(getAbi('PaymentManager'));
+  expect(calls.map(call => iface.parseTransaction({ data: call.data }).name)).toEqual(['finalizeDistribution', 'withdraw']);
+  expect(iface.decodeFunctionData('withdraw', calls[1].data)[2].toString()).toBe('1250000000000000000');
+});
+
+it('submits a reviewed election through the actual core planner after a current same-block recheck', async () => {
+  const executor = '0x' + '8'.repeat(40), hash = '0x' + '7'.repeat(64);
+  const scope = { chainId: 100, orgId: ORG_ID, contract: AUTHORITY_ADDRESS };
+  const source = { ...scope, endpoint: 'https://graph.invalid', method: 'authority-snapshot', indexed: true, snapshot: 'pinned', block: { number: '123', hash } };
+  const coverage = { status: 'complete', receivedKeys: [], failedIds: [], missingIds: [], issues: [] };
+  const live = { executor: async () => executor, orgId: async () => ORG_ID, paused: async () => false,
+    getSubject: async () => ({ exists: true, maxMembers: '1' }), memberCount: async () => '1',
+    getStatus: async (_subject, user) => ({ accepted: user === CAROL.toLowerCase(), eligible_: true, acceptedAt: '10', ruleKind: 0 }),
+    userSubjects: async user => [user === CAROL.toLowerCase() ? EXECS_ID : MEMBERS_ID], canRemove: async () => ({ reason: 7, sourceSet: 1 }) };
+  const snapshot = { source, coverage, data: { authority: { isRouterBound: true, cutoverAt: '1' },
+    subjects: [{ subjectId: EXECS_ID, kind: 'Role', raw: { id: EXECS_ID, lastUpdatedAt: '100' } }],
+    memberships: [{ subject: { subjectId: EXECS_ID }, user: CAROL, accepted: true }], collections: { accessRules: { data: [] } } } };
+  const read = async () => observeElection({ scope, snapshot, subjectId: EXECS_ID, executor, candidates: [ALICE], now: () => 1001,
+    readFactory: { createReadOnly: () => live, provider: { connection: { url: 'https://rpc.invalid' }, getNetwork: async () => ({ chainId: 100 }), getBlock: async () => ({ number: 123, hash, timestamp: 1000 }) } } });
+  const evidence = await read();
+  const reviewed = { ...evidence, confirmedBans: [{ subjectId: EXECS_ID, account: CAROL, reason: 7, sourceSet: 1 }],
+    expectedFingerprint: electionPlanningFingerprint(evidence.context.data, evidence.preflights.data) };
+  const ctx = context(); ctx.proposal = { ...ctx.proposal, type: 'election', electionRoleId: EXECS_ID, electionCandidates: [{ name: 'Alice', address: ALICE }],
+    electionSelectedIncumbents: [{ name: 'Carol', address: CAROL, ban: true, expectedReason: 7, expectedSourceSet: 1 }], electionIncludeNoOneOption: true };
+  const refreshGovernancePlanning = vi.fn(read);
+  expect(await submitReady(ctx, null, {}, { electionPlanning: reviewed, refreshGovernancePlanning })).toBe(true);
+  expect(refreshGovernancePlanning).toHaveBeenCalledOnce();
+  const payload = ctx.onSubmit.mock.calls[0][0]; expect(payload.optionNames).toEqual(['Alice', 'No One']);
+  const iface = new utils.Interface(getAbi('MembershipAuthority'));
+  expect(payload.batches[0].map(call => iface.parseTransaction({ data: call.data }).name)).toEqual(['remove', 'grant']);
+  expect(payload.batches[1]).toEqual([]);
 });

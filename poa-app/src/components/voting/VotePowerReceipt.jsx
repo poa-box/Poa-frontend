@@ -15,6 +15,9 @@
  *   restrictedHatIds  optional string[] — when the poll is role-restricted and
  *                     the user holds none of these, render a restriction notice
  *                     instead of a power number.
+ *   votingType        optional proposal type; otherwise uses organization rules.
+ *   eligibleCount     optional proposal electorate denominator for equal voting.
+ *   approximate       whether the supplied denominator is an estimate.
  */
 
 import React, { useMemo, useState } from 'react';
@@ -88,6 +91,7 @@ function standingText(entry) {
   }
 
   // ERC20_BAL
+  if (entry.shareKnown === false) return 'Your voting share is still being checked.';
   const share = pct(entry.contributionToTotalPct);
   const raw = Math.round(entry.userRawPower);
   if (entry.quadratic) {
@@ -292,14 +296,16 @@ function RestrictionNotice({ rolesText, variant }) {
   );
 }
 
-export function VotePowerReceipt({ variant = 'full', restrictedHatIds = null, hideExplainer = false }) {
+export function VotePowerReceipt({ variant = 'full', restrictedHatIds = null, hideExplainer = false,
+  votingType: proposalVotingType, eligibleCount, approximate = false }) {
   const {
     classBreakdown,
     totalSharePct,
     breakdownStatus,
-    votingType,
+    votingType: organizationVotingType,
     percentOfTotal,
   } = useVotingPower();
+  const votingType = proposalVotingType ?? organizationVotingType;
   const { getRoleNamesString } = useRoleNames();
   const { userData, isAccountReady, userDataLoading, hasMemberRole } = useUserContext();
   const { poMembers } = usePOContext();
@@ -326,13 +332,13 @@ export function VotePowerReceipt({ variant = 'full', restrictedHatIds = null, hi
     return <RestrictionNotice rolesText={rolesText} variant={variant} />;
   }
 
-  // Direct-democracy-only orgs: no classes, equal voice for everyone.
+  // A DD poll uses equal voices even when its organization also has blended votes.
   if (votingType && votingType !== 'Hybrid') {
-    const memberCount = poMembers || 0;
+    const memberCount = eligibleCount ?? (proposalVotingType === undefined ? poMembers || 0 : 0);
     const headline =
       memberCount > 0
-        ? `Equal voice: 1 of ${memberCount} members = ${pct(100 / memberCount)}`
-        : percentOfTotal && percentOfTotal > 0
+        ? `Equal voice: 1 of ${approximate ? 'about ' : ''}${memberCount} members = ${approximate ? '~' : ''}${pct(100 / memberCount)}`
+        : proposalVotingType === undefined && percentOfTotal && percentOfTotal > 0
         ? `Equal voice: your share ${pct(percentOfTotal)}`
         : 'Equal voice — one person, one vote';
     if (variant === 'compact') {
@@ -355,7 +361,7 @@ export function VotePowerReceipt({ variant = 'full', restrictedHatIds = null, hi
           </Text>
         </HStack>
         <Text fontSize="xs" color="gray.300" mt={1}>
-          Every member has one vote of equal weight.
+          Every eligible member has one vote of equal weight.
         </Text>
       </Box>
     );

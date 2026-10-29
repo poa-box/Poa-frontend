@@ -12,6 +12,7 @@ import {
 } from '@chakra-ui/react';
 import { FiExternalLink, FiChevronRight } from 'react-icons/fi';
 import { formatTokenAmount } from '@/util/formatToken';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import { usePOContext } from '@/context/POContext';
 import { ACCENT, INK, HAIRLINE, ROW_HOVER, TABULAR, SeriesDot } from './treasuryStyles';
 
@@ -88,20 +89,20 @@ const TokenBalancesGrid = ({
   bountyPool = [],
   onFundBounties,
 }) => {
-  const { tokenLabel = 'Shares' } = usePOContext() || {};
+  const { tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext() || {};
 
   // Hide anything the member would read as zero: filter on the DISPLAYED
   // amount, not raw wei, so dust balances don't render as a "0.00" row.
-  const displayAmount = (t) => formatTokenAmount(t.balance || '0', t.decimals, t.isStable ? 2 : 4);
+  const displayAmount = (t) => t.balance == null ? 'Unavailable' : formatTokenAmount(t.balance, t.decimals, t.isStable ? 2 : 4);
   const fmt = (value, t) => formatTokenAmount(value || '0', t.decimals, t.isStable ? 2 : 4);
-  const nonZero = erc20Balances.filter(t => parseFloat(displayAmount(t)) > 0);
+  const nonZero = erc20Balances.filter(t => t.balance == null || parseFloat(displayAmount(t)) > 0);
   const stables = nonZero.filter(t => t.isStable);
   const others = nonZero.filter(t => !t.isStable);
 
   // The pool row stays visible at zero when live tasks still promise bounties —
   // an empty pot that owes money is exactly what the ledger must not hide.
   const poolRows = bountyPool.filter(
-    t => parseFloat(displayAmount(t)) > 0 || BigInt(t.committed || '0') > 0n
+    t => t.balance == null || t.committed == null || parseFloat(displayAmount(t)) > 0 || BigInt(t.committed) > 0n
   );
 
   const rows = [
@@ -119,7 +120,7 @@ const TokenBalancesGrid = ({
       icon: <TokenIcon logo={t.logo} symbol={t.symbol} />,
       symbol: t.symbol,
       caption: `${t.name} · no $ price`,
-      tag: <KindTag>Token</KindTag>,
+      tag: <KindTag>Asset</KindTag>,
       amount: displayAmount(t),
       projectUrl: t.projectUrl,
     })),
@@ -127,11 +128,11 @@ const TokenBalancesGrid = ({
       key: `pool-${t.symbol}-${t.address}`,
       icon: <TokenIcon logo={t.logo} symbol={t.symbol} tint="rgba(201,133,0,0.35)" />,
       symbol: t.symbol,
-      caption: 'task-reward pool',
+      caption: t.committed == null ? 'task-reward pool · promises unavailable' : 'task-reward pool',
       tag: <KindTag>Task rewards</KindTag>,
       // An empty-but-owing pool renders as a real figure ("0.00", not "0") so
       // it sits on the ledger's shared decimal edge like every other amount.
-      amount: parseFloat(displayAmount(t)) > 0 ? displayAmount(t) : (t.isStable ? '0.00' : '0'),
+      amount: t.balance == null ? 'Unavailable' : parseFloat(displayAmount(t)) > 0 ? displayAmount(t) : (t.isStable ? '0.00' : '0'),
       projectUrl: t.projectUrl,
       shortNote: BigInt(t.shortfall || '0') > 0n
         ? {

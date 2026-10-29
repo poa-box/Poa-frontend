@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -15,12 +15,22 @@ import {
 } from '@chakra-ui/react';
 import { useWeb3 } from '@/hooks/useWeb3Services';
 import { useUserContext } from '@/context/UserContext';
+import { useAuth } from '@/context/authState';
+import { usePOContext } from '@/context/POContext';
+import { notificationIdentity } from '@/hooks/transactionNotificationLifecycle';
 
 
 const AccountSettingsModal = ({ isOpen, onClose }) => {
     const { graphUsername, setGraphUsername } = useUserContext();
     const { user: userService, executeWithNotification, isReady, getNotReadyMessage } = useWeb3();
     const toast = useToast();
+    const auth = useAuth();
+    const po = usePOContext();
+    const identity = notificationIdentity({ auth, po });
+    const current = useRef(identity);
+    const mounted = useRef(true);
+    current.current = identity;
+    useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
 
     const [username, setUsername] = useState('');
@@ -45,16 +55,18 @@ const AccountSettingsModal = ({ isOpen, onClose }) => {
     }
 
     if (graphUsername !== username) {
+      let writeSource;
       const result = await executeWithNotification(
-        () => userService.changeUsername(username),
+        () => userService.changeUsername(username, { onWriteSource: source => { writeSource = source; } }),
         {
           pendingMessage: 'Updating username...',
           successMessage: 'Username updated successfully!',
           refreshEvent: 'user:username_changed',
+          writeSource: () => writeSource,
         }
       );
 
-      if (!result.success) return;
+      if (!result.success || !mounted.current || current.current !== identity || auth.isSessionCurrent?.() === false) return;
       if (result.success) {
         setGraphUsername(username);
       }
@@ -68,7 +80,7 @@ const AccountSettingsModal = ({ isOpen, onClose }) => {
       });
     }
     onClose();
-  }, [userService, isReady, getNotReadyMessage, executeWithNotification, username, graphUsername, setGraphUsername, toast, onClose]);
+  }, [userService, isReady, getNotReadyMessage, executeWithNotification, username, graphUsername, setGraphUsername, toast, onClose, identity, auth]);
 
 
   return (
@@ -100,4 +112,3 @@ const AccountSettingsModal = ({ isOpen, onClose }) => {
 
 
 export default AccountSettingsModal;
-

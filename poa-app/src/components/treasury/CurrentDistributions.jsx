@@ -1,5 +1,5 @@
 import { useUserContext } from '@/context/UserContext';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   VStack,
   Text,
@@ -7,15 +7,17 @@ import {
 } from '@chakra-ui/react';
 import { FiInbox } from 'react-icons/fi';
 import { INK } from './treasuryStyles';
-import { useQuery } from '@apollo/client';
+import { gql } from '@apollo/client';
 import { useWeb3 } from '@/hooks/useWeb3Services';
 import { useAuth } from '@/context/authState';
 import { useIPFScontext } from '@/context/ipfsContext';
 import { RefreshEvent } from '@/context/RefreshContext';
-import { FETCH_DISTRIBUTION_PROPOSALS } from '@/util/queries';
-import { getClaimData } from '@/util/merkleDistribution';
+import { usePOContext } from '@/context/POContext';
+import { verifyDistributionClaimsDocument, findDistributionClaim, parseDistributionClaimsDiscoveryMarker } from '@poa-box/core/metadata/distribution';
 import { useSubgraphClient } from '@/util/apolloClient';
 import DistributionCard from './DistributionCard';
+
+const EMPTY_PROPOSALS = Object.freeze([]);
 
 /**
  * Extract IPFS CID from a proposal description that contains "Merkle tree: ipfs://QmXxx..."
@@ -36,6 +38,10 @@ function extractAllTreeCids(proposals) {
   const results = [];
   for (const proposal of proposals) {
     const desc = proposal.metadata?.description || '';
+    const parsed = parseDistributionClaimsDiscoveryMarker(desc);
+    if (parsed.state === 'known') { results.push({ cid: parsed.value.cid, rootInDesc: parsed.value.merkleRoot.toLowerCase() }); continue; }
+    if (parsed.code === 'AMBIGUOUS_CLAIM_REFERENCE') continue;
+    // Older executed proposals omitted the root hint; retain their CID discovery only.
     const cid = extractTreeCid(desc);
     if (!cid) continue;
     // Check if the description also contains "Root: 0x..."
@@ -69,6 +75,7 @@ const CurrentDistributions = ({
   subgraphUrl,
   refetch,
 }) => {
+  const { orgId, orgChainId } = usePOContext();
   const { treasury, executeWithNotification, isReady } = useWeb3();
   const { accountAddress } = useAuth();
   const { isAccountReady, userDataLoading } = useUserContext();
@@ -77,81 +84,80 @@ const CurrentDistributions = ({
 
   const client = useSubgraphClient(subgraphUrl);
 
-  // Fetch executed proposals to find merkle tree CIDs
-  const { data: proposalData } = useQuery(FETCH_DISTRIBUTION_PROPOSALS, {
-    variables: { hybridVotingId: hybridVotingId?.toLowerCase() },
-    skip: !hybridVotingId || distributions.length === 0,
-    fetchPolicy: 'no-cache',
-    client,
-  });
-
-  const proposals = proposalData?.proposals || [];
+  const [references, setReferences] = useState({ scope: null, proposals: [], error: null });
+  const referenceScope = [orgId, orgChainId, subgraphUrl, hybridVotingId, distributions.length > 0].join(':');
+  useEffect(() => {
+    let active = true;
+    if (!orgId || !orgChainId || !subgraphUrl || !hybridVotingId || !distributions.length) return;
+    const read = async () => {
+      try {
+        const { readDistributionReferences } = await import('@poa-box/core/reads/treasury');
+        const head = await client.query({ query: gql`query DistributionReferenceHead { _meta { block { number hash } hasIndexingErrors } }`, fetchPolicy: 'network-only' });
+        const meta = head.data?._meta;
+        if (head.errors?.length || meta?.hasIndexingErrors || !Number.isSafeInteger(meta?.block?.number)) throw new Error('Payout references unavailable');
+        const facts = await readDistributionReferences({ source: { chainId: orgChainId, orgId, contract: hybridVotingId,
+          endpoint: subgraphUrl, method: 'graphql', indexed: true, snapshot: 'pinned',
+          block: { number: String(meta.block.number), ...(meta.block.hash ? { hash: meta.block.hash } : {}) } },
+          pageSize: 500, maxPages: 10, query: async (document, variables) => {
+            const response = await client.query({ query: gql(document), variables, fetchPolicy: 'network-only' });
+            if (response.errors?.length) throw new Error('Payout references unavailable');
+            return response.data;
+          } });
+        if (facts.coverage.status !== 'complete') throw new Error('Payout references incomplete');
+        if (active) setReferences({ scope: referenceScope, proposals: facts.data.map(row => row.proposal), error: null });
+      } catch (error) { if (active) setReferences({ scope: referenceScope, proposals: [], error }); }
+    };
+    read();
+    return () => { active = false; };
+  }, [client, orgId, orgChainId, subgraphUrl, hybridVotingId, distributions.length, referenceScope]);
+  const proposals = references.scope === referenceScope ? references.proposals : EMPTY_PROPOSALS;
   const treeCids = React.useMemo(() => extractAllTreeCids(proposals), [proposals]);
 
-  // Claim data cache: { [distributionId]: { amount, proof } | 'loading' | 'not-found' | 'error' }
-  const [claimDataMap, setClaimDataMap] = useState({});
+  // Scope includes immutable distribution facts so an old account/root can never reuse claims.
+  const scopeKey = JSON.stringify([orgId, orgChainId, subgraphUrl, paymentManagerAddress, hybridVotingId, accountAddress, accountPending,
+    distributions.map(d => [d.distributionId, d.merkleRoot, d.payoutToken, d.totalAmount, d.checkpointBlock])]);
+  const scopeRef = useRef(scopeKey);
+  scopeRef.current = scopeKey;
+  const [claimState, setClaimState] = useState({ scope: null, data: {} });
+  const claimDataMap = claimState.scope === scopeKey ? claimState.data : {};
 
-  // Fetch claim data for a single distribution (caller must set 'loading' state first)
-  const fetchClaimData = useCallback(async (distribution) => {
-    const distId = distribution.distributionId;
-
-    try {
-      const rootHex = distribution.merkleRoot?.toLowerCase();
-      const result = findTreeCidForDistribution(distribution, treeCids);
-
-      // result is either a string (exact CID match) or array of CIDs to try
-      const cidsToTry = typeof result === 'string' ? [result] : (result || []);
-
-      if (cidsToTry.length === 0) {
-        setClaimDataMap(prev => ({ ...prev, [distId]: 'not-found' }));
-        return;
-      }
-
-      // Try each CID until we find one whose merkleRoot matches
-      for (const cid of cidsToTry) {
-        const treeData = await safeFetchFromIpfs(cid);
-        if (!treeData?.claims) continue;
-
-        // For slow-path CIDs, verify the root matches
-        if (treeData.merkleRoot && treeData.merkleRoot.toLowerCase() !== rootHex) continue;
-
-        const userClaimData = getClaimData(treeData.claims, accountAddress);
-        if (userClaimData) {
-          setClaimDataMap(prev => ({ ...prev, [distId]: userClaimData }));
-          return;
-        }
-      }
-
-      setClaimDataMap(prev => ({ ...prev, [distId]: 'not-found' }));
-    } catch (error) {
-      console.error('[Claim] Failed to fetch claim data for dist', distId, error);
-      setClaimDataMap(prev => ({ ...prev, [distId]: 'error' }));
+  const fetchClaimData = useCallback(async distribution => {
+    const result = findTreeCidForDistribution(distribution, treeCids);
+    const cids = typeof result === 'string' ? [result] : result || [];
+    if (!cids.length) return 'error'; // Missing discovery is unknown, not known exclusion.
+    for (const cid of cids) {
+      let document;
+      try { document = await safeFetchFromIpfs(cid); } catch { continue; }
+      const verified = verifyDistributionClaimsDocument(document, { loadedCid: cid, reference: {
+        chainId: orgChainId, orgId, paymentManager: paymentManagerAddress, distributionId: String(distribution.distributionId),
+        cid, merkleRoot: distribution.merkleRoot, token: distribution.payoutToken,
+        totalAmount: distribution.totalAmount, checkpointBlock: String(distribution.checkpointBlock),
+      } });
+      if (verified.state !== 'known') continue;
+      const claim = findDistributionClaim(verified, accountAddress);
+      if (claim.state !== 'known') return 'error';
+      return claim.value || 'not-found';
     }
-  }, [accountAddress, treeCids, safeFetchFromIpfs]);
+    return 'error';
+  }, [treeCids, safeFetchFromIpfs, orgChainId, orgId, paymentManagerAddress, accountAddress]);
 
-  // Fetch claim data when proposals load
   useEffect(() => {
-    if (!accountAddress || treeCids.length === 0) return;
-
-    const toFetch = distributions.filter(dist => {
-      const userClaim = dist.claims?.find(
-        c => c.claimer?.toLowerCase() === accountAddress?.toLowerCase()
-      );
-      return !userClaim; // Only unclaimed distributions
+    let active = true;
+    if (!accountAddress || accountPending) { setClaimState({ scope: scopeKey, data: {} }); return; }
+    if (!treeCids.length) {
+      setClaimState({ scope: scopeKey, data: Object.fromEntries(distributions.map(d => [d.distributionId,
+        references.scope === referenceScope ? 'error' : 'loading'])) });
+      return;
+    }
+    const pending = distributions.filter(d => !d.claims?.some(c => c.claimer?.toLowerCase() === accountAddress.toLowerCase()));
+    setClaimState({ scope: scopeKey, data: Object.fromEntries(pending.map(d => [d.distributionId, 'loading'])) });
+    pending.forEach(async distribution => {
+      const value = await fetchClaimData(distribution);
+      if (active && scopeRef.current === scopeKey) setClaimState(prev => ({ scope: scopeKey,
+        data: { ...prev.data, [distribution.distributionId]: value } }));
     });
-
-    // Use a ref-like check via functional state to avoid duplicates
-    setClaimDataMap(prev => {
-      const needsFetch = toFetch.filter(d => !prev[d.distributionId]);
-      if (needsFetch.length === 0) return prev;
-      // Mark as loading, then trigger fetches outside setState
-      const next = { ...prev };
-      needsFetch.forEach(d => { next[d.distributionId] = 'loading'; });
-      // Schedule fetches (after render)
-      setTimeout(() => needsFetch.forEach(d => fetchClaimData(d)), 0);
-      return next;
-    });
-  }, [distributions, treeCids, accountAddress, fetchClaimData]);
+    return () => { active = false; };
+  }, [scopeKey, distributions, treeCids, accountAddress, accountPending, fetchClaimData, references.scope, referenceScope]);
 
   // Handle claim
   const handleClaim = async (distributionId) => {
@@ -165,12 +171,18 @@ const CurrentDistributions = ({
     }
 
     const result = await executeWithNotification(
-      () => treasury.claimDistribution(
+      async () => {
+        if (scopeRef.current !== scopeKey) throw new Error('Your account or organization changed. Try again.');
+        const alreadyClaimed = await treasury.hasClaimed(paymentManagerAddress, distributionId, accountAddress);
+        if (scopeRef.current !== scopeKey) throw new Error('Your account or organization changed. Try again.');
+        if (alreadyClaimed) { refetch?.(); throw new Error('You have already claimed this payout.'); }
+        return treasury.claimDistribution(
         paymentManagerAddress,
         distributionId,
         claimData.amount,
         claimData.proof
-      ),
+      );
+      },
       {
         pendingMessage: 'Claiming your distribution share...',
         successMessage: 'Distribution claimed successfully!',
@@ -178,6 +190,7 @@ const CurrentDistributions = ({
       }
     );
 
+    if (scopeRef.current !== scopeKey) return;
     if (result.success) {
       refetch?.();
     } else {

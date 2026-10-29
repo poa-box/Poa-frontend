@@ -32,7 +32,7 @@ import { SettingsIcon, CopyIcon, CheckIcon, ExternalLinkIcon } from '@chakra-ui/
 import { useRouter } from 'next/router';
 import { useAuth } from '@/context/authState';
 import { useGlobalAccount } from '@/hooks/useGlobalAccount';
-import { findUserOrgsAcrossChains } from '@/util/crossChainUsername';
+import { useProfileMemberships, usePreservedProfileMetadata, knownNativeBalance } from '@/features/application/pages/publicProfileReads';
 import { filterUserOrgsForViewedProfile } from '@/util/profileOrgFilter';
 import UserOrgCard from '@/components/profile/UserOrgCard';
 import GlobalAccountSettingsModal from '@/components/account/GlobalAccountSettingsModal';
@@ -50,45 +50,32 @@ const AccountPage = () => {
   const router = useRouter();
   const toast = useToast();
   const { isAuthenticated, isPasskeyUser, accountAddress, isAuthHydrated } = useAuth();
-  const { globalUsername, hasAccount, isLoading: isAccountLoading, profileMetadata, refetchAccount } = useGlobalAccount();
+  const { globalUsername, hasAccount, isUnavailable: accountUnavailable, isLoading: isAccountLoading, profileMetadata, refetchAccount } = useGlobalAccount();
+  const displayedProfileMetadata = usePreservedProfileMetadata(accountAddress, profileMetadata, accountUnavailable);
   const { isOpen: isSignInOpen, onOpen: onSignInOpen, onClose: onSignInClose } = useDisclosure();
 
   const [isSSR, setIsSSR] = useState(true);
   const [isSettingsModalOpen, setSettingsModalOpen] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
-  const [organizations, setOrganizations] = useState([]);
-  const [orgsLoading, setOrgsLoading] = useState(true);
   const [selectedTransferToken, setSelectedTransferToken] = useState(null);
   const { isOpen: isTransferOpen, onOpen: onTransferOpen, onClose: onTransferClose } = useDisclosure();
   const [selectedCashOutToken, setSelectedCashOutToken] = useState(null);
   const { isOpen: isCashOutOpen, onOpen: onCashOutOpen, onClose: onCashOutClose } = useDisclosure();
-  const { balances, nativeBalances, isLoading: balancesLoading, refetch: refetchBalances } = useTokenBalances(accountAddress);
-
-  // Fetch user's organizations across all chains via parallel fetch
-  useEffect(() => {
-    if (!accountAddress || !hasAccount) {
-      setOrgsLoading(false);
-      return;
+  const resolvedAccount = isAuthenticated && isAuthHydrated !== false && hasAccount === true ? accountAddress : null;
+  const { balances, nativeBalances, errors: balanceErrors = [], coverage: balanceCoverage, isLoading: balancesLoading, refetch: refetchBalances } = useTokenBalances(resolvedAccount);
+  const { organizations, isLoading: orgsLoading, isComplete: orgsComplete, isUnavailable: orgsUnavailable, refetch: refetchOrgs } = useProfileMemberships(resolvedAccount);
+  // Modal selections are scoped to the account and refreshed balance list.
+  const currentSelection = selected => selected && selected._account === resolvedAccount
+    ? balances.find(token => token.address === selected.address && token.chainId === selected.chainId) : null;
+  const transferToken = currentSelection(selectedTransferToken);
+  const cashOutToken = currentSelection(selectedCashOutToken);
+  const canOpenAssetAction = token => {
+    if (!resolvedAccount || balancesLoading || knownNativeBalance(nativeBalances, token.chainId) === null) {
+      toast({ title: 'Network balance unavailable', description: 'Refresh balances before continuing.', status: 'info' });
+      return false;
     }
-    let cancelled = false;
-    setOrgsLoading(true);
-
-    findUserOrgsAcrossChains(accountAddress)
-      .then((orgs) => {
-        if (!cancelled) {
-          setOrganizations(orgs);
-          setOrgsLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setOrganizations([]);
-          setOrgsLoading(false);
-        }
-      });
-
-    return () => { cancelled = true; };
-  }, [accountAddress, hasAccount]);
+    return true;
+  };
 
   const visibleOrganizations = filterUserOrgsForViewedProfile(organizations, globalUsername);
 
@@ -134,10 +121,10 @@ const AccountPage = () => {
 
   // Redirect if authenticated but no account registered
   useEffect(() => {
-    if (!isSSR && !isAccountLoading && isAuthenticated && !hasAccount) {
+    if (!isSSR && isAuthHydrated !== false && !isAccountLoading && isAuthenticated && hasAccount === false && !accountUnavailable) {
       router.push('/');
     }
-  }, [isSSR, isAccountLoading, isAuthenticated, hasAccount, router]);
+  }, [isSSR, isAuthHydrated, isAccountLoading, isAuthenticated, hasAccount, accountUnavailable, router]);
 
 
   if (isSSR) {
@@ -145,7 +132,7 @@ const AccountPage = () => {
   }
 
   // Loading state
-  if (isAuthHydrated === false || (isAuthenticated && isAccountLoading)) {
+  if (isAuthHydrated === false || (isAuthenticated && isAccountLoading && hasAccount !== true)) {
     return (
       <><Box minH="100vh" bgGradient={bgGradient} p={4}>
         <Container maxW="container.lg" pt={8}>
@@ -214,6 +201,12 @@ const AccountPage = () => {
     );
   }
 
+  if (hasAccount !== true) {
+    return <Box minH="100vh" bgGradient={bgGradient} p={8}><Card><CardBody>
+      <Text role="status">{hasAccount === false && !accountUnavailable ? 'Opening account setup…' : 'Your account details are unavailable right now.'}</Text>
+      <Button onClick={refetchAccount}>Try again</Button>
+    </CardBody></Card></Box>;
+  }
 
   return (
     <>
@@ -233,6 +226,7 @@ const AccountPage = () => {
         </HStack>
 
         <VStack spacing={6} align="stretch">
+          {accountUnavailable && <HStack><Text role="status" color="white">Some account details are unavailable.</Text><Button onClick={refetchAccount}>Try again</Button></HStack>}
           {/* Account Info Card */}
           <Card borderRadius="2xl" boxShadow="2xl" style={glassStyle}>
             <CardBody p={[4, 6, 8]}>
@@ -250,6 +244,7 @@ const AccountPage = () => {
                     icon={<SettingsIcon />}
                     aria-label="Account Settings"
                     onClick={() => setSettingsModalOpen(true)}
+                    isDisabled={accountUnavailable}
                     variant="ghost"
                     colorScheme="gray"
                     size="lg"
@@ -285,7 +280,7 @@ const AccountPage = () => {
                       Organizations
                     </Text>
                     <Badge colorScheme="purple" fontSize="lg" px={3} py={1} borderRadius="full">
-                      {organizations.length}
+                      {orgsComplete ? visibleOrganizations.length : 'Unavailable'}
                     </Badge>
                   </VStack>
                 </HStack>
@@ -301,12 +296,14 @@ const AccountPage = () => {
                   Profile
                 </Heading>
                 <Text color={subtextColor} fontSize="sm">
-                  Your profile is stored on-chain and visible across all organizations.
+                  Your profile is visible across all organizations.
                 </Text>
-                <ProfileEditor
-                  currentMetadata={profileMetadata}
-                  onSuccess={() => refetchAccount()}
-                />
+                <Box as="fieldset" disabled={accountUnavailable} border="0" p={0} minW={0}>
+                  <ProfileEditor
+                    currentMetadata={displayedProfileMetadata}
+                    onSuccess={() => refetchAccount()}
+                  />
+                </Box>
               </VStack>
             </CardBody>
           </Card>
@@ -314,13 +311,19 @@ const AccountPage = () => {
           {/* Token Balances Section */}
           <TokenBalances
             balances={balances}
+            nativeBalances={nativeBalances}
+            errors={balanceErrors}
+            coverage={balanceCoverage}
+            onRetry={() => refetchBalances()}
             isLoading={balancesLoading}
             onSend={(token) => {
-              setSelectedTransferToken(token);
+              if (!canOpenAssetAction(token)) return;
+              setSelectedTransferToken({ ...token, _account: resolvedAccount });
               onTransferOpen();
             }}
             onCashOut={(token) => {
-              setSelectedCashOutToken(token);
+              if (!canOpenAssetAction(token)) return;
+              setSelectedCashOutToken({ ...token, _account: resolvedAccount });
               onCashOutOpen();
             }}
             cardStyle={glassStyle}
@@ -345,12 +348,13 @@ const AccountPage = () => {
                   My Organizations
                 </Heading>
 
-                {orgsLoading ? (
+                {orgsUnavailable && <HStack><Text role="status" color={subtextColor}>Some organizations are unavailable.</Text><Button onClick={refetchOrgs}>Try again</Button></HStack>}
+                {orgsLoading && visibleOrganizations.length === 0 ? (
                   <VStack spacing={4}>
                     <SkeletonText noOfLines={3} spacing={4} width="100%" />
                     <SkeletonText noOfLines={3} spacing={4} width="100%" />
                   </VStack>
-                ) : visibleOrganizations.length === 0 ? (
+                ) : visibleOrganizations.length === 0 && orgsComplete ? (
                   <VStack spacing={4} py={8}>
                     <Text color={subtextColor} textAlign="center">
                       You haven't joined any organizations yet.
@@ -387,25 +391,28 @@ const AccountPage = () => {
 
       {/* Account Settings Modal */}
       <GlobalAccountSettingsModal
-        isOpen={isSettingsModalOpen}
+        isOpen={isSettingsModalOpen && !accountUnavailable}
         onClose={() => setSettingsModalOpen(false)}
       />
 
       {/* Transfer Modal */}
       <TransferModal
-        isOpen={isTransferOpen}
+        isOpen={isTransferOpen && !!transferToken && knownNativeBalance(nativeBalances, transferToken.chainId) !== null}
         onClose={onTransferClose}
-        token={selectedTransferToken}
+        token={transferToken}
         accountAddress={accountAddress}
-        nativeBalance={selectedTransferToken ? nativeBalances[selectedTransferToken.chainId] : '0'}
+        nativeBalance={transferToken ? knownNativeBalance(nativeBalances, transferToken.chainId) : null}
         onSuccess={refetchBalances}
       />
 
       {/* Cash Out Modal */}
       <CashOutModal
-        isOpen={isCashOutOpen}
+        isOpen={isCashOutOpen && !!cashOutToken && knownNativeBalance(nativeBalances, cashOutToken.chainId) !== null}
         onClose={onCashOutClose}
-        token={selectedCashOutToken}
+        token={cashOutToken}
+        nativeBalance={cashOutToken ? knownNativeBalance(nativeBalances, cashOutToken.chainId) : null}
+        errors={balanceErrors}
+        coverage={balanceCoverage}
         accountAddress={accountAddress}
         onSuccess={refetchBalances}
       />

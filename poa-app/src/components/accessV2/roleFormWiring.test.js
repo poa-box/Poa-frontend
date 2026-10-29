@@ -54,7 +54,9 @@ describe('both entry points use the normal vote wizard', () => {
     expect(voteModal).toMatch(/<RoleForm[\s\S]*?value=\{proposal\.roleFormV2\}/);
     // The legacy configurator is still there, still reached, still fed the same props.
     expect(voteModal).toContain('<RoleConfigurator');
-    expect(voteModal).toContain('subjectRaceWarning={v2SubjectRaceWarning}');
+    expect(read('lib', 'accessV2', 'roleObservation.js')).toContain('createRoleOperationHost');
+    expect(read('lib', 'accessV2', 'roleOperationHost.js')).toContain('@poa-box/core/governance/role-operations');
+    expect(read('lib', 'accessV2', 'roleObservation.js')).not.toContain('readProposalArchive');
   });
 
   it('the form itself is controlled and submits nothing', () => {
@@ -84,9 +86,10 @@ describe('both entry points use the normal vote wizard', () => {
 });
 
 describe('one encoder', () => {
-  it('the vote wizard builds through buildRoleFormBatch', () => {
-    expect(proposalRuntime).toContain('buildRoleFormBatch');
-    expect(proposalRuntime.split('buildRoleFormBatch(').length - 1).toBeGreaterThan(0);
+  it('the vote wizard submits the reviewed canonical role plan', () => {
+    expect(proposalRuntime).toContain('prepareReviewedRole');
+    expect(proposalRuntime).toContain('const built = v2.preparedRole');
+    expect(read('lib', 'accessV2', 'roleReview.js')).toContain('buildRoleFormBatch');
   });
 
   it('the create-role encoder that used to live in v2VoteActions is gone, not duplicated', () => {
@@ -99,7 +102,7 @@ describe('one encoder', () => {
 
   it('the wizard gate and the encoder read the SAME form', () => {
     // `resolveRoleForm` is what makes "validated" and "encoded" the same object.
-    expect(proposalRuntime).toContain('form: resolveRoleForm(proposal)');
+    expect(proposalRuntime).toContain('prepareReviewedRole(resolveRoleForm(proposal))');
     expect(read('lib', 'voting', 'proposalChecks.js')).toContain('roleFormError(resolveRoleForm(p))');
   });
 
@@ -130,7 +133,7 @@ describe('the copy both doors show', () => {
 
 describe('v2 creation keeps configuration and proposal preview connected', () => {
   it('passes the full live context to the encoder and blocks on preview errors', () => {
-    expect(roleForm).toMatch(/buildRoleFormBatch\(\{\s*\.\.\.ctx,\s*preview: true/);
+    expect(roleForm).toContain('reviewRoleConfiguration(form, { signal: controller.signal })');
     expect(roleForm).toContain("blocked: current === 'review' ? reviewError : null");
     expect(roleForm).toContain('currentError || preview.error');
   });

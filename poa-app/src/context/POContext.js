@@ -17,6 +17,9 @@ import { resolveLegacyRoleName } from '@/lib/roles/roleNames';
 import { createOrgStateReducer, selectOrgState } from '@/lib/orgState';
 import { lookupOrganization } from '@/util/orgLookup';
 import { fetchOrganizationSnapshot, seedOrganizationSnapshot } from '@/util/orgSnapshot';
+import { indexedParticipationBalance } from '@/lib/voting/rawBalance';
+import { useEducationRead } from '@/hooks/useEducationRead';
+import { useOrganizationTotals } from '@/hooks/useOrganizationTotals';
 
 // Re-export for back-compat with callers that imported these from POContext.
 export { getDefaultOrgForHost, getVisitUrlForOrg, resolveOrgAlias };
@@ -29,13 +32,14 @@ export const usePOContext = () => useContext(POContext);
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 // Transform users array to leaderboard format
-function transformLeaderboardData(users, roleHatIds) {
+function transformLeaderboardData(users, balanceAsset) {
     if (!users || !Array.isArray(users)) {
         return [];
     }
     return users.map(user => {
         const rawBalance = user.participationTokenBalance;
-        const formattedBalance = formatTokenAmount(rawBalance || '0');
+        const balance = indexedParticipationBalance(rawBalance, balanceAsset);
+        const formattedBalance = balance.participationTokenBalanceWei == null ? '—' : formatTokenAmount(balance.participationTokenBalanceWei);
         return {
             id: user.id,
             address: user.address,
@@ -43,64 +47,11 @@ function transformLeaderboardData(users, roleHatIds) {
             hasUsername: !!user.account?.username,
             avatarCid: user.account?.metadata?.avatar || null,
             token: formattedBalance,
+            ...balance,
             // Derive role from hat IDs - first hat is typically the primary role
             hatIds: user.currentHatIds || [],
             totalTasksCompleted: parseInt(user.totalTasksCompleted, 10) || 0,
             totalVotes: parseInt(user.totalVotes, 10) || 0,
-        };
-    });
-}
-
-// Transform education modules from new schema
-function transformEducationModules(modules) {
-    if (!modules || !Array.isArray(modules)) {
-        return [];
-    }
-    return modules.map(module => {
-        // Convert bytes32 contentHash to CID format for IPFS gateway URLs
-        const ipfsCid = module.contentHash ? bytes32ToIpfsCid(module.contentHash) : null;
-
-        // Use subgraph-indexed metadata when available
-        const meta = module.metadata;
-        let description = 'Module content loading from IPFS...';
-        let link = '';
-        let question = '';
-        let answers = [];
-        let ipfsFetched = false;
-
-        if (meta) {
-            description = meta.description || 'No description available';
-            link = meta.link || '';
-            question = (meta.quiz && meta.quiz.length > 0) ? meta.quiz[0] : '';
-            if (meta.answersJson) {
-                try {
-                    const parsed = JSON.parse(meta.answersJson);
-                    answers = (parsed[0] || []).map((ans, i) => ({ index: i, answer: ans }));
-                } catch (e) {
-                    // Fall back to empty answers if JSON parsing fails
-                }
-            }
-            ipfsFetched = true;
-        }
-
-        return {
-            id: module.id,
-            moduleId: module.moduleId,
-            name: module.title || 'Indexing...',
-            ipfsHash: ipfsCid,
-            // Keep original bytes32 hash for any components that need it
-            contentHashBytes32: module.contentHash,
-            payout: formatTokenAmount(module.payout || '0'),
-            status: module.status,
-            isIndexing: !module.contentHash,
-            description,
-            link,
-            question,
-            answers,
-            completions: module.completions || [],
-            // For backward compatibility
-            completetions: module.completions || [],
-            _ipfsFetched: ipfsFetched,
         };
     });
 }
@@ -117,9 +68,12 @@ const initialState = {
     logoUrl: '',
     backgroundColor: null,
     metadataAdminHatId: null,
-    poMembers: 0,
-    activeTaskAmount: 0,
-    completedTaskAmount: 0,
+    metadataAdminHatIdKnown: false,
+    leaderboardCoverage: { status: 'preview', limit: 200, currentHoldersComplete: false },
+    taskCountsCoverage: { status: 'preview' },
+    poMembers: null,
+    activeTaskAmount: null,
+    completedTaskAmount: null,
     ptTokenBalance: 0,
 
     // Contract addresses
@@ -144,7 +98,6 @@ const initialState = {
     leaderboardData: [],
     poContextLoading: true,
     rules: null,
-    educationModules: [],
     roleHatIds: [],
     topHatId: null,
     creatorHatIds: [],
@@ -361,17 +314,31 @@ export const POProvider = ({ children, enabled = true }) => {
         ? queryData
         : undefined;
 
+    const educationRead = useEducationRead({ client, chainId: state.orgChainId, endpoint: subgraphUrl,
+        orgId: state.orgId, hub: state.educationHubAddress, kind: 'modules',
+        enabled: state.educationHubEnabled, safeFetchFromIpfs });
+    const refetchEducation = educationRead.refetch;
+    const organizationTotals = useOrganizationTotals({ chainId: state.orgChainId, endpoint: subgraphUrl,
+        orgId: state.orgId, authority: orgData?.organization?.membershipAuthority?.id,
+        token: orgData?.organization?.participationToken?.id, hub: orgData?.organization?.educationHub?.id,
+        enabled: !!orgData?.organization });
+    const refetchTotals = organizationTotals.refetch;
+
     // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
     const refetchRef = React.useRef(refetchOrgData);
     refetchRef.current = refetchOrgData;
 
     // Refetch immediately — executeWithNotification already waited for the
     // subgraph to index the transaction block before emitting the event.
-    const handleRefresh = useCallback(() => {
+    const handleRefresh = useCallback((event) => {
         if (state.orgId) {
             refetchRef.current();
+            void refetchTotals();
         }
-    }, [state.orgId]);
+        if (event?.event === RefreshEvent.MODULE_CREATED || event?.event === RefreshEvent.MODULE_COMPLETED) {
+            void refetchEducation();
+        }
+    }, [state.orgId, refetchEducation, refetchTotals]);
 
     // Subscribe to relevant events
     useRefreshSubscription(
@@ -396,6 +363,8 @@ export const POProvider = ({ children, enabled = true }) => {
     useEffect(() => {
         if (orgData?.organization) {
             const org = orgData.organization;
+            const eduHubId = org.educationHub?.id || '';
+            const zkEmailInvitesId = org.zkEmailInvites?.id || '';
 
             // Build role names map and canVote map from roles data
             const roleNamesMap = {};
@@ -411,29 +380,6 @@ export const POProvider = ({ children, enabled = true }) => {
                 });
             }
 
-            // Calculate task counts from taskManager projects
-            let activeTasks = 0;
-            let completedTasks = 0;
-            if (org.taskManager?.projects) {
-                org.taskManager.projects.forEach(project => {
-                    project.tasks?.forEach(task => {
-                        if (task.status === 'Completed') {
-                            completedTasks++;
-                        } else if (task.status !== 'Cancelled') {
-                            activeTasks++;
-                        }
-                    });
-                });
-            }
-
-            // Process education modules
-            const modules = org.educationHub?.modules || [];
-
-            // Build metadata fields
-            const eduHubId = org.educationHub?.id || '';
-            // ZkEmailInvites is an OPTIONAL per-org module (like EducationHub) — present only when
-            // the org opted in and the chain has ZK Email infra wired. Empty/absent otherwise.
-            const zkEmailInvitesId = org.zkEmailInvites?.id || '';
             const adminHat = org.metadataAdminHatId;
 
             // The subgraph keeps `eligibilityModuleAdminHat` in
@@ -521,11 +467,12 @@ export const POProvider = ({ children, enabled = true }) => {
                         useTokenSymbol: org.metadata?.useTokenSymbol === true,
                         symbol: org.participationToken?.symbol,
                     }),
-                    poMembers: org.users?.length || 0,
+                    poMembers: null,
                     ptTokenBalance: formatTokenAmount(org.participationToken?.totalSupply || '0'),
                     topHatId: org.topHatId,
                     roleHatIds: userFacingRoleHatIds,
                     metadataAdminHatId: adminHat && adminHat !== '0' ? adminHat : null,
+                    metadataAdminHatIdKnown: Object.prototype.hasOwnProperty.call(org, 'metadataAdminHatId') && /^\d+$/.test(String(adminHat)),
                     eligibilityModuleAdminHat: eligibilityAdminHatId,
                     creatorHatIds: org.taskManager?.creatorHatIds || [],
                     votingHatPermissions,
@@ -554,10 +501,9 @@ export const POProvider = ({ children, enabled = true }) => {
                     treasuryContractAddress: org.executorContract?.id || '',
                     ddTokenContractAddress: '',
                     nftMembershipContractAddress: '',
-                    activeTaskAmount: activeTasks,
-                    completedTaskAmount: completedTasks,
-                    educationModules: transformEducationModules(modules),
-                    leaderboardData: transformLeaderboardData(org.users, userFacingRoleHatIds),
+                    activeTaskAmount: null,
+                    completedTaskAmount: null,
+                    leaderboardData: transformLeaderboardData(org.users, { chainId: state.orgChainId, address: org.participationToken?.id, endpoint: subgraphUrl, orgId: org.id }),
                     rules: {
                         HybridVoting: org.hybridVoting ? {
                             id: org.hybridVoting.id,
@@ -582,7 +528,7 @@ export const POProvider = ({ children, enabled = true }) => {
                 },
             });
         }
-    }, [orgData, poName]);
+    }, [orgData, poName, state.orgChainId, subgraphUrl]);
 
     // URL housekeeping is separate from transforming org data: moving between
     // routes replaces Next's router object but must not rebuild every role,
@@ -644,52 +590,6 @@ export const POProvider = ({ children, enabled = true }) => {
         return () => { cancelled = true; };
     }, [orgData, poName, safeFetchFromIpfs]);
 
-    // Fetch IPFS content for education modules (description, quiz, answers, link)
-    // The subgraph only stores title + contentHash; the rest lives in IPFS.
-    useEffect(() => {
-        let cancelled = false;
-        async function fetchModuleContent() {
-            const modules = state.educationModules;
-            if (!modules || modules.length === 0) return;
-
-            const modulesNeedingFetch = modules.filter(m => m.ipfsHash && !m._ipfsFetched);
-            if (modulesNeedingFetch.length === 0) return;
-
-            const updated = await Promise.all(
-                modules.map(async (module) => {
-                    if (!module.ipfsHash || module._ipfsFetched) return module;
-                    try {
-                        const content = await safeFetchFromIpfs(module.ipfsHash);
-                        if (!content) return { ...module, _ipfsFetched: true };
-                        return {
-                            ...module,
-                            description: content.description || module.description,
-                            link: content.link || '',
-                            question: content.quiz?.[0] || '',
-                            answers: (content.answers?.[0] || []).map((ans, i) => ({
-                                index: i,
-                                answer: ans,
-                            })),
-                            _ipfsFetched: true,
-                        };
-                    } catch (e) {
-                        console.warn('[POContext] Failed to fetch education module IPFS content:', e);
-                        return { ...module, _ipfsFetched: true };
-                    }
-                })
-            );
-
-            if (cancelled) return;
-            dispatch({
-                type: 'SET_ORG_DATA',
-                orgName: poName,
-                payload: { educationModules: updated },
-            });
-        }
-        fetchModuleContent();
-        return () => { cancelled = true; };
-    }, [state.educationModules, poName, safeFetchFromIpfs]);
-
     // Combined loading and error states
     const loading = orgLookupLoading || (!!state.orgId && orgDataLoading);
     const rawError = orgLookupError || (state.orgId ? orgDataError : null);
@@ -743,7 +643,17 @@ export const POProvider = ({ children, enabled = true }) => {
         logoUrl: state.logoUrl,
         backgroundColor: state.backgroundColor,
         metadataAdminHatId: state.metadataAdminHatId,
-        poMembers: state.poMembers,
+        metadataAdminHatIdKnown: scopeMatches && !orgDataError && state.metadataAdminHatIdKnown,
+        // Leaderboard rows remain a preview; totals have separate complete evidence.
+        leaderboardCoverage: state.leaderboardCoverage,
+        currentHolderCount: organizationTotals.totals?.holders ?? null,
+        currentHolderBalanceRaw: organizationTotals.snapshots?.holders?.data.balanceTotalRaw?.state === 'known'
+            && organizationTotals.coverage?.holders?.status === 'complete'
+            ? organizationTotals.snapshots.holders.data.balanceTotalRaw.value : null,
+        organizationTotalsRead: organizationTotals,
+        educationCompletionTotals: organizationTotals.snapshots?.education ?? null,
+        taskCountsCoverage: state.taskCountsCoverage,
+        poMembers: organizationTotals.totals?.members ?? null,
         activeTaskAmount: state.activeTaskAmount,
         completedTaskAmount: state.completedTaskAmount,
         ptTokenBalance: state.ptTokenBalance,
@@ -774,7 +684,8 @@ export const POProvider = ({ children, enabled = true }) => {
         avatarCidMap,
         poContextLoading: state.poContextLoading,
         rules: state.rules,
-        educationModules: state.educationModules,
+        educationModules: educationRead.data,
+        educationModulesRead: educationRead,
 
         // POP-specific data
         roleHatIds: state.roleHatIds,
@@ -799,12 +710,9 @@ export const POProvider = ({ children, enabled = true }) => {
         tokenLabel: state.tokenLabel,
         roleNames: state.roleNames,
         roleCanVoteMap: state.roleCanVoteMap,
-    }), [state, loading, errorMessage, leaderboardDisplayData, avatarCidMap, subgraphUrl, poName, orgStatus]);
+    }), [state, loading, errorMessage, leaderboardDisplayData, avatarCidMap, subgraphUrl, poName, orgStatus, educationRead, organizationTotals, scopeMatches, orgDataError]);
 
-    return (
-        <POContext.Provider value={contextValue}>
-            {errorMessage && <div>Error: {errorMessage}</div>}
-            {children}
-        </POContext.Provider>
-    );
+    return React.createElement(POContext.Provider, { value: contextValue },
+        errorMessage && React.createElement('div', null, 'Error: ', errorMessage),
+        children);
 };

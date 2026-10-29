@@ -53,14 +53,16 @@ import { useWeb3Services, useTransactionWithNotification } from '@/hooks/useWeb3
 import { usePOContext } from '@/context/POContext';
 import { useOrgStructure } from '@/hooks/useOrgStructure';
 import { useAuth } from '@/context/authState';
-import { ipfsCidToBytes32, stringToBytes } from '@/services/web3/utils/encoding';
+import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
+import { executeCoreIntent } from '@/services/web3/core/coreIntent';
+import { ORG_INFRASTRUCTURE_QUERY, ORG_METADATA_QUERY, prepareOrganizationMetadataUpdate } from '@/lib/organization/metadataUpdate';
+import { useOrganizationWriteScope } from '@/lib/organization/useOrganizationWriteScope';
+import { replaceInviteRows, verifiedInviteRows } from '@/lib/accessV2/roleEmailAllowlist';
+import { verifyAllowlistDocument } from '@poa-box/core/email/allowlist';
 import { RefreshEvent } from '@/context/RefreshContext';
-import { assertRootMatches, buildAllowlist } from '@/lib/zkemail/allowlist';
-import { describeWho, inviteKey, inviteRoleNames, readInvites } from '@/lib/zkemail/inviteDisplay';
+import { describeWho, inviteKey, inviteRoleNames } from '@/lib/zkemail/inviteDisplay';
 import { getClient } from '@/util/apolloClient';
-import { FETCH_INFRASTRUCTURE_ADDRESSES, FETCH_ORG_BY_ID } from '@/util/queries';
 import { getSubgraphUrl, getNetworkByChainId } from '@/config/networks';
-import OrgRegistryABI from '../../../abi/OrgRegistry.json';
 
 const EYEBROW = {
   fontSize: '11px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.08em',
@@ -71,7 +73,7 @@ const EYEBROW = {
  * right now, and what do I do next". A count with a status sentence beats a badge,
  * because the two-step (save, then the group votes) is the thing admins get wrong.
  */
-function StatusPlate({ savedCount, awaitingVote, isActive, hasLive, draftCount, isDirty, onPropose }) {
+function StatusPlate({ savedCount, awaitingVote, isActive, hasLive, draftCount, isDirty, onPropose, liveStatus }) {
   const nothingYet = savedCount === null && !hasLive && !draftCount;
 
   const tone = isDirty ? 'warmGray' : isActive ? 'green' : awaitingVote ? 'coral' : 'warmGray';
@@ -79,10 +81,14 @@ function StatusPlate({ savedCount, awaitingVote, isActive, hasLive, draftCount, 
 
   const eyebrow = isDirty
     ? 'Not saved yet'
+    : liveStatus === 'loading' ? 'Checking invitation status'
+    : liveStatus === 'unavailable' ? 'Invitation status unavailable'
     : isActive ? 'In use' : awaitingVote ? 'Waiting on the group' : 'Not set up';
 
   const sentence = isDirty
     ? 'You’ve changed the list. Save it, then ask the group to approve it.'
+    : liveStatus === 'loading' ? 'Checking which invitations are in use.'
+    : liveStatus === 'unavailable' ? 'Reload to check which invitations are in use.'
     : isActive
       ? 'Live. Everyone here can join now.'
       : awaitingVote
@@ -211,7 +217,8 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
   const router = useRouter();
   const { factory, txManager, isReady, zkEmailInvites } = useWeb3Services();
   const { executeWithNotification } = useTransactionWithNotification();
-  const { isPasskeyUser } = useAuth();
+  const { isPasskeyUser, accountAddress } = useAuth();
+  const captureScope = useOrganizationWriteScope({ orgId, chainId: orgChainId, account: accountAddress, factory, txManager });
   const { roleHatIds, roleNames, zkEmailInvitesAddress } = usePOContext();
   const { chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();
@@ -221,7 +228,7 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
   // that here rather than letting invitees discover it after a 30-second proof.
   const { roles: structureRoles } = useOrgStructure();
   const openHatIds = useMemo(
-    () => new Set((structureRoles || []).filter((r) => r.defaultEligible).map((r) => String(r.hatId))),
+    () => new Set((structureRoles || []).filter((r) => r.openKnown && r.isOpen).map((r) => normalizeHat(r.hatId))),
     [structureRoles],
   );
 
@@ -231,42 +238,58 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
         hatId: String(hatId),
         index,
         name: roleNames?.[hatId] || roleNames?.[String(hatId)] || `Role ${index + 1}`,
-        isOpen: openHatIds.has(String(hatId)),
+        isOpen: openHatIds.has(normalizeHat(hatId)),
+        joinKnown: structureRoles?.some(role => normalizeHat(role.hatId) === normalizeHat(hatId) && role.openKnown && role.vouchingKnown),
       })),
-    [roleHatIds, roleNames, openHatIds],
+    [roleHatIds, roleNames, openHatIds, structureRoles],
   );
 
   const roleCtx = useMemo(() => ({ roleHatIds, roleNames }), [roleHatIds, roleNames]);
 
   const orgSubgraphUrl = orgChainId ? getSubgraphUrl(orgChainId) : null;
   const orgClient = useMemo(() => getClient(orgSubgraphUrl), [orgSubgraphUrl]);
-  const { data: infraData } = useQuery(FETCH_INFRASTRUCTURE_ADDRESSES, { client: orgClient, skip: !orgSubgraphUrl });
+  const { data: infraData } = useQuery(ORG_INFRASTRUCTURE_QUERY, { client: orgClient, skip: !orgSubgraphUrl });
   const orgRegistryAddress = infraData?.poaManagerContracts?.[0]?.orgRegistryProxy || null;
 
   // The org's current metadata hash — used to re-fetch + preserve all metadata when staging, and to
   // read the currently-staged allowlist for status display.
-  const { data: orgData } = useQuery(FETCH_ORG_BY_ID, {
+  const { data: orgData, loading: orgLoading, error: orgError } = useQuery(ORG_METADATA_QUERY, {
     client: orgClient,
     variables: { id: orgId },
     skip: !orgSubgraphUrl || !orgId,
   });
   const metadataHash = orgData?.organization?.metadataHash || null;
   const [staged, setStaged] = useState(null);
+  const [stagedLoading, setStagedLoading] = useState(true);
+  const [listError, setListError] = useState(null);
+  const [verifiedSource, setVerifiedSource] = useState(null);
   useEffect(() => {
     let alive = true;
+    setStaged(null);
+    setStagedLoading(true);
     (async () => {
-      if (!metadataHash || metadataHash === ZERO_ROOT) return;
+      if (orgLoading) return;
       try {
-        const meta = await safeFetchFromIpfs(bytes32ToIpfsCid(metadataHash));
-        if (alive && meta?.zkEmailAllowlist) setStaged(meta.zkEmailAllowlist);
-      } catch (_) {
-        /* metadata unavailable */
+        if (orgError || orgData?.organization?.id?.toLowerCase() !== orgId?.toLowerCase()
+          || !Object.prototype.hasOwnProperty.call(orgData?.organization || {}, 'metadataHash')
+          || (orgData.organization.metadataHash !== null && typeof orgData.organization.metadataHash !== 'string')) {
+          throw new Error('Could not read your group’s current details. Please reload before saving.');
+        }
+        let meta = {};
+        if (metadataHash && !/^0x0+$/i.test(metadataHash)) {
+          meta = await safeFetchFromIpfs(bytes32ToIpfsCid(metadataHash));
+          if (!meta || typeof meta !== 'object' || Array.isArray(meta)) throw new Error('Could not read your group’s saved details.');
+        }
+        if (alive) {
+          setStaged(meta.zkEmailAllowlist || null);
+          setStagedLoading(false);
+        }
+      } catch (error) {
+        if (alive) setListError(error.message);
       }
     })();
-    return () => {
-      alive = false;
-    };
-  }, [metadataHash, safeFetchFromIpfs, bytes32ToIpfsCid]);
+    return () => { alive = false; };
+  }, [orgId, orgChainId, metadataHash, orgLoading, orgError, orgData, safeFetchFromIpfs, bytes32ToIpfsCid]);
 
   // entries: [{ type:'domain'|'email', identifier:string, hatIds:string[] }]
   const [entries, setEntries] = useState([]);
@@ -276,76 +299,81 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
   const [submitting, setSubmitting] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [activeRoot, setActiveRoot] = useState(null);
+  const [liveStatus, setLiveStatus] = useState('loading');
   const [prefilledCount, setPrefilledCount] = useState(0);
   const prefilledRef = useRef(false);
   // Signature of the list as it was loaded, so we can tell "edited" from "saved".
   const [baseline, setBaseline] = useState(null);
 
+  useEffect(() => {
+    prefilledRef.current = false;
+    setEntries([]);
+    setBaseline(null);
+    setPrefilledCount(0);
+    setVerifiedSource(null);
+    setListError(null);
+    setActiveRoot(null);
+    setLiveStatus('loading');
+    setSubmitting(false);
+    setDraftId('');
+    setDraftHats([]);
+  }, [orgId, orgChainId]);
+
+  useEffect(() => { setSubmitting(false); }, [orgId, orgChainId, accountAddress, factory, txManager]);
+
   // Read the live root, so the plate can tell "in use" from "waiting on the group".
   useEffect(() => {
     let alive = true;
+    setActiveRoot(null);
+    setLiveStatus('loading');
     (async () => {
-      if (!zkEmailInvites || !zkEmailInvitesAddress) return;
+      if (!zkEmailInvitesAddress) {
+        if (alive) setLiveStatus('known');
+        return;
+      }
+      if (!zkEmailInvites) return;
       try {
         const { root } = await zkEmailInvites.getActiveAllowlist(zkEmailInvitesAddress);
-        if (alive) setActiveRoot(root);
+        if (typeof root !== 'string') throw new Error('Current invite status unavailable');
+        if (alive) { setActiveRoot(root); setLiveStatus('known'); }
       } catch (_) {
-        /* dormant / not deployed — the plate just shows "not set up" */
+        if (alive) setLiveStatus('unavailable');
       }
     })();
     return () => { alive = false; };
   }, [zkEmailInvites, zkEmailInvitesAddress]);
 
-  // Prefill the editor with the list the admin is actually editing.
-  //
-  // Saving always builds a WHOLE replacement list, so an empty editor would make
-  // "add one address" silently revoke everyone already invited. Prefer the SAVED
-  // list (their most recent intent, possibly still waiting on a vote) over the live
-  // one — otherwise a saved-but-unapproved list shows a count in the plate above an
-  // empty list below, which reads as data loss.
+  // A positive saved/live list must be read and verified before a replacement
+  // can be authored. A failed prefill never becomes an empty baseline.
   useEffect(() => {
     let alive = true;
     (async () => {
-      if (prefilledRef.current) return;
-
-      const sources = [];
-      if (staged?.cid) sources.push({ cid: staged.cid, root: staged.root });
-      if (zkEmailInvites && zkEmailInvitesAddress) {
-        try {
+      if (prefilledRef.current || stagedLoading || listError) return;
+      try {
+        let source = staged?.cid ? { cid: staged.cid, root: staged.root } : null;
+        if (!source && zkEmailInvitesAddress) {
+          if (!zkEmailInvites) return;
           const active = await zkEmailInvites.getActiveAllowlist(zkEmailInvitesAddress);
-          if (active?.cid && active.cid !== ZERO_ROOT && active?.root && active.root !== ZERO_ROOT) {
-            sources.push({ cid: bytes32ToIpfsCid(active.cid), root: active.root });
+          if (!active || typeof active.root !== 'string' || typeof active.cid !== 'string') {
+            throw new Error('Could not read the current invite list. Please reload before saving.');
           }
-        } catch (_) { /* nothing live */ }
-      }
-
-      let loaded = false;
-      for (const source of sources) {
-        try {
-          const doc = await safeFetchFromIpfs(source.cid);
-          if (!alive || prefilledRef.current) return;
-          // Only trust a document that matches the hash it was committed under.
-          assertRootMatches(doc, source.root);
-          const current = readInvites(doc).filter((e) => e.hatIds.length);
-          if (!current.length) continue;
-          prefilledRef.current = true;
-          setEntries((prev) => (prev.length ? prev : current));
-          setPrefilledCount(current.length);
-          setBaseline(signature(current));
-          loaded = true;
-          return;
-        } catch (_) { /* try the next source */ }
-      }
-      // Nothing loaded (no saved list, or every source unreadable). Anchor the
-      // baseline anyway so isDirty reflects real edits instead of staying false and
-      // offering to propose a list we never actually read.
-      if (alive && !loaded && !prefilledRef.current) {
+          if (active.root !== ZERO_ROOT) source = { cid: bytes32ToIpfsCid(active.cid), root: active.root };
+        }
+        const verified = source
+          ? verifyAllowlistDocument(await safeFetchFromIpfs(source.cid), { orgId, root: source.root }) : null;
+        if (!alive || prefilledRef.current) return;
+        const current = verified ? verifiedInviteRows(verified) : [];
         prefilledRef.current = true;
-        setBaseline(signature([]));
+        setVerifiedSource(verified);
+        setEntries(current);
+        setPrefilledCount(current.length);
+        setBaseline(signature(current));
+      } catch (error) {
+        if (alive) setListError(error.message || 'Could not read the invite list. Please reload before saving.');
       }
     })();
     return () => { alive = false; };
-  }, [staged, zkEmailInvites, zkEmailInvitesAddress, safeFetchFromIpfs, bytes32ToIpfsCid]);
+  }, [orgId, orgChainId, staged, stagedLoading, listError, zkEmailInvites, zkEmailInvitesAddress, safeFetchFromIpfs, bytes32ToIpfsCid]);
 
   const addEntry = () => {
     const id = draftId.trim().toLowerCase();
@@ -355,6 +383,7 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
     if (draftType === 'email' && !EMAIL_RE.test(id)) {
       return toast({ title: 'Enter a valid email address', status: 'error', duration: 3000 });
     }
+    if (draftHats.some(id => !roles.find(role => role.hatId === id)?.joinKnown)) return toast({ title: 'Joining rules are still loading', status: 'info' });
     if (!draftHats.length) return toast({ title: 'Pick at least one role', status: 'error', duration: 3000 });
     if (entries.some((e) => e.type === draftType && e.identifier === id)) {
       return toast({ title: 'That’s already on the list', status: 'warning', duration: 2000 });
@@ -367,49 +396,52 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
   const removeEntry = (i) => setEntries((prev) => prev.filter((_, idx) => idx !== i));
 
   const stage = async () => {
+    const scope = captureScope();
+    if (listError || baseline === null) return toast({ title: 'Please reload the current list before saving', status: 'error' });
     if (!entries.length) return toast({ title: 'Add at least one person or domain', status: 'error', duration: 3000 });
     if (!isReady || !factory) return toast({ title: 'Connect your wallet', status: 'error', duration: 3000 });
     if (!orgRegistryAddress) return toast({ title: 'Can’t reach your group’s registry on this network', status: 'error' });
     setSubmitting(true);
     try {
+      if (entries.some(entry => entry.hatIds.some(id => !roles.some(role => normalizeHat(role.hatId) === normalizeHat(id) && role.joinKnown)))) {
+        throw new Error('Joining rules are still loading. Check the roles before saving.');
+      }
+      if (entries.some(entry => entry.hatIds.some(id => openHatIds.has(normalizeHat(id))))) throw new Error('Choose a role that requires an invitation.');
       // 1. Build the allowlist + its merkle tree, roleIndexes resolved for display.
       const withIdx = entries.map((e) => ({
         ...e,
         roleIndexes: e.hatIds.map((h) => roles.find((r) => r.hatId === h)?.index).filter((x) => x !== undefined),
       }));
-      const { json, root } = await buildAllowlist({ orgId, entries: withIdx });
+      if (withIdx.some(entry => entry.hatIds.some(id => !roles.some(role => normalizeHat(role.hatId) === normalizeHat(id))))) {
+        throw new Error('An invite refers to a role that is no longer available. Remove it before saving.');
+      }
+      const { doc, json, root } = replaceInviteRows({ orgId, entries: withIdx, verifiedSource });
+      const nextVerified = verifyAllowlistDocument(doc, { orgId, root });
+      const nextRows = verifiedInviteRows(nextVerified);
+      scope.assertCurrent();
 
       // 2. Upload the allowlist file.
       const alRes = await addToIpfs(json);
       if (!alRes?.path) throw new Error('Couldn’t save the list. Please try again.');
 
-      // 3. Re-fetch the FULL current metadata so we never clobber other fields, then merge one field.
-      let meta = {};
-      try {
-        if (metadataHash && metadataHash !== ZERO_ROOT) {
-          meta = (await safeFetchFromIpfs(bytes32ToIpfsCid(metadataHash))) || {};
-        }
-      } catch (_) {
-        meta = {};
-      }
-      meta = {
-        ...meta,
-        zkEmailAllowlist: { cid: alRes.path, root, entryCount: entries.length },
-      };
-
-      // 4. Upload metadata + write its hash on-chain (metadata-admin gated; no governance vote).
-      const metaRes = await addToIpfs(JSON.stringify(meta));
-      const newMetadataHash = ipfsCidToBytes32(metaRes.path);
-      const nameBytes = stringToBytes((currentName || '').trim() || 'Organization');
+      scope.assertCurrent();
+      const { intent } = await prepareOrganizationMetadataUpdate({
+        client: orgClient, orgId, orgRegistryAddress,
+        updates: { zkEmailAllowlist: { cid: alRes.path, root, entryCount: entries.length } },
+        fetchMetadata: safeFetchFromIpfs, uploadMetadata: addToIpfs, assertCurrent: scope.assertCurrent,
+      });
 
       if (!isPasskeyUser && orgChainId && connectedChain?.id !== orgChainId) {
         toast({ title: `Switching to ${getNetworkByChainId(orgChainId)?.name || 'the org network'}…`, status: 'info' });
         await switchChainAsync({ chainId: orgChainId });
       }
 
-      const contract = factory.createWritable(orgRegistryAddress, OrgRegistryABI);
-      await executeWithNotification(
-        () => txManager.execute(contract, 'updateOrgMetaAsAdmin', [orgId, nameBytes, newMetadataHash]),
+      scope.assertCurrent();
+      const result = await executeWithNotification(
+        () => {
+          scope.assertCurrent();
+          return executeCoreIntent(factory, txManager, intent);
+        },
         {
           pendingMessage: 'Saving the list…',
           successMessage: 'List saved. Ask the group to approve it to turn it on.',
@@ -417,15 +449,19 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
           refreshEvent: RefreshEvent.METADATA_UPDATED,
         },
       );
+      if (!result?.success || !scope.isCurrent()) return;
       // Reflect the save immediately. `staged` is driven by a subgraph query that
       // lags the tx by seconds, so without this the plate says "Not set up" and the
       // "Ask the group to approve" button never appears after a first save.
       setStaged({ cid: alRes.path, root, entryCount: entries.length });
-      setBaseline(signature(entries));
+      setVerifiedSource(nextVerified);
+      setEntries(nextRows);
+      setBaseline(signature(nextRows));
     } catch (e) {
+      if (!scope.isCurrent()) return;
       toast({ title: 'Error', description: e.message || String(e), status: 'error', duration: 5000 });
     } finally {
-      setSubmitting(false);
+      if (scope.isCurrent()) setSubmitting(false);
     }
   };
 
@@ -436,7 +472,7 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
   // is live. Everything the plate says keys off these three facts.
   const savedCount = staged?.entryCount ?? null;
   const hasLive = Boolean(activeRoot && activeRoot !== ZERO_ROOT);
-  const awaitingVote = Boolean(staged && !isActive);
+  const awaitingVote = Boolean(staged && liveStatus === 'known' && !isActive);
   // Edited since it was loaded — the list on screen is no longer the saved one,
   // so neither "waiting on the group" nor "in use" is honest about it any more.
   const isDirty = baseline !== null
@@ -454,7 +490,7 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
     );
 
   const openRoles = [...draftHats, ...entries.flatMap((e) => e.hatIds || [])]
-    .some((h) => openHatIds.has(String(h)));
+    .some((h) => openHatIds.has(normalizeHat(h)));
 
   return (
     <Card variant="elevated" borderRadius="2xl">
@@ -476,8 +512,11 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
             hasLive={hasLive}
             draftCount={entries.length}
             isDirty={isDirty}
+            liveStatus={liveStatus}
             onPropose={staged?.cid ? goToVote : null}
           />
+
+          {listError && <Alert status="error" borderRadius="lg"><AlertIcon /><Text fontSize="sm">Could not load the current invite list. Reload before saving changes.</Text></Alert>}
 
           {/* The list, as a ruled document. Adding someone writes the next line. */}
           <Box>
@@ -500,7 +539,7 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
             {entries.length === 0 ? (
               <Box py={6} textAlign="center" borderTop="1px solid" borderColor="warmGray.200">
                 <Text fontSize="sm" color="warmGray.500">
-                  No one invited yet. Add a domain or an address below.
+                  {baseline === null ? 'Loading the current invite list…' : 'No one invited yet. Add a domain or an address below.'}
                 </Text>
               </Box>
             ) : (
@@ -547,8 +586,8 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
               <CheckboxGroup value={draftHats} onChange={(v) => setDraftHats(v.map(String))}>
                 <Wrap spacing={3}>
                   {roles.map((r) => (
-                    <Checkbox key={r.hatId} value={r.hatId} size="sm">
-                      {r.name}
+                    <Checkbox key={r.hatId} value={r.hatId} size="sm" isDisabled={!r.joinKnown || r.isOpen}>
+                      {r.name}{!r.joinKnown && ' (checking joining rules)'}
                       {r.isOpen && (
                         <Text as="span" fontSize="xs" color="coral.600" ml={1}>
                           (already open to everyone)
@@ -588,7 +627,7 @@ export default function EmailAllowlistEditor({ orgId, orgChainId, currentName })
                 <Button
                   colorScheme="coral" borderRadius="lg"
                   onClick={stage}
-                  isDisabled={submitting || entries.length === 0}
+                  isDisabled={submitting || entries.length === 0 || baseline === null || Boolean(listError)}
                 >
                   {submitting ? <Spinner size="sm" /> : 'Save the list'}
                 </Button>

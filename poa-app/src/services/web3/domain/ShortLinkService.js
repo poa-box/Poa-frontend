@@ -1,3 +1,4 @@
+import { OrgRegistryAbi as REGISTRY_ABI } from '@poa-box/core/abis/OrgRegistry';
 import { SHORT_LINK_REGISTRIES } from '@/config/shortLinkRegistries';
 import { getSubgraphUrl } from '@/config/networks';
 import { resolveOrgAlias } from '@/config/hostDefaultOrg';
@@ -11,10 +12,7 @@ class ShortLinkError extends Error {
   }
 }
 
-const REGISTRY_ABI = [
-  { type: 'function', name: 'getOrgIds', stateMutability: 'view', inputs: [], outputs: [{ type: 'bytes32[]' }] },
-  { type: 'function', name: 'orgIds', stateMutability: 'view', inputs: [{ type: 'uint256' }], outputs: [{ type: 'bytes32' }] },
-];
+
 const ORG_FIELDS = 'id name taskManager { id } hybridVoting { id } directDemocracyVoting { id }';
 const orgCache = new Map();
 const indexCache = new Map();

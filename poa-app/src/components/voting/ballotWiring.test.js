@@ -34,7 +34,8 @@ describe('PollDetail renders the activation gate', () => {
 
   it('mounts useActivationGate', () => {
     expect(pollDetail).toMatch(/import \{ useActivationGate \} from '@\/hooks\/accessV2\/useActivationGate'/);
-    expect(pollDetail).toMatch(/const activation = useActivationGate\(poll\)/);
+    expect(pollDetail).toContain("useActivationGate(poll?.type === 'Hybrid'");
+    expect(pollDetail).toContain('proposalCreatedAt: proposalPowerEvidenceById');
   });
 
   it('the gate actually withholds the ballot', () => {
@@ -56,9 +57,9 @@ describe('PollDetail renders the activation gate', () => {
 
 describe('the Executor.CallFailed decode reaches both failure surfaces', () => {
   it('finalize warns when a "successful" announceWinner applied nothing', () => {
-    expect(voteActions).toMatch(/import \{ parseExecutionFailure \} from '@\/lib\/voting\/proposalReceipt'/);
+    expect(voteActions).toContain("await import('@/lib/voting/proposalReceipt')");
     expect(voteActions).toMatch(/import \{ describeExecutionFailure \}/);
-    expect(voteActions).toContain('parseExecutionFailure(result.receipt, contractAddress)');
+    expect(voteActions).toContain('parseExecutionFailure(result.receipt, contractAddress, proposalId)');
     expect(voteActions).toContain('describeExecutionFailure(failure.reason)');
   });
 

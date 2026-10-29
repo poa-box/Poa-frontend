@@ -22,11 +22,13 @@ import LogoDropzoneModal from "@/components/Architect/LogoDropzoneModal";
 import LinksModal from "@/components/Architect/LinksModal";
 import { useAuth } from '@/context/authState';
 import { useIPFScontext } from "@/context/ipfsContext";
-import { buildDeployCalldata, deployWithCalldata } from "../../../scripts/newDeployment";
+import { deployWithCalldata } from "../../../scripts/newDeployment";
 import { useRouter } from "next/router";
 import { FETCH_INFRASTRUCTURE_ADDRESSES, FETCH_USERNAME_NEW } from "@/util/queries";
 import { ipfsCidToBytes32 } from "@/services/web3/utils/encoding";
-import { buildOrgMetadata } from "@/features/deployer/utils/orgMetadata";
+import { buildOrgMetadata, serializeOrgMetadata } from "@/features/deployer/utils/orgMetadata";
+import { encodePasskeyDeploymentCall, encodeDeploymentAccountInitCode } from "@/lib/deployment/passkeyCalls";
+import { requireDeploymentModuleAddresses } from "@poa-box/core/deployment/policy";
 import { signRegistration, getSkipRegistrationDefaults } from "@/services/web3/utils/registrySigner";
 import { ethers } from 'ethers';
 
@@ -36,7 +38,6 @@ import {
   useDeployer,
   DeployerWizard,
   mapStateToAccessV2DeploymentParams,
-  mapPaymasterConfig,
   getPaymasterFundingValue,
   validateAccessV2Representability,
   ORG_DEPLOYER_SCHEMA,
@@ -44,15 +45,15 @@ import {
   detectOrgDeployerSchema,
   decodeOrgDeploymentResult,
   getOrgDeployerInterface,
+  encodeOrgDeploymentCalldata,
 } from "@/features/deployer";
 import { resolveRoleUsernames } from "@/features/deployer/utils/usernameResolver";
 
 // Passkey deployment via ERC-4337 UserOp
-import { encodeFunctionData, createPublicClient, http, defineChain } from "viem";
+import { createPublicClient, http, defineChain } from "viem";
 import { createPimlicoClient } from "permissionless/clients/pimlico";
-import PasskeyAccountABI from "../../../abi/PasskeyAccount.json";
-import PasskeyAccountFactoryABI from "../../../abi/PasskeyAccountFactory.json";
-import UniversalAccountRegistryABI from "../../../abi/UniversalAccountRegistry.json";
+import { PasskeyAccountFactoryAbi as PasskeyAccountFactoryABI } from "@poa-box/core/abis/PasskeyAccountFactory";
+import { UniversalAccountRegistryAbi as UniversalAccountRegistryABI } from "@poa-box/core/abis/UniversalAccountRegistry";
 import { DeploymentPreviewModal } from "@/features/deployer/components/DeploymentPreviewModal";
 import { buildUserOp, getUserOpHash } from "@/services/web3/passkey/userOpBuilder";
 import { signUserOpWithPasskey } from "@/services/web3/passkey/passkeySign";
@@ -100,7 +101,6 @@ const SIM_FRIENDLY_REQUIRE_STRINGS = {
     'a role requires vouches while also being "eligible by default" — turn off "Eligible by default" for that role',
 };
 
-const isZeroAddress = (a) => !a || /^0x0+$/i.test(a);
 
 async function simulateDeployCalldata({ rpcUrl, to, from, calldata, valueWei, orgDeployerSchema }) {
   const provider = new ethers.providers.JsonRpcProvider(rpcUrl);
@@ -352,7 +352,7 @@ function DeployerPageContent() {
       console.log('[DEPLOY] OrgDeployer boundary:', { orgDeployerSchema, orgDeployerVersion });
 
       if (orgDeployerSchema === ORG_DEPLOYER_SCHEMA.ACCESS_V2) {
-        const compatibility = validateAccessV2Representability(state);
+        const compatibility = validateAccessV2Representability(state, deployerAddr);
         if (!compatibility.isValid) {
           throw new Error(
             `This configuration cannot be deployed with Access v2 without changing its meaning:\n• ${compatibility.errors.join('\n• ')}`
@@ -372,7 +372,7 @@ function DeployerPageContent() {
 
       console.log('[DEPLOY] Preparing IPFS metadata:', jsonData);
 
-      const result = await addToIpfs(JSON.stringify(jsonData));
+      const result = await addToIpfs(serializeOrgMetadata(jsonData));
       const infoIPFSHash = result.path;
       if (infoIPFSHash !== state.organization.infoIPFSHash) {
         actions.setIPFSHash(infoIPFSHash);
@@ -458,7 +458,7 @@ function DeployerPageContent() {
       // address, and the mapper uses this to drop a duplicate wearer from a role
       // that is already minted to the deployer. Passing undefined silently skips
       // that, and the same hat minted twice reverts the whole deploy.
-      const deployParams = mapStateToAccessV2DeploymentParams(stateWithResolvedRoles, deployerAddr, infrastructureAddresses);
+      let deployParams = mapStateToAccessV2DeploymentParams(stateWithResolvedRoles, deployerAddr, infrastructureAddresses);
 
       console.log('Deployment params:', deployParams);
 
@@ -494,6 +494,12 @@ function DeployerPageContent() {
       if (!isPasskeyDeployer && deploySigner && hasNewUsername && !deployChainHasUsername) {
         const registryAddress = infrastructureAddresses.registryAddress;
         if (registryAddress) {
+          // Both attempts read the selected deploy chain, including after a wallet switch.
+          const targetNetwork = getNetworkByChainId(targetChainId);
+          const readProvider = new ethers.providers.JsonRpcProvider(
+            targetNetwork.rpcUrl,
+            { chainId: targetChainId, name: targetNetwork.name }
+          );
           try {
             toast({
               title: 'Signature Required',
@@ -505,12 +511,6 @@ function DeployerPageContent() {
 
             // Use a public RPC provider for reads — the wallet provider can be stale
             // after switchChainAsync (transport/network metadata not yet updated).
-            const targetNetwork = getNetworkByChainId(targetChainId);
-            const readProvider = new ethers.providers.JsonRpcProvider(
-              targetNetwork.rpcUrl,
-              { chainId: targetChainId, name: targetNetwork.name }
-            );
-
             const sigResult = await signRegistration({
               signer: deploySigner,
               registryAddress,
@@ -579,24 +579,6 @@ function DeployerPageContent() {
         });
       }
 
-      // Call the deployment function
-      const membershipTypeNames = state.roles.map(r => r.name);
-      const executiveRoleNames = state.roles
-        .filter(r => r.hierarchy.adminRoleIndex === null)
-        .map(r => r.name);
-
-      const hasQuadratic = state.voting.classes.some(c => c.quadratic);
-      const hybridVotingEnabled = state.voting.classes.length > 1;
-
-      // Always send the mapped roles. The name-derived fallback inside
-      // buildDeployCalldata fabricates generic roles — it drops vouching, images,
-      // metadata CIDs, hat supply and hierarchy — so falling back to it whenever the
-      // user happened to turn off every distribution option silently deployed a
-      // different org than the one they configured.
-      const customRoles = deployParams.roles;
-
-      // Paymaster config
-      const paymasterConfig = mapPaymasterConfig(state.paymaster);
       const paymasterFundingWei = getPaymasterFundingValue(state.paymaster);
 
       // === Pre-flight simulation + preview-and-confirm gate ===
@@ -611,52 +593,18 @@ function DeployerPageContent() {
         ? passkeyState.accountAddress
         : await deploySigner.getAddress();
 
-      const deployCalldataArgs = {
-        memberTypeNames: membershipTypeNames,
-        executivePermissionNames: executiveRoleNames,
-        POname: state.organization.name,
-        quadraticVotingEnabled: hasQuadratic,
-        democracyVoteWeight: 50,
-        participationVoteWeight: 50,
-        hybridVotingEnabled,
-        participationVotingEnabled: !hybridVotingEnabled,
-        electionEnabled: state.features.electionHubEnabled,
-        educationHubEnabled: state.features.educationHubEnabled,
-        zkEmailEnabled: state.features.zkEmailInvitesEnabled,
-        infoIPFSHash,
-        quorumPercentageDD: state.voting.ddQuorum,
-        quorumPercentagePV: state.voting.hybridQuorum,
-        username: deployerUsername,
-        deployerAddress: simDeployerAddress,
-        customRoles,
-        groups: deployParams.groups || [],
-        autoUpgrade: deployParams.autoUpgrade,
-        // Legacy keeps its shipped name-derived bitmaps. Kyoto consumes the
-        // wizard's exact permission matrix and validates Quick Join against `open`.
-        roleAssignments: deployParams.roleAssignments,
-        infrastructureAddresses,
-        orgDeployerSchema,
+      // Core builds the full current tuple, including bootstrap, sponsorship and
+      // registration. The exact named params shown in preview encode these bytes.
+      deployParams = mapStateToAccessV2DeploymentParams(stateWithResolvedRoles, simDeployerAddress, {
+        ...infrastructureAddresses,
+        metadataHash: ipfsCidToBytes32(infoIPFSHash),
+        deployerUsername,
         regSignatureData,
-        paymasterConfig,
-        metadataAdminRoleIndex: state.metadataAdminRoleIndex,
-        // New deploy-time config (built by mapStateToDeploymentParams above).
-        taskManagerPerms: deployParams.taskManagerPerms,
-        ddInitialTargets: deployParams.ddInitialTargets,
-        bootstrap: deployParams.bootstrap,
-        // Deploy-time governance config shared by legacy v17 and Kyoto v2.
-        hybridVoterQuorum: deployParams.hybridQuorum,
-        ddVoterQuorum: deployParams.ddQuorum,
-        tokenName: deployParams.tokenName,
-        tokenSymbol: deployParams.tokenSymbol,
-        // The user's actual voting classes. Without this, buildDeployCalldata falls
-        // back to a fixed 50/50 DIRECT+ERC20_BAL pair built from the two hardcoded
-        // weights above — so the split, class count, minBalance and quadratic flag
-        // the wizard collected (and that this page previews back to the user) were
-        // all discarded on the way to the chain.
-        hybridClasses: deployParams.hybridClasses,
-      };
-      const { calldata: deployCalldata, orgDeployerAddress: deployContractAddress } =
-        buildDeployCalldata(deployCalldataArgs);
+      });
+      const deployContractAddress = infrastructureAddresses.orgDeployerAddress;
+      const deployCalldata = encodeOrgDeploymentCalldata({
+        schema: orgDeployerSchema, params: deployParams, zkEmailEnabled: state.features.zkEmailInvitesEnabled === true,
+      });
 
       // Read-only simulation against the exact ABI selected above.
       let predictedResult = null;
@@ -689,7 +637,12 @@ function DeployerPageContent() {
       // module can never brick a deploy. The simulation's DeploymentResult is the
       // authoritative answer — a zero address here means the org would ship with no
       // invite module, no error, and no in-app way to add one later.
-      if (state.features.zkEmailInvitesEnabled && isZeroAddress(predictedResult?.zkEmailInvites)) {
+      let emailModuleUnavailable = false;
+      if (state.features.zkEmailInvitesEnabled) {
+        try { requireDeploymentModuleAddresses(predictedResult || {}, ['zkEmailInvites']); }
+        catch { emailModuleUnavailable = true; }
+      }
+      if (emailModuleUnavailable) {
         const networkName = getNetworkByChainId(targetChainId)?.name || `chain ${targetChainId}`;
         toast({
           title: 'Email Invites are not available on this network',
@@ -715,6 +668,7 @@ function DeployerPageContent() {
             ? ethers.utils.formatEther(paymasterFundingWei)
             : '0',
           params: deployParams,
+          metadata: jsonData,
           predicted: predictedResult,
         });
       });
@@ -804,17 +758,13 @@ function DeployerPageContent() {
             );
           }
 
-          const factoryCallData = encodeFunctionData({
-            abi: PasskeyAccountFactoryABI,
-            functionName: 'createAccount',
-            args: [
-              passkeyState.credentialId,
-              passkeyState.publicKeyX,
-              passkeyState.publicKeyY,
-              BigInt(passkeyState.salt),
-            ],
+          initCode = encodeDeploymentAccountInitCode({
+            factoryAddress: deployChainFactoryAddress,
+            credentialId: passkeyState.credentialId,
+            publicKeyX: passkeyState.publicKeyX,
+            publicKeyY: passkeyState.publicKeyY,
+            salt: passkeyState.salt,
           });
-          initCode = deployChainFactoryAddress + factoryCallData.slice(2);
           console.log('[DEPLOY] Account not found on target chain — initCode will deploy it');
         }
 
@@ -839,53 +789,18 @@ function DeployerPageContent() {
           }
         }
 
-        // Build the UserOp callData:
-        // - If username needs registration: executeBatch([registerAccount, deployFullOrg])
-        // - Otherwise: single execute(deployFullOrg) (existing behavior)
-        let sponsoredCallData;
-        let selfFundedCallData;
-
-        if (needsUsernameRegistration && registryAddress) {
-          const registerCallData = encodeFunctionData({
-            abi: UniversalAccountRegistryABI,
-            functionName: 'registerAccount',
-            args: [deployerUsername],
-          });
-
-          sponsoredCallData = encodeFunctionData({
-            abi: PasskeyAccountABI,
-            functionName: 'executeBatch',
-            args: [
-              [registryAddress, orgDeployerAddress],
-              [0n, 0n],
-              [registerCallData, calldata],
-            ],
-          });
-
-          selfFundedCallData = encodeFunctionData({
-            abi: PasskeyAccountABI,
-            functionName: 'executeBatch',
-            args: [
-              [registryAddress, orgDeployerAddress],
-              [0n, fundingBigInt],
-              [registerCallData, calldata],
-            ],
-          });
-
-          console.log('[DEPLOY] Using executeBatch: registerAccount + deployFullOrg');
-        } else {
-          sponsoredCallData = encodeFunctionData({
-            abi: PasskeyAccountABI,
-            functionName: 'execute',
-            args: [orgDeployerAddress, 0n, calldata],
-          });
-
-          selfFundedCallData = encodeFunctionData({
-            abi: PasskeyAccountABI,
-            functionName: 'execute',
-            args: [orgDeployerAddress, fundingBigInt, calldata],
-          });
-        }
+        // Sponsorship pays gas; both attempts preserve the selected native deposit.
+        const deploymentCallData = encodePasskeyDeploymentCall({
+          accountAddress: passkeyState.accountAddress,
+          registryAddress,
+          username: deployerUsername,
+          register: needsUsernameRegistration && Boolean(registryAddress),
+          to: orgDeployerAddress,
+          data: calldata,
+          value: fundingBigInt.toString(),
+        });
+        const sponsoredCallData = deploymentCallData;
+        const selfFundedCallData = deploymentCallData;
 
         // Try sponsored deployment first (solidarity fund pays gas via PaymasterHub),
         // then fall back to self-funded if sponsorship is unavailable.

@@ -41,9 +41,15 @@ import { useZkEmailInviteSummary, hatKey } from '@/hooks/useZkEmailInviteSummary
 import { useOrgName } from '@/hooks/useOrgName';
 import { orgUrl } from '@/util/orgUrl';
 import { buildCommand, buildMailto, prefetchCircuitArtifacts } from '@/lib/zkemail/prover';
+import SubmissionRecovery from '@/components/account/SubmissionRecovery';
+import EnrollmentRecoveryNotice from '@/components/passkey/EnrollmentRecoveryNotice';
 import SignInModal from '@/components/passkey/SignInModal';
 import { decodeContractRevert } from '@/lib/errors/contractErrors';
-import ZkEmailInvitesAbi from '../../../abi/ZkEmailInvites.json';
+import { ZkEmailInvitesAbi } from '@poa-box/core/abis/ZkEmailInvites';
+import { claimSubmissionUnconfirmed } from '@/lib/zkemail/claimErrors';
+import { fetchClaimEmail } from '@/lib/zkemail/claimInbox';
+import { readRawEmail } from '@/lib/zkemail/rawEmail';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 // Optional claim inbox (a Cloudflare Email Worker — see cloudflare-worker-claim-inbox/). When BOTH
 // the address and the worker URL are set, the user just sends the email — the page picks up the
@@ -64,7 +70,8 @@ const POLL_WINDOW_MS = 600_000; // keep listening for 10 min per step-2 visit
  *  revert data first (shared with every other tx path via contractErrors.js), and
  *  fall back to the envelope patterns for genuinely bundler-side failures. */
 function friendlyRetryMessage(error) {
-  const raw = String(error?.message || '');
+  if (claimSubmissionUnconfirmed(error)) return 'Your earlier claim is still unconfirmed. Check its status before trying again.';
+  const raw = String(error?.userMessage || error?.message || '');
 
   // Transport/paymaster failures FIRST — they're transient and retryable, and the
   // retry framing matters more than the underlying selector. This ordering also
@@ -157,7 +164,7 @@ function ConfettiBurst() {
  * in-memory claim data (never a fresh subgraph query — indexing lags the mint by seconds), points at
  * what to do next, and tracks profile indexing so the hand-off to /profile isn't a shrug.
  */
-function ClaimWelcome({ org, username, accountAddress, roleNames, verifiedAs, profileReady, onProfile, onClaimAnother }) {
+function ClaimWelcome({ tokenLabel = DEFAULT_TOKEN_LABEL, org, username, accountAddress, roleNames, verifiedAs, profileReady, onProfile, onClaimAnother }) {
   const short = accountAddress ? `${accountAddress.slice(0, 6)}…${accountAddress.slice(-4)}` : '';
   return (
     <VStack py={4} spacing={4} align="stretch">
@@ -213,7 +220,7 @@ function ClaimWelcome({ org, username, accountAddress, roleNames, verifiedAs, pr
             <ChakraLink color="teal.600" href={orgUrl(org, 'tasks')}>
               Pick up a task
             </ChakraLink>{' '}
-            and earn participation tokens
+            and earn {tokenLabel}
           </Text>
           <Text>
             •{' '}
@@ -291,7 +298,7 @@ function InviteSummary({ summary }) {
         <HStack justify="space-between" w="full">
           <Text>
             Email invites are active, but the invite list couldn’t be loaded right now. You can still try
-            to claim — your eligibility is checked against the on-chain list when you upload your email.
+            to claim — your eligibility is checked against the organization’s current list when you upload your email.
           </Text>
           <Button size="xs" onClick={refresh} flexShrink={0}>
             Re-check
@@ -436,6 +443,8 @@ export default function ZkEmailClaimFlow() {
   const { isAuthenticated, accountAddress } = useAuth();
   const {
     claim,
+    claimScope,
+    existingAccountRecovery,
     finishClaim,
     ready,
     step,
@@ -445,6 +454,8 @@ export default function ZkEmailClaimFlow() {
     prepareNewPasskey,
     discardPendingPasskey,
     newAccountReady,
+    hasPendingEnrollment, pendingEnrollment, checkPendingEnrollment, isChecking, recoveryError, recoveryStatus,
+    canRestart, restartExistingAccount,
     claimerAddress,
     meta,
     proveProgress,
@@ -457,13 +468,23 @@ export default function ZkEmailClaimFlow() {
       errorAlertRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [step]);
-  const { orgId, subgraphUrl, roleNames: roleNamesMap } = usePOContext();
-  const { optimisticJoin } = useUserContext();
+  const { orgId, subgraphUrl, roleNames: roleNamesMap, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
+  const { optimisticJoin, graphUsername } = useUserContext();
   const { emit } = useRefreshEmit();
   const router = useRouter();
   const org = useOrgName();
   const fileRef = useRef(null);
   const [fileName, setFileName] = useState('');
+  const [readingFile, setReadingFile] = useState(false);
+  const [fileError, setFileError] = useState(null);
+  const ioScope = useMemo(() => ({ claimScope }), [claimScope]);
+  const currentIoScope = useRef(ioScope);
+  currentIoScope.current = ioScope;
+  const mounted = useRef(true);
+  const manualRead = useRef(null);
+  const claimCallback = useRef(claim);
+  claimCallback.current = claim;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [username, setUsername] = useState('');
   const [creating, setCreating] = useState(false);
   const [pollTick, setPollTick] = useState(0); // bump to restart a timed-out poll window
@@ -474,7 +495,7 @@ export default function ZkEmailClaimFlow() {
   const subjectClip = useClipboard(claimerAddress ? buildCommand(claimerAddress) : '');
   const inboxClip = useClipboard(CLAIM_INBOX);
 
-  const busy =
+  const busy = readingFile ||
     step === ZK_CLAIM_STEPS.CHECKING ||
     step === ZK_CLAIM_STEPS.PROVING ||
     step === ZK_CLAIM_STEPS.SIGNING ||
@@ -489,6 +510,9 @@ export default function ZkEmailClaimFlow() {
   const [profileReady, setProfileReady] = useState(false);
   const optimisticDoneRef = useRef(false);
 
+  const claimedAddress = meta?.claimer || accountAddress;
+  const claimedUsername = meta?.username || (isAuthenticated ? graphUsername : username);
+
   // Names for the hats just claimed (in-memory `meta.hatIds` -> POContext role-name map; hatKey
   // normalizes hex allowlist ids vs decimal subgraph ids).
   const claimedRoleNames = useMemo(() => {
@@ -501,7 +525,7 @@ export default function ZkEmailClaimFlow() {
     return [...new Set(meta.hatIds.map((h) => normalized[hatKey(h)]).filter(Boolean))];
   }, [meta, roleNamesMap]);
 
-  // Celebration burst + optimistic membership: the profile hub renders correctly the moment the user
+  // Optimistic membership: the profile hub renders correctly the moment the user
   // lands on it (UserContext.optimisticJoin sets hatIds/username with a stale-response lock and its
   // own delayed refetch) instead of flashing the pre-claim welcome screen while the subgraph indexes.
   useEffect(() => {
@@ -511,26 +535,32 @@ export default function ZkEmailClaimFlow() {
       setProfileReady(false);
       return undefined;
     }
-    if (optimisticDoneRef.current) return undefined;
+    // UserContext only accepts an optimistic join for its restored current account.
+    // One-step confirmation can precede passkey activation by a render.
+    if (!isAuthenticated || accountAddress?.toLowerCase() !== claimedAddress?.toLowerCase() || optimisticDoneRef.current) return undefined;
     optimisticDoneRef.current = true;
     setShowConfetti(true);
-    const confettiTimer = setTimeout(() => setShowConfetti(false), 4500);
     try {
-      optimisticJoin({ address: accountAddress, hatIds: meta?.hatIds || [], username: username || undefined });
+      optimisticJoin({ address: claimedAddress, hatIds: meta?.hatIds || [], username: claimedUsername || undefined });
     } catch (_) {
       /* optimistic-only — the poll below still refreshes real data */
     }
+  }, [done, isAuthenticated, accountAddress, claimedAddress, claimedUsername, meta?.hatIds, optimisticJoin]);
+
+  // Keep the burst's lifetime independent of late username or provider callback updates.
+  useEffect(() => {
+    if (!showConfetti) return undefined;
+    const confettiTimer = setTimeout(() => setShowConfetti(false), 4500);
     return () => clearTimeout(confettiTimer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [done]);
+  }, [showConfetti]);
 
   // Poll the subgraph until OUR new membership is actually indexed, then push one more refetch —
   // covers gateways slower than the ~7s waitForSubgraphBlock window (whose single refetch can land
   // on stale data and never retry). Bounded; purely a freshness/UX concern.
   useEffect(() => {
-    if (!(done && orgId && subgraphUrl && accountAddress)) return undefined;
+    if (!(done && orgId && subgraphUrl && claimedAddress)) return undefined;
     let alive = true;
-    const id = `${orgId}-${accountAddress}`.toLowerCase();
+    const id = `${orgId}-${claimedAddress}`.toLowerCase();
     const client = getClient(subgraphUrl);
     const startedAt = Date.now();
     (async () => {
@@ -557,8 +587,7 @@ export default function ZkEmailClaimFlow() {
     return () => {
       alive = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [done, orgId, subgraphUrl, accountAddress]);
+  }, [done, orgId, subgraphUrl, claimedAddress, emit]);
 
   // Single derived phase — no second state machine to drift from the hook.
   const phase = useMemo(() => {
@@ -568,19 +597,37 @@ export default function ZkEmailClaimFlow() {
     if (hasClaimTarget) return 2;
     return 1;
   }, [step, ready, busy, hasClaimTarget]);
+  const sendPhase = phase === 2;
+  const circuitToWarm = summary.domains?.length ? 'domain' : 'email';
+
+  useEffect(() => {
+    lastInboxEmlRef.current = null;
+    manualRead.current = null;
+    setFileName(''); setReadingFile(false); setFileError(null); setPollTimedOut(false);
+  }, [ioScope]);
 
   const onFile = useCallback(
     async (e) => {
       const file = e.target.files?.[0];
-      // Clear the value immediately: browsers suppress onChange for an unchanged value, which would
-      // otherwise kill the natural retry path (re-picking the same .eml after an error).
+      // Clearing immediately also permits reselecting the same file after a failure.
       e.target.value = '';
-      if (!file) return;
-      setFileName(file.name);
-      const emlText = await file.text();
-      await claim(emlText);
+      if (!file || busy || manualRead.current || currentIoScope.current !== ioScope || !mounted.current) return;
+      const attempt = { ioScope };
+      manualRead.current = attempt; // Wins over an already in-flight inbox response.
+      setReadingFile(true); setFileError(null);
+      const current = () => mounted.current && currentIoScope.current === ioScope && manualRead.current === attempt;
+      try {
+        const emlText = await readRawEmail(file);
+        if (!current()) return;
+        setFileName(file.name);
+        await claim(emlText);
+      } catch (error) {
+        if (current()) setFileError(error.message || 'Could not read this email file. Choose the original .eml file again.');
+      } finally {
+        if (current()) { manualRead.current = null; setReadingFile(false); setPollTick(value => value + 1); }
+      }
     },
-    [claim],
+    [claim, busy, ioScope],
   );
 
   const onCreatePasskey = useCallback(async () => {
@@ -598,46 +645,45 @@ export default function ZkEmailClaimFlow() {
   // (PopRoleClaim); an allowlist with ONLY specific-address entries proves v2. Mixed allowlists warm
   // v1 (one ~640 MB key in memory is plenty) — a v2 claim then downloads on demand as before.
   useEffect(() => {
-    if (!(phase === 2 && stepsLive)) return;
-    prefetchCircuitArtifacts(summary.domains?.length ? 'domain' : 'email');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase === 2, stepsLive]);
+    if (!(sendPhase && stepsLive)) return;
+    prefetchCircuitArtifacts(circuitToWarm);
+  }, [sendPhase, stepsLive, circuitToWarm]);
 
-  // Auto-poll: while on the Send step, quietly watch the claim inbox for the delivered email and
-  // start verification the moment it arrives — the user never clicks "I sent it". An inbox eml that
-  // already failed is not retried (only NEW bytes trigger another attempt: the worker is latest-wins,
-  // so re-sending produces different bytes).
+  // Inbox responses and manual files share a scope and a synchronous read lock. A stale
+  // response cannot poison deduplication or invoke a new session's claim callback.
   useEffect(() => {
-    if (!(INBOX_ENABLED && phase === 2 && claimerAddress && stepsLive)) return undefined;
+    if (!(INBOX_ENABLED && sendPhase && claimerAddress && stepsLive)) return undefined;
     let alive = true;
+    let wake;
+    let timer;
+    const controller = new AbortController();
+    const current = () => alive && mounted.current && currentIoScope.current === ioScope && !manualRead.current;
     setPollTimedOut(false);
     const deadline = Date.now() + POLL_WINDOW_MS;
     (async () => {
-      while (alive && Date.now() < deadline) {
+      while (current() && Date.now() < deadline) {
         try {
-          const res = await fetch(`${CLAIM_INBOX_URL}/claim-email?claimer=${claimerAddress}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data.status === 'ready' && data.eml && data.eml !== lastInboxEmlRef.current) {
-              lastInboxEmlRef.current = data.eml;
-              if (!alive) return;
-              setFileName('(picked up from the claim inbox)');
-              await claim(data.eml);
-              return;
-            }
+          const eml = await fetchClaimEmail(CLAIM_INBOX_URL, claimerAddress, { signal: controller.signal,
+            timeoutMs: Math.min(10_000, deadline - Date.now()) });
+          if (!current()) return;
+          if (eml && eml !== lastInboxEmlRef.current) {
+            lastInboxEmlRef.current = eml;
+            setFileName('(picked up from the claim inbox)');
+            await claimCallback.current(eml);
           }
         } catch (_) {
-          /* transient — keep polling */
+          // A failed convenience inbox never disables the manual file fallback.
         }
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        if (!current()) return;
+        await new Promise(resolve => { wake = resolve; timer = setTimeout(resolve, Math.min(POLL_INTERVAL_MS, Math.max(0, deadline - Date.now()))); });
       }
-      if (alive) setPollTimedOut(true);
+      if (current()) setPollTimedOut(true);
     })();
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phase === 2, claimerAddress, stepsLive, pollTick]);
+    return () => { alive = false; controller.abort(); clearTimeout(timer); wake?.(); };
+  }, [sendPhase, claimerAddress, stepsLive, pollTick, ioScope]);
+
+  const enrollmentRecoveryNotice = <EnrollmentRecoveryNotice enrollment={{ hasPendingEnrollment, pendingEnrollment,
+    checkPendingEnrollment, isChecking, recoveryError, recoveryStatus, canRestart, restartExistingAccount }} />;
 
   // Module deployed but no allowlist activated: every claim would revert AllowlistNotActive —
   // say so instead of walking the user through steps that cannot succeed.
@@ -657,6 +703,7 @@ export default function ZkEmailClaimFlow() {
             </Button>
           </HStack>
         </Alert>
+        {enrollmentRecoveryNotice}
         {!isAuthenticated && pendingAccount && (
           <Alert status="info" borderRadius="lg" fontSize="sm">
             <AlertIcon />
@@ -681,6 +728,9 @@ export default function ZkEmailClaimFlow() {
       <Heading size="md">
         Claim a role with your email{org ? ` for ${org}` : ''}
       </Heading>
+
+      {enrollmentRecoveryNotice}
+      {existingAccountRecovery && <SubmissionRecovery {...existingAccountRecovery} />}
 
       {(phase === 1 || summary.status !== 'active') && <InviteSummary summary={summary} />}
 
@@ -709,7 +759,7 @@ export default function ZkEmailClaimFlow() {
                   size="sm"
                   onClick={onCreatePasskey}
                   isLoading={creating}
-                  isDisabled={!newAccountReady || username.trim().length < 3}
+                  isDisabled={!newAccountReady || hasPendingEnrollment || username.trim().length < 3}
                 >
                   Create passkey &amp; continue
                 </Button>
@@ -733,12 +783,13 @@ export default function ZkEmailClaimFlow() {
           {/* ── Step 2: Send the email (auto-pickup) ── */}
           {phase === 2 && (
             <Box>
+              {fileError && <Alert status="error" borderRadius="lg" fontSize="sm" mb={4}><AlertIcon />{fileError}</Alert>}
               {step === ZK_CLAIM_STEPS.ERROR && error && (
                 <Alert ref={errorAlertRef} status="error" borderRadius="lg" fontSize="sm" mb={4}>
                   <AlertIcon />
                   <VStack align="start" spacing={2} w="full">
                     <Text fontWeight="600">That try didn’t go through</Text>
-                    <Text>{error.message || 'Something went wrong.'}</Text>
+                    <Text>{claimSubmissionUnconfirmed(error) ? friendlyRetryMessage(error) : error.message || 'Something went wrong.'}</Text>
                     {INBOX_ENABLED && lastInboxEmlRef.current && (
                       <Button
                         size="xs"
@@ -961,7 +1012,7 @@ export default function ZkEmailClaimFlow() {
               <Text fontSize="sm" color="teal.800" mt={1} mb={3}>
                 {!isAuthenticated
                   ? 'Your account, username, and role are created in one gasless tap.'
-                  : 'One tap to mint your role.'}
+                  : 'One tap to claim your role.'}
               </Text>
               <Button colorScheme="teal" size="sm" onClick={finishClaim}>
                 {step === ZK_CLAIM_STEPS.ERROR ? 'Retry — confirm with your passkey' : 'Finish & claim my role'}
@@ -979,9 +1030,10 @@ export default function ZkEmailClaimFlow() {
             <>
               {showConfetti && <ConfettiBurst />}
               <ClaimWelcome
+                tokenLabel={tokenLabel}
                 org={org}
-                username={username}
-                accountAddress={accountAddress}
+                username={claimedUsername}
+                accountAddress={claimedAddress}
                 roleNames={claimedRoleNames}
                 verifiedAs={meta?.mode === 'email' ? meta?.fromEmail : meta?.domain ? `@${meta.domain}` : ''}
                 profileReady={profileReady}

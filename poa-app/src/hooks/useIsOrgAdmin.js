@@ -13,6 +13,8 @@
 import { useMemo } from 'react';
 import { useUserContext } from '@/context/UserContext';
 import { usePOContext } from '@/context/POContext';
+import { useAuth } from '@/context/authState';
+import { resolveMetadataAdminDisplay } from '@/lib/organization/adminDisplay';
 
 /**
  * Check if a user is an org admin
@@ -21,11 +23,12 @@ import { usePOContext } from '@/context/POContext';
  * @returns {Object} { isAdmin: boolean, loading: boolean, error: Error|null }
  */
 export function useIsOrgAdmin(orgId, userAddress) {
-  const { userData, loading: userLoading } = useUserContext();
-  const { topHatId, metadataAdminHatId, poContextLoading } = usePOContext();
+  const { userData, userDataLoading: userLoading, address, error } = useUserContext();
+  const { orgId: currentOrgId, topHatId, metadataAdminHatId, metadataAdminHatIdKnown, poContextLoading } = usePOContext();
+  const { isAuthHydrated } = useAuth();
 
   const result = useMemo(() => {
-    const isLoading = userLoading || poContextLoading;
+    const isLoading = userLoading || poContextLoading || isAuthHydrated === false;
     if (isLoading) {
       return { isAdmin: false, loading: true, error: null };
     }
@@ -33,26 +36,15 @@ export function useIsOrgAdmin(orgId, userAddress) {
     if (!userAddress) {
       return { isAdmin: false, loading: false, error: null };
     }
-
-    const userHatIds = userData?.hatIds || [];
-    if (userHatIds.length === 0) {
-      return { isAdmin: false, loading: false, error: null };
+    if (error) return { isAdmin: false, loading: false, error };
+    if (metadataAdminHatIdKnown === false) return { isAdmin: false, loading: true, error: null };
+    if (userData?.hatIdsKnown === false) return { isAdmin: false, loading: true, error: null };
+    if (currentOrgId !== orgId || address?.toLowerCase() !== userAddress.toLowerCase()) {
+      return { isAdmin: false, loading: true, error: null };
     }
-
-    // Convert hat IDs to strings for comparison (hat IDs can be BigInt)
-    const userHatIdStrings = userHatIds.map(id => id.toString());
-
-    // Use metadataAdminHatId from subgraph if set, otherwise fall back to topHat
-    const effectiveAdminHat = metadataAdminHatId || (topHatId ? topHatId.toString() : null);
-
-    if (!effectiveAdminHat) {
-      return { isAdmin: false, loading: false, error: null };
-    }
-
-    const isAdmin = userHatIdStrings.includes(effectiveAdminHat.toString());
-
-    return { isAdmin, loading: false, error: null };
-  }, [userData, userAddress, topHatId, metadataAdminHatId, userLoading, poContextLoading]);
+    const isAdmin = resolveMetadataAdminDisplay({ metadataAdminHatId, topHatId, userHatIds: userData?.id ? userData.hatIds : [] });
+    return { isAdmin: isAdmin === true, loading: isAdmin === null, error: null };
+  }, [userData, userAddress, topHatId, metadataAdminHatId, metadataAdminHatIdKnown, userLoading, poContextLoading, currentOrgId, orgId, address, error, isAuthHydrated]);
 
   return result;
 }

@@ -30,8 +30,9 @@ import PasskeyOnboardingModal from '../../../components/passkey/PasskeyOnboardin
 import { useQuery } from '@apollo/client';
 import { getClient } from '@/util/apolloClient';
 import { useDeployer, STEPS, STEP_NAMES } from '../context/DeployerContext';
-import { mapStateToDeploymentParams, createDeploymentConfig } from '../utils/deploymentMapper';
+import { createDeploymentConfig } from '../utils/deploymentMapper';
 import { getRichTemplateById } from '../templates';
+import LegacyDraftNotice from '@/features/deployer/components/LegacyDraftNotice';
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../../../util/queries';
 import { DEFAULT_DEPLOY_CHAIN_ID, getSubgraphUrl } from '../../../config/networks';
 
@@ -533,6 +534,8 @@ export function DeployerWizard({
             </Box>
             {state.currentStep > STEPS.TEMPLATE && <ModeToggle />}
           </Flex>
+
+          <LegacyDraftNotice state={state} onReset={actions.resetState} />
 
           {/* Account gate notice — surfaces auth requirement upfront */}
           {showAccountGate && (

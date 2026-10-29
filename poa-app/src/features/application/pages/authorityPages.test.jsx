@@ -6,7 +6,7 @@ import TeamPage from '@/features/application/pages/TeamPage';
 import { PERM_KEYS } from '@/lib/accessV2/permKeys';
 import { resolveTokenLabel } from '@/util/tokenLabel';
 
-const state = vi.hoisted(() => ({ authority: null, matrix: null, card: null, members: null, vouchPanels: 0, label: undefined, loading: false, shareArgs: null }));
+const state = vi.hoisted(() => ({ authority: null, matrix: null, card: null, members: null, vouchPanels: 0, label: undefined, loading: false, shareArgs: null, modules: [], educationRead: null, taskTotals: null }));
 vi.mock('@chakra-ui/react', async () => {
   const chakra = (await import('@/test/mockChakra')).mockChakra();
   chakra.useBreakpointValue = () => ({});
@@ -32,8 +32,8 @@ vi.mock('@/components/orgStructure', () => ({
   DeveloperInfoSection: () => null,
 }));
 vi.mock('@/context/VotingContext', () => ({ useVotingContext: () => ({ ongoingPolls: [], votingClasses: [] }) }));
-vi.mock('@/context/POContext', () => ({ usePOContext: () => ({ tokenLabel: state.label, poContextLoading: state.loading, ptTokenBalance: '42', educationHubEnabled: true, educationModules: [{ id: 'lesson', name: 'Historic lesson', payout: '3' }] }) }));
-vi.mock('@/context/ProjectContext', () => ({ useProjectContext: () => ({ recommendedTasks: [] }) }));
+vi.mock('@/context/POContext', () => ({ usePOContext: () => ({ tokenLabel: state.label, poContextLoading: state.loading, ptTokenBalance: '42', educationHubEnabled: true, educationModules: state.modules, educationModulesRead: state.educationRead }) }));
+vi.mock('@/context/ProjectContext', () => ({ useProjectContext: () => ({ recommendedTasks: [], taskTotals: state.taskTotals }) }));
 vi.mock('@/context/ipfsContext', () => ({ useIPFScontext: () => ({ fetchImageFromIpfs() {} }) }));
 vi.mock('@/features/tour', () => ({ useTour: () => ({ isActive: false, startTour() {} }) }));
 vi.mock('@/hooks/useOrgName', () => ({ useOrgName: () => 'Test6' }));
@@ -51,16 +51,31 @@ vi.mock('@/hooks/accessV2', () => ({
 }));
 
 beforeEach(() => {
+  state.taskTotals = null;
+  state.modules = [{ id: 'lesson', name: 'Historic lesson', payout: '3' }];
+  state.educationRead = { complete: true, refetch: vi.fn() };
   const role = {
     subjectId: 'current', hatId: 'current', name: 'Current member', memberCount: 1, groups: [],
     vouchConfig: { enabled: true },
     permGlobal: key => key === PERM_KEYS.TM_PERMS ? { exists: true, value: '3' } : null,
     permEffective: key => key === PERM_KEYS.TM_PERMS ? '3' : '0',
+    permFacts: key => ({ value: { state: 'known', value: key === PERM_KEYS.TM_PERMS ? '3' : '0' }, contributions: [{ subjectId: 'current', context: { state: 'known', value: { value: key === PERM_KEYS.TM_PERMS ? '3' : '0' } } }] }),
   };
-  Object.assign(state, { authority: { enabled: true, loading: false, roles: [role], groups: [] }, matrix: null, card: null, members: null, vouchPanels: 0, label: undefined, loading: false, shareArgs: null });
+  Object.assign(state, { authority: { enabled: true, complete: true, loading: false, roles: [role], groups: [] }, matrix: null, card: null, members: null, vouchPanels: 0, label: undefined, loading: false, shareArgs: null });
 });
 
 describe('relocated organization pages', () => {
+  it.each([
+    [{ active: 17, completed: 9 }, '17', '9'],
+    [{ active: 0, completed: 0 }, '0', '0'],
+    [{ active: null, completed: null }, '—', '—'],
+    [undefined, '—', '—'],
+  ])('renders observed task totals and explicit unavailable values', (totals, active, completed) => {
+    state.taskTotals = totals;
+    const markup = renderToStaticMarkup(<DashboardPage />);
+    expect(markup).toContain(`<div>${active}</div></div><div>Active Tasks</div>`);
+    expect(markup).toContain(`<div>${completed}</div></div><div>Completed Tasks</div>`);
+  });
   it('uses current authority roles and vouches while keeping the new invite links', () => {
     const markup = renderToStaticMarkup(<DashboardPage />);
     expect(state.card.roles.map(role => role.name)).toEqual(['Current member']);
@@ -84,7 +99,7 @@ describe('relocated organization pages', () => {
     const markup = renderToStaticMarkup(<TeamPage />);
     expect(markup).toContain('Current role controls');
     expect(state.matrix.roles.map(role => role.name)).toEqual(['Current member']);
-    expect(state.matrix.permissionsMatrix.current).toEqual({ TaskManager_Create: true, TaskManager_Claim: true });
+    expect(state.matrix.permissionsMatrix.current).toMatchObject({ TaskManager_Create: true, TaskManager_Claim: true, EducationHub_Creator: false });
     expect(state.members.legacyMembersByRole.old[0].totalTasksCompleted).toBe(42);
   });
 
@@ -106,4 +121,18 @@ describe('relocated organization pages', () => {
     expect(renderToStaticMarkup(<DashboardPage />)).toContain('Loading your community');
     expect(renderToStaticMarkup(<TeamPage />)).toContain('Loading your community');
   });
+  it('keeps exact known education cards on a failed refresh and separates first-load failures from empty libraries', () => {
+    state.modules = [{ id: 'one-wei', name: 'A known lesson', payout: '0', payoutRaw: '1' }];
+    state.educationRead = { complete: false, error: 'Unavailable', refetch: vi.fn() };
+    const known = renderToStaticMarkup(<DashboardPage />);
+    expect(known).toContain('A known lesson'); expect(known).toContain('+0.000000000000000001 Shares');
+    expect(known).toContain('Try again'); expect(known).not.toContain('No modules available yet');
+    state.modules = [];
+    expect(renderToStaticMarkup(<DashboardPage />)).toContain('Learning modules are unavailable');
+    state.educationRead = { complete: false, loading: true };
+    expect(renderToStaticMarkup(<DashboardPage />)).toContain('Loading learning modules');
+    state.educationRead = { complete: true };
+    expect(renderToStaticMarkup(<DashboardPage />)).toContain('No modules available yet');
+  });
+
 });

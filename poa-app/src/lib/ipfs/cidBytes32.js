@@ -1,7 +1,7 @@
 import { arrayify, hexlify } from '@ethersproject/bytes';
 import { keccak256 } from '@ethersproject/keccak256';
 import { toUtf8Bytes } from '@ethersproject/strings';
-import bs58 from 'bs58';
+import { cidV0ToBytes32, bytes32ToCidV0 } from '@poa-box/core/encoding/cid';
 
 const ZERO_HASH = `0x${'0'.repeat(64)}`;
 
@@ -15,7 +15,7 @@ export function ipfsCidToBytes32(cid) {
     return keccak256(toUtf8Bytes(cid));
   }
   try {
-    return hexlify(bs58.decode(cid).slice(2));
+    return cidV0ToBytes32(cid, { strict: false });
   } catch (error) {
     console.error('Failed to encode IPFS CID to bytes32:', error);
     return ZERO_HASH;
@@ -25,7 +25,7 @@ export function ipfsCidToBytes32(cid) {
 export function bytes32ToIpfsCid(bytes32Hash) {
   if (!bytes32Hash || bytes32Hash === ZERO_HASH) return null;
   try {
-    return bs58.encode(new Uint8Array([0x12, 0x20, ...arrayify(bytes32Hash)]));
+    return bytes32ToCidV0(hexlify(arrayify(bytes32Hash)), { strict: false });
   } catch (error) {
     console.warn('Failed to decode bytes32 to IPFS CID:', error);
     return null;

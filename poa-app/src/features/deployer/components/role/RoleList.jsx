@@ -106,16 +106,16 @@ export function RoleList({ showHierarchy = false }) {
           leftIcon={<AddIcon />}
           colorScheme="blue"
           onClick={handleAddRole}
-          isDisabled={roles.length >= 32}
+          isDisabled={roles.length >= 16}
         >
           Add Role
         </Button>
       </HStack>
 
-      {roles.length >= 32 && (
+      {roles.length >= 16 && (
         <Alert status="warning" mb={4} borderRadius="md">
           <AlertIcon />
-          Maximum of 32 roles reached
+          Maximum of 16 roles reached
         </Alert>
       )}
 
@@ -161,7 +161,7 @@ export function RoleList({ showHierarchy = false }) {
           <Box>
             <Text fontWeight="medium">Tips for Role Setup:</Text>
             <Text fontSize="sm" mt={1}>
-              • At least one role should be a top-level admin (no parent)
+              • Membership changes are decided through governance
               <br />
               • Enable "Can Vote" for roles that participate in governance
               <br />
@@ -211,7 +211,7 @@ export function RoleList({ showHierarchy = false }) {
                   Are you sure you want to delete "{roles[deleteIndex]?.name}"?
                   {roles.some(
                     (r, idx) =>
-                      idx !== deleteIndex && r.hierarchy.adminRoleIndex === deleteIndex
+                      idx !== deleteIndex && r.hierarchy?.adminRoleIndex === deleteIndex
                   ) && (
                     <Alert status="warning" mt={4}>
                       <AlertIcon />

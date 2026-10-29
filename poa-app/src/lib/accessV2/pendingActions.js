@@ -19,7 +19,9 @@
  * condition.
  */
 
-import { toSubjectId } from './ids';
+import { toSubjectId } from '@/lib/accessV2/ids';
+import { projectPendingAction } from '@poa-box/core/authority/lifecycle';
+import { knownFact, unknownFact } from '@poa-box/core/data/facts';
 
 export const PENDING_KIND = { GRANT: 'Grant', OFFER: 'Offer', REMOVE: 'Remove' };
 export const PENDING_STATUS = {
@@ -53,14 +55,25 @@ export function normalizePendingActions(rows = []) {
   return (rows || []).map(normalizePendingAction).filter(Boolean);
 }
 
+/** Display facts never authorize completion: callers inject a scoped live preflight separately. */
+export function pendingActionFacts(pending, nowSeconds = Math.floor(Date.now() / 1000), authority = {}) {
+  return projectPendingAction({
+    pending: knownFact(pending ?? null), now: String(nowSeconds),
+    paused: unknownFact('PAUSE_UNAVAILABLE'), viewerIsExecutor: unknownFact('VIEWER_UNAVAILABLE'),
+    viewerIsCurrentManager: unknownFact('MANAGER_UNAVAILABLE'), actorAuthorized: unknownFact('ACTOR_UNAVAILABLE'),
+    ...authority,
+  });
+}
+
 /** Still open — not cancelled, voided or consumed. */
 export function isOpen(p) {
-  return Boolean(p) && p.status === PENDING_STATUS.PENDING;
+  if (p?.pendingId == null || p?.activatesAt == null) return Boolean(p) && p.status === PENDING_STATUS.PENDING;
+  try { const open = pendingActionFacts(p, 0).open; return open.state === 'known' && open.value; } catch { return false; }
 }
 
 /** Past its anchor: finalize()/claim() would now run the re-checks instead of reverting NotYetActive. */
 export function isActivated(p, nowSeconds = Math.floor(Date.now() / 1000)) {
-  return isOpen(p) && Number(nowSeconds) >= Number(p?.activatesAt || 0);
+  try { const matured = pendingActionFacts(p, nowSeconds).matured; return matured.state === 'known' && matured.value; } catch { return false; }
 }
 
 /**
@@ -170,7 +183,7 @@ export function pendingByActor(rows = [], actor) {
 /** Open entries that are past their anchor — the finalise queue. */
 export function finalizable(rows = [], nowSeconds = Math.floor(Date.now() / 1000)) {
   return (rows || []).filter(
-    (p) => isActivated(p, nowSeconds) && p.action !== PENDING_KIND.OFFER
+    (p) => isActivated(p, nowSeconds) && pendingActionFacts(p, nowSeconds).operation.value === 'finalize'
   );
 }
 

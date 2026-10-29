@@ -83,7 +83,9 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
   const toast = useToast();
   const { orgChainId, taskManagerContractAddress, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
   // Org-wide TaskPerm grants for the read-only baseline shown in Advanced Settings.
-  const { globalRolePermissions = [] } = useProjectContext() || {};
+  const { globalRolePermissions = [], projectCreator } = useProjectContext() || {};
+  const creatorKnown = projectCreator?.state === 'known';
+  const canCreateProject = creatorKnown && projectCreator.value === true;
   const [loading, setLoading] = useState(false);
   // Org-wide defaults render as a compact, collapsed reference so they don't crowd
   // the editable per-project Role Permissions section.
@@ -248,6 +250,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
   };
 
   const handleSubmit = async () => {
+    if (!canCreateProject || loading) return;
     if (!name.trim()) {
       toast({
         title: 'Name Required',
@@ -635,6 +638,9 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
           </VStack>
         </ModalBody>
 
+        {!canCreateProject && <Text px={6} fontSize="sm" role="status">
+          {creatorKnown ? 'Your account does not have permission to create projects.' : 'Checking project creation permissions…'}
+        </Text>}
         <ModalFooter>
           <Button variant="ghost" mr={3} onClick={handleClose}>
             Cancel
@@ -643,6 +649,7 @@ const CreateProjectModal = ({ isOpen, onClose, onCreateProject, roleHatIds = [],
             colorScheme="purple"
             onClick={handleSubmit}
             isLoading={loading}
+            isDisabled={!canCreateProject}
             loadingText="Creating..."
           >
             Create Project

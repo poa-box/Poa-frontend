@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import MainLayout from '@/components/TaskManager/MainLayout';
-import { Box, Center } from '@chakra-ui/react';
+import { Box, Center, VStack, Text, Button } from '@chakra-ui/react';
 import CommunityLoadingState from "@/components/shared/CommunityLoadingState";
 import { useProjectContext } from '@/context/ProjectContext';
 import Navbar from "@/templateComponents/studentOrgDAO/NavBar";
@@ -20,7 +20,7 @@ if (typeof window !== 'undefined') {
 
 const TaskWorkspace = () => {
   useTaskRoute();
-  const { projectsLoading } = useProjectContext();
+  const { projectsLoading, projectsError, projectsData, refetchProjects } = useProjectContext();
   const { poContextLoading } = usePOContext();
   const { pageBackground } = useOrgTheme();
   const orgGate = useOrgGate();
@@ -34,6 +34,13 @@ const TaskWorkspace = () => {
       {poContextLoading || projectsLoading ? (
         <Center minH="90vh" background={pageBackground()}>
           <CommunityLoadingState label="Loading your task board…" />
+        </Center>
+      ) : projectsError && !projectsData?.length ? (
+        <Center minH="90vh" background={pageBackground()}>
+          <VStack spacing={4} px={5}>
+            <Text>Projects could not finish loading. Please try again.</Text>
+            <Button onClick={() => refetchProjects()}>Try again</Button>
+          </VStack>
         </Center>
       ) : (
         <Box minH="90vh" position="relative" bg="blackAlpha.600" ref={containerRef} background={pageBackground()}>

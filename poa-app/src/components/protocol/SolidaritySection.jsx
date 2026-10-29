@@ -1,10 +1,11 @@
-import { useAccount, useSwitchChain, useConfig, getConnectorClient, clientToSigner } from '@/context/WalletContext';
 import React, { useState } from 'react';
-import { Box, Container, Heading, Text, SimpleGrid, VStack, HStack, Badge, Table, Thead, Tbody, Tr, Th, Td, Link, Button, Input, InputGroup, InputRightAddon, useToast, useDisclosure, Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton } from '@chakra-ui/react';
+import dynamic from 'next/dynamic';
+import { displayRawUnits } from '@/lib/graphql/protocolData';
+import { Box, Container, Heading, Text, SimpleGrid, HStack, Badge, Table, Thead, Tbody, Tr, Th, Td, Link, Button, useDisclosure } from '@chakra-ui/react';
 import { ExternalLinkIcon } from '@chakra-ui/icons';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/context/authState';
-import { ethers } from 'ethers';
+const DonateModal = dynamic(() => import('@/components/protocol/ProtocolDonateModal'), { ssr: false });
 
 const MotionBox = motion.create(Box);
 
@@ -16,89 +17,13 @@ const StatCard = ({ label, value, subtext, color = 'warmGray.800' }) => (
   </Box>
 );
 
-const DonateModal = ({ isOpen, onClose, chain }) => {
-  const toast = useToast();
-  const { isAuthenticated } = useAuth();
-  const { switchChainAsync } = useSwitchChain();
-  const wagmiConfig = useConfig();
-  const { chain: currentChain } = useAccount();
-  const [amount, setAmount] = useState('');
-  const [isSending, setIsSending] = useState(false);
-
-  const paymasterAddress = chain.infrastructure?.paymasterHubProxy;
-
-  const handleDonate = async () => {
-    if (!amount || parseFloat(amount) <= 0 || !paymasterAddress) return;
-
-    setIsSending(true);
-    try {
-      if (currentChain?.id !== chain.chainId) {
-        await switchChainAsync({ chainId: chain.chainId });
-      }
-      const freshClient = await getConnectorClient(wagmiConfig, { chainId: chain.chainId });
-      const signer = clientToSigner(freshClient);
-
-      const tx = await signer.sendTransaction({
-        to: paymasterAddress,
-        data: new ethers.utils.Interface(['function donateToSolidarity() payable']).encodeFunctionData('donateToSolidarity'),
-        value: ethers.utils.parseEther(amount),
-      });
-      await tx.wait();
-
-      toast({ title: `Donated ${amount} ${chain.nativeCurrency}!`, status: 'success', duration: 5000 });
-      setAmount('');
-      onClose();
-    } catch (err) {
-      toast({ title: 'Donation failed', description: err.message, status: 'error', duration: 5000 });
-    } finally {
-      setIsSending(false);
-    }
-  };
-
-  return (
-    <Modal isOpen={isOpen} onClose={onClose} size="sm" isCentered>
-      <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Donate to Solidarity Fund</ModalHeader>
-        <ModalCloseButton />
-        <ModalBody>
-          <Text fontSize="sm" color="warmGray.500" mb={4}>
-            Your donation helps subsidize gas for new organizations on {chain.name}.
-          </Text>
-          <InputGroup>
-            <Input
-              placeholder="0.5"
-              type="number"
-              step="any"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              isDisabled={isSending}
-            />
-            <InputRightAddon>{chain.nativeCurrency}</InputRightAddon>
-          </InputGroup>
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="ghost" mr={3} onClick={onClose} isDisabled={isSending}>Cancel</Button>
-          <Button
-            colorScheme="green"
-            onClick={handleDonate}
-            isLoading={isSending}
-            loadingText="Sending..."
-            isDisabled={!amount || parseFloat(amount) <= 0 || !isAuthenticated}
-          >
-            Donate
-          </Button>
-        </ModalFooter>
-      </ModalContent>
-    </Modal>
-  );
-};
-
 const ChainSolidarityCard = ({ chain }) => {
   const solidarity = chain.solidarity;
   const grace = chain.grace;
   const events = chain.solidarityEvents || [];
   const { isOpen, onOpen, onClose } = useDisclosure();
+  const [donationOpened, setDonationOpened] = useState(false);
+  const openDonation = () => { setDonationOpened(true); onOpen(); };
   const { isAuthenticated, isPasskeyUser } = useAuth();
 
   return (
@@ -107,30 +32,30 @@ const ChainSolidarityCard = ({ chain }) => {
         <HStack>
           <Heading fontSize="md" fontWeight="700" color="warmGray.800">{chain.name}</Heading>
           <Badge
-            bg={solidarity?.distributionPaused ? 'warmGray.100' : 'green.50'}
-            color={solidarity?.distributionPaused ? 'warmGray.500' : 'green.600'}
+            bg={solidarity?.distributionPaused === false ? 'green.50' : 'warmGray.100'}
+            color={solidarity?.distributionPaused === false ? 'green.600' : 'warmGray.500'}
             fontSize="2xs"
           >
-            {solidarity?.distributionPaused === true ? 'Paused' : solidarity?.distributionPaused === false ? 'Active' : '...'}
+            {solidarity?.distributionPaused === true ? 'Paused' : solidarity?.distributionPaused === false ? 'Active' : 'Unavailable'}
           </Badge>
         </HStack>
         {isAuthenticated && !isPasskeyUser && (
-          <Button size="xs" colorScheme="green" variant="outline" onClick={onOpen}>
+          <Button size="xs" colorScheme="green" variant="outline" onClick={openDonation}>
             Donate
           </Button>
         )}
       </HStack>
-      <DonateModal isOpen={isOpen} onClose={onClose} chain={chain} />
+      {donationOpened && <DonateModal isOpen={isOpen} onClose={onClose} chain={chain} />}
 
       <SimpleGrid columns={{ base: 2, md: 3 }} spacing={3} mb={4}>
         <StatCard
           label="Fund Balance"
-          value={solidarity ? `${solidarity.balance} ${chain.nativeCurrency}` : '...'}
+          value={solidarity?.balance != null ? `${solidarity.balance} ${chain.nativeCurrency}` : '—'}
           color="green.600"
         />
         <StatCard
           label="Total Fees Collected"
-          value={solidarity ? `${solidarity.totalFeesCollected} ${chain.nativeCurrency}` : '...'}
+          value={solidarity?.totalFeesCollected != null ? `${solidarity.totalFeesCollected} ${chain.nativeCurrency}` : '—'}
           subtext="Cumulative from all orgs"
           color="amethyst.600"
         />
@@ -141,16 +66,17 @@ const ChainSolidarityCard = ({ chain }) => {
         />
         <StatCard
           label="Fee Rate"
-          value={solidarity ? `${(solidarity.feePercentageBps / 100).toFixed(1)}%` : '1.0%'}
+          value={solidarity?.feePercentageBps != null ? `${(solidarity.feePercentageBps / 100).toFixed(1)}%` : '—'}
           subtext="Collected on gas"
         />
         <StatCard
           label="Grace Period"
-          value={grace ? `${grace.initialGraceDays} days` : '...'}
-          subtext={grace ? `Max ${grace.maxSpendDuringGrace} ${chain.nativeCurrency}` : ''}
+          value={grace?.initialGraceDays != null ? `${grace.initialGraceDays} days` : '—'}
+          subtext={grace?.maxSpendDuringGrace != null ? `Max ${grace.maxSpendDuringGrace} ${chain.nativeCurrency}` : ''}
         />
       </SimpleGrid>
 
+      {chain.historyCoverage?.solidarity?.status === 'unavailable' && <Text fontSize="xs" color="warmGray.500">Recent activity is unavailable.</Text>}
       {events.length > 0 && (
         <Box>
           <Text fontSize="xs" fontWeight="600" color="warmGray.500" mb={2} textTransform="uppercase">
@@ -178,7 +104,7 @@ const ChainSolidarityCard = ({ chain }) => {
                       </Badge>
                     </Td>
                     <Td isNumeric fontSize="xs" fontFamily="mono">
-                      {(parseInt(e.amount) / 1e18).toFixed(6)}
+                      {displayRawUnits(e.amount) ?? '—'}
                     </Td>
                     <Td fontSize="xs" color="warmGray.500">
                       <HStack spacing={1}>

@@ -1,3 +1,4 @@
+import { getTemplateDefaults } from '@/features/deployer/templates/templateDefinitions';
 /**
  * Worker Cooperative Template
  *
@@ -523,42 +524,7 @@ Cooperatives are built on the principle of democratic member control.`,
   },
 
   // Default configuration
-  defaults: {
-    roles: [
-      {
-        name: 'Worker-Owner',
-        hierarchy: { adminRoleIndex: null },
-        vouching: { enabled: false, quorum: 0, voucherRoleIndex: 1 },
-        hatConfig: { maxSupply: 1000 },
-      },
-      {
-        name: 'Coordinator',
-        hierarchy: { adminRoleIndex: 0 },
-        vouching: { enabled: false, quorum: 0, voucherRoleIndex: 0 },
-        hatConfig: { maxSupply: 10 },
-      },
-    ],
-    permissions: {
-      taskManagers: [0, 1],
-      projectCreators: [0, 1],
-      taskCreators: [0, 1],
-      taskReviewers: [0, 1],
-      taskClaimers: [0, 1],
-      nftCreators: [0],
-      quickJoinRoles: [],
-      memberManagers: [0],
-      ddVoters: [0, 1],
-    },
-    voting: {
-      mode: 'HYBRID',
-      democracyWeight: 80,
-      participationWeight: 20,
-    },
-    features: {
-      educationHubEnabled: false,
-      electionHubEnabled: true,
-    },
-  },
+  defaults: getTemplateDefaults('worker-coop'),
 
   // UI guidance
   ui: {

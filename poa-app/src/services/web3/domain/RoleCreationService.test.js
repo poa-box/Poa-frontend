@@ -1,49 +1,22 @@
 import { describe, expect, it, vi } from 'vitest';
-import { utils, constants } from 'ethers';
-import { RoleCreationService } from './RoleCreationService';
+import { RoleCreationService } from '@/services/web3/domain/RoleCreationService';
 
-const orgId = `0x${'11'.repeat(32)}`;
-const executor = `0x${'22'.repeat(20)}`;
-const paymasterHub = `0x${'33'.repeat(20)}`;
-const setup = () => {
-  const hub = {
-    getOrgConfig: vi.fn().mockResolvedValue({ adminHatId: '123', paused: false }),
-    getBudget: vi.fn().mockResolvedValue({ capPerEpoch: '0', epochLen: 0 }),
-    callStatic: { setBudget: vi.fn().mockResolvedValue(undefined) },
-  };
-  const readFactory = { createReadOnly: vi.fn().mockReturnValue(hub) };
-  return { hub, readFactory, service: new RoleCreationService(readFactory) };
-};
-
-describe('RoleCreationService sponsorship preflight', () => {
-  it('checks the live gate as the executor using only an eth_call', async () => {
-    const { service, hub, readFactory } = setup();
-    await expect(service.getSponsorshipConfig({ orgId, executor, paymasterHub })).resolves.toMatchObject({ canConfigure: true });
-    expect(readFactory.createReadOnly).toHaveBeenCalledWith(paymasterHub, expect.any(Array));
-    expect(hub.callStatic.setBudget).toHaveBeenCalledWith(orgId, constants.HashZero, '1', 3600, { from: executor });
+// Protocol metadata/sponsor ABI assertions are retained at roleObservation.abi.test.js.
+// This test owns only the service handoff; it explicitly stubs the shared API boundary.
+describe('RoleCreationService shared operation handoff', () => {
+  it.each([['getRolePlanningEvidence', 'read'], ['reviewRoleOperation', 'review'],
+    ['prepareRoleOperation', 'prepare'], ['revalidatePreparedRoleOperation', 'revalidate']])('%s forwards the exact opaque request to %s', async (method, operation) => {
+    const service = new RoleCreationService({});
+    const result = Object.freeze({ status: 'unknown', codes: ['NOT_VERIFIED'] }), input = Object.freeze({ marker: 'request' });
+    const read = vi.fn(async () => result); service.roleOperations = async () => ({ [operation]: read });
+    expect(await service[method](input)).toBe(result); expect(read).toHaveBeenCalledWith(input);
   });
-  it('distinguishes an operator-only org from a network read failure', async () => {
-    const { service, hub } = setup();
-    hub.callStatic.setBudget.mockRejectedValueOnce({ data: utils.id('NotOperator()').slice(0, 10) });
-    await expect(service.getSponsorshipConfig({ orgId, executor, paymasterHub })).resolves.toMatchObject({ canConfigure: false, ready: true });
-    hub.callStatic.setBudget.mockRejectedValueOnce(new Error('RPC unavailable'));
-    await expect(service.getSponsorshipConfig({ orgId, executor, paymasterHub })).rejects.toThrow('RPC unavailable');
-  });
-  it('does not treat an unregistered org as configurable', async () => {
-    const { service, hub } = setup();
-    hub.getOrgConfig.mockResolvedValue({ adminHatId: '0' });
-    await expect(service.getSponsorshipConfig({ orgId, executor, paymasterHub })).resolves.toMatchObject({ canConfigure: false });
-    expect(hub.callStatic.setBudget).not.toHaveBeenCalled();
-  });
-  it('reads the shared claim budget using the email module address, not a role id', async () => {
-    const { service, hub } = setup();
-    const zkEmailAddress = `0x${'44'.repeat(20)}`;
-    await expect(service.getSponsorshipConfig({ orgId, executor, paymasterHub, zkEmailAddress })).resolves.toMatchObject({ claimBudgetMissing: true });
-    expect(hub.getBudget).toHaveBeenCalledWith(orgId, utils.solidityKeccak256(['uint8', 'bytes32'], [5, utils.hexZeroPad(zkEmailAddress, 32)]));
-    hub.getBudget.mockResolvedValue({ capPerEpoch: '123', epochLen: 3600 });
-    await expect(service.getSponsorshipConfig({ orgId, executor, paymasterHub, zkEmailAddress })).resolves.toMatchObject({ claimBudgetMissing: false });
-    // A configured zero cap deliberately disables sponsorship; preserve that choice.
-    hub.getBudget.mockResolvedValue({ capPerEpoch: '0', epochLen: 3600 });
-    await expect(service.getSponsorshipConfig({ orgId, executor, paymasterHub, zkEmailAddress })).resolves.toMatchObject({ claimBudgetMissing: false });
+  it('retains election acceptance reads and exact IDs outside the migrated role operation', async () => {
+    const getStatus = vi.fn(async () => ({ accepted: false }));
+    const service = new RoleCreationService({ createReadOnly: () => ({ getStatus }) });
+    const address = `0x${'1'.repeat(40)}`, authority = `0x${'2'.repeat(40)}`;
+    expect(await service.getElectionAcceptance(authority, [{ subjectId: '123456789012345678901', addresses: [address, address.toUpperCase()] }]))
+      .toEqual({ '123456789012345678901': { [address]: false } });
+    expect(getStatus).toHaveBeenCalledOnce();
   });
 });

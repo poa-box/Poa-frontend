@@ -5,7 +5,6 @@ import {
   claimableMemberships,
   activeMemberships,
   isHeldInReserve,
-  activationGate,
   activationGateCopy,
   eligibilityCopy,
   ELIGIBILITY_SOURCE,
@@ -151,52 +150,9 @@ describe('isHeldInReserve — the sticky seat that survives renounce', () => {
   });
 });
 
-describe('activationGate — the electorate activation gate', () => {
-  it('treats seededWhilePaused rows as backdated to 1 (ceremony members vote on in-flight proposals)', () => {
-    // On-chain the seed writes acceptedAt = 1; the subgraph stores the indexed timestamp + a flag.
-    const seeded = [{ isMember: true, acceptedAt: 1756200000, seededWhilePaused: true }];
-    const out = activationGate(seeded, 1700000000); // proposal long before the seed batch indexed
-    expect(out.canVote).toBe(true);
-    expect(out.activeSince).toBe(1);
-  });
-
-  it('still gates a post-cutover claimant off pre-claim proposals', () => {
-    const claimed = [{ isMember: true, acceptedAt: 1756200000, seededWhilePaused: false }];
-    const out = activationGate(claimed, 1700000000);
-    expect(out.canVote).toBe(false);
-    expect(out.reason).toBe('joined-after-proposal');
-  });
-
-  const at = (t) => normalizeMembership(aliceMembership({ acceptedAt: String(t) }));
-
-  it('lets a member who joined BEFORE the proposal vote', () => {
-    const g = activationGate([at(1000)], 2000);
-    expect(g).toEqual({ canVote: true, activeSince: 1000, reason: null });
-  });
-
-  it('blocks a member who joined AFTER the proposal was created', () => {
-    const g = activationGate([at(3000)], 2000);
-    expect(g.canVote).toBe(false);
-    expect(g.reason).toBe('joined-after-proposal');
-  });
-
-  it('EARLIEST activation governs when several roles qualify', () => {
-    // One pre-proposal role plus one post-proposal role passes.
-    const g = activationGate([at(3000), at(1000)], 2000);
-    expect(g).toEqual({ canVote: true, activeSince: 1000, reason: null });
-  });
-
-  it('a non-member cannot vote', () => {
-    const notAMember = normalizeMembership(carolOffer());
-    expect(activationGate([notAMember], 2000).reason).toBe('not-a-member');
-  });
-
-  it('reads as policy, not as a bug', () => {
-    const g = activationGate([at(3000)], 2000);
-    const copy = activationGateCopy(g, 2000);
-    expect(copy).toMatch(/You joined after this proposal was created/);
-    expect(activationGateCopy({ canVote: true }, 2000)).toBeNull();
-  });
+it('explains a proven late activation without claiming a known result from rows', () => {
+  expect(activationGateCopy({ canVote: false, reason: 'joined-after-proposal' }, 2000)).toContain('You joined after');
+  expect(activationGateCopy({ canVote: true }, 2000)).toBeNull();
 });
 
 describe('groupBySubject', () => {

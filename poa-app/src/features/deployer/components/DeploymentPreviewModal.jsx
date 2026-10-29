@@ -1,3 +1,4 @@
+import { membershipSummary } from '@/features/deployer/components/role/NativeMembershipFields';
 /**
  * DeploymentPreviewModal — the last screen before an organization is created.
  *
@@ -32,7 +33,7 @@ import {
 } from '@chakra-ui/react';
 import { PiCaretDown, PiCaretUp } from 'react-icons/pi';
 import { TaskPermission, hasPermission } from '@/util/permissions';
-import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
+import { resolveTokenLabel } from '@/util/tokenLabel';
 
 const MASK_LABELS = [
   { bit: TaskPermission.CREATE, label: 'Create tasks' },
@@ -101,8 +102,7 @@ function Section({ title, children }) {
  * "N voting classes". Strategy 0 = one vote per member; 1 = weighted by shares.
  */
 function describeVoting(classes, tokenWord) {
-  // "Shares" is ours to lowercase mid-sentence; a founder's ticker (COMFY) is not.
-  const asset = tokenWord === DEFAULT_TOKEN_LABEL ? tokenWord.toLowerCase() : tokenWord;
+  const asset = tokenWord;
   const list = (classes || []).map((c) => ({ strategy: toNum(c.strategy), slice: toNum(c.slicePct) }));
   if (list.length === 0) return 'Not configured';
   if (list.length === 1) {
@@ -134,11 +134,11 @@ export function DeploymentPreviewModal({ data, onConfirm, onCancel }) {
   const metaAdminIdx = toNum(params?.metadataAdminRoleIndex);
   const metaAdminLabel = Number.isFinite(metaAdminIdx) && metaAdminIdx < roles.length
     ? roles[metaAdminIdx]?.name || `Role ${metaAdminIdx}`
-    : 'Only by a vote';
+    : 'Founding administrators';
 
   // The org's contribution asset. The app calls it "Shares" unless the founder
   // chose a ticker of their own (see util/tokenLabel).
-  const tokenWord = params?.tokenSymbol?.trim() || DEFAULT_TOKEN_LABEL;
+  const tokenWord = resolveTokenLabel({ useTokenSymbol: data.metadata?.useTokenSymbol, symbol: params?.tokenSymbol });
 
   const hybridQuorum = toNum(params?.hybridQuorum) || 0;
   const ddQuorum = toNum(params?.ddQuorum) || 0;
@@ -150,13 +150,8 @@ export function DeploymentPreviewModal({ data, onConfirm, onCancel }) {
   const hasEmailInvites = !isZeroAddr(predicted?.zkEmailInvites);
   const fundsGas = Number(fundingEth) > 0;
 
-  // How someone gets a role. Three distinct outcomes, and "not vouched" does NOT
-  // mean "open": a role with vouching off and defaults.eligible off is granted by
-  // an admin, which the deployer deliberately preserves.
-  const isOpenRole = (role) => typeof role?.open === 'boolean'
-    ? role.open
-    : Boolean(role?.defaults?.eligible);
-  const vouchedRoles = roles.filter((r) => r.vouching?.enabled).map((r) => r.name);
+  // Review the exact native membership rules in the prepared payload.
+  const isOpenRole = role => role.open === true;
   const openRoles = roles.filter((r) => !r.vouching?.enabled && isOpenRole(r)).map((r) => r.name);
   const grantedRoles = roles.filter((r) => !r.vouching?.enabled && !isOpenRole(r)).map((r) => r.name);
 
@@ -213,16 +208,14 @@ export function DeploymentPreviewModal({ data, onConfirm, onCancel }) {
                     Anyone can join {joinList(openRoles)}.
                   </Text>
                 )}
-                {vouchedRoles.length > 0 && (
-                  <Text fontSize="xs" color="warmGray.500">
-                    {joinList(vouchedRoles)} {vouchedRoles.length === 1 ? 'needs' : 'need'} a vouch from
-                    existing members first.
+                {roles.filter(role => role.vouching?.enabled).map((role, index) => (
+                  <Text key={index} fontSize="xs" color="warmGray.500">
+                    {role.name}: {membershipSummary(role, roles)}.
                   </Text>
-                )}
+                ))}
                 {grantedRoles.length > 0 && (
                   <Text fontSize="xs" color="warmGray.500">
-                    {joinList(grantedRoles)} {grantedRoles.length === 1 ? 'is' : 'are'} handed out by an
-                    admin — nobody can claim {grantedRoles.length === 1 ? 'it' : 'them'} directly.
+                    {joinList(grantedRoles)} {grantedRoles.length === 1 ? 'is' : 'are'} granted through governance.
                   </Text>
                 )}
               </VStack>

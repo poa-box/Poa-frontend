@@ -1,3 +1,4 @@
+import { getTemplateDefaults } from '@/features/deployer/templates/templateDefinitions';
 /**
  * Community DAO Template
  *
@@ -497,42 +498,7 @@ clear and accessible.`,
   },
 
   // Default configuration
-  defaults: {
-    roles: [
-      {
-        name: 'Community Member',
-        hierarchy: { adminRoleIndex: null },
-        vouching: { enabled: false, quorum: 0, voucherRoleIndex: 0 },
-        hatConfig: { maxSupply: 10000 },
-      },
-      {
-        name: 'Steward',
-        hierarchy: { adminRoleIndex: 0 },
-        vouching: { enabled: false, quorum: 0, voucherRoleIndex: 0 },
-        hatConfig: { maxSupply: 20 },
-      },
-    ],
-    permissions: {
-      taskManagers: [0, 1],
-      projectCreators: [1],
-      taskCreators: [0, 1],
-      taskReviewers: [1],
-      taskClaimers: [0, 1],
-      nftCreators: [1],
-      quickJoinRoles: [0],
-      memberManagers: [1],
-      ddVoters: [0, 1],
-    },
-    voting: {
-      mode: 'HYBRID',
-      democracyWeight: 50,
-      participationWeight: 50,
-    },
-    features: {
-      educationHubEnabled: false,
-      electionHubEnabled: true,
-    },
-  },
+  defaults: getTemplateDefaults('community-dao'),
 
   // UI guidance
   ui: {

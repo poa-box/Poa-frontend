@@ -7,7 +7,9 @@
  */
 
 import { utils } from 'ethers';
-import { parseProjectId } from '@/services/web3/utils/encoding';
+import { CONFIG_PARAMS, parseClassConfigs } from '@poa-box/core/tx/vote';
+import { taskConfigCall } from '@poa-box/core/tx/task';
+import { encodeExecutorCall } from '@poa-box/core/tx/governance';
 import { PERM_CATALOGUE, PERM_KEYS, TASK_PERM_BITS } from '@/lib/accessV2/permKeys';
 import { buildPermRows, buildEditPermsBatch, estimateBatchGas } from '@/lib/accessV2/proposalBuilders';
 import {
@@ -18,6 +20,19 @@ import {
   classHolds,
   classesHolding,
 } from '@/lib/voting/votingClasses';
+
+const encoderAddress = '0x0000000000000000000000000000000000000001';
+const votingConfigArgs = (name, value, lane) => {
+  const param = CONFIG_PARAMS[name];
+  const text = String(value ?? '').trim();
+  try { param.validate(text); } catch {
+    throw new Error(name === 'threshold' ? 'Choose a whole support percentage from 1 to 100.'
+      : 'Choose a whole minimum number of voters.');
+  }
+  return [lane === 'hybrid' ? param.hybridKey : param.ddKey, param.encode(text)];
+};
+const taskConfigArgs = (key, values) => taskConfigCall(encoderAddress,
+  { key, subjectId: values.role, enabled: values.allowed === 'Grant' }).args;
 
 // ============================================================================
 // ACCESS-SYSTEM FLAGS
@@ -515,11 +530,7 @@ export const SETTER_TEMPLATES = [
         helpText: 'Percentage of support required to pass (1-100)'
       }
     ],
-    encode: (values) => {
-      const configKey = 0; // ConfigKey.THRESHOLD
-      const encodedValue = utils.hexZeroPad(utils.hexlify(Number(values.threshold)), 32);
-      return [configKey, encodedValue];
-    },
+    encode: (values) => votingConfigArgs('threshold', values.threshold, 'hybrid'),
     preview: (values) => `Change blended voting threshold to ${values.threshold}%`
   },
   {
@@ -541,11 +552,7 @@ export const SETTER_TEMPLATES = [
         helpText: 'Percentage of support required to pass (1-100)'
       }
     ],
-    encode: (values) => {
-      const configKey = 0; // ConfigKey.THRESHOLD
-      const encodedValue = utils.hexZeroPad(utils.hexlify(Number(values.threshold)), 32);
-      return [configKey, encodedValue];
-    },
+    encode: (values) => votingConfigArgs('threshold', values.threshold, 'dd'),
     preview: (values) => `Change direct democracy threshold to ${values.threshold}%`
   },
   {
@@ -567,11 +574,7 @@ export const SETTER_TEMPLATES = [
         helpText: 'Minimum number of voters required (0 = no minimum)'
       }
     ],
-    encode: (values) => {
-      const configKey = 3; // ConfigKey.QUORUM
-      const encodedValue = utils.hexZeroPad(utils.hexlify(Number(values.quorum)), 32);
-      return [configKey, encodedValue];
-    },
+    encode: (values) => votingConfigArgs('quorum', values.quorum, 'hybrid'),
     preview: (values) => `Change blended voting quorum to ${values.quorum} voters`
   },
   {
@@ -597,18 +600,9 @@ export const SETTER_TEMPLATES = [
     ],
     requiresContext: 'votingClasses',
     encode: (values) => {
-      const classConfigs = (values.classWeights || []).map(cls => {
-        const strategyNum = (cls.strategy === 'DIRECT' || cls.strategy === 0) ? 0 : 1;
-        return {
-          strategy: strategyNum,
-          slicePct: Number(cls.slicePct),
-          quadratic: Boolean(cls.quadratic),
-          minBalance: cls.minBalance?.toString() || '0',
-          asset: cls.asset || '0x0000000000000000000000000000000000000000',
-          hatIds: (cls.hatIds || []).map(h => h.toString()),
-        };
-      });
-      return [classConfigs];
+      try { return [parseClassConfigs(values.classWeights || [])]; } catch {
+        throw new Error('Choose valid voting groups with whole percentages totaling 100.');
+      }
     },
     preview: (values) => {
       const classes = values.classWeights || [];
@@ -751,103 +745,13 @@ export const SETTER_TEMPLATES = [
         helpText: 'Minimum number of voters required (0 = no minimum)'
       }
     ],
-    encode: (values) => {
-      const configKey = 4; // ConfigKey.QUORUM
-      const encodedValue = utils.hexZeroPad(utils.hexlify(Number(values.quorum)), 32);
-      return [configKey, encodedValue];
-    },
+    encode: (values) => votingConfigArgs('quorum', values.quorum, 'dd'),
     preview: (values) => `Change direct democracy quorum to ${values.quorum} voters`
   },
 
   // ===== PERMISSIONS =====
-  {
-    id: 'allow-proposal-creator-hybrid',
-    category: 'permissions',
-    name: 'Allow Role to Create Blended Proposals',
-    autoTitle: 'Change who can create Blended votes',
-    description: 'Grant or revoke a role\'s permission to create new blended voting proposals',
-    contract: 'hybridVoting',
-    functionName: 'setCreatorHatAllowed',
-    // Retired setter. HybridVoting.createProposal gates on authority HV_CREATE;
-    // keep this descriptor only to recognize and reject historical saved drafts.
-    legacyOnly: true,
-    inputs: [
-      {
-        name: 'role',
-        label: 'Role',
-        type: 'roleSelect',
-        helpText: 'Select which role to modify'
-      },
-      {
-        name: 'allowed',
-        label: 'Permission',
-        type: 'toggle',
-        options: ['Grant', 'Revoke'],
-        default: 'Grant',
-        helpText: 'Grant or revoke proposal creation permission'
-      }
-    ],
-    encode: (values) => {
-      return [values.role, values.allowed === 'Grant'];
-    },
-    preview: (values, roleNames) => {
-      const roleName = roleNames?.[values.role] || `Role ${values.role}`;
-      const action = values.allowed === 'Grant' ? 'Allow' : 'Revoke';
-      return `${action} "${roleName}" to create blended voting proposals`;
-    }
-  },
-  {
-    id: 'allow-voter-dd',
-    category: 'permissions',
-    name: 'Allow Role to Vote (Direct Democracy)',
-    autoTitle: 'Change who can take part in Direct democracy',
-    description: 'Grant or revoke a role\'s permission to vote in direct democracy',
-    contract: 'directDemocracyVoting',
-    functionName: 'setConfig',
-    // Retired key. Current DirectDemocracy grants live in authority DD_VOTE / DD_CREATE.
-    // Keep this descriptor only to recognize and reject historical saved drafts.
-    legacyOnly: true,
-    inputs: [
-      {
-        name: 'role',
-        label: 'Role',
-        type: 'roleSelect',
-        helpText: 'Select which role to modify'
-      },
-      {
-        name: 'hatType',
-        label: 'Hat Type',
-        type: 'select',
-        options: [
-          { value: '0', label: 'Voting Hat (can vote)' },
-          { value: '1', label: 'Creator Hat (can create proposals)' }
-        ],
-        helpText: 'Type of permission to grant'
-      },
-      {
-        name: 'allowed',
-        label: 'Permission',
-        type: 'toggle',
-        options: ['Grant', 'Revoke'],
-        default: 'Grant'
-      }
-    ],
-    encode: (values) => {
-      const configKey = 3; // ConfigKey.HAT_ALLOWED
-      // Encode as (HatType enum, hatId, allowed)
-      const encodedValue = utils.defaultAbiCoder.encode(
-        ['uint8', 'uint256', 'bool'],
-        [Number(values.hatType), values.role, values.allowed === 'Grant']
-      );
-      return [configKey, encodedValue];
-    },
-    preview: (values, roleNames) => {
-      const roleName = roleNames?.[values.role] || `Role ${values.role}`;
-      const action = values.allowed === 'Grant' ? 'Allow' : 'Revoke';
-      const hatType = values.hatType === '0' ? 'vote' : 'create proposals';
-      return `${action} "${roleName}" to ${hatType} in direct democracy`;
-    }
-  },
+  { id: 'allow-proposal-creator-hybrid', name: 'Allow Role to Create Blended Proposals', contract: 'hybridVoting', legacyOnly: true },
+  { id: 'allow-voter-dd', name: 'Allow Role to Vote (Direct Democracy)', contract: 'directDemocracyVoting', legacyOnly: true },
 
   {
     id: 'edit-role-permissions',
@@ -1015,74 +919,7 @@ export const SETTER_TEMPLATES = [
   },
 
   // ===== TASK MANAGEMENT =====
-  {
-    id: 'set-project-permissions',
-    category: 'tasks',
-    name: 'Set Project Role Permissions',
-    autoTitle: 'Change what a role can do in a project',
-    description: 'Configure what a role can do within a specific project',
-    contract: 'taskManager',
-    functionName: 'setProjectRolePerm',
-    // Retired setter. TaskManager reads authority TM_PERMS at bytes32(pid + 1).
-    // Keep this descriptor only to recognize and reject historical saved drafts.
-    legacyOnly: true,
-    inputs: [
-      {
-        name: 'project',
-        label: 'Project',
-        type: 'projectSelect',
-        helpText: 'Select the project to modify'
-      },
-      {
-        name: 'role',
-        label: 'Role',
-        type: 'roleSelect',
-        helpText: 'Select which role to modify'
-      },
-      {
-        name: 'permissions',
-        label: 'Permissions',
-        type: 'permissionMask',
-        options: [
-          { value: 1, label: 'CREATE - Create new tasks' },
-          { value: 2, label: 'CLAIM - Claim tasks' },
-          { value: 4, label: 'REVIEW - Review completed tasks' },
-          { value: 8, label: 'ASSIGN - Assign tasks to others' },
-          { value: 16, label: 'SELF_REVIEW - Allow claimer to complete their own task' },
-          { value: 32, label: 'BUDGET - Edit project budgets (PT cap & bounty caps)' },
-          { value: 64, label: 'EDIT_META - Edit task title / metadata' },
-          { value: 128, label: 'EDIT_FULL - Edit task payout, bounty & metadata' }
-        ],
-        helpText: 'Select which permissions to grant'
-      }
-    ],
-    encode: (values) => {
-      // Calculate bitmask from selected permissions
-      const mask = Array.isArray(values.permissions)
-        ? values.permissions.reduce((acc, val) => acc | Number(val), 0)
-        : Number(values.permissions) || 0;
-      // The picker's value is the SUBGRAPH id — the composite `{taskManagerAddress}-{n}` — and
-      // `pid` is a bytes32. Handing the composite straight to ethers threw INVALID_ARGUMENT at
-      // submit, so this template could never be proposed at all. `parseProjectId` is the same
-      // conversion every other project call in the app makes (TaskService, the folder tree).
-      return [parseProjectId(values.project), values.role, mask];
-    },
-    preview: (values, roleNames, projectNames) => {
-      const roleName = roleNames?.[values.role] || `Role ${values.role}`;
-      const projectName = projectNames?.[values.project] || 'selected project';
-      const permLabels = [];
-      const has = (v) => values.permissions?.includes(v) || values.permissions?.includes(String(v));
-      if (has(1)) permLabels.push('CREATE');
-      if (has(2)) permLabels.push('CLAIM');
-      if (has(4)) permLabels.push('REVIEW');
-      if (has(8)) permLabels.push('ASSIGN');
-      if (has(16)) permLabels.push('SELF_REVIEW');
-      if (has(32)) permLabels.push('BUDGET');
-      if (has(64)) permLabels.push('EDIT_META');
-      if (has(128)) permLabels.push('EDIT_FULL');
-      return `Set "${roleName}" permissions for ${projectName}: ${permLabels.join(', ') || 'none'}`;
-    }
-  },
+  { id: 'set-project-permissions', name: 'Set Project Role Permissions', contract: 'taskManager', legacyOnly: true },
   {
     id: 'allow-task-creator',
     category: 'tasks',
@@ -1113,14 +950,7 @@ export const SETTER_TEMPLATES = [
         default: 'Grant'
       }
     ],
-    encode: (values) => {
-      const configKey = 1; // ConfigKey.CREATOR_HAT_ALLOWED
-      const encodedValue = utils.defaultAbiCoder.encode(
-        ['uint256', 'bool'],
-        [values.role, values.allowed === 'Grant']
-      );
-      return [configKey, encodedValue];
-    },
+    encode: (values) => taskConfigArgs('CREATOR_HAT_ALLOWED', values),
     preview: (values, roleNames) => {
       const roleName = roleNames?.[values.role] || `Role ${values.role}`;
       const action = values.allowed === 'Grant' ? 'Allow' : 'Revoke';
@@ -1154,14 +984,7 @@ export const SETTER_TEMPLATES = [
         default: 'Grant'
       }
     ],
-    encode: (values) => {
-      const configKey = 7; // ConfigKey.ORGANIZER_HAT_ALLOWED
-      const encodedValue = utils.defaultAbiCoder.encode(
-        ['uint256', 'bool'],
-        [values.role, values.allowed === 'Grant']
-      );
-      return [configKey, encodedValue];
-    },
+    encode: (values) => taskConfigArgs('ORGANIZER_HAT_ALLOWED', values),
     preview: (values, roleNames) => {
       const roleName = roleNames?.[values.role] || `Role ${values.role}`;
       const action = values.allowed === 'Grant' ? 'Allow' : 'Revoke';
@@ -1195,26 +1018,10 @@ export const SETTER_TEMPLATES = [
         optional: true,
       }
     ],
-    buildCalls: (values, contractAddress) => {
-      const calls = [];
-      if (values.tokenName && values.tokenName.trim()) {
-        const iface = new utils.Interface(['function setName(string newName)']);
-        calls.push({
-          target: contractAddress,
-          value: '0',
-          data: iface.encodeFunctionData('setName', [values.tokenName.trim()]),
-        });
-      }
-      if (values.tokenSymbol && values.tokenSymbol.trim()) {
-        const iface = new utils.Interface(['function setSymbol(string newSymbol)']);
-        calls.push({
-          target: contractAddress,
-          value: '0',
-          data: iface.encodeFunctionData('setSymbol', [values.tokenSymbol.trim()]),
-        });
-      }
-      return calls;
-    },
+    buildCalls: (values, contractAddress) => [
+      ...(values.tokenName?.trim() ? [encodeExecutorCall('ParticipationToken', contractAddress, 'setName', [values.tokenName.trim()])] : []),
+      ...(values.tokenSymbol?.trim() ? [encodeExecutorCall('ParticipationToken', contractAddress, 'setSymbol', [values.tokenSymbol.trim()])] : []),
+    ].map(call => ({ target: call.target, value: String(call.value), data: call.calldata })),
     preview: (values) => {
       const parts = [];
       if (values.tokenName && values.tokenName.trim()) parts.push(`name to "${values.tokenName.trim()}"`);
@@ -1231,18 +1038,7 @@ export const SETTER_TEMPLATES = [
 
 export const RAW_FUNCTIONS = {
   hybridVoting: [
-    {
-      name: 'setCreatorHatAllowed',
-      // Same silent death as the template: on an access-v2 org this succeeds, emits, and changes
-      // nothing HybridVoting reads. Hidden from Developer mode once the authority is live.
-      legacyOnly: true,
-      signature: 'function setCreatorHatAllowed(uint256 h, bool ok)',
-      params: [
-        { name: 'h', type: 'uint256', label: 'Hat ID' },
-        { name: 'ok', type: 'bool', label: 'Allowed' }
-      ],
-      description: 'Allow/revoke a role from creating proposals'
-    },
+    { name: 'setCreatorHatAllowed', legacyOnly: true },
     {
       name: 'setConfig',
       signature: 'function setConfig(uint8 key, bytes calldata value)',
@@ -1359,18 +1155,7 @@ export const RAW_FUNCTIONS = {
       v2Note: 'Key 2 (ROLE_PERM) is retired and rejected — task permissions now come '
         + 'from Roles and permissions'
     },
-    {
-      name: 'setProjectRolePerm',
-      // Dead on v2: TaskManager reads the authority's per-project rows instead.
-      legacyOnly: true,
-      signature: 'function setProjectRolePerm(bytes32 pid, uint256 hatId, uint8 mask)',
-      params: [
-        { name: 'pid', type: 'bytes32', label: 'Project ID' },
-        { name: 'hatId', type: 'uint256', label: 'Hat ID' },
-        { name: 'mask', type: 'uint8', label: 'Permission Mask (1=CREATE, 2=CLAIM, 4=REVIEW, 8=ASSIGN)' }
-      ],
-      description: 'Set role permissions for a project'
-    }
+    { name: 'setProjectRolePerm', legacyOnly: true }
   ],
   participationToken: [
     {

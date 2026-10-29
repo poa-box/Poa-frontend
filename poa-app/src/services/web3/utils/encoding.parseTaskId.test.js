@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { ethers } from 'ethers';
-import { parseTaskId, parseProjectId } from './encoding';
+import { parseTaskId, parseModuleId, parseProjectId } from './encoding';
 
 // The subgraph returns composite ids "{taskManagerAddress}-{numericId}"; the
 // contract's submitTask expects just the numeric part. Lock in the exact
@@ -13,6 +13,13 @@ describe('parseTaskId — composite subgraph id', () => {
   it('passes a bare numeric id through unchanged', () => {
     expect(parseTaskId('7')).toBe('7');
     expect(parseTaskId(7)).toBe('7');
+  });
+
+  it('preserves composite IDs above the safe integer range and rejects an empty suffix', () => {
+    const large = '9007199254740993123456789';
+    expect(parseTaskId(`0x2d9d397a842b8d691ea2a232062cbc8ef8ebbdb7-${large}`)).toBe(large);
+    expect(parseModuleId(`0x2d9d397a842b8d691ea2a232062cbc8ef8ebbdb7-${large}`)).toBe(large);
+    expect(() => parseTaskId('0x2d9d397a842b8d691ea2a232062cbc8ef8ebbdb7-')).toThrow();
   });
 });
 

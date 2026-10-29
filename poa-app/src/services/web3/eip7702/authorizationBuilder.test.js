@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
-import { checkWallet7702Support } from '@/services/web3/eip7702/authorizationBuilder';
+import { buildEOAAuthorization, checkWallet7702Support } from '@/services/web3/eip7702/authorizationBuilder';
 
 const address = '0x1111111111111111111111111111111111111111';
+
+it('authorizes the host-selected delegation address with the bound wallet', async () => {
+  const result = { address, chainId: 100 };
+  const client = { signAuthorization: vi.fn().mockResolvedValue(result) };
+  expect(await buildEOAAuthorization(client, address)).toBe(result);
+  expect(client.signAuthorization).toHaveBeenCalledExactlyOnceWith({ contractAddress: address });
+});
 
 describe('checkWallet7702Support', () => {
   it.each([undefined, {}, { address: undefined }])('rejects an unbound account %s even when signing methods exist', async (account) => {

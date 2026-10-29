@@ -25,21 +25,26 @@
 
 import {
   createPublicClient,
-  encodeAbiParameters,
-  encodeFunctionData,
   http,
   keccak256,
-  parseAbi,
-  parseAbiItem,
-  parseEventLogs,
   parseUnits,
   toBytes,
 } from 'viem';
+import { utils as ethersUtils } from 'ethers';
 import { base } from 'viem/chains';
-import { getClient } from '@/util/apolloClient';
+import { encodeCashoutPayload, CASHOUT_ESCROW_ABI_V1, CASHOUT_RELAY_ABI_V1, decodeCashoutDeposit, projectRecoveryFacts,
+  buildWithdrawDeposit as coreWithdrawDeposit, buildRecoverFailed as coreRecoverFailed, readCashoutDiscovery,
+} from '@poa-box/core/integrations/cashout';
+import { unknownFact, requireCompleteSnapshot, assertPlanScope, assertSourceBlock } from '@poa-box/core/data/facts';
+import { FETCH_CASHOUT_DISCOVERY_STATE } from '@poa-box/core/graph/documents/indexed-completeness';
+import { createApolloProtocolQuery } from '@/lib/graphql/coreQuery';
+// An explicit refresh must discover candidates against a fresh indexed head.
+const cashoutProtocolQuery = createApolloProtocolQuery({ fetchPolicy: 'network-only' });
+import { pinIndexedSource } from '@/lib/graphql/indexedSnapshot';
+import { requireRawUint } from '@poa-box/core/amounts';
+import { encodeIntent } from '@poa-box/core/tx/intent';
 import {
   PEER_CASHOUTRELAY_BASE_URL,
-  WALLET_CASHOUTS_QUERY,
 } from '@/util/cashoutQueries';
 
 /*══════════════════════════════════ CONSTANTS ══════════════════════════════════*/
@@ -83,24 +88,6 @@ export const PAYMENT_PLATFORMS = {
   wise:     { label: 'Wise',     handleField: 'wisetag'            },
 };
 
-/*══════════════════════════════════ ABIs ══════════════════════════════════*/
-
-// Same encoding the relay's executeData decodes
-const CASHOUT_PARAMS_TUPLE = [
-  {
-    type: 'tuple',
-    components: [
-      { name: 'depositor', type: 'address' },
-      { name: 'paymentMethod', type: 'bytes32' },
-      { name: 'payeeDetailsHash', type: 'bytes32' },
-      { name: 'fiatCurrency', type: 'bytes32' },
-      { name: 'conversionRate', type: 'uint256' },
-      { name: 'minIntentAmount', type: 'uint256' },
-      { name: 'maxIntentAmount', type: 'uint256' },
-    ],
-  },
-];
-
 /*══════════════════════════════════ STEP-LEVEL HELPERS ══════════════════════════════════*/
 
 /**
@@ -137,17 +124,16 @@ export function encodeCashOutPayload({
   minIntentAmount = DEFAULT_MIN_INTENT,
   maxIntentAmount,
 }) {
-  return encodeAbiParameters(CASHOUT_PARAMS_TUPLE, [
-    {
-      depositor,
-      paymentMethod: keccak256(toBytes(platform)),
-      payeeDetailsHash,
-      fiatCurrency: keccak256(toBytes('USD')),
-      conversionRate,
-      minIntentAmount,
-      maxIntentAmount,
-    },
-  ]);
+  if (!PAYMENT_PLATFORMS[platform]) throw new Error('Unsupported payment platform');
+  return encodeCashoutPayload({
+    depositor,
+    paymentMethod: keccak256(toBytes(platform)),
+    payeeDetailsHash,
+    fiatCurrency: keccak256(toBytes('USD')),
+    conversionRate: String(conversionRate),
+    minIntentAmount: String(minIntentAmount),
+    maxIntentAmount: String(maxIntentAmount),
+  });
 }
 
 /**
@@ -298,29 +284,11 @@ export async function prepareCashOut({
 
 /*══════════════════════════════════ OUTSTANDING / FAILED CASHOUTS ══════════════════════════════════*/
 
-// EscrowV2 functions we need: read deposit state to confirm a DEPOSITED row is
-// still unfilled, plus build calldata for withdrawDeposit. Full ABI lives in
-// zkp2p/zkp2p-contracts/deployments/base/EscrowV2.json — only need two here.
-const ESCROW_V2_ABI = parseAbi([
-  'function getDeposit(uint256 depositId) view returns ((address depositor, address delegate, address token, (uint256 min, uint256 max) intentAmountRange, bool acceptingIntents, uint256 remainingDeposits, uint256 outstandingIntentAmount, address intentGuardian, bool retainOnEmpty))',
-  'function withdrawDeposit(uint256 depositId)',
-]);
-
-// CashOutRelay function we need: recover USDC stuck in the relay because the
-// downstream EscrowV2.depositTo call reverted. Full source in poa-box/POP
-// src/cashout/CashOutRelay.sol.
-const CASHOUT_RELAY_ABI = parseAbi([
-  'function recoverFailed(bytes32 requestHash)',
-]);
-
-// Used to extract the depositId from a DEPOSITED row's tx receipt — the relay's
-// executeData call inline-invokes EscrowV2.depositTo, which emits DepositReceived
-// in the same tx. One log per tx today (relay creates exactly one deposit per
-// executeData call), so parseEventLogs(...)[0] is safe. If a future relay
-// upgrade batches deposits per tx, this branch needs a more specific match.
-const DEPOSIT_RECEIVED_EVENT = parseAbiItem(
-  'event DepositReceived(uint256 indexed depositId, address indexed depositor, address indexed token, uint256 amount, (uint256 min, uint256 max) intentAmountRange, address delegate, address intentGuardian)'
-);
+const CASHOUT_RELAY_ABI = JSON.parse(new ethersUtils.Interface([...CASHOUT_RELAY_ABI_V1]).format(ethersUtils.FormatTypes.json));
+const ESCROW_V2_ABI = JSON.parse(new ethersUtils.Interface([...CASHOUT_ESCROW_ABI_V1]).format(ethersUtils.FormatTypes.json));
+export const CASHOUT_DESCRIPTOR = Object.freeze({
+  chainId: BASE_CHAIN_ID, relay: CASHOUT_RELAY_ADDRESS, escrow: ESCROW_V2_ADDRESS, token: USDC_BASE,
+});
 
 // Maps the bytes32 paymentMethod stored on each cashout (= keccak256 of the
 // platform key) back to the human label. Keys mirror PAYMENT_PLATFORMS above.
@@ -353,72 +321,136 @@ const baseClient = createPublicClient({
  *       CashOutRelay.recoverFailed(requestHash). USDC stuck in the relay.
  *
  * Path:
- *   1. Subgraph: pendingCashouts (FAILED) + cashoutRequests(status:DEPOSITED).
+ *   1. Core keyset-pages FAILED/RECOVERED and DEPOSITED candidate streams.
  *   2. For each DEPOSITED row, getTransactionReceipt(createdTxHash) → parse
  *      the inline EscrowV2.DepositReceived log → depositId.
  *   3. multicall EscrowV2.getDeposit(id) for each → keep only those still
  *      unfilled (remainingDeposits > 0).
  *
- * Empty list (or subgraph error) returns []; the caller hides the section.
+ * An empty candidate list is known only through the indexed block. Current RPC
+ * balances are separate evidence; failed/partial streams retain explicit coverage.
  */
-export async function fetchOutstandingDeposits(userAddress) {
-  if (!userAddress) return [];
+const outstandingRequests = new Map();
+const RPC_BATCH = 24;
 
-  let wallet;
+// Share active refreshes only. A subsequent refresh must prove current RPC state.
+export function fetchOutstandingDeposits(userAddress) {
+  if (!userAddress) return Promise.resolve([]);
+  const key = JSON.stringify([BASE_CHAIN_ID, PEER_CASHOUTRELAY_BASE_URL, baseRpcUrl, CASHOUT_RELAY_ADDRESS, userAddress.toLowerCase()]);
+  if (outstandingRequests.has(key)) return outstandingRequests.get(key);
+  const request = readOutstandingDeposits(userAddress).finally(() => outstandingRequests.delete(key));
+  outstandingRequests.set(key, request);
+  return request;
+}
+
+async function readOutstandingDeposits(userAddress) {
+  if (BigInt(await baseClient.getChainId()) !== BigInt(BASE_CHAIN_ID)) throw new Error('Cashout chain mismatch');
+  const indexedSource = await pinIndexedSource({ source: { chainId: BASE_CHAIN_ID, endpoint: PEER_CASHOUTRELAY_BASE_URL,
+    account: userAddress, contract: CASHOUT_RELAY_ADDRESS, indexed: true, snapshot: 'latest', method: 'graph:cashout-discovery' },
+    query: cashoutProtocolQuery, document: FETCH_CASHOUT_DISCOVERY_STATE, variables: { relay: CASHOUT_RELAY_ADDRESS.toLowerCase() } });
+  let discovery;
   try {
-    const apollo = getClient(PEER_CASHOUTRELAY_BASE_URL);
-    const { data } = await apollo.query({
-      query: WALLET_CASHOUTS_QUERY,
-      variables: { wallet: userAddress.toLowerCase() },
-      // Subgraph state changes whenever a cashout is created / filled / withdrawn,
-      // so don't cache — Apollo would otherwise return stale results across refreshes.
-      fetchPolicy: 'no-cache',
-    });
-    wallet = data?.wallet;
-  } catch (err) {
-    console.warn('[CashOutService] subgraph query failed:', err?.message || err);
-    return [];
-  }
-  if (!wallet) return [];
-
-  const failedRows = (wallet.pendingCashouts || []).map((r) => ({
-    kind: 'failed',
-    requestHash: r.requestHash,
-    amount: BigInt(r.amount),
-    paymentMethod: r.paymentMethod || null,
-    platform: platformLabelFor(r.paymentMethod),
-    createdAtSec: Number(r.createdAtTimestamp),
-  }));
-
-  const depositedRequests = wallet.cashoutRequests || [];
+    discovery = await readCashoutDiscovery({ source: indexedSource, query: cashoutProtocolQuery,
+      descriptor: CASHOUT_DESCRIPTOR, pageSize: 100, maxPages: 100 });
+    // Partial streams can retain proven candidates only after the relay universe
+    // and its token/escrow binding are independently complete.
+    requireCompleteSnapshot(discovery.data.evidence.state, { scope: indexedSource, indexed: true,
+      snapshot: 'pinned', block: indexedSource.block });
+    const state = discovery.data.evidence.state.data;
+    if (state?.usdc?.toLowerCase() !== USDC_BASE.toLowerCase() || state?.escrow?.toLowerCase() !== ESCROW_V2_ADDRESS.toLowerCase()) throw new Error('Cashout relay binding unavailable');
+    assertPlanScope(discovery.source, indexedSource);
+    assertSourceBlock(discovery.source.block, indexedSource.block);
+  } catch (error) { throw new Error('Cashout history unavailable', { cause: error }); }
+  const issues = [...discovery.coverage.issues];
+  const candidates = kind => {
+    const stream = discovery.data.evidence[kind];
+    try {
+      assertPlanScope(stream.source, indexedSource);
+      assertSourceBlock(stream.source.block, indexedSource.block);
+      if (stream.source.snapshot !== 'pinned') throw new Error('Unproven stream');
+      return discovery.data[kind];
+    } catch { issues.push({ code: 'CASHOUT_STREAM_SOURCE_UNAVAILABLE', id: kind }); return []; }
+  };
+  const failedRequests = candidates('failed'), depositedRequests = candidates('deposited');
+  const observed = await baseClient.getBlock({ blockTag: 'latest' });
+  const block = { number: requireRawUint(observed.number), hash: observed.hash };
+  if (!/^0x[\da-fA-F]{64}$/.test(block.hash) || BigInt(block.number) < BigInt(indexedSource.block.number)) throw new Error('Cashout block unavailable');
+  const multicall = async contracts => {
+    const results = [];
+    for (let offset = 0; offset < contracts.length; offset += RPC_BATCH) {
+      const batch = contracts.slice(offset, offset + RPC_BATCH);
+      try {
+        const values = await baseClient.multicall({ blockNumber: BigInt(block.number), allowFailure: true, contracts: batch });
+        if (!Array.isArray(values) || values.length !== batch.length) throw new Error('Cashout batch incomplete');
+        results.push(...values);
+      }
+      catch { results.push(...batch.map(() => ({ status: 'failure' }))); }
+    }
+    return results;
+  };
+  const sourceFor = contract => ({ chainId: BASE_CHAIN_ID, account: userAddress, contract,
+    endpoint: baseRpcUrl, method: 'eth_call', indexed: false, snapshot: 'pinned', block });
+  const recoveryFact = (state, contract) => projectRecoveryFacts({ descriptor: CASHOUT_DESCRIPTOR, account: userAddress, block,
+    snapshot: { source: sourceFor(contract), data: state, coverage: { status: 'complete', receivedKeys: ['state'], missingIds: [], failedIds: [], issues: [] } },
+    transactionCapability: unknownFact('HOST_TRANSACTION_CAPABILITY_UNPROVEN') });
+  const failedStates = await multicall(failedRequests.flatMap(row => ['failedDepositor', 'failedAmount', 'usdc'].map(functionName => ({
+    address: CASHOUT_RELAY_ADDRESS, abi: CASHOUT_RELAY_ABI, functionName,
+    args: functionName === 'usdc' ? [] : [row.requestHash],
+  }))));
+  const failedRows = failedRequests.flatMap((row, index) => {
+    const reads = failedStates.slice(index * 3, index * 3 + 3);
+    let fact = unknownFact('CASHOUT_FAILED_STATE_UNAVAILABLE');
+    if (reads.length === 3 && reads.every(read => read.status === 'success')) fact = recoveryFact({ kind: 'failed',
+      requestHash: row.requestHash, depositor: reads[0].result, amountRaw: String(reads[1].result), token: reads[2].result }, CASHOUT_RELAY_ADDRESS);
+    if (fact.state !== 'known') issues.push({ code: fact.code, id: row.requestHash });
+    else if (!fact.value.owner || fact.value.recoverableAmountRaw === '0') return [];
+    return [{ kind: 'failed', requestHash: row.requestHash,
+      amount: BigInt(fact.state === 'known' ? fact.value.recoverableAmountRaw : requireRawUint(row.amount)), recoveryFacts: fact,
+      paymentMethod: row.paymentMethod || null, platform: platformLabelFor(row.paymentMethod), createdAtSec: Number(row.createdAtTimestamp) }];
+  });
 
   // Recover depositId per DEPOSITED row from its creation tx receipt — the relay
   // calls EscrowV2.depositTo inline, so the DepositReceived log is in the same tx.
-  const receipts = await Promise.all(
-    depositedRequests.map((r) =>
-      baseClient.getTransactionReceipt({ hash: r.createdTxHash }).catch(() => null)
-    )
-  );
-  const depositIds = receipts.map((receipt) => {
-    if (!receipt) return null;
-    const events = parseEventLogs({
-      abi: [DEPOSIT_RECEIVED_EVENT],
-      logs: receipt.logs,
-      eventName: 'DepositReceived',
+  // Finite batches and per-request deduplication keep large histories bounded.
+  const receiptByHash = new Map(), canonicalBlocks = new Map();
+  const hashes = [...new Set(depositedRequests.map(row => row.createdTxHash))];
+  for (let offset = 0; offset < hashes.length; offset += 8) {
+    await Promise.all(hashes.slice(offset, offset + 8).map(async hash => {
+      try {
+        const receipt = await baseClient.getTransactionReceipt({ hash });
+        if (receipt?.transactionHash?.toLowerCase() !== hash.toLowerCase() || receipt.status !== 'success'
+          || !Array.isArray(receipt.logs) || receipt.blockNumber == null || BigInt(receipt.blockNumber) > BigInt(block.number)
+          || !/^0x[\da-f]{64}$/i.test(receipt.blockHash)) throw new Error('Receipt unavailable');
+        const number = String(receipt.blockNumber);
+        if (!canonicalBlocks.has(number)) canonicalBlocks.set(number, baseClient.getBlock({ blockNumber: BigInt(number) }));
+        const canonical = await canonicalBlocks.get(number);
+        if (canonical?.hash?.toLowerCase() !== receipt.blockHash.toLowerCase()) throw new Error('Receipt block changed');
+        receiptByHash.set(hash, receipt);
+      } catch { receiptByHash.set(hash, null); }
+    }));
+  }
+  const receipts = depositedRequests.map(row => receiptByHash.get(row.createdTxHash));
+  const depositIds = receipts.map((receipt, index) => {
+    if (!receipt || receipt.status !== 'success') {
+      issues.push({ code: 'CASHOUT_RECEIPT_UNAVAILABLE', id: depositedRequests[index].requestHash });
+      return null;
+    }
+    const fact = decodeCashoutDeposit({
+      descriptor: CASHOUT_DESCRIPTOR, chainId: BASE_CHAIN_ID, depositor: userAddress,
+      transactionHash: depositedRequests[index].createdTxHash,
+      logs: receipt.logs.map(log => ({ ...log, logIndex: String(log.logIndex) })),
     });
-    return events[0]?.args?.depositId ?? null;
+    if (fact.state !== 'known') {
+      issues.push({ code: fact.code, id: depositedRequests[index].requestHash });
+      return null;
+    }
+    return BigInt(fact.value.depositId);
   });
 
   const validIndexes = depositIds.flatMap((id, i) => (id === null ? [] : [i]));
-  const fillStates = validIndexes.length === 0 ? [] : await baseClient.multicall({
-    contracts: validIndexes.map((i) => ({
-      address: ESCROW_V2_ADDRESS,
-      abi: ESCROW_V2_ABI,
-      functionName: 'getDeposit',
-      args: [depositIds[i]],
-    })),
-    allowFailure: true,
-  });
+  const fillStates = await multicall(validIndexes.map(i => ({
+    address: ESCROW_V2_ADDRESS, abi: ESCROW_V2_ABI, functionName: 'getDeposit', args: [depositIds[i]],
+  })));
   const stateByIndex = new Map();
   validIndexes.forEach((i, k) => stateByIndex.set(i, fillStates[k]));
 
@@ -426,11 +458,18 @@ export async function fetchOutstandingDeposits(userAddress) {
     const id = depositIds[i];
     if (id === null) return [];
     const state = stateByIndex.get(i);
-    if (state?.status !== 'success') return [];
-    const { remainingDeposits, outstandingIntentAmount } = state.result;
-    if (remainingDeposits === 0n) return []; // filled or already withdrawn
+    if (state?.status !== 'success') {
+      issues.push({ code: 'CASHOUT_STATE_UNAVAILABLE', id: r.requestHash });
+      return [];
+    }
+    const fact = recoveryFact({ kind: 'escrow', depositId: id.toString(), depositor: state.result?.depositor, token: state.result?.token,
+      remainingDeposits: String(state.result?.remainingDeposits), outstandingIntentAmount: String(state.result?.outstandingIntentAmount) }, ESCROW_V2_ADDRESS);
+    if (fact.state !== 'known') { issues.push({ code: fact.code, id: r.requestHash }); return []; }
+    if (!fact.value.owner || fact.value.recoverableAmountRaw === '0') return [];
+    const remainingDeposits = BigInt(fact.value.recoverableAmountRaw), outstandingIntentAmount = BigInt(fact.value.outstandingIntentAmountRaw);
     return [{
       kind: 'unfilled',
+      recoveryFacts: fact,
       depositId: id,
       requestHash: r.requestHash,
       amount: BigInt(r.amount),
@@ -442,7 +481,15 @@ export async function fetchOutstandingDeposits(userAddress) {
     }];
   });
 
-  return [...failedRows, ...unfilledRows].sort((a, b) => b.createdAtSec - a.createdAtSec);
+  const again = await baseClient.getBlock({ blockNumber: BigInt(block.number) });
+  if (again?.hash?.toLowerCase() !== block.hash.toLowerCase()) throw new Error('Cashout block changed');
+  const rows = [...failedRows, ...unfilledRows].sort((a, b) => b.createdAtSec - a.createdAtSec);
+  // Preserve the array API; consumers must distinguish partial enumeration from an empty history.
+  rows.coverage = { status: issues.length || discovery.coverage.status !== 'complete' ? 'incomplete' : 'complete', issues,
+    discovery: discovery.coverage, source: discovery.source, stateSource: sourceFor(CASHOUT_RELAY_ADDRESS),
+    outstandingCount: discovery.data.outstandingCount, scope: 'indexed-relay-candidates' };
+  rows.discovery = discovery;
+  return rows;
 }
 
 /**
@@ -451,16 +498,8 @@ export async function fetchOutstandingDeposits(userAddress) {
  * keeps this service auth-agnostic, mirroring prepareCashOut.
  */
 export function buildWithdrawDeposit(depositId) {
-  return {
-    chainId: BASE_CHAIN_ID,
-    to: ESCROW_V2_ADDRESS,
-    data: encodeFunctionData({
-      abi: ESCROW_V2_ABI,
-      functionName: 'withdrawDeposit',
-      args: [BigInt(depositId)],
-    }),
-    value: 0n,
-  };
+  const tx = encodeIntent(coreWithdrawDeposit({ descriptor: CASHOUT_DESCRIPTOR, depositId: String(depositId) }));
+  return { ...tx, chainId: BASE_CHAIN_ID, value: BigInt(tx.value) };
 }
 
 /**
@@ -470,14 +509,6 @@ export function buildWithdrawDeposit(depositId) {
  * the contract's NotOwner check).
  */
 export function buildRecoverFailed(requestHash) {
-  return {
-    chainId: BASE_CHAIN_ID,
-    to: CASHOUT_RELAY_ADDRESS,
-    data: encodeFunctionData({
-      abi: CASHOUT_RELAY_ABI,
-      functionName: 'recoverFailed',
-      args: [requestHash],
-    }),
-    value: 0n,
-  };
+  const tx = encodeIntent(coreRecoverFailed({ descriptor: CASHOUT_DESCRIPTOR, requestHash }));
+  return { ...tx, chainId: BASE_CHAIN_ID, value: BigInt(tx.value) };
 }

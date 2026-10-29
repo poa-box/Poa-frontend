@@ -6,18 +6,11 @@
  * for gas estimation and submission.
  */
 
-import {
-  concat,
-  pad,
-  toHex,
-  keccak256,
-  encodeAbiParameters,
-  parseAbiParameters,
-} from 'viem';
+import { hashUserOperationV07 } from '@poa-box/core/accounts/userop-v07';
 import { entryPoint07Abi } from 'viem/account-abstraction';
-import { ENTRY_POINT_ADDRESS, GAS_BUFFER_PERCENT, MAX_USEROP_GAS } from '../../../config/passkey';
-import { extractRevertDataFromText, decodeRevertData } from '../../../lib/errors/contractErrors';
-import { budgetRejection, checkSponsorship, isPaymasterRejection } from './sponsorshipBudget';
+import { ENTRY_POINT_ADDRESS, GAS_BUFFER_PERCENT, MAX_USEROP_GAS } from '@/config/passkey';
+import { extractRevertDataFromText, decodeRevertData } from '@/lib/errors/contractErrors';
+import { budgetRejection, checkSponsorship, isPaymasterRejection } from '@/services/web3/passkey/sponsorshipBudget';
 
 /**
  * Build a complete UserOp ready for signing.
@@ -55,8 +48,8 @@ export async function buildUserOp({
       functionName: 'getNonce',
       args: [sender, 0n],
     }),
-    bundlerClient.getUserOperationGasPrice().catch((e) => {
-      console.warn('Failed to get gas price from bundler, using defaults:', e.message);
+    bundlerClient.getUserOperationGasPrice().catch(() => {
+      console.warn('Failed to get gas price from bundler, using defaults.');
       return null;
     }),
   ]);
@@ -142,8 +135,8 @@ export async function buildUserOpWithFallback({
       functionName: 'getNonce',
       args: [sender, 0n],
     }),
-    bundlerClient.getUserOperationGasPrice().catch((e) => {
-      console.warn('Failed to get gas price from bundler, using defaults:', e.message);
+    bundlerClient.getUserOperationGasPrice().catch(() => {
+      console.warn('Failed to get gas price from bundler, using defaults.');
       return null;
     }),
   ]);
@@ -200,7 +193,7 @@ export async function buildUserOpWithFallback({
       } catch (e) {
         if (isPaymasterRejection(e)) {
           lastPaymasterRejection = e;
-          console.warn(`Paymaster rejected entry ${i + 1}/${dataEntries.length}, trying next:`, e.message || e.shortMessage || '');
+          console.warn(`Paymaster rejected entry ${i + 1}/${dataEntries.length}, trying next.`);
           continue;
         }
         throw e;
@@ -210,13 +203,13 @@ export async function buildUserOpWithFallback({
       // budget at submission against the FINAL ones (`requiredPrefund`). Ask it now, before a
       // biometric prompt and a doomed submission — and move on to the next entry (or to
       // self-funded) when this subject's remaining allowance cannot cover the reservation.
-      const verdict = await checkSponsorship({ publicClient, paymasterAddress, userOp }).catch((e) => {
-        console.warn('[UserOp] Sponsorship budget pre-flight unavailable, trusting the estimate:', e?.message || e);
+      const verdict = await checkSponsorship({ publicClient, paymasterAddress, userOp }).catch(() => {
+        console.warn('[UserOp] Sponsorship budget pre-flight unavailable, trusting the estimate.');
         return { checked: false, fits: true };
       });
       if (verdict.checked && !verdict.fits) {
         lastPaymasterRejection = budgetRejection(verdict);
-        console.warn(`Paymaster budget for entry ${i + 1}/${dataEntries.length} cannot cover this op, trying next:`, lastPaymasterRejection.message);
+        console.warn(`Paymaster budget for entry ${i + 1}/${dataEntries.length} cannot cover this op, trying next.`);
         continue;
       }
       console.log(`UserOp built with gas sponsorship (entry ${i + 1}/${dataEntries.length})`);
@@ -424,7 +417,7 @@ async function estimateGas(userOp, bundlerClient, gasOverrides = {}) {
       }
     }
 
-    console.warn('Gas estimation failed, using generous defaults:', msg);
+    console.warn('Gas estimation failed, using generous defaults.');
   }
 }
 
@@ -442,64 +435,7 @@ async function estimateGas(userOp, bundlerClient, gasOverrides = {}) {
  *          accountGasLimits, preVerificationGas, gasFees, hashPaymasterAndData)
  */
 export function getUserOpHash(userOp, entryPoint, chainId) {
-  // Reconstruct initCode from factory + factoryData
-  let initCode = '0x';
-  if (userOp.factory && userOp.factoryData) {
-    initCode = concat([userOp.factory, userOp.factoryData]);
-  }
-
-  // Reconstruct paymasterAndData
-  let paymasterAndData = '0x';
-  if (userOp.paymaster) {
-    const pmVerGas = pad(toHex(userOp.paymasterVerificationGasLimit || 0n), { size: 16 });
-    const pmPostGas = pad(toHex(userOp.paymasterPostOpGasLimit || 0n), { size: 16 });
-    if (userOp.paymasterData && userOp.paymasterData !== '0x') {
-      paymasterAndData = concat([userOp.paymaster, pmVerGas, pmPostGas, userOp.paymasterData]);
-    } else {
-      paymasterAndData = concat([userOp.paymaster, pmVerGas, pmPostGas]);
-    }
-  }
-
-  // Pack gas fields into bytes32 per v0.7 format
-  const accountGasLimits = packUint128Pair(
-    userOp.verificationGasLimit,
-    userOp.callGasLimit,
-  );
-  const gasFees = packUint128Pair(
-    userOp.maxPriorityFeePerGas,
-    userOp.maxFeePerGas,
-  );
-
-  const packed = encodeAbiParameters(
-    parseAbiParameters('address, uint256, bytes32, bytes32, bytes32, uint256, bytes32, bytes32'),
-    [
-      userOp.sender,
-      userOp.nonce,
-      keccak256(initCode || '0x'),
-      keccak256(userOp.callData),
-      accountGasLimits,
-      userOp.preVerificationGas,
-      gasFees,
-      keccak256(paymasterAndData || '0x'),
-    ]
-  );
-
-  const userOpPacked = keccak256(packed);
-
-  return keccak256(
-    encodeAbiParameters(
-      parseAbiParameters('bytes32, address, uint256'),
-      [userOpPacked, entryPoint, BigInt(chainId)]
-    )
-  );
-}
-
-/**
- * Pack two uint128 values into a single bytes32.
- * high128 || low128
- */
-function packUint128Pair(high, low) {
-  return pad(toHex((BigInt(high) << 128n) | BigInt(low)), { size: 32 });
+  return hashUserOperationV07(userOp, entryPoint, chainId);
 }
 
 /**

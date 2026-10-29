@@ -18,10 +18,11 @@
  */
 
 import { utils } from 'ethers';
+import { OrgRegistryAbi } from '@poa-box/core/abis/OrgRegistry';
+import { encodeExecutorCall } from '@poa-box/core/tx/governance';
+import { normalizeSubjectId } from '@poa-box/core/authority/ids';
 
-export const orgRegistryInterface = new utils.Interface([
-  'function setOrgMetadataAdminHat(bytes32 orgId, uint256 hatId)',
-]);
+export const orgRegistryInterface = new utils.Interface(OrgRegistryAbi);
 
 const isAddress = (a) => typeof a === 'string' && /^0x[0-9a-fA-F]{40}$/.test(a) && !/^0x0{40}$/i.test(a);
 const isBytes32 = (v) => typeof v === 'string' && /^0x[0-9a-fA-F]{64}$/.test(v) && !/^0x0{64}$/i.test(v);
@@ -39,13 +40,11 @@ export function canSetOrgMetadataAdmin({ orgRegistry, orgId } = {}) {
 export function buildSetOrgMetadataAdminCall({ orgRegistry, orgId, subjectId }) {
   if (!isAddress(orgRegistry)) throw new Error('accessV2: setOrgMetadataAdmin needs the org registry address');
   if (!isBytes32(orgId)) throw new Error('accessV2: setOrgMetadataAdmin needs the org id');
-  const id = BigInt(String(subjectId ?? '0'));
+  const id = BigInt(normalizeSubjectId(subjectId ?? '0'));
   if (id <= 0n || id >= (1n << 256n)) throw new Error('accessV2: setOrgMetadataAdmin needs a subject id');
-  return {
-    target: utils.getAddress(String(orgRegistry).toLowerCase()),
-    value: '0',
-    data: orgRegistryInterface.encodeFunctionData('setOrgMetadataAdminHat', [orgId, id.toString()]),
-  };
+  const call = encodeExecutorCall('OrgRegistry', utils.getAddress(String(orgRegistry).toLowerCase()),
+    'setOrgMetadataAdminHat', [orgId, id.toString()], '0');
+  return { target: call.target, value: String(call.value), data: call.calldata };
 }
 
 export const EDIT_ORG_DETAILS_COPY = Object.freeze({

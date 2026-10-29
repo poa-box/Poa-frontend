@@ -36,13 +36,13 @@ export function RoleCard({
   const { state } = useDeployer();
   const { isOpen, onToggle } = useDisclosure({ defaultIsOpen: showDetails });
 
-  const isTopLevel = role.hierarchy.adminRoleIndex === null;
-  const parentRole = !isTopLevel && state.roles[role.hierarchy.adminRoleIndex];
+  const isTopLevel = role.hierarchy?.adminRoleIndex == null;
+  const parentRole = !isTopLevel && state.roles[role.hierarchy?.adminRoleIndex];
 
   // Determine role type badges
   const badges = [];
   if (isTopLevel) {
-    badges.push({ label: 'Top Level', colorScheme: 'purple' });
+    badges.push({ label: 'Role', colorScheme: 'purple' });
   }
   if (role.canVote) {
     badges.push({ label: 'Can Vote', colorScheme: 'green' });
@@ -152,7 +152,7 @@ export function RoleCard({
             {/* Hierarchy info */}
             <HStack>
               <Text fontWeight="medium">Parent:</Text>
-              <Text>{isTopLevel ? 'None (Top Level)' : parentRole?.name}</Text>
+              <Text>{isTopLevel ? 'None (Role)' : parentRole?.name}</Text>
             </HStack>
 
             {/* Voting */}
@@ -181,7 +181,7 @@ export function RoleCard({
             {/* Hat Config */}
             <HStack>
               <Text fontWeight="medium">Max Supply:</Text>
-              <Text>{role.hatConfig?.maxSupply || 'Unlimited'}</Text>
+              <Text>{role.maxMembers || 'Unlimited'}</Text>
             </HStack>
           </VStack>
         </Box>

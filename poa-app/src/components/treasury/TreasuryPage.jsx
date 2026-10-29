@@ -116,8 +116,12 @@ const TreasuryPage = () => {
 
   // Extract data from query
   const paymentManager = treasuryData?.organization?.paymentManager;
-  const distributions = paymentManager?.distributions || [];
-  const payments = paymentManager?.payments || [];
+  const distributions = useMemo(() => treasury.financialFacts?.distributions?.coverage.status === 'complete'
+    ? [...treasury.financialFacts.distributions.data].sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0))
+    : paymentManager?.distributions || [], [treasury.financialFacts, paymentManager]);
+  const payments = useMemo(() => treasury.financialFacts?.payments?.coverage.status === 'complete'
+    ? [...treasury.financialFacts.payments.data].sort((a, b) => Number(b.receivedAt) - Number(a.receivedAt))
+    : paymentManager?.payments || [], [treasury.financialFacts, paymentManager]);
   const totalSupply = treasuryData?.organization?.participationToken?.totalSupply;
 
   // Gas pool events for the unified activity feed
@@ -129,9 +133,10 @@ const TreasuryPage = () => {
   // subgraph retains those projects and tasks after ProjectDeleted; only the
   // live bounty view above is filtered to active projects.
   const completedTasks = useMemo(() => {
+    if (treasury.financialFacts?.completed?.coverage.status === 'complete') return treasury.financialFacts.completed.data;
     const projects = treasuryData?.organization?.taskManager?.activityProjects || [];
     return projects.flatMap(p => p.tasks || []);
-  }, [treasuryData]);
+  }, [treasuryData, treasury.financialFacts]);
 
   // Active distributions drive Zone 2 (the member's claimable payouts).
   // "Open" for the header count means genuinely claimable — an Active payout
@@ -160,15 +165,23 @@ const TreasuryPage = () => {
   }, []);
 
   // ERC20 treasury balance fetching
-  const [erc20Balances, setErc20Balances] = useState([]);
-  const [bountyPoolBalances, setBountyPoolBalances] = useState([]);
+  const [rawErc20Balances, setErc20Balances] = useState([]);
+  const [rawBountyPoolBalances, setBountyPoolBalances] = useState([]);
   const [balancesLoading, setBalancesLoading] = useState(false);
+  const [resolvedBalanceScope, setResolvedBalanceScope] = useState(null);
+  const balanceScope = [orgId, subgraphUrl, orgChainId, paymentManager?.id, taskManagerAddress].join(':');
+  const balanceScopeRef = useRef(balanceScope);
+  balanceScopeRef.current = balanceScope;
+  const balanceGeneration = useRef(0);
+  const erc20Balances = useMemo(() => resolvedBalanceScope === balanceScope ? rawErc20Balances : [], [resolvedBalanceScope, balanceScope, rawErc20Balances]);
+  const bountyPoolBalances = useMemo(() => resolvedBalanceScope === balanceScope ? rawBountyPoolBalances : [], [resolvedBalanceScope, balanceScope, rawBountyPoolBalances]);
 
   // What live tasks promise in bounties, per token — completeTask pays these
   // straight from the TaskManager's balance, so the ledger must show that pot.
   const committedBounties = useMemo(
-    () => committedBountiesByToken(treasuryData?.organization?.taskManager?.projects),
-    [treasuryData]
+    () => committedBountiesByToken(null, { snapshot: treasury.financialFacts?.promised,
+      assets: getBountyTokenOptions(orgChainId).map(t => ({ chainId: orgChainId, address: t.address.toLowerCase(), decimals: t.decimals })) }),
+    [treasury.financialFacts, orgChainId]
   );
 
   // Non-stable holdings the hero must disclose beside the $ figure ("the group
@@ -182,6 +195,8 @@ const TreasuryPage = () => {
   );
 
   const fetchErc20Balances = useCallback(async () => {
+    const request = ++balanceGeneration.current;
+    const current = () => balanceScopeRef.current === balanceScope && balanceGeneration.current === request;
     if (!paymentManager?.id || !orgChainId) return;
 
     const tokens = getBountyTokenOptions(orgChainId);
@@ -189,7 +204,8 @@ const TreasuryPage = () => {
     // The task-reward pool can owe a token the chain list doesn't carry —
     // resolve those from the promised-bounty map so an exotic bounty still shows.
     const poolTokens = [...tokens];
-    for (const address of Object.keys(committedBounties)) {
+    const promisedAssets = treasury.financialFacts?.promised?.data?.map(row => row.bountyToken).filter(Boolean) || [];
+    for (const address of new Set([...Object.keys(committedBounties || {}), ...promisedAssets.map(a => a.toLowerCase())])) {
       if (!poolTokens.some(t => t.address.toLowerCase() === address)) {
         poolTokens.push(getTokenByAddress(address));
       }
@@ -211,7 +227,7 @@ const TreasuryPage = () => {
           return { ...token, balance: balance.toString() };
         } catch (e) {
           console.warn(`Failed to fetch balance for ${token.symbol}:`, e.message);
-          return { ...token, balance: '0' };
+          return { ...token, balance: null };
         }
       })
     );
@@ -222,24 +238,26 @@ const TreasuryPage = () => {
         readAll(tokens, paymentManager.id),
         taskManagerAddress ? readAll(poolTokens, taskManagerAddress) : Promise.resolve([]),
       ]);
+      if (!current()) return;
+      setResolvedBalanceScope(balanceScope);
       setErc20Balances(balances);
       setBountyPoolBalances(poolBalances);
     } catch (e) {
-      console.error('Failed to fetch treasury balances:', e);
+      // Unknown balances stay unavailable; source errors are not zero holdings.
     } finally {
-      setBalancesLoading(false);
+      if (current()) setBalancesLoading(false);
     }
-  }, [paymentManager?.id, orgChainId, taskManagerAddress, committedBounties]);
+  }, [paymentManager?.id, orgChainId, taskManagerAddress, committedBounties, treasury.financialFacts, balanceScope]);
 
   // Task-reward pool rows for the ledger: pool balance beside what live tasks
   // promise, so an underfunded pot is visible before a completion reverts.
   const bountyPool = useMemo(
     () => bountyPoolBalances.map((token) => {
-      const committed = committedBounties[token.address.toLowerCase()] || '0';
+      const committed = committedBounties ? committedBounties[token.address.toLowerCase()] || '0' : null;
       return {
         ...token,
         committed,
-        shortfall: bountyShortfall(token.balance || '0', committed),
+        shortfall: bountyShortfall(token.balance, committed),
       };
     }),
     [bountyPoolBalances, committedBounties]
@@ -247,7 +265,9 @@ const TreasuryPage = () => {
 
   // Fetch balances on initial load
   useEffect(() => {
+    const sequence = balanceGeneration;
     fetchErc20Balances();
+    return () => { sequence.current++; };
   }, [fetchErc20Balances]);
 
   // Refetch immediately — executeWithNotification already waited for the
@@ -363,6 +383,7 @@ const TreasuryPage = () => {
                 <Box px={{ base: 4, md: 8 }} py={{ base: 4, md: 6 }}>
                   <SectionHeader>Money in &amp; out</SectionHeader>
                   <HistoricalOverview
+                    financialFacts={treasury.financialFacts}
                     distributions={distributions}
                     payments={payments}
                   />
@@ -414,6 +435,7 @@ const TreasuryPage = () => {
         onClose={onPTModalClose}
         totalSupply={totalSupply}
         completedTasks={completedTasks}
+        historyFacts={treasury.financialFacts?.completed}
         tokenAddress={participationTokenAddress}
       />}
 

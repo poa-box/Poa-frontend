@@ -4,17 +4,20 @@
  * Only tokens with real deployed addresses on the current chain are available.
  */
 
-import { NETWORKS } from '../config/networks';
+import { NETWORKS } from '@/config/networks';
+import { PARTICIPATION_TOKEN_DECIMALS, getTokenByAddress as coreTokenByAddress } from '@poa-box/core/chains';
+import { requireRawUint } from '@poa-box/core/amounts';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 // Token metadata (chain-independent).
 // isStable marks USD-pegged tokens (~$1). Only these are summed into the treasury's
 // headline USD figure; tokens without a dollar peg are shown in native units.
 // BREAD is Breadchain's stablecoin, minted and redeemable 1:1 against xDAI.
 const TOKEN_META = {
-  USDC:  { symbol: 'USDC',  name: 'USD Coin', decimals: 6, logo: '/images/tokens/usdc.png', projectUrl: 'https://www.circle.com/usdc', isStable: true },
-  DAI:   { symbol: 'DAI',   name: 'Dai Stablecoin', decimals: 18, logo: '/images/tokens/dai.png', projectUrl: 'https://makerdao.com/dai', isStable: true },
-  BREAD: { symbol: 'BREAD', name: 'Breadchain', decimals: 18, logo: '/images/tokens/bread.png', projectUrl: 'https://fund.bread.coop/', isStable: true },
-  WXDAI: { symbol: 'WXDAI', name: 'Wrapped xDAI', decimals: 18, logo: null, projectUrl: null, isStable: true },
+  USDC:  { symbol: 'USDC',  name: 'USD Coin', logo: '/images/tokens/usdc.png', projectUrl: 'https://www.circle.com/usdc', isStable: true },
+  DAI:   { symbol: 'DAI',   name: 'Dai Stablecoin', logo: '/images/tokens/dai.png', projectUrl: 'https://makerdao.com/dai', isStable: true },
+  BREAD: { symbol: 'BREAD', name: 'Breadchain', logo: '/images/tokens/bread.png', projectUrl: 'https://fund.bread.coop/', isStable: true },
+  WXDAI: { symbol: 'WXDAI', name: 'Wrapped xDAI', logo: null, projectUrl: null, isStable: true },
 };
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -22,9 +25,9 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 // Sentinel for "no bounty token" (PT-only payout)
 export const NO_BOUNTY_TOKEN = {
   address: ZERO_ADDRESS,
-  symbol: 'shares',
-  name: 'Shares',
-  decimals: 18,
+  symbol: DEFAULT_TOKEN_LABEL,
+  name: DEFAULT_TOKEN_LABEL,
+  decimals: PARTICIPATION_TOKEN_DECIMALS,
   isDefault: true,
   logo: null,
   projectUrl: null,
@@ -38,7 +41,7 @@ for (const network of Object.values(NETWORKS)) {
   for (const [symbol, addr] of Object.entries(network.bountyTokens)) {
     const meta = TOKEN_META[symbol];
     if (meta && addr) {
-      ADDRESS_LOOKUP[addr.toLowerCase()] = { address: addr, ...meta, isDefault: false };
+      ADDRESS_LOOKUP[addr.toLowerCase()] = { ...coreTokenByAddress(addr), address: addr, ...meta, isDefault: false };
     }
   }
 }
@@ -52,7 +55,7 @@ export function getBountyTokenOptions(chainId) {
   if (!network?.bountyTokens) return [];
   return Object.entries(network.bountyTokens)
     .filter(([symbol, addr]) => addr && TOKEN_META[symbol])
-    .map(([symbol, addr]) => ({ address: addr, ...TOKEN_META[symbol], isDefault: false }));
+    .map(([symbol, addr]) => ({ ...coreTokenByAddress(addr), address: addr, ...TOKEN_META[symbol], isDefault: false }));
 }
 
 /**
@@ -76,21 +79,24 @@ export function getTokenByAddress(address) {
  * Check if a task has a bounty configured (non-zero token and amount).
  */
 export function hasBounty(bountyToken, bountyAmount) {
-  return bountyToken &&
-    bountyToken !== ZERO_ADDRESS &&
-    bountyAmount &&
-    Number(bountyAmount) > 0;
+  if (!bountyToken || bountyToken === ZERO_ADDRESS || bountyAmount == null || bountyAmount === '') return false;
+  try {
+    return BigInt(requireRawUint(bountyAmount)) > 0n;
+  } catch {
+    return false;
+  }
 }
 
-/**
- * Format a raw wei bounty amount to human-readable using the token's decimals.
- */
+/** Preserve fixed-decimal, rounded bounty presentation without Number narrowing. */
 export function formatBountyAmount(weiAmount, tokenAddress) {
   if (!weiAmount || weiAmount === '0') return '0';
   const token = getTokenByAddress(tokenAddress);
-  const divisor = Math.pow(10, token.decimals);
-  const displayDecimals = token.decimals <= 6 ? 2 : 4;
-  const formatted = (Number(weiAmount) / divisor).toFixed(displayDecimals);
+  const places = token.decimals <= 6 ? 2 : 4;
+  const raw = BigInt(requireRawUint(weiAmount));
+  const divisor = 10n ** BigInt(token.decimals);
+  const units = 10n ** BigInt(places);
+  const rounded = (raw * units + divisor / 2n) / divisor;
+  const formatted = `${rounded / units}.${(rounded % units).toString().padStart(places, '0')}`;
   return `${formatted} ${token.symbol}`;
 }
 

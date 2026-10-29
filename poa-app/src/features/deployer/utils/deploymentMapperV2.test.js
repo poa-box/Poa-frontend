@@ -2,10 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { ethers } from 'ethers';
 
 import { buildDeployCalldata, deployWithCalldata } from '../../../../scripts/newDeployment';
+import { toCoreDeployConfig } from '@/lib/deployment/coreDeployment';
 import { TaskPermission } from '@/util/permissions';
 import { createDefaultRole, initialState } from '../context/deployerReducer';
 import {
-  buildAccessV2TaskManagerPerms,
   mapStateToAccessV2DeploymentParams,
   validateAccessV2Representability,
 } from './deploymentMapperV2';
@@ -32,14 +32,12 @@ function flatState() {
   state.roles = [
     {
       ...createDefaultRole(0, 'Member'),
-      hierarchy: { adminRoleIndex: null },
-      hatConfig: { maxSupply: 500, mutableHat: true },
+      maxMembers: 500,
     },
     {
       ...createDefaultRole(1, 'Steward'),
-      hierarchy: { adminRoleIndex: null },
-      defaults: { eligible: false, standing: true },
-      hatConfig: { maxSupply: 12, mutableHat: true },
+      open: false,
+      maxMembers: 12,
     },
   ];
   state.permissions = {
@@ -52,44 +50,10 @@ function flatState() {
   return state;
 }
 
-function productionBuildArgs(state, params) {
-  return {
-    memberTypeNames: state.roles.map((role) => role.name),
-    executivePermissionNames: [],
-    POname: state.organization.name,
-    quadraticVotingEnabled: false,
-    democracyVoteWeight: 100,
-    participationVoteWeight: 0,
-    hybridVotingEnabled: false,
-    participationVotingEnabled: true,
-    electionEnabled: false,
-    educationHubEnabled: false,
-    zkEmailEnabled: false,
-    infoIPFSHash: '',
-    quorumPercentageDD: state.voting.ddQuorum,
-    quorumPercentagePV: state.voting.hybridQuorum,
-    username: '',
-    deployerAddress: DEPLOYER,
-    customRoles: params.roles,
-    groups: params.groups,
-    autoUpgrade: params.autoUpgrade,
-    roleAssignments: params.roleAssignments,
+function productionBuildArgs(state) {
+  return { config: toCoreDeployConfig(state, DEPLOYER), deployerAddress: DEPLOYER,
     orgDeployerSchema: ORG_DEPLOYER_SCHEMA.ACCESS_V2,
-    infrastructureAddresses: {
-      orgDeployerAddress: ORG_DEPLOYER,
-      registryAddress: REGISTRY,
-    },
-    taskManagerPerms: params.taskManagerPerms,
-    ddInitialTargets: params.ddInitialTargets,
-    bootstrap: params.bootstrap,
-    paymasterConfig: params.paymasterConfig,
-    metadataAdminRoleIndex: params.metadataAdminRoleIndex,
-    hybridClasses: params.hybridClasses,
-    hybridVoterQuorum: params.hybridQuorum,
-    ddVoterQuorum: params.ddQuorum,
-    tokenName: params.tokenName,
-    tokenSymbol: params.tokenSymbol,
-  };
+    infrastructureAddresses: { orgDeployerAddress: ORG_DEPLOYER, registryAddress: REGISTRY } };
 }
 
 describe('Kyoto DeploymentParams mapper', () => {
@@ -131,13 +95,14 @@ describe('Kyoto DeploymentParams mapper', () => {
       .toBe(false);
 
     state.roles[0].open = true;
-    state.roles[0].defaults.eligible = false;
     state.permissions.quickJoinRoles = [0];
     expect(validateAccessV2Representability(state).isValid).toBe(true);
     expect(mapStateToAccessV2DeploymentParams(state, DEPLOYER, { registryAddress: REGISTRY }).roles[0].open)
       .toBe(true);
 
+    state.roles[0].open = false;
     state.roles[0].vouching.enabled = true;
+    state.roles[0].vouching.quorum = 1;
     state.permissions.quickJoinRoles = [];
     expect(mapStateToAccessV2DeploymentParams(state, DEPLOYER, { registryAddress: REGISTRY }).roles[0].open)
       .toBe(false);
@@ -163,18 +128,19 @@ describe('Kyoto DeploymentParams mapper', () => {
     expect(sent.autoUpgrade).toBe(false);
   });
 
-  it('requires explicit role assignments for Access v2 encoding', () => {
+  it('requires reviewed canonical config for native encoding', () => {
     const state = flatState();
     const params = mapStateToAccessV2DeploymentParams(state, DEPLOYER, { registryAddress: REGISTRY });
     const args = productionBuildArgs(state, params);
-    delete args.roleAssignments;
-    expect(() => buildDeployCalldata(args)).toThrow(/explicit role assignments/i);
+    delete args.config;
+    expect(() => buildDeployCalldata(args)).toThrow(/reviewed native deployment config/i);
   });
 
-  it('preserves a creator\'s explicit task bits when adding its required CREATE row', () => {
-    const perms = buildAccessV2TaskManagerPerms({ 0: TaskPermission.REVIEW }, [0], 2);
-    expect(perms.roleIndices.map((index) => index.toNumber())).toEqual([0]);
-    expect(perms.masks).toEqual([TaskPermission.CREATE | TaskPermission.REVIEW]);
+  it('preserves explicit task bits while adding each selected creator’s CREATE grant', () => {
+    const state = flatState(); state.taskManagerPerms = { 0: TaskPermission.REVIEW };
+    const params = mapStateToAccessV2DeploymentParams(state, DEPLOYER, { registryAddress: REGISTRY });
+    expect(params.taskManagerPerms.roleIndices.map(index => index.toNumber())).toEqual([0]);
+    expect(params.taskManagerPerms.masks).toEqual([TaskPermission.CREATE | TaskPermission.REVIEW]);
   });
 
   it('refuses to send when VERSION resolves to the other ABI major', async () => {
@@ -273,23 +239,23 @@ describe('Kyoto DeploymentParams mapper', () => {
 
   it('rejects an initial distribution above maxMembers', () => {
     const state = flatState();
-    state.roles[0].hatConfig.maxSupply = 1;
+    state.roles[0].maxMembers = 1;
     state.roles[0].distribution.additionalWearers = [ALICE];
     expect(() => mapStateToAccessV2DeploymentParams(state, DEPLOYER, { registryAddress: REGISTRY }))
-      .toThrow(/can hold 1 members.*contains 2/i);
+      .toThrow(/maxMembers.*genesis membership count/i);
   });
 });
 
 describe('honest Access v2 compatibility failures', () => {
   it.each([
-    ['parent hierarchy', (state) => { state.roles[0].hierarchy.adminRoleIndex = 1; }, /parent-role hierarchy/i],
+    ['parent hierarchy', (state) => { state.roles[0].hierarchy = { adminRoleIndex: 1 }; }, /parent-role hierarchy/i],
     ['hierarchy vouching', (state) => {
       state.roles[0].vouching = { enabled: true, quorum: 1, voucherRoleIndex: 0, combineWithHierarchy: true };
-      state.roles[0].defaults.eligible = false;
+      state.roles[0].open = false;
     }, /hierarchy admins vouch/i],
-    ['standing default', (state) => { state.roles[0].defaults.standing = false; }, /standing default/i],
-    ['immutable role', (state) => { state.roles[0].hatConfig.mutableHat = false; }, /immutable/i],
-    ['closed quick join', (state) => { state.roles[0].defaults.eligible = false; }, /Quick Join.*not open/i],
+    ['standing default', (state) => { state.roles[0].defaults = { eligible: true, standing: false }; }, /standing default/i],
+    ['immutable role', (state) => { state.roles[0].hatConfig = { maxSupply: 500, mutableHat: false }; }, /immutable/i],
+    ['closed quick join', (state) => { state.roles[0].open = false; }, /Quick Join.*not open/i],
   ])('does not silently drop %s semantics', (_name, mutate, message) => {
     const state = flatState();
     mutate(state);
@@ -300,22 +266,46 @@ describe('honest Access v2 compatibility failures', () => {
 
   it('does not derive groups from a legacy parent relationship', () => {
     const state = flatState();
-    state.roles[0].hierarchy.adminRoleIndex = 1;
+    state.roles[0].hierarchy = { adminRoleIndex: 1 };
     state.groups = [];
     expect(() => mapStateToAccessV2DeploymentParams(state, DEPLOYER, { registryAddress: REGISTRY }))
-      .toThrow(/remove the parent relationship/i);
+      .toThrow(/Choose a current template or reset the draft/i);
   });
 
   it('enforces Kyoto role/group structural limits', () => {
     const tooManyRoles = flatState();
     tooManyRoles.roles = Array.from({ length: 17 }, (_, index) => ({
       ...createDefaultRole(index, `Role ${index}`),
-      hierarchy: { adminRoleIndex: null },
     }));
     expect(validateAccessV2Representability(tooManyRoles).errors.join(' ')).toMatch(/at most 16 roles/i);
 
     const duplicateGroup = flatState();
     duplicateGroup.groups = [{ name: 'Leaders', memberRoleIndices: [1, 1] }];
     expect(validateAccessV2Representability(duplicateGroup).errors.join(' ')).toMatch(/same role more than once/i);
+  });
+});
+
+describe('exact pre-simulated deployment transport', () => {
+  it('preserves selected-chain exact calldata and native value even when estimation fails', async () => {
+    const state = flatState();
+    const { calldata } = buildDeployCalldata(productionBuildArgs(state));
+    const iface = getOrgDeployerInterface(ORG_DEPLOYER_SCHEMA.ACCESS_V2);
+    const receipt = { transactionHash: ethers.utils.id('mock-receipt'), logs: [] };
+    const wallet = { getChainId: vi.fn(async () => 100),
+      provider: { call: vi.fn(async () => iface.encodeFunctionResult('VERSION', ['2.0.0'])) },
+      estimateGas: vi.fn(async () => { throw new Error('mock estimate unavailable'); }),
+      sendTransaction: vi.fn(async () => ({ hash: receipt.transactionHash, wait: async () => receipt })),
+    };
+    const valueWei = ethers.BigNumber.from('9007199254740993');
+    const result = await deployWithCalldata({ wallet, to: ORG_DEPLOYER, calldata, valueWei,
+      orgDeployerSchema: ORG_DEPLOYER_SCHEMA.ACCESS_V2, expectedChainId: 100 });
+    expect(wallet.estimateGas).toHaveBeenCalledWith({ to: ORG_DEPLOYER, data: calldata, value: valueWei });
+    expect(wallet.sendTransaction).toHaveBeenCalledWith({ to: ORG_DEPLOYER, data: calldata, value: valueWei,
+      gasLimit: ethers.BigNumber.from(25000000) });
+    expect(result).toEqual({ receipt, deployment: null });
+  });
+  it('rejects retired named-role preparation rather than guessing membership power', () => {
+    expect(() => buildDeployCalldata({ memberTypeNames: ['Member'], POname: 'Together',
+      orgDeployerSchema: ORG_DEPLOYER_SCHEMA.ACCESS_V2 })).toThrow(/reviewed native deployment config/);
   });
 });

@@ -38,7 +38,7 @@ export default function ProofBand() {
               {counts.members > 0 ? (
                 <>
                   {' and '}
-                  <span className="pa-proof-count-num">{counts.members}</span> member
+                  <span className="pa-proof-count-num">{counts.members}</span> membership
                   {counts.members === 1 ? '' : 's'}
                 </>
               ) : (

@@ -1,46 +1,26 @@
 /**
- * Access v2 GraphQL documents — the MembershipAuthority model.
- *
- * Kept in their own module (re-exported from `util/queries.js`, so the "import queries from
- * util/queries" convention still holds) for ONE reason: every document in here selects fields that
- * DO NOT EXIST on the endpoints the app reads today. The app talks to the DECENTRALISED GATEWAY
- * subgraphs, which lag Studio by a manual publish, and a single unknown field fails the WHOLE
- * document — so mixing these selections into the existing org queries would break every legacy org
- * page the moment this branch shipped.
- *
- * EVERY consumer of these documents MUST gate on `CAPABILITY.ACCESS_V2` (see
- * `util/subgraphCapabilities`) plus the org's own authority binding. See
- * `lib/accessV2/authority.js`.
- *
- * Shapes are taken verbatim from `pop-subgraph/schema.graphql` on the access-v2/subgraph branch.
+ * MembershipAuthority fields come from canonical core documents. The host keeps
+ * its existing response names, relation selectors and presentation windows.
+ * Consumers must gate on the endpoint capability and verified authority binding;
+ * installing a package does not prove that an endpoint serves every field.
  */
 
 import { gql } from '@apollo/client';
+import * as authority from '@poa-box/core/graph/documents/authority';
+import { coreDocument, coreFields } from '@/lib/graphql/coreDocuments';
 
 /**
  * Is this org on the v2 path, and what is its authority?
  * Cheap enough to run on every org page load once the capability probe passes.
  */
-export const FETCH_ORG_AUTHORITY = gql`
-  query FetchOrgAuthority($orgId: ID!) {
-    organization(id: $orgId) {
-      id
-      membershipAuthority {
-        id
-        executor
-        paused
-        subjectCount
-        roleSubjectCount
-        groupSubjectCount
-        acceptedMembershipCount
-        maxDailyVouches
-        isRouterBound
-        cutoverAt
-        registeredAt
-      }
-    }
-  }
-`;
+export const FETCH_ORG_AUTHORITY = coreDocument(authority.FETCH_AUTHORITY_STATE, {
+  name: 'FetchOrgAuthority', variables: '$orgId: ID!',
+  fields: {
+    _meta: false, organization: { args: 'id: $orgId' },
+    'organization.membershipAuthority.initConfigDerived': false,
+    'organization.membershipAuthority.lastUpdatedAt': false,
+  },
+});
 
 /**
  * Every subject in the org, with the wiring the roles/groups admin page renders:
@@ -49,70 +29,24 @@ export const FETCH_ORG_AUTHORITY = gql`
  * `first: 1000` on the nested collections is not decorative — the default page size is 100 and a
  * silently-truncated perm list would render as "this role has no permissions".
  */
+// The admin page keeps its nested response and capped presentation window.
+const subjectFields = coreDocument(authority.FETCH_AUTHORITY_SUBJECTS_PAGE, { fields: {
+  'subjects.createdAtBlock': false, 'subjects.lastUpdatedAt': false,
+  'subjects.vouchConfig.configuredAt': false, 'subjects.vouchConfig.lastUpdatedAt': false,
+  'subjects.vouchConfig.voucherSubject.subjectId': false, 'subjects.vouchConfig.voucherSubject.kind': false,
+  'subjects.managerConfig.setAt': false, 'subjects.managerConfig.lastUpdatedAt': false,
+  'subjects.managerConfig.managerSubject.subjectId': false, 'subjects.managerConfig.managerSubject.kind': false,
+} });
+const edgeFields = coreFields(authority.FETCH_AUTHORITY_GROUP_EDGES_PAGE, 'groupCompositions', { only: ['id', 'groupSubjectId', 'roleSubjectId', 'isActive'] });
 export const FETCH_AUTHORITY_SUBJECTS = gql`
   query FetchAuthoritySubjects($authority: ID!) {
     membershipAuthorityContract(id: $authority) {
-      id
-      paused
+      id paused
       subjects(first: 1000, orderBy: createdAt, orderDirection: asc) {
-        id
-        subjectId
-        kind
-        name
-        metadataCID
-        imageURI
-        maxMembers
-        memberCount
-        activeMemberCount
-        defaultAllow
-        isLegacyAdopted
-        createdAt
-        vouchConfig {
-          id
-          quorum
-          voucherSubjectId
-          epoch
-          voucherSubject {
-            id
-            name
-          }
-        }
-        managerConfig {
-          id
-          managerSubjectId
-          caps
-          canGrant
-          canRemove
-          delaySecs
-          enabled
-          managerSubject {
-            id
-            name
-          }
-        }
-        perms(first: 1000) {
-          id
-          permKey
-          ctx
-          isGlobalCtx
-          foldTag
-          word
-          exists
-          inheritGlobal
-          value
-        }
-        memberRoles(first: 100) {
-          id
-          groupSubjectId
-          roleSubjectId
-          isActive
-        }
-        groups(first: 100) {
-          id
-          groupSubjectId
-          roleSubjectId
-          isActive
-        }
+        ${coreFields(subjectFields, 'subjects')}
+        perms(first: 1000) { ${coreFields(authority.FETCH_AUTHORITY_PERMS_PAGE, 'permRows', { omit: ['subject', 'setAt', 'clearedAt', 'lastUpdatedAt'] })} }
+        memberRoles(first: 100) { ${edgeFields} }
+        groups(first: 100) { ${edgeFields} }
       }
     }
   }
@@ -135,6 +69,13 @@ export const FETCH_AUTHORITY_SUBJECTS = gql`
  * capability probe cannot catch it (every selected field exists) — `queriesAccessV2.grammar.test.js`
  * lints it offline and `queriesAccessV2.live.test.js` executes it against a real graph-node.
  */
+const membershipFields = coreDocument(authority.FETCH_AUTHORITY_MEMBERSHIPS_PAGE, { fields: {
+  'subjectMemberships.firstSeenAt': false, 'subjectMemberships.lastUpdatedAt': false,
+  'subjectMemberships.subject': false,
+  'subjectMemberships.rule.setAt': false, 'subjectMemberships.rule.clearedAt': false, 'subjectMemberships.rule.managerSubject': false,
+  'subjectMemberships.pendingAction.user': false, 'subjectMemberships.pendingAction.createdAt': false,
+  'subjectMemberships.pendingAction.resolvedAt': false, 'subjectMemberships.pendingAction.cancelledBy': false,
+} });
 export const FETCH_AUTHORITY_MEMBERSHIPS = gql`
   query FetchAuthorityMemberships($authority: String!, $first: Int = 1000, $skip: Int = 0) {
     subjectMemberships(
@@ -151,46 +92,9 @@ export const FETCH_AUTHORITY_MEMBERSHIPS = gql`
       orderBy: id
       orderDirection: asc
     ) {
-      id
-      user
-      userUsername
-      accepted
-      acceptedAt
-      seededWhilePaused
-      eligible
-      eligibilitySource
-      isMember
-      claimable
-      ruleKind
-      emailVerified
-      vouchCount
-      vouchEpoch
-      vouchMet
-      subject {
-        id
-        subjectId
-        kind
-        name
-        imageURI
-        defaultAllow
-        maxMembers
-      }
-      rule {
-        id
-        kind
-        author
-        delegable
-        sticky
-      }
-      pendingAction {
-        id
-        pendingId
-        action
-        actor
-        actorUsername
-        activatesAt
-        status
-      }
+      ${coreFields(membershipFields, 'subjectMemberships')}
+
+      subject { ${coreFields(authority.FETCH_AUTHORITY_SUBJECTS_PAGE, 'subjects', { only: ['id', 'subjectId', 'kind', 'name', 'imageURI', 'defaultAllow', 'maxMembers'] })}  }
     }
   }
 `;
@@ -208,53 +112,9 @@ export const FETCH_USER_MEMBERSHIPS = gql`
       orderBy: lastUpdatedAt
       orderDirection: desc
     ) {
-      id
-      user
+      ${coreFields(membershipFields, 'subjectMemberships', { omit: ['userUsername'] })}
       authority { id }
-      accepted
-      acceptedAt
-      seededWhilePaused
-      eligible
-      eligibilitySource
-      isMember
-      claimable
-      ruleKind
-      emailVerified
-      vouchCount
-      vouchEpoch
-      vouchMet
-      subject {
-        id
-        subjectId
-        kind
-        name
-        imageURI
-        defaultAllow
-        maxMembers
-        activeMemberCount
-        vouchConfig {
-          id
-          quorum
-          voucherSubjectId
-          epoch
-        }
-      }
-      rule {
-        id
-        kind
-        author
-        delegable
-        sticky
-      }
-      pendingAction {
-        id
-        pendingId
-        action
-        actor
-        actorUsername
-        activatesAt
-        status
-      }
+      subject { ${coreFields(authority.FETCH_AUTHORITY_SUBJECTS_PAGE, 'subjects', { only: ['id', 'subjectId', 'kind', 'name', 'imageURI', 'defaultAllow', 'maxMembers', 'activeMemberCount'] })} vouchConfig { id quorum voucherSubjectId epoch } }
     }
   }
 `;
@@ -264,30 +124,15 @@ export const FETCH_USER_MEMBERSHIPS = gql`
  * "a removal is pending against you" banner both read this.
  */
 export const FETCH_PENDING_ACTIONS = gql`
-  query FetchPendingActions($authority: String!, $status: String = "Pending") {
+  query FetchPendingActions($authority: String!, $status: PendingActionStatus = Pending) {
     pendingActions(
       where: { authority: $authority, status: $status }
       first: 500
       orderBy: activatesAt
       orderDirection: asc
     ) {
-      id
-      pendingId
-      action
-      user
-      actor
-      actorUsername
-      activatesAt
-      status
-      createdAt
-      resolvedAt
-      cancelledBy
-      subject {
-        id
-        subjectId
-        name
-        kind
-      }
+      ${coreFields(authority.FETCH_AUTHORITY_PENDING_PAGE, 'pendingActions', { omit: ["transactionHash"] })}
+
     }
   }
 `;
@@ -301,21 +146,8 @@ export const FETCH_SUBJECT_VOUCH_RECORDS = gql`
       orderBy: vouchedAt
       orderDirection: desc
     ) {
-      id
-      user
-      voucher
-      voucherUsername
-      active
-      seeded
-      epoch
-      vouchedAt
-      revokedAt
-      config {
-        id
-        quorum
-        voucherSubjectId
-        epoch
-      }
+      ${coreFields(authority.FETCH_AUTHORITY_VOUCHES_PAGE, 'subjectVouchRecords', { omit: ["subject","config"] })}
+      config { id quorum voucherSubjectId epoch }
     }
   }
 `;
@@ -329,24 +161,8 @@ export const FETCH_AUTHORITY_VOUCH_RECORDS = gql`
       orderBy: vouchedAt
       orderDirection: desc
     ) {
-      id
-      user
-      voucher
-      voucherUsername
-      active
-      seeded
-      epoch
-      vouchedAt
-      subject {
-        id
-        subjectId
-        name
-      }
-      config {
-        id
-        quorum
-        epoch
-      }
+      ${coreFields(authority.FETCH_AUTHORITY_VOUCHES_PAGE, 'subjectVouchRecords', { omit: ["subject","config","revokedAt"] })}
+      subject { id subjectId name } config { id quorum epoch }
     }
   }
 `;
@@ -356,52 +172,11 @@ export const FETCH_AUTHORITY_VOUCH_RECORDS = gql`
  * `RoleClaimed` (the USER acted) is deliberately distinct from `RoleGranted` (an ORG act), and
  * `MembershipReconciled` is an automatic lapse repair that must never read as an org decision.
  */
-export const FETCH_MEMBERSHIP_EVENTS = gql`
-  query FetchMembershipEvents($authority: String!, $first: Int = 50) {
-    subjectMembershipEvents(
-      where: { authority: $authority }
-      first: $first
-      orderBy: timestamp
-      orderDirection: desc
-    ) {
-      id
-      action
-      user
-      userUsername
-      actor
-      actorUsername
-      banned
-      delegated
-      timestamp
-      transactionHash
-      subject {
-        id
-        subjectId
-        name
-        kind
-      }
-    }
-  }
-`;
+export const FETCH_MEMBERSHIP_EVENTS = coreDocument(authority.FETCH_AUTHORITY_MEMBERSHIP_EVENTS_RECENT, {
+  name: 'FetchMembershipEvents',
+});
 
-/** Config lints the contract emitted — surfaced next to the config they belong to. */
-export const FETCH_CONFIG_LINTS = gql`
-  query FetchConfigLints($authority: String!) {
-    configLintEvents(
-      where: { authority: $authority }
-      first: 200
-      orderBy: emittedAt
-      orderDirection: desc
-    ) {
-      id
-      code
-      lintCode
-      subjectId
-      emittedAt
-      subject {
-        id
-        name
-      }
-    }
-  }
-`;
+/** Config lints are a recent display window, never authorization evidence. */
+export const FETCH_CONFIG_LINTS = coreDocument(authority.FETCH_AUTHORITY_CONFIG_LINTS_RECENT, {
+  name: 'FetchConfigLints',
+});

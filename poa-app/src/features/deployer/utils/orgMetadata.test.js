@@ -23,7 +23,7 @@ describe('buildOrgMetadata', () => {
   it('carries every key POContext reads back', () => {
     const meta = buildOrgMetadata(stateWith());
     expect(Object.keys(meta).sort()).toEqual(
-      ['description', 'hideTreasury', 'links', 'logo', 'template', 'useTokenSymbol'].sort()
+      ['backgroundColor', 'description', 'hideTreasury', 'links', 'logo', 'template', 'useTokenSymbol'].sort()
     );
   });
 
@@ -32,8 +32,11 @@ describe('buildOrgMetadata', () => {
     expect(meta.hideTreasury).toBe(true);
   });
 
-  it('opts into the ticker when the founder set one', () => {
-    const meta = buildOrgMetadata(stateWith((s) => { s.organization.tokenSymbol = 'COMFY'; }));
+  it('opts into the ticker only when the founder selected symbol mode', () => {
+    const meta = buildOrgMetadata(stateWith((s) => {
+      s.organization.tokenSymbol = 'COMFY';
+      s.organization.useTokenSymbol = true;
+    }));
     expect(meta.useTokenSymbol).toBe(true);
   });
 

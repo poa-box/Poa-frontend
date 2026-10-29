@@ -145,11 +145,13 @@ const ProjectInfoModal = ({
 }) => {
   // Org roles supply hatId -> name for the permissions matrix. cache-first query, so it's
   // cheap on repeat; only runs because this modal is conditionally mounted when opened.
-  const { roles = [], loading: orgLoading } = useOrgStructure();
+  const { roles = [], loading: orgLoading, error: orgStructureError } = useOrgStructure();
+
+  const permissionsUnavailable = !!orgStructureError || project?.permissionsAvailable !== true;
 
   const stats = useMemo(() => deriveProjectStats(project, { tokenLabel }), [project, tokenLabel]);
   const permissionColumns = useMemo(() => buildProjectPermissionColumns(), []);
-  const { permissionsMatrix, rolesWithGrants, hasAnyGrant, overrideHatIds } = useMemo(
+  const { permissionsMatrix, rolesWithGrants, hasAnyGrant, hasUnknown, overrideHatIds } = useMemo(
     () =>
       buildProjectPermissionsMatrix({
         roles,
@@ -306,8 +308,9 @@ const ProjectInfoModal = ({
 
                   {orgLoading ? (
                     <PermissionsMatrix loading />
-                  ) : hasAnyGrant ? (
+                  ) : hasAnyGrant || hasUnknown || permissionsUnavailable ? (
                     <>
+                      {(hasUnknown || permissionsUnavailable) && <Text color="gray.400">Some current permissions are unavailable.</Text>}
                       <PermissionsMatrix
                         roles={rolesWithGrants}
                         permissionsMatrix={permissionsMatrix}
@@ -327,8 +330,7 @@ const ProjectInfoModal = ({
                   ) : (
                     <Box {...lightCardStyle} p={6} textAlign="center">
                       <Text color="warmGray.500">
-                        No role permissions are configured for this project yet. Task actions fall
-                        back to the organization&apos;s global grants.
+                        No role permissions are currently granted for this project.
                       </Text>
                     </Box>
                   )}

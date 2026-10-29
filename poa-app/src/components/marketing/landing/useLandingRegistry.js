@@ -28,7 +28,7 @@ export const internalOrgUrl = (orgId) => `/home/?org=${encodeURIComponent(orgId)
 // returns defaults, so the page renders its fallbacks with no hydration
 // mismatch and upgrades in place once the registry answers.
 export default function useLandingRegistry() {
-  const { perpetualOrganizations = [], isLoading = true } = useProfileHubContext() || {};
+  const { perpetualOrganizations = [], isLoading = true, isComplete = false } = useProfileHubContext() || {};
 
   const orgs = useMemo(
     () => perpetualOrganizations.filter((po) => !isHiddenOrg(po.id)),
@@ -48,13 +48,12 @@ export default function useLandingRegistry() {
     );
   }, [orgs]);
 
-  const counts = useMemo(
-    () => ({
-      orgs: orgs.length,
-      members: orgs.reduce((sum, po) => sum + (parseInt(po.totalMembers, 10) || 0), 0),
-    }),
-    [orgs]
-  );
+  const counts = useMemo(() => {
+    const memberSum = isComplete && orgs.every(po => po.totalMembers != null)
+      ? orgs.reduce((sum, po) => sum + BigInt(po.totalMembers), 0n) : null;
+    return { orgs: orgs.length, members: memberSum === null ? null
+      : memberSum <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(memberSum) : memberSum.toString() };
+  }, [orgs, isComplete]);
 
   return { isLoading, orgs, featuredOrg, counts };
 }

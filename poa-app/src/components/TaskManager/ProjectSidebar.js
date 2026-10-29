@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import TaskDragProvider from '@/components/TaskManager/TaskDragProvider';
 import {
   Box,
@@ -27,8 +27,8 @@ import { useProjectContext } from '@/context/ProjectContext';
 import { useAuth } from '@/context/authState';
 import { AddIcon, SearchIcon, ChevronLeftIcon, EditIcon } from '@chakra-ui/icons';
 import { FiLayers, FiBriefcase } from 'react-icons/fi';
-import { PERMISSION_MESSAGES, userWearsAnyHat } from '../../util/permissions';
-import { isTaskMine, taskNeedsReview } from '@/util/taskIndicators';
+import { PERMISSION_MESSAGES } from '@/util/permissions';
+import { isTaskMine } from '@/util/taskIndicators';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -70,15 +70,14 @@ const ProjectSidebar = ({
 
   const [searchTerm, setSearchTerm] = useState('');
   const { userData, graphUsername, userDataLoading } = useUserContext();
-  const { projectsData } = useProjectContext();
+  const { projectsData, getTaskActions, projectCreator, assertProjectCreator } = useProjectContext();
   const { accountAddress } = useAuth() || {};
   const { task: taskService, executeWithNotification, isReady, getNotReadyMessage } = useWeb3();
   const toast = useToast();
 
-  const { taskManagerContractAddress, creatorHatIds } = usePOContext();
-
-  // Get user's current hat IDs for permission checking
-  const userHatIds = useMemo(() => userData?.hatIds || [], [userData?.hatIds]);
+  const { taskManagerContractAddress, orgId, subgraphUrl, orgChainId } = usePOContext();
+  const actionRef = useRef(); actionRef.current = { getTaskActions,
+    key: JSON.stringify([taskManagerContractAddress, orgId, subgraphUrl, orgChainId, accountAddress]) };
 
   // "My Work" hint counts: tasks assigned to me (in progress) + In Review tasks
   // I can review. Cheap — projectsData already carries columns + tasks.
@@ -94,7 +93,7 @@ const ProjectSidebar = ({
           } else if (
             c.id === 'inReview' &&
             !isTaskMine(t, address, graphUsername) &&
-            taskNeedsReview(c.id, p, userHatIds, address, t)
+            getTaskActions(t, p).complete.state === 'allowed'
           ) {
             needsYou += 1;
           }
@@ -102,7 +101,7 @@ const ProjectSidebar = ({
       }
     }
     return { myWorkActive: active, myWorkNeedsYou: needsYou };
-  }, [projectsData, accountAddress, userData, graphUsername, userHatIds]);
+  }, [projectsData, accountAddress, userData, graphUsername, getTaskActions]);
 
   const myWorkSubtitle = userDataLoading ? 'Your tasks and reviews' :
     myWorkActive > 0 || myWorkNeedsYou > 0
@@ -111,25 +110,16 @@ const ProjectSidebar = ({
           .join(' · ')
       : 'Nothing assigned yet';
 
-  // Who may create a project. `createProject` is gated by `_requireCreator()`:
-  // a wearer of one of the TaskManager's creatorHatIds, or the executor. There is
-  // no role-order component to it — the old `roleHatIds.slice(EXECUTIVE)` fallback
-  // was a guess and is gone.
-  const canManageProjects = useMemo(() => {
-    if (!userHatIds.length) return false;
-    if (creatorHatIds?.length) return userWearsAnyHat(userHatIds, creatorHatIds);
-    // No creator hats indexed yet: fail open only for the very first project, so a
-    // brand-new org is never bricked by a subgraph that has not caught up.
-    return !projectsData?.length;
-  }, [userHatIds, projectsData, creatorHatIds]);
+  const canManageProjects = projectCreator?.state === 'known' && projectCreator.value;
 
   const handleCreateProject = () => {
     if (canManageProjects) {
+      assertProjectCreator();
       onOpenCreateModal();
     } else {
       toast({
         title: 'Permission Required',
-        description: PERMISSION_MESSAGES.REQUIRE_PROJECT_CREATOR,
+        description: projectCreator?.state === 'known' ? PERMISSION_MESSAGES.REQUIRE_PROJECT_CREATOR : 'Current project permissions are unavailable. Please try again.',
         status: 'warning',
         duration: 4000,
         isClosable: true,
@@ -140,12 +130,15 @@ const ProjectSidebar = ({
 
   // Delete project using the new service
   const onDeleteProject = useCallback(async (projectId) => {
-    if (!canManageProjects) {
+    const project = projectsData.find(project => project.id === projectId);
+    const capturedKey = actionRef.current.key;
+    const deletion = actionRef.current.getTaskActions(null, project).deleteProject;
+    if (deletion.state !== 'allowed') {
       toast({
         title: 'Permission Required',
         // deleteProject is _requireCreator() — a creator hat or the executor. Being a
         // project MANAGER does not help here, so don't use the create/claim copy.
-        description: PERMISSION_MESSAGES.REQUIRE_PROJECT_CREATOR,
+        description: deletion.state === 'unknown' ? 'Current project permissions are unavailable. Please try again.' : PERMISSION_MESSAGES.REQUIRE_PROJECT_CREATOR,
         status: 'warning',
         duration: 4000,
         isClosable: true,
@@ -160,14 +153,18 @@ const ProjectSidebar = ({
     }
 
     await executeWithNotification(
-      () => taskService.deleteProject(taskManagerContractAddress, projectId),
+      () => {
+        const assertCurrent = () => { if (actionRef.current.key !== capturedKey || actionRef.current.getTaskActions(null, project).deleteProject.state !== 'allowed') throw new Error('Project permissions changed. Please try again.'); };
+        assertCurrent();
+        return taskService.deleteProject(taskManagerContractAddress, projectId, { assertCurrent });
+      },
       {
         pendingMessage: 'Deleting project...',
         successMessage: 'Project deleted successfully!',
         refreshEvent: 'project:deleted',
       }
     );
-  }, [canManageProjects, taskService, isReady, getNotReadyMessage, executeWithNotification, taskManagerContractAddress, toast]);
+  }, [projectsData, taskService, isReady, getNotReadyMessage, executeWithNotification, taskManagerContractAddress, toast]);
 
   // Filter projects based on search term. Memoized so the array reference
   // stays stable between unrelated re-renders — without this, the child

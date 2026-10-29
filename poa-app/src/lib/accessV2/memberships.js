@@ -18,7 +18,9 @@
  * delegated action is MACHINERY, never a membership condition.
  */
 
-import { isLegacyTopHatId, toSubjectId } from './ids';
+import { projectAuthorityMembership } from '@poa-box/core/reads/authority';
+import { projectMembershipLifecycle } from '@poa-box/core/authority/lifecycle';
+import { isLegacyTopHatId, toSubjectId } from '@/lib/accessV2/ids';
 import { isOpen as isOpenPendingAction } from './pendingActions';
 
 /** Mirrors the subgraph `EligibilitySource` enum (evaluation ORDER). */
@@ -84,10 +86,15 @@ export function eligibilityCopy(source) {
  * @param {object} raw
  * @returns {object|null}
  */
-export function normalizeMembership(raw) {
+export function normalizeMembership(raw, evidence = null) {
   if (!raw) return null;
+  raw = projectAuthorityMembership(raw);
   const subjectId = toSubjectId(raw.subject?.subjectId ?? raw.subject?.id ?? raw.subjectId);
   if (subjectId === null) return null;
+  const lifecycleFacts = evidence ? projectMembershipLifecycle({
+    ...evidence, snapshot: { ...evidence.snapshot, data: raw },
+  }) : null;
+  const displayBool = (key) => lifecycleFacts ? lifecycleFacts[key].state === 'known' && lifecycleFacts[key].value : Boolean(raw[key]);
   const source = raw.eligibilitySource || ELIGIBILITY_SOURCE.NONE;
   const isTopHat = isLegacyTopHatId(subjectId);
 
@@ -101,17 +108,19 @@ export function normalizeMembership(raw) {
     user: String(raw.user || '').toLowerCase(),
     username: raw.userUsername || raw.userEntity?.username || null,
 
-    accepted: Boolean(raw.accepted),
+    lifecycleFacts,
+    accepted: displayBool('accepted'),
     acceptedAt: raw.acceptedAt ? Number(raw.acceptedAt) : null,
     // Seeds applied while the authority was paused are BACKDATED on chain to acceptedAt = 1 so
     // in-flight proposals stay votable; the event carries no timestamp, so the flag is the only
     // honest signal and the UI must not render "joined 1 Jan 1970".
     seededWhilePaused: Boolean(raw.seededWhilePaused),
 
-    eligible: Boolean(raw.eligible),
+    membershipProjection: raw.membershipProjection,
+    eligible: displayBool('eligible'),
     eligibilitySource: source,
-    isMember: Boolean(raw.isMember),
-    claimable: Boolean(raw.claimable),
+    isMember: displayBool('isMember'),
+    claimable: displayBool('claimable'),
 
     ruleKind: raw.ruleKind || 'None',
     rule: raw.rule || null,
@@ -123,12 +132,12 @@ export function normalizeMembership(raw) {
 
     // ── legacy-compatible projection ─────────────────────────────────────────────────────────
     hatId: subjectId,
-    wearing: Boolean(raw.isMember),
+    wearing: displayBool('isMember'),
   };
 }
 
 export function normalizeMemberships(rows = []) {
-  return (rows || []).map(normalizeMembership).filter(Boolean);
+  return (rows || []).map(row => normalizeMembership(row)).filter(Boolean);
 }
 
 /** Rows where the user IS a member (accepted && eligible). */
@@ -176,44 +185,16 @@ export function claimableMemberships(rows = []) {
  * @param {object} membership - a normalised row, with its rule attached
  */
 export function isHeldInReserve(membership) {
+  if (membership?.lifecycleFacts) {
+    const held = membership.lifecycleFacts.heldInReserve;
+    return held.state === 'known' && held.value;
+  }
   if (!membership || !membership.claimable) return false;
   if (!membership.rule || !membership.rule.sticky) return false;
   // An open pending entry means the seat is mid-ceremony (a delegated offer/grant in its review
   // window), not held in reserve — the countdown copy owns that row. Mirrors `pid == 0`.
   if (isOpenPendingAction(membership.pendingAction)) return false;
   return true;
-}
-
-/**
- * ELECTORATE ACTIVATION GATE (§4) — both voting modules reject voters whose membership activated
- * AFTER the proposal was created. Replayed client-side so the ballot can explain itself instead of
- * reverting.
- *
- * When a user qualifies through several roles, the EARLIEST activation governs.
- *
- * @param {Array} memberships - normalised rows (any subset; caller scopes them to the electorate)
- * @param {number} proposalCreatedAt - unix seconds
- * @returns {{ canVote: boolean, activeSince: number|null, reason: string|null }}
- */
-export function activationGate(memberships = [], proposalCreatedAt) {
-  const created = Number(proposalCreatedAt || 0);
-  let earliest = null;
-  for (const m of memberships || []) {
-    if (!m || !m.isMember) continue;
-    // Ceremony-seeded rows are BACKDATED on-chain to acceptedAt = 1 (pre-existing members stay
-    // votable on in-flight proposals). The subgraph stores the indexed block timestamp and flags
-    // the row instead — so the replay must honour the flag, or every seeded member reads as
-    // joined-after-proposal for anything created before their org's seed batch.
-    const activatedAt = m.seededWhilePaused ? 1 : m.acceptedAt;
-    if (!activatedAt) continue;
-    if (earliest === null || activatedAt < earliest) earliest = activatedAt;
-  }
-  if (earliest === null) {
-    return { canVote: false, activeSince: null, reason: 'not-a-member' };
-  }
-  if (!created) return { canVote: true, activeSince: earliest, reason: null };
-  if (earliest <= created) return { canVote: true, activeSince: earliest, reason: null };
-  return { canVote: false, activeSince: earliest, reason: 'joined-after-proposal' };
 }
 
 /**

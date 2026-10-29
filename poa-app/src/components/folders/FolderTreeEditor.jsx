@@ -11,7 +11,7 @@
  * start over (MVP). Auto-merge intentionally deferred per spec.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import {
   Accordion,
   AccordionButton,
@@ -51,11 +51,13 @@ import { ethers } from 'ethers';
 import { useIPFScontext } from '@/context/ipfsContext';
 import { useWeb3 } from '@/hooks/useWeb3Services';
 import { usePOContext } from '@/context/POContext';
+import { useAuth } from '@/context/authState';
+import { assertTaskHostScope } from '@/lib/tasks/hostScope';
 import { useProjectContext } from '@/context/ProjectContext';
 import { ipfsCidToBytes32, parseProjectId } from '@/services/web3/utils/encoding';
 import { inputStyles } from '@/components/shared/glassStyles';
 
-import { validateFolderDoc, FOLDERS_SCHEMA_VERSION } from '@/lib/folders/schema';
+import { validateFolderDoc, serializeFolderDoc, FOLDERS_SCHEMA_VERSION } from '@/lib/folders/schema';
 import {
   computeSortOrder,
   descendantsOf,
@@ -191,7 +193,12 @@ export default function FolderTreeEditor({
   const toast = useToast();
   const { addToIpfs } = useIPFScontext();
   const { task: taskService, executeWithNotification } = useWeb3();
-  const { taskManagerContractAddress } = usePOContext();
+  const { taskManagerContractAddress, orgId, orgChainId, subgraphUrl } = usePOContext();
+  const { accountAddress, isAuthHydrated } = useAuth();
+  const scope = { contract: taskManagerContractAddress, orgId, chainId: orgChainId, endpoint: subgraphUrl,
+    account: accountAddress, hydrated: isAuthHydrated };
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
   // ProjectContext exposes the list as `projectsData`; alias it to a saner
   // local name and build a bytes32-keyed view so we can interop with the
   // canonical project-id form used by folder.projectIds (per spec).
@@ -209,6 +216,8 @@ export default function FolderTreeEditor({
   }, [projects]);
 
   const { doc: loadedDoc, loading, error, loadedRoot } = useFolderDoc(foldersRoot);
+  const rootRef = useRef(loadedRoot);
+  rootRef.current = loadedRoot;
 
   // Working copy of folder state. Initialised from the loaded doc each time
   // the modal opens so re-opens always start from the latest on-chain root.
@@ -286,18 +295,18 @@ export default function FolderTreeEditor({
     setSavingError(null);
     setConflict(null);
 
-    const docToPin = { schemaVersion: FOLDERS_SCHEMA_VERSION, folders };
+    const docToPin = { ...loadedDoc, schemaVersion: FOLDERS_SCHEMA_VERSION, folders };
     const { valid, errors } = validateFolderDoc(docToPin);
     if (!valid) {
       setSavingError(new Error(errors.join(' ')));
       return;
     }
 
-    if (!taskService || !taskManagerContractAddress) {
+    if (!taskService || !taskManagerContractAddress || !isAuthHydrated || !accountAddress) {
       setSavingError(new Error('Still getting things ready — give it a moment, then try again.'));
       return;
     }
-    if (loadedRoot === null) {
+    if (loadedRoot === null || loading || error || !loadedDoc) {
       // Defensive: prop is set but IPFS fetch hasn't populated loadedRoot yet.
       // Saving with a wrong expected root would just trigger CAS — but the
       // user would see a misleading "conflict" when really we just hadn't
@@ -307,9 +316,16 @@ export default function FolderTreeEditor({
     }
 
     setSaving(true);
+    const captured = { ...scopeRef.current };
+    const assertCurrent = () => {
+      assertTaskHostScope(scopeRef.current, captured);
+      if (rootRef.current !== loadedRoot) throw new Error('The folder tree changed. Reload it and try again.');
+    };
     let newRoot;
     try {
-      const pinResult = await addToIpfs(JSON.stringify(docToPin));
+      assertCurrent();
+      const pinResult = await addToIpfs(serializeFolderDoc(docToPin));
+      assertCurrent();
       newRoot = ipfsCidToBytes32(pinResult.path);
     } catch (e) {
       setSaving(false);
@@ -318,7 +334,10 @@ export default function FolderTreeEditor({
     }
 
     const result = await executeWithNotification(
-      () => taskService.setFolders(taskManagerContractAddress, loadedRoot, newRoot),
+      () => {
+        assertCurrent();
+        return taskService.setFolders(taskManagerContractAddress, loadedRoot, newRoot, { assertCurrent });
+      },
       {
         pendingMessage: 'Publishing folder tree...',
         successMessage: 'Folder tree updated.',

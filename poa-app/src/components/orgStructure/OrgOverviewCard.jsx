@@ -126,7 +126,7 @@ export function OrgOverviewCard({
                 gap={2}
               >
                 <Icon as={FiUsers} />
-                {totalMembers} {totalMembers === 1 ? 'Member' : 'Members'}
+                {totalMembers == null ? 'Current member count unavailable' : `${totalMembers} ${totalMembers === 1 ? 'Member' : 'Members'}`}
               </Badge>
             )}
 

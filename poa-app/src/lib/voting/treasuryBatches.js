@@ -33,6 +33,10 @@
  */
 
 import { utils, constants } from 'ethers';
+import { parseDecimalAmountToRaw, requireRawUint } from '@poa-box/core/amounts';
+import { paymentManagerAvailability as coreAvailability, planTreasuryTransfer, treasuryTokenAddress } from '@poa-box/core/treasury/planning';
+import { PaymentManagerAbi } from '@poa-box/core/abis/PaymentManager';
+import { ERC20Abi } from '@poa-box/core/abis/ERC20';
 import { estimateBatchGas } from '@/lib/accessV2/proposalBuilders';
 
 export const TRANSFER_DESTINATION = Object.freeze({
@@ -65,26 +69,8 @@ export function transferOptionNames(destination) {
     : [...TRANSFER_OPTION_NAMES];
 }
 
-/** A distribution is CLOSEABLE for free when every claim on it has been paid. */
-const PAYMENT_MANAGER_ABI = [
-  'function withdraw(address token, address to, uint256 amount)',
-  'function finalizeDistribution(uint256 distributionId, uint256 minClaimPeriodBlocks)',
-];
-const ERC20_ABI = ['function transfer(address to, uint256 amount)'];
-
-export const paymentManagerInterface = new utils.Interface(PAYMENT_MANAGER_ABI);
-export const erc20Interface = new utils.Interface(ERC20_ABI);
-
-const toBig = (v) => {
-  if (v === null || v === undefined || v === '') return 0n;
-  try {
-    return BigInt(typeof v === 'object' && typeof v.toString === 'function' ? v.toString() : v);
-  } catch {
-    return 0n;
-  }
-};
-
-const maxBig = (a, b) => (a > b ? a : b);
+export const paymentManagerInterface = new utils.Interface(PaymentManagerAbi);
+export const erc20Interface = new utils.Interface(ERC20Abi);
 
 /**
  * Checksum an address that may arrive in any casing. Config addresses (e.g. the Gnosis USDC entry
@@ -96,14 +82,8 @@ const checksum = (address) => utils.getAddress(String(address).toLowerCase());
 /** '' / null / the zero address all mean the chain's native currency. */
 export function isNativeToken(token) {
   if (!token) return true;
-  return String(token).toLowerCase() === constants.AddressZero;
+  return treasuryTokenAddress(String(token).toLowerCase()) === constants.AddressZero;
 }
-
-const sameToken = (a, b) => {
-  if (isNativeToken(a) && isNativeToken(b)) return true;
-  if (isNativeToken(a) || isNativeToken(b)) return false;
-  return String(a).toLowerCase() === String(b).toLowerCase();
-};
 
 const shortAddress = (address) => {
   const a = String(address || '');
@@ -144,7 +124,7 @@ export function amountToWei(amount, decimals) {
   const s = String(amount ?? '').trim();
   if (!s || amountDecimalsError(s, decimals) !== null) return null;
   try {
-    return BigInt(utils.parseUnits(s, Number(decimals)).toString());
+    return BigInt(parseDecimalAmountToRaw(s, Number(decimals)));
   } catch {
     return null;
   }
@@ -161,35 +141,30 @@ export function amountToWei(amount, decimals) {
  * @returns {{ balance: string, committed: string, spendable: string, releasable: string,
  *             releaseIds: string[], spendableAfterRelease: string }} decimal strings
  */
-export function paymentManagerAvailability({ balance, distributions = [], token = '' } = {}) {
-  const bal = toBig(balance);
-  let committed = 0n;
-  let releasable = 0n;
-  const releaseIds = [];
-  for (const d of distributions || []) {
-    if (!d || d.finalized) continue;
-    if (!sameToken(d.payoutToken, token)) continue;
-    const total = toBig(d.totalAmount);
-    committed += total;
-    if (total > 0n && toBig(d.totalClaimed) >= total) {
-      releasable += total;
-      releaseIds.push(String(d.id));
-    }
+export function paymentManagerAvailability({ evidence } = {}) {
+  const result = evidence?.paymentManager
+    ? coreAvailability({ snapshot: evidence.paymentManager, scope: { ...evidence.scope, contract: evidence.scope.contracts.paymentManager },
+      block: evidence.block, asset: evidence.asset, minClaimPeriodBlocks: evidence.minClaimPeriodBlocks || '0' })
+    : { status: 'blocked', codes: ['TREASURY_EVIDENCE_REQUIRED'] };
+  if (result.status !== 'ready') {
+    return { balance: null, committed: null, spendable: null, releasable: null, releaseIds: [],
+      spendableAfterRelease: null, evidence, status: 'blocked', codes: result.codes };
   }
-  const spendable = maxBig(0n, bal - committed);
-  // `totalCommitted` is NOT decremented by claims (only by finalize), while the balance IS, so
-  // `balance < committed` is the normal state after any claim. Closing the fully-claimed rounds
-  // lowers the commitment; the ceiling after that is balance minus what is STILL committed —
-  // never "spendable plus released", which would double-count claims already paid out.
-  const spendableAfterRelease = maxBig(0n, bal - (committed - releasable));
-  return {
-    balance: bal.toString(),
-    committed: committed.toString(),
-    spendable: spendable.toString(),
-    releasable: releasable.toString(),
-    releaseIds,
-    spendableAfterRelease: spendableAfterRelease.toString(),
-  };
+  const a = result.data;
+  return { balance: a.balanceRaw, committed: a.committedRaw, spendable: a.spendableRaw,
+    releasable: a.releasableRaw, releaseIds: [...a.finalizeIds], spendableAfterRelease: a.spendableAfterReleaseRaw,
+    evidence, status: 'ready', codes: [] };
+}
+
+function transferPlan({ evidence, amountWei, recipient, preferred }) {
+  if (!evidence || !recipient) return { status: 'blocked', codes: ['TREASURY_EVIDENCE_REQUIRED'] };
+  const sources = [];
+  if (evidence.executor) sources.push({ kind: 'executor', address: evidence.scope.contracts.executor, balance: evidence.executor });
+  if (evidence.paymentManager) sources.push({ kind: 'payment-manager', address: evidence.scope.contracts.paymentManager, snapshot: evidence.paymentManager });
+  if (preferred === TRANSFER_SOURCE.PAYMENT_MANAGER) sources.reverse();
+  return planTreasuryTransfer({ scope: evidence.scope, block: evidence.block, asset: evidence.asset,
+    destination: checksum(recipient), amountRaw: requireRawUint(amountWei), sources,
+    minClaimPeriodBlocks: evidence.minClaimPeriodBlocks || '0' });
 }
 
 /**
@@ -207,42 +182,28 @@ export function paymentManagerAvailability({ balance, distributions = [], token 
  * @returns {{ ok: boolean, source: string, finalizeIds: string[], shortfall: string,
  *             covers: { executor: boolean, paymentManager: boolean } }}
  */
-export function resolveTransferSource({ amountWei, executorBalance = '0', paymentManager = null, preferred } = {}) {
-  const amount = toBig(amountWei);
-  const exec = toBig(executorBalance);
-  const pm = paymentManager || paymentManagerAvailability({ balance: '0' });
-  const pmSpendable = toBig(pm.spendable);
-  const pmAfterRelease = toBig(pm.spendableAfterRelease);
-
-  const executorCovers = amount > 0n && exec >= amount;
-  const pmCovers = amount > 0n && pmSpendable >= amount;
-  const pmCoversAfterRelease = amount > 0n && pmAfterRelease >= amount;
-
-  const candidates = [];
-  if (executorCovers) candidates.push({ source: TRANSFER_SOURCE.EXECUTOR, finalizeIds: [] });
-  if (pmCovers) candidates.push({ source: TRANSFER_SOURCE.PAYMENT_MANAGER, finalizeIds: [] });
-  else if (pmCoversAfterRelease) candidates.push({ source: TRANSFER_SOURCE.PAYMENT_MANAGER, finalizeIds: [...pm.releaseIds] });
-
-  let pick = candidates.find((c) => c.source === preferred) || candidates[0] || null;
-
-  if (!pick) {
-    const best = maxBig(exec, pmAfterRelease);
-    return {
-      ok: false,
-      // The historical default — a fallback that at least encodes the same call it always did.
-      source: preferred || TRANSFER_SOURCE.EXECUTOR,
-      finalizeIds: [],
-      shortfall: (amount - best).toString(),
-      covers: { executor: executorCovers, paymentManager: pmCoversAfterRelease },
-    };
+export function resolveTransferSource({ amountWei, paymentManager, preferred, evidence = paymentManager?.evidence, recipient } = {}) {
+  const plan = transferPlan({ evidence, amountWei, recipient, preferred });
+  const covers = { executor: false, paymentManager: false };
+  if (evidence && recipient) {
+    for (const source of Object.values(TRANSFER_SOURCE)) {
+      const only = { ...evidence, executor: source === TRANSFER_SOURCE.EXECUTOR ? evidence.executor : null,
+        paymentManager: source === TRANSFER_SOURCE.PAYMENT_MANAGER ? evidence.paymentManager : null };
+      covers[source] = transferPlan({ evidence: only, amountWei, recipient, preferred: source }).status === 'ready';
+    }
   }
-  return {
-    ok: true,
-    source: pick.source,
-    finalizeIds: pick.finalizeIds,
-    shortfall: '0',
-    covers: { executor: executorCovers, paymentManager: pmCoversAfterRelease },
-  };
+  if (plan.status !== 'ready') {
+    const availability = paymentManagerAvailability({ evidence });
+    const exec = evidence?.executor?.coverage.status === 'complete' ? evidence.executor.data.rawAmount : null;
+    const available = [exec, availability.spendableAfterRelease].filter(v => v !== null && v !== undefined).map(BigInt);
+    const best = available.reduce((max, v) => v > max ? v : max, 0n);
+    const amount = BigInt(requireRawUint(amountWei));
+    return { ok: false, source: preferred || TRANSFER_SOURCE.EXECUTOR, finalizeIds: [],
+      shortfall: available.length ? (amount > best ? amount - best : 0n).toString() : null,
+      covers, codes: plan.codes };
+  }
+  return { ok: true, source: plan.data.source === 'executor' ? TRANSFER_SOURCE.EXECUTOR : TRANSFER_SOURCE.PAYMENT_MANAGER,
+    finalizeIds: [...plan.data.finalizeIds], shortfall: '0', covers, codes: [] };
 }
 
 /**
@@ -271,6 +232,7 @@ export function buildTreasuryTransferBatch({
   paymentManagerAddress,
   finalizeIds = [],
   destination = TRANSFER_DESTINATION.ADDRESS,
+  evidence,
 } = {}) {
   if (!recipient || !utils.isAddress(recipient)) {
     throw new Error('Please enter a valid recipient address.');
@@ -280,56 +242,33 @@ export function buildTreasuryTransferBatch({
   const wei = amountToWei(amount, decimals);
   if (wei === null || wei <= 0n) throw new Error('Please enter a valid transfer amount.');
 
-  const native = isNativeToken(token);
   const to = checksum(recipient);
-  const batch = [];
-  const summaries = [];
-  const warnings = [];
-
-  const where = destination === TRANSFER_DESTINATION.BOUNTY_POOL
-    ? `the ${BOUNTY_POOL_LABEL}`
-    : shortAddress(to);
+  if (source === TRANSFER_SOURCE.PAYMENT_MANAGER && (!paymentManagerAddress || !utils.isAddress(paymentManagerAddress))) {
+    throw new Error("This group's treasury isn't set up for payouts by vote yet.");
+  }
+  if (!evidence || evidence.asset.address.toLowerCase() !== treasuryTokenAddress(token ? checksum(token) : '').toLowerCase()
+      || evidence.asset.decimals !== Number(decimals)) throw new Error('Treasury details are unavailable. Refresh before proposing this move.');
+  if (paymentManagerAddress && evidence.scope.contracts.paymentManager?.toLowerCase() !== paymentManagerAddress.toLowerCase()) {
+    throw new Error('Treasury details changed. Refresh before proposing this move.');
+  }
+  const selected = { ...evidence,
+    executor: source === TRANSFER_SOURCE.EXECUTOR ? evidence.executor : null,
+    paymentManager: source === TRANSFER_SOURCE.PAYMENT_MANAGER ? evidence.paymentManager : null };
+  const plan = transferPlan({ evidence: selected, amountWei: wei.toString(), recipient: to, preferred: source });
+  if (plan.status !== 'ready') throw new Error('Treasury details are incomplete or cannot cover this move. Refresh before proposing it.');
+  if (finalizeIds.length && JSON.stringify(finalizeIds.map(String)) !== JSON.stringify(plan.data.finalizeIds)) {
+    throw new Error('Payout rounds changed. Refresh before proposing this move.');
+  }
+  const batch = plan.data.calls.map(call => ({ target: checksum(call.target), value: call.value, data: call.calldata }));
+  const summaries = [], warnings = [];
+  const where = destination === TRANSFER_DESTINATION.BOUNTY_POOL ? `the ${BOUNTY_POOL_LABEL}` : shortAddress(to);
   const verb = destination === TRANSFER_DESTINATION.BOUNTY_POOL ? 'move' : 'send';
-
   if (source === TRANSFER_SOURCE.PAYMENT_MANAGER) {
-    if (!paymentManagerAddress || !utils.isAddress(paymentManagerAddress)) {
-      throw new Error("This group's treasury isn't set up for payouts by vote yet.");
-    }
-    const pm = checksum(paymentManagerAddress);
-    for (const id of finalizeIds || []) {
-      batch.push({
-        target: pm,
-        value: '0',
-        data: paymentManagerInterface.encodeFunctionData('finalizeDistribution', [BigInt(id).toString(), 0]),
-      });
-    }
-    batch.push({
-      target: pm,
-      value: '0',
-      data: paymentManagerInterface.encodeFunctionData('withdraw', [
-        native ? constants.AddressZero : checksum(token),
-        to,
-        wei.toString(),
-      ]),
-    });
-    if ((finalizeIds || []).length > 0) {
-      const ids = finalizeIds.map((id) => `#${id}`).join(', ');
-      summaries.push(
-        `Closes fully-claimed payout ${finalizeIds.length === 1 ? ids : `rounds ${ids}`} first — nobody is owed anything from ${finalizeIds.length === 1 ? 'it' : 'them'}, this only frees the reserved ${symbol}.`,
-      );
-    }
-    // The batch is fixed at creation and runs when the votes are counted; the treasury is not.
-    warnings.push(
-      `Based on what the treasury holds today. If its balance or payout rounds change before the votes are counted, the move will not run.`,
+    const ids = plan.data.finalizeIds;
+    if (ids.length) summaries.push(
+      `Closes fully-claimed payout ${ids.length === 1 ? `#${ids[0]}` : `rounds ${ids.map(id => `#${id}`).join(', ')}`} first — nobody is owed anything from ${ids.length === 1 ? 'it' : 'them'}, this only frees the reserved ${symbol}.`,
     );
-  } else if (native) {
-    batch.push({ target: to, value: wei.toString(), data: '0x' });
-  } else {
-    batch.push({
-      target: checksum(token),
-      value: '0',
-      data: erc20Interface.encodeFunctionData('transfer', [to, wei.toString()]),
-    });
+    warnings.push('Based on what the treasury holds today. If its balance or payout rounds change before the votes are counted, the move will not run.');
   }
 
   summaries.push(`If Yes wins, ${verb} ${amount} ${symbol} from the treasury to ${where}.`);

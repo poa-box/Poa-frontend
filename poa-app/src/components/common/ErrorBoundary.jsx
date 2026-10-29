@@ -7,13 +7,27 @@ import React from 'react';
 import {
   Box,
   Button,
-  Heading,
   Text,
-  VStack,
-  Code,
-  Container,
-  Divider,
 } from '@chakra-ui/react';
+
+// The global boundary surrounds ChakraProvider. Its fallback must also work when
+// that provider (or its theme) is the child that failed.
+const fallbackStyles = {
+  page: { minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+    background: 'linear-gradient(to right, #fed7aa, #fbcfe8)', padding: '1rem', boxSizing: 'border-box',
+    fontFamily: 'system-ui, sans-serif', color: '#374151' },
+  card: { width: '100%', maxWidth: '36rem', padding: '2rem', borderRadius: '0.75rem',
+    background: '#fff', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', textAlign: 'center' },
+  heading: { margin: '0 0 1.5rem', fontSize: '1.5rem', color: '#b91c1c' },
+  details: { textAlign: 'left', marginTop: '1.5rem' },
+  code: { display: 'block', padding: '1rem', borderRadius: '0.375rem', background: '#f3f4f6',
+    whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', maxHeight: '200px', overflowY: 'auto', fontSize: '0.875rem' },
+  actions: { display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.5rem' },
+  button: { width: '100%', padding: '0.75rem 1rem', borderRadius: '0.375rem', font: 'inherit',
+    fontWeight: 600, cursor: 'pointer', border: '1px solid #6b21a8', background: '#6b21a8', color: '#fff' },
+  reload: { background: '#fff', borderColor: '#9ca3af', color: '#374151' },
+  help: { marginTop: '1.5rem', fontSize: '0.875rem', color: '#6b7280' },
+};
 
 /**
  * Error Boundary - Catches JavaScript errors in child components
@@ -69,108 +83,32 @@ export class ErrorBoundary extends React.Component {
         });
       }
 
-      // Default fallback UI
+      // Native elements and literal CSS keep this independent of the failed provider tree.
       return (
-        <Box
-          minH="100vh"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-          bgGradient="linear(to-r, orange.200, pink.200)"
-          p={4}
-        >
-          <Container maxW="xl">
-            <VStack
-              spacing={6}
-              bg="white"
-              p={8}
-              borderRadius="xl"
-              boxShadow="xl"
-              textAlign="center"
-            >
-              <Heading size="lg" color="red.500">
-                Something went wrong
-              </Heading>
-
-              <Text color="gray.600" fontSize="md">
-                We're sorry, but something unexpected happened.
-                Please try again or reload the page.
-              </Text>
-
-              {/* Show error details in development */}
-              {process.env.NODE_ENV === 'development' && this.state.error && (
-                <>
-                  <Divider />
-                  <Box w="100%" textAlign="left">
-                    <Text fontWeight="bold" mb={2} color="gray.700">
-                      Error Details:
-                    </Text>
-                    <Code
-                      p={4}
-                      borderRadius="md"
-                      w="100%"
-                      display="block"
-                      whiteSpace="pre-wrap"
-                      wordBreak="break-word"
-                      bg="gray.100"
-                      color="red.600"
-                      fontSize="sm"
-                    >
-                      {this.state.error.toString()}
-                    </Code>
-
-                    {this.state.errorInfo?.componentStack && (
-                      <Box mt={4}>
-                        <Text fontWeight="bold" mb={2} color="gray.700">
-                          Component Stack:
-                        </Text>
-                        <Code
-                          p={4}
-                          borderRadius="md"
-                          w="100%"
-                          display="block"
-                          whiteSpace="pre-wrap"
-                          wordBreak="break-word"
-                          bg="gray.100"
-                          color="gray.600"
-                          fontSize="xs"
-                          maxH="200px"
-                          overflowY="auto"
-                        >
-                          {this.state.errorInfo.componentStack}
-                        </Code>
-                      </Box>
-                    )}
-                  </Box>
-                </>
-              )}
-
-              <VStack spacing={3} pt={4} w="100%">
-                <Button
-                  colorScheme="purple"
-                  onClick={this.handleReset}
-                  w="100%"
-                  size="lg"
-                >
-                  Try Again
-                </Button>
-                <Button
-                  variant="outline"
-                  colorScheme="gray"
-                  onClick={this.handleReload}
-                  w="100%"
-                  size="lg"
-                >
-                  Reload Page
-                </Button>
-              </VStack>
-
-              <Text fontSize="sm" color="gray.500">
-                If this problem persists, please contact support.
-              </Text>
-            </VStack>
-          </Container>
-        </Box>
+        <main style={fallbackStyles.page}>
+          <section style={fallbackStyles.card} aria-labelledby="application-error-heading">
+            <h1 id="application-error-heading" style={fallbackStyles.heading}>Something went wrong</h1>
+            <p>We're sorry, but something unexpected happened. Please try again or reload the page.</p>
+            {process.env.NODE_ENV === 'development' && this.state.error && (
+              <div style={fallbackStyles.details}>
+                <hr />
+                <p><strong>Error Details:</strong></p>
+                <code style={fallbackStyles.code}>{this.state.error.toString()}</code>
+                {this.state.errorInfo?.componentStack && (
+                  <>
+                    <p><strong>Component Stack:</strong></p>
+                    <code style={fallbackStyles.code}>{this.state.errorInfo.componentStack}</code>
+                  </>
+                )}
+              </div>
+            )}
+            <div style={fallbackStyles.actions}>
+              <button type="button" style={fallbackStyles.button} onClick={this.handleReset}>Try Again</button>
+              <button type="button" style={{ ...fallbackStyles.button, ...fallbackStyles.reload }} onClick={this.handleReload}>Reload Page</button>
+            </div>
+            <p style={fallbackStyles.help}>If this problem persists, please contact support.</p>
+          </section>
+        </main>
       );
     }
 

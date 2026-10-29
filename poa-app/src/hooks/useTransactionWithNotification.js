@@ -1,8 +1,10 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { useNotification } from '@/context/NotificationContext';
 import { useRefreshEmit } from '@/context/RefreshContext';
 import { usePOContext } from '@/context/POContext';
+import { useAuth } from '@/context/authState';
 import { waitForSubgraphBlock } from '@/util/waitForSubgraph';
+import { captureNotificationScope, transactionMemberMessage, notificationWriteSource } from '@/hooks/transactionNotificationLifecycle';
 
 /**
  * Hook for transaction execution with integrated notifications
@@ -17,7 +19,13 @@ export function useTransactionWithNotification() {
   const { addNotification, updateNotification } = useNotification();
   const { emit } = useRefreshEmit();
   const poContext = usePOContext();
+  const auth = useAuth();
   const subgraphUrl = poContext?.subgraphUrl;
+  const snapshot = useMemo(() => ({ auth, po: poContext }), [auth, poContext]);
+  const current = useRef(snapshot);
+  const mounted = useRef(true);
+  current.current = snapshot;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
 
   /**
    * Execute a transaction with notification handling
@@ -28,6 +36,8 @@ export function useTransactionWithNotification() {
    * @param {string} [options.errorMessage] - Custom error message (uses parsed error if not provided)
    * @param {string} [options.refreshEvent] - Event to emit on success
    * @param {Object} [options.refreshData] - Data to include with refresh event
+   * @param {Object|Function} [options.writeSource] - Explicit { endpoint, chainId, account? }, or getter
+   *   for the source selected inside an account service. Supplied sources never fall back to the org.
    * @returns {Promise<TransactionResult>}
    */
   const executeWithNotification = useCallback(async (
@@ -38,37 +48,50 @@ export function useTransactionWithNotification() {
       errorMessage,
       refreshEvent,
       refreshData = {},
+      writeSource,
     }
   ) => {
-    // Show pending notification with loading status (blue spinner)
+    let scope;
+    try { scope = captureNotificationScope(snapshot, () => mounted.current ? current.current : null); }
+    catch (error) { return { success: false, error }; }
     const pendingId = addNotification(pendingMessage, 'loading');
+    // The existing notification view supports loading/success/error. Use its dismissible
+    // error state for unavailable page refresh, while retaining the original action outcome.
+    const earlierCompletion = () => updateNotification(pendingId, 'Your earlier action was confirmed. Return to its account or organization to see the update.', 'error');
 
     try {
+      scope.guard();
       const result = await transactionFn();
 
       if (result.success) {
-        // Update pending notification to success
-        updateNotification(pendingId, successMessage, 'success');
-
-        // Wait for subgraph to index the tx block, then emit refresh event.
-        // Fire-and-forget: don't block the caller (optimistic UI is already showing).
-        // Max 2 _meta queries (~5s initial + 2s backup), then emit regardless.
-        if (refreshEvent) {
-          const emitRefresh = async () => {
-            await waitForSubgraphBlock(subgraphUrl, result.blockNumber);
-            emit(refreshEvent, {
-              ...refreshData,
-              transactionHash: result.txHash,
-            });
-          };
-          emitRefresh();
-        }
+        if (!scope.isCurrent()) { earlierCompletion(); return result; }
+        // Keep the raw manager result and optimistic return timing unchanged.
+        const finish = async () => {
+          let source;
+          try {
+            source = writeSource === undefined ? { endpoint: subgraphUrl } : notificationWriteSource(
+              typeof writeSource === 'function' ? writeSource() : writeSource, scope.snapshot);
+          } catch {
+            updateNotification(pendingId, 'Your action was confirmed. Refresh this account to see the update.', 'error');
+            return;
+          }
+          if (refreshEvent) {
+            try { await waitForSubgraphBlock(source.endpoint, result.blockNumber); } catch { /* Best effort indexing. */ }
+          }
+          if (!scope.isCurrent()) { earlierCompletion(); return; }
+          updateNotification(pendingId, successMessage, 'success');
+          if (refreshEvent && scope.isCurrent()) emit(refreshEvent, {
+            ...refreshData, transactionHash: result.txHash,
+            ...(writeSource === undefined ? {} : { chainId: source.chainId, subgraphUrl: source.endpoint }),
+          });
+        };
+        void finish();
       } else {
         // Prefer the PARSED contract reason over the caller's generic static
         // errorMessage. The parser now decodes the real revert (e.g. "This task
         // requires an application before claiming") on both the EOA and passkey
         // paths; showing "Failed to claim task" instead would throw that away.
-        const message = result.error?.userMessage || errorMessage || 'Transaction failed';
+        const message = transactionMemberMessage(result.error, errorMessage || 'Transaction failed');
         updateNotification(pendingId, message, 'error');
       }
 
@@ -77,7 +100,7 @@ export function useTransactionWithNotification() {
       // Thrown (non-TransactionResult) path. Prefer a parsed userMessage if the
       // throw carried one; otherwise keep the caller's intentional errorMessage
       // ahead of a raw exception string (so internal errors don't leak to users).
-      const message = error?.userMessage || errorMessage || error?.message || 'An unexpected error occurred';
+      const message = transactionMemberMessage(error, errorMessage);
       updateNotification(pendingId, message, 'error');
 
       return {
@@ -85,7 +108,7 @@ export function useTransactionWithNotification() {
         error,
       };
     }
-  }, [addNotification, updateNotification, emit, subgraphUrl]);
+  }, [addNotification, updateNotification, emit, subgraphUrl, snapshot]);
 
   /**
    * Create a transaction handler for common operations
@@ -98,6 +121,7 @@ export function useTransactionWithNotification() {
       successMessage,
       errorMessage,
       refreshEvent,
+      writeSource,
     }
   ) => {
     return async (...args) => {
@@ -109,6 +133,7 @@ export function useTransactionWithNotification() {
           errorMessage,
           refreshEvent,
           refreshData: { args },
+          writeSource,
         }
       );
     };

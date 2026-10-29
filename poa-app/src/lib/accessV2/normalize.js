@@ -23,11 +23,13 @@ import {
 import { normalizeRule, RULE_KIND } from './rules';
 import { normalizeVouchConfig } from './vouch';
 import { normalizeManagerConfig } from './pendingActions';
-import { decodePermWord, permKeyName, isGlobalCtx, foldTag, FOLD_TAG, PERM_KEYS } from './permKeys';
+import { decodePermWord, permKeyName, isGlobalCtx, foldTag, PERM_KEYS, resolvePermCtx, encodePermWord } from './permKeys';
 import { toSubjectId } from './ids';
 
+import { attachCoreSubjectPermissions } from '@/lib/accessV2/coreProjection';
+
 /** Decode a subject's perm rows and derive the legacy-compatible flags from them. */
-export function attachPerms(subject, rawPerms = []) {
+export function attachPerms(subject, rawPerms = null) {
   const rows = (rawPerms || []).map((p) => ({
     id: p.id,
     permKey: p.permKey,
@@ -35,6 +37,7 @@ export function attachPerms(subject, rawPerms = []) {
     ctx: p.ctx,
     isGlobalCtx: p.isGlobalCtx !== undefined ? Boolean(p.isGlobalCtx) : isGlobalCtx(p.ctx),
     foldTag: Number(p.foldTag ?? 0),
+    protocolWord: p.word,
     ...decodePermWord(p.word),
   }));
 
@@ -48,6 +51,7 @@ export function attachPerms(subject, rawPerms = []) {
 
   return {
     ...subject,
+    permissionRowsKnown: Array.isArray(rawPerms),
     permRows: rows,
     permsByKey: byKey,
     permGlobal: globalOf,
@@ -82,35 +86,23 @@ export function attachPerms(subject, rawPerms = []) {
  * @returns {{ value: string, sources: string[] }} sources = subjectIds that actually contribute
  */
 export function foldPermKey(key, holders = [], ctx = null) {
-  const orMask = foldTag(key) === FOLD_TAG.OR_MASK;
-  let acc = 0n;
+  let accumulated = { ...decodePermWord(encodePermWord({ value: '0' })) };
   const sources = [];
-
-  for (const h of holders) {
-    if (!h || typeof h.permGlobal !== 'function') continue;
-    const global = h.permGlobal(key);
+  for (const holder of holders || []) {
+    if (!holder || typeof holder.permGlobal !== 'function') continue;
+    const global = holder.permGlobal(key);
     const local = ctx && !isGlobalCtx(ctx)
-      ? (h.permRows || []).find(row => row.exists && String(row.permKey).toLowerCase() === String(key).toLowerCase() && String(row.ctx).toLowerCase() === String(ctx).toLowerCase())
+      ? (holder.permRows || []).find(row => row.exists && String(row.permKey).toLowerCase() === String(key).toLowerCase() && String(row.ctx).toLowerCase() === String(ctx).toLowerCase())
       : null;
-    // A present zero project row suppresses global permissions unless INHERIT_GLOBAL is set.
-    const row = local || global;
-    if (!row || !row.exists) continue;
-    let v;
     try {
-      v = BigInt(row.value);
-      if (local?.inheritGlobal && global?.exists) {
-        const g = BigInt(global.value);
-        v = orMask ? v | g : (g !== 0n ? g : v);
-      }
-    } catch {
-      continue;
-    }
-    if (v === 0n) continue;
-    sources.push(h.subjectId);
-    acc = orMask ? acc | v : (acc !== 0n ? acc : v);
+      const resolved = resolvePermCtx(key, global, local);
+      if (resolved.value === '0') continue;
+      sources.push(holder.subjectId);
+      const combined = resolvePermCtx(key, accumulated, decodePermWord(encodePermWord({ value: resolved.value, inheritGlobal: true })));
+      accumulated = decodePermWord(encodePermWord({ value: combined.value }));
+    } catch { /* Malformed rows never contribute permissions. */ }
   }
-
-  return { value: acc.toString(), sources };
+  return { value: accumulated.value, sources };
 }
 
 /**
@@ -172,7 +164,7 @@ export function foldGroupPerms(subjects = []) {
  *
  * @param {Array} rawSubjects - `membershipAuthorityContract.subjects`
  */
-export function normalizeAuthoritySubjects(rawSubjects = []) {
+export function normalizeAuthoritySubjects(rawSubjects = [], evidence = null) {
   const raw = rawSubjects || [];
   // Composition rows come back on BOTH sides of the relation; one flat list is enough because
   // indexGroupCompositions de-dupes, and it keeps the group derivation in one pure place.
@@ -198,7 +190,7 @@ export function normalizeAuthoritySubjects(rawSubjects = []) {
 
   // Perms are decoded per subject first, THEN folded across the group wiring — a role's effective
   // permissions are its own ∪ its groups', which cannot be known until every subject is decoded.
-  const subjects = foldGroupPerms(withGroups.map((s) => {
+  let subjects = foldGroupPerms(withGroups.map((s) => {
     const src = rawById.get(s.subjectId) || {};
     return {
       ...attachPerms(s, src.perms),
@@ -207,6 +199,16 @@ export function normalizeAuthoritySubjects(rawSubjects = []) {
     };
   }));
 
+  if (evidence) {
+    const populated = raw.every(subject => ['Role', 'Group'].includes(subject.kind) && Array.isArray(subject.perms))
+      && compositions.every(edge => typeof edge.isActive === 'boolean'
+        && indexedSubjects.some(s => s.subjectId === toSubjectId(edge.groupSubjectId ?? edge.group?.subjectId ?? edge.group?.id))
+        && indexedSubjects.some(s => s.subjectId === toSubjectId(edge.roleSubjectId ?? edge.role?.subjectId ?? edge.role?.id)));
+    const qualified = populated ? evidence : { ...evidence, snapshot: { ...evidence.snapshot,
+      coverage: { ...evidence.snapshot.coverage, status: 'incomplete', issues: [{ code: 'AUTHORITY_FIELDS_UNAVAILABLE' }] },
+    } };
+    subjects = attachCoreSubjectPermissions(subjects, qualified);
+  }
   const { roles, groups } = splitSubjects(subjects);
   return {
     subjects,
@@ -234,10 +236,11 @@ export function normalizeAuthoritySubjects(rawSubjects = []) {
  * @param {Array} compositions - GroupComposition rows (from normalizeAuthoritySubjects)
  * @param {Array} groups - normalised group subjects
  */
-export function normalizeAuthorityMemberships(rawMemberships = [], compositions = [], groups = []) {
+export function normalizeAuthorityMemberships(rawMemberships = [], compositions = [], groups = [], evidence = null) {
   const raw = rawMemberships || [];
   const allRows = raw.map((source) => {
-    const membership = normalizeMembership(source);
+    const membership = normalizeMembership(source, evidence ? { ...evidence, scope: { ...evidence.scope, account: source.user },
+      snapshot: { ...evidence.snapshot, source: { ...evidence.snapshot.source, account: source.user } } } : null);
     return membership ? { ...membership, rule: normalizeRule(source?.rule) } : null;
   }).filter(Boolean);
   const rows = allRows.filter((m) => m.isUserFacing);
@@ -272,10 +275,11 @@ export function normalizeAuthorityMemberships(rawMemberships = [], compositions 
  * The `useMyMemberships` transform: one user's rows, split into what they hold, what they can take,
  * and what they are blocked from.
  */
-export function normalizeMyMemberships(rawMemberships = []) {
+export function normalizeMyMemberships(rawMemberships = [], evidence = null) {
   const raw = rawMemberships || [];
   const indexedRows = raw.map((source) => {
-    const membership = normalizeMembership(source);
+    const membership = normalizeMembership(source, evidence ? { ...evidence, scope: { ...evidence.scope, account: source.user },
+      snapshot: { ...evidence.snapshot, source: { ...evidence.snapshot.source, account: source.user } } } : null);
     return membership ? { ...membership, rule: normalizeRule(source?.rule) } : null;
   }).filter(Boolean);
   const rows = indexedRows.filter((m) => m.isUserFacing);

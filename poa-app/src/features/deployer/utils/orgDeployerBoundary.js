@@ -1,6 +1,9 @@
 import { ethers } from 'ethers';
 
-import OrgDeployerAccessV2ABI from '../../../../abi/OrgDeployerNew.json';
+import { OrgDeployerNewAbi as OrgDeployerAccessV2ABI } from '@poa-box/core/abis/OrgDeployerNew';
+import { buildDeployFullOrg, buildDeployFullOrgWithZkEmail } from '@poa-box/core/tx/org';
+import { encodeIntent } from '@poa-box/core/tx/intent';
+import { parseDeployerSemVer, requireSupportedDeployerVersion, selectDeploymentEntrypoint } from '@poa-box/core/deployment/policy';
 import OrgDeployerLegacyABI from '../../../../abi/OrgDeployerLegacy.json';
 
 /** New deployments accept VERSION major 2 only. Legacy ABI is retained for historical receipts. */
@@ -22,11 +25,6 @@ const INTERFACES = Object.freeze({
   [ORG_DEPLOYER_SCHEMA.LEGACY]: new ethers.utils.Interface(OrgDeployerLegacyABI),
   [ORG_DEPLOYER_SCHEMA.ACCESS_V2]: new ethers.utils.Interface(OrgDeployerAccessV2ABI),
 });
-
-// SemVer 2.0.0 (without surrounding whitespace). Numeric identifiers cannot
-// have leading zeroes, and prerelease/build identifiers cannot be empty. The
-// deployer major is an ABI boundary, so permissive version parsing is unsafe.
-const SEMVER_PATTERN = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/;
 
 export class OrgDeployerBoundaryError extends Error {
   constructor(message) {
@@ -54,7 +52,7 @@ export function getOrgDeployerInterface(schema) {
 }
 
 export function getOrgDeployFunctionName(zkEmailEnabled) {
-  return zkEmailEnabled ? 'deployFullOrgWithZkEmail' : 'deployFullOrg';
+  return selectDeploymentEntrypoint(zkEmailEnabled);
 }
 
 /**
@@ -94,42 +92,17 @@ export function assertDeploymentParamsSchema(schema, params) {
     return;
   }
 
-  if (Array.isArray(params.groups) && params.groups.length > 0) {
-    throw new OrgDeployerBoundaryError('Legacy OrgDeployer cannot encode Access v2 groups.');
-  }
-  params.roles.forEach((role, index) => {
-    if (!role?.defaults || !role?.hierarchy || !role?.hatConfig) {
-      throw new OrgDeployerBoundaryError(
-        `Role ${index} is not a legacy Hats RoleConfig (defaults/hierarchy/hatConfig are required).`
-      );
-    }
-    if (
-      Object.prototype.hasOwnProperty.call(role || {}, 'open') ||
-      Object.prototype.hasOwnProperty.call(role || {}, 'maxMembers')
-    ) {
-      throw new OrgDeployerBoundaryError(
-        `Role ${index} contains Access v2 fields. Refusing to encode it with the legacy OrgDeployer ABI.`
-      );
-    }
-  });
 }
 
 /** Encode with exactly one ABI after the caller has detected the deployed schema. */
 export function encodeOrgDeploymentCalldata({ schema, params, zkEmailEnabled = false }) {
   assertDeploymentParamsSchema(schema, params);
-  const iface = getOrgDeployerInterface(schema);
-  const functionName = getOrgDeployFunctionName(zkEmailEnabled);
-
-  if (!zkEmailEnabled) return iface.encodeFunctionData(functionName, [params]);
-
-  return iface.encodeFunctionData(functionName, [
-    params,
-    {
-      enabled: true,
-      initialRoot: ethers.constants.HashZero,
-      initialCid: ethers.constants.HashZero,
-    },
-  ]);
+  const args = { orgDeployerAddress: ethers.constants.AddressZero, deployParams: params };
+  const intent = zkEmailEnabled ? buildDeployFullOrgWithZkEmail({
+    ...args,
+    zkConfig: { enabled: true, initialRoot: ethers.constants.HashZero, initialCid: ethers.constants.HashZero },
+  }) : buildDeployFullOrg(args);
+  return encodeIntent(intent).data;
 }
 
 function getOrgDeploymentFragment(schema, calldata) {
@@ -275,20 +248,21 @@ export async function detectOrgDeployerSchema({ provider, address }) {
   } catch {
     throw new OrgDeployerBoundaryError('The configured OrgDeployer does not expose a decodable VERSION().');
   }
-  const match = typeof version === 'string' ? SEMVER_PATTERN.exec(version) : null;
-  if (!match) {
+  const parsed = parseDeployerSemVer(version);
+  if (!parsed) {
     throw new OrgDeployerBoundaryError(
       `OrgDeployer VERSION "${version}" is not valid semantic versioning. Refusing to guess its ABI.`
     );
   }
-  const major = Number(match[1]);
-  const schema = ORG_DEPLOYER_SCHEMA_BY_MAJOR[major];
-  if (!schema) {
+  const major = parsed.major;
+  try {
+    requireSupportedDeployerVersion(version);
+  } catch {
     throw new OrgDeployerBoundaryError(
       `OrgDeployer VERSION ${version} uses unsupported ABI major ${major}. Refusing to send deployment calldata.`
     );
   }
-
+  const schema = ORG_DEPLOYER_SCHEMA_BY_MAJOR[major];
   return { schema, version };
 }
 

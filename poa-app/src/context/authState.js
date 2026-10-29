@@ -8,7 +8,7 @@ const pendingAuth = {
   isPasskeyUser: false, isEOAUser: false, passkeyState: null, passkeyConnecting: false,
   hasStoredPasskey: false, publicClient: null, bundlerClient: null,
 };
-const authIdentity = (auth) => `${auth?.accountAddress || ''}:${auth?.authType || ''}`;
+const authIdentity = (auth) => `${auth?.accountAddress || ''}:${auth?.authType || ''}:${auth?.isAuthHydrated}:${auth?.sessionGeneration}`;
 export function AuthFacadeProvider({ children }) {
   const wallet = useWalletRuntimeControl();
   const auth = wallet.snapshot?.auth;

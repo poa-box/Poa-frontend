@@ -272,16 +272,16 @@ export function DeployerProvider({ children }) {
     // Get parent role for a role
     getParentRole: (roleIndex) => {
       const role = state.roles[roleIndex];
-      if (!role || role.hierarchy.adminRoleIndex === null) {
+      if (!role || role.hierarchy?.adminRoleIndex == null) {
         return null; // Top-level role
       }
-      return state.roles[role.hierarchy.adminRoleIndex];
+      return state.roles[role.hierarchy?.adminRoleIndex];
     },
 
     // Get children roles for a role
     getChildrenRoles: (roleIndex) =>
       state.roles.filter((role, idx) =>
-        role.hierarchy.adminRoleIndex === roleIndex && idx !== roleIndex
+        role.hierarchy?.adminRoleIndex === roleIndex && idx !== roleIndex
       ),
 
     // Check if hierarchy has cycles (invalid)
@@ -397,7 +397,7 @@ export function DeployerProvider({ children }) {
         case STEPS.TEAM:
           return {
             isValid: state.roles.length > 0 &&
-                     state.roles.some(r => r.hierarchy?.adminRoleIndex === null)
+                     state.roles.every(r => r.name?.trim() && r.hierarchy?.adminRoleIndex == null)
           };
         case STEPS.GOVERNANCE:
           return {

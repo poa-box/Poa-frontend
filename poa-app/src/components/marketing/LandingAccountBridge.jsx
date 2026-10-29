@@ -20,16 +20,24 @@ export default function LandingAccountBridge() {
   const router = useRouter();
   const { isConnected } = useAccount();
   const { openConnectModal, preloadRuntime } = useWalletUI();
-  const { hasAccount, isLoading: isAccountLoading } = useGlobalAccount();
+  const { hasAccount, isUnavailable, isLoading: isAccountLoading, refetchAccount } = useGlobalAccount();
   const { isPasskeyUser, isAuthenticated, hasStoredPasskey, isAuthHydrated } = useAuth();
   const [isSignupOpen, setIsSignupOpen] = useState(false);
   const { isOpen: isOnboardingOpen, onOpen: onOnboardingOpen, onClose: onOnboardingClose } = useDisclosure();
   const { data: solidarityData } = useQuery(FETCH_SOLIDARITY_FUND_STATUS);
-  const solidarityBalance = solidarityData?.paymasterHubContracts?.[0]?.solidarityBalance || '0';
-  const showSolidarityOnboarding = !isPasskeyUser && !isConnected && !hasStoredPasskey && BigInt(solidarityBalance) > 0n;
+  const solidarityBalance = solidarityData?.paymasterHubContracts?.[0]?.solidarityBalance;
+  let solidarityAvailable = false;
+  try { solidarityAvailable = solidarityBalance != null && BigInt(solidarityBalance) > 0n; } catch { /* Unavailable is not an observed zero. */ }
+  const showSolidarityOnboarding = !isPasskeyUser && !isConnected && !hasStoredPasskey && solidarityAvailable;
 
   const accountMenuItem = useMemo(() => {
     if (!isAuthHydrated) return { text: 'Account', onClick: () => setIsSignInOpen(true) };
+    if ((isConnected || isAuthenticated) && isAccountLoading) {
+      return { text: 'Loading', onClick: () => {} };
+    }
+    if ((isConnected || isAuthenticated) && hasAccount !== true && (hasAccount == null || isUnavailable)) {
+      return { text: 'Account unavailable · retry', onClick: refetchAccount };
+    }
     if (isPasskeyUser) {
       return { text: 'My account', onClick: () => router.push('/account') };
     }
@@ -42,11 +50,14 @@ export default function LandingAccountBridge() {
     if (isAccountLoading) {
       return { text: 'Loading', onClick: () => {} };
     }
-    if (hasAccount) {
+    if (hasAccount === true) {
       return { text: 'My account', onClick: () => router.push('/account') };
     }
+    if (hasAccount === null || isUnavailable) {
+      return { text: 'Account unavailable · retry', onClick: refetchAccount };
+    }
     return { text: 'Sign up', onClick: () => setIsSignupOpen(true) };
-  }, [isAuthHydrated, setIsSignInOpen, isPasskeyUser, isConnected, showSolidarityOnboarding, isAccountLoading, hasAccount, onOnboardingOpen, openConnectModal, router]);
+  }, [isAuthHydrated, setIsSignInOpen, isPasskeyUser, isAuthenticated, isConnected, showSolidarityOnboarding, isAccountLoading, hasAccount, isUnavailable, refetchAccount, onOnboardingOpen, openConnectModal, router]);
 
   useEffect(() => {
     setAccountNav({ preloadRuntime: () => { preloadRuntime().catch(() => {}); }, isAuthHydrated, isPasskeyUser, isConnected, isAuthenticated, accountMenuItem });

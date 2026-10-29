@@ -106,3 +106,15 @@ describe('parseFoldersRootStale', () => {
     expect(parseFoldersRootStale({ data: otherData })).toBeNull();
   });
 });
+
+
+describe('core folder diagnostic decoding', () => {
+  it('finds a folder CAS conflict wrapped by an executor CallFailed error', () => {
+    const wrapper = new ethers.utils.Interface(['error CallFailed(uint256 index, bytes reason)']);
+    const data = wrapper.encodeErrorResult('CallFailed', [2, STALE_DATA]);
+    expect(parseFoldersRootStale({ cause: { data } })).toEqual({ expected: EXPECTED, actual: ACTUAL });
+  });
+  it('keeps name-only legacy diagnostic hints safe to reload', () => {
+    expect(parseFoldersRootStale({ data: 'FoldersRootStale' })).toEqual({ expected: null, actual: null });
+  });
+});

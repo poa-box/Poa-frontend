@@ -10,8 +10,11 @@ import {
   VisuallyHidden,
 } from '@chakra-ui/react';
 import { formatTokenAmount } from '@/util/formatToken';
-import { getTokenByAddress } from '@/util/tokens';
-import { ACCENT, INK, SeriesDot, twoDp, UnitSpan } from '@/components/treasury/treasuryStyles';
+import { usePOContext } from '@/context/POContext';
+import { getNetworkByChainId } from '@/config/networks';
+import { treasuryHistorySummary } from '@/components/treasury/historySummary';
+import { getBountyTokenOptions, getTokenByAddress } from '@/util/tokens';
+import { ACCENT, INK, SeriesDot, UnitSpan } from '@/components/treasury/treasuryStyles';
 
 // Series hues validated against the card surface (see treasuryStyles.js).
 const COLORS = {
@@ -86,43 +89,29 @@ function ActivityChartSlot({ data }) {
 
 // ─── Main Component ───
 
-const HistoricalOverview = ({ distributions = [], payments = [] }) => {
-  // ─── Aggregate stats ───
+const HistoricalOverview = ({ distributions = [], payments = [], financialFacts }) => {
+  const { orgChainId } = usePOContext();
   const stats = useMemo(() => {
-    let totalReceived = 0;
-    let totalDistributed = 0;
-    let totalClaimed = 0;
-    let tokenSymbol = '';
-
-    payments.forEach(p => {
-      const token = getTokenByAddress(p.token);
-      if (!tokenSymbol && token.symbol !== 'ERC20') tokenSymbol = token.symbol;
-      totalReceived += parseFloat(formatTokenAmount(p.amount, token.decimals, 6));
-    });
-
-    distributions.forEach(d => {
-      const token = getTokenByAddress(d.payoutToken);
-      if (!tokenSymbol && token.symbol !== 'ERC20') tokenSymbol = token.symbol;
-      totalDistributed += parseFloat(formatTokenAmount(d.totalAmount, token.decimals, 6));
-      totalClaimed += parseFloat(formatTokenAmount(d.totalClaimed || '0', token.decimals, 6));
-    });
-
-    return {
-      totalReceived: totalReceived.toFixed(4),
-      totalDistributed: totalDistributed.toFixed(4),
-      totalClaimed: totalClaimed.toFixed(4),
-      claimRate: totalDistributed > 0 ? ((totalClaimed / totalDistributed) * 100).toFixed(0) : '0',
-      tokenSymbol: tokenSymbol || 'tokens',
-      distributionCount: distributions.length,
-      paymentCount: payments.length,
-    };
-  }, [distributions, payments]);
+    const network = getNetworkByChainId(orgChainId);
+    if (!network) return { state: 'unknown' };
+    const assets = getBountyTokenOptions(orgChainId).map(token => ({ ...token, address: token.address.toLowerCase(), chainId: orgChainId }));
+    assets.push({ chainId: orgChainId, address: '0x0000000000000000000000000000000000000000',
+      decimals: network.nativeCurrency.decimals, symbol: network.nativeCurrency.symbol });
+    return treasuryHistorySummary(financialFacts, assets);
+  }, [financialFacts, orgChainId]);
+  const totalDisplay = key => stats.state !== 'known' ? 'Unavailable' : stats.assets.length === 0 ? '0' :
+    stats.assets.map(row => <Text as="span" display="block" key={row.asset.address}>
+      {formatTokenAmount(row[key], row.asset.decimals, 4)} <UnitSpan>{row.asset.symbol}</UnitSpan>
+    </Text>);
 
   // ─── Timeline data (daily events) ───
   const timelineData = useMemo(() => {
+    if (stats.state !== 'known' || stats.assets.length !== 1) return [];
+    const address = stats.assets[0].asset.address.toLowerCase();
     const days = {};
 
-    payments.forEach(p => {
+    payments.filter(p => p.token?.toLowerCase() === address).forEach(p => {
+      if (!p.receivedAt) return;
       const date = new Date(parseInt(p.receivedAt) * 1000);
       const key = date.toISOString().split('T')[0];
       const token = getTokenByAddress(p.token);
@@ -132,7 +121,8 @@ const HistoricalOverview = ({ distributions = [], payments = [] }) => {
       days[key].received += amount;
     });
 
-    distributions.forEach(d => {
+    distributions.filter(d => d.payoutToken?.toLowerCase() === address).forEach(d => {
+      if (!d.createdAt) return;
       const timestamp = d.createdAt;
       const date = new Date(parseInt(timestamp) * 1000);
       const key = date.toISOString().split('T')[0];
@@ -151,9 +141,9 @@ const HistoricalOverview = ({ distributions = [], payments = [] }) => {
         received: parseFloat(d.received.toFixed(4)),
         distributed: parseFloat(d.distributed.toFixed(4)),
       }));
-  }, [distributions, payments]);
+  }, [distributions, payments, stats]);
 
-  if (distributions.length === 0 && payments.length === 0) {
+  if (stats.state === 'known' && stats.distributionCount === 0 && stats.paymentCount === 0) {
     return (
       <VStack py={8}>
         <Text color={INK.secondary} fontSize="sm">No financial activity yet</Text>
@@ -170,23 +160,20 @@ const HistoricalOverview = ({ distributions = [], payments = [] }) => {
       <SimpleGrid columns={{ base: 1, sm: 3 }} spacing={4}>
         <StatTile
           label="Total received"
-          value={twoDp(stats.totalReceived)}
-          unit={stats.tokenSymbol}
-          subtext={`${stats.paymentCount} deposit${stats.paymentCount !== 1 ? 's' : ''}`}
+          value={totalDisplay('totalReceived')}
+          subtext={stats.state === 'known' ? `${stats.paymentCount} deposit${stats.paymentCount !== 1 ? 's' : ''}` : 'Complete deposit history unavailable'}
           dot={COLORS.inflow}
         />
         <StatTile
           label="Shared with members"
-          value={twoDp(stats.totalDistributed)}
-          unit={stats.tokenSymbol}
-          subtext={`${stats.distributionCount} payout${stats.distributionCount !== 1 ? 's' : ''}`}
+          value={totalDisplay('totalDistributed')}
+          subtext={stats.state === 'known' ? `${stats.distributionCount} payout${stats.distributionCount !== 1 ? 's' : ''}` : 'Complete payout history unavailable'}
           dot={COLORS.outflow}
         />
         <StatTile
           label="Claimed by members"
-          value={twoDp(stats.totalClaimed)}
-          unit={stats.tokenSymbol}
-          subtext={`${stats.claimRate}% of what was shared`}
+          value={totalDisplay('totalClaimed')}
+          subtext={stats.state === 'known' && stats.assets.length === 1 ? `${stats.assets[0].claimRate}% of what was shared` : 'Amounts kept separate for each asset'}
         />
       </SimpleGrid>
 
@@ -195,7 +182,7 @@ const HistoricalOverview = ({ distributions = [], payments = [] }) => {
         <Box>
           <ActivityChartSlot data={timelineData} />
           <Text fontSize="xs" color={INK.muted} mt={2}>
-            Amounts shown in the org&apos;s main payout token.
+            Recent indexed activity in {stats.assets[0]?.asset.symbol}.
           </Text>
         </Box>
       )}

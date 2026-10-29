@@ -1,84 +1,33 @@
-/**
- * accessV2/roleFormBatch — ONE encoder for "create a role or a group", shared by both doors.
- *
- * PURE. There are two places in the app where a member can bring a new role into existence —
- * /team's RolesGroupsPanel and the Create-a-Vote wizard's "Create a role or group" intent — and
- * they used to disagree about what a role even is: the /team wizard could not set vouching, task
- * permissions or voting power; the vote wizard could not make a GROUP; neither could give the new
- * role a say in binding votes. Both now render `components/accessV2/RoleForm` and both encode
- * through this function, so a role created from either door is the same role.
- *
- * Four things this adds over `buildCreateRoleBatch` / `buildCreateGroupBatch` alone, all of which
- * are silent when missing rather than loud:
- *
- * 1. BINDING-VOTE POWER. A subject with every permission in the catalogue still has ZERO votes in
- *    a Blended (HybridVoting) vote until it is in a voting CLASS — `addHatToClass(classIdx,
- *    subjectId)`, executor-gated, keyed by subject ids on a v2 org (lib/voting/votingClasses).
- *    Nothing about the authority tells you this; the role simply never counts.
- * 2. THE TWO TASKMANAGER GRANTS THAT SURVIVED V2. `TaskManager._permMask` stops reading its
- *    ROLE_PERM table once an authority is set, but `setConfig(CREATOR_HAT_ALLOWED | ORGANIZER_HAT
- *    _ALLOWED)` keeps both enumerations and folds AUTHORITY membership over them
- *    (`_authorityHoldsAny`) — so those two are still setConfig calls, keyed by the SUBJECT id.
- * 3. THE VOUCH LINTS. The contract emits them as non-reverting events AFTER the write; showing
- *    them before the vote is opened is the only time anyone can act on them (lib/accessV2/vouch).
- * 4. THE BATCH CEILING. Both voting modules revert `TooManyCalls` above 20 AT PROPOSAL CREATION,
- *    and a role with a dozen permissions, a group, vouching and six people gets there — so the
- *    preflight runs here and the caller can refuse before the member has walked the whole form.
- *
- * The id-prediction RACE is inherited from the builders and must be surfaced: another open
- * subject-creating proposal executing first shifts the predicted id, and every downstream call in
- * this batch then lands on the wrong subject, with no revert (lib/accessV2/proposalRace).
- */
+/** Controlled role form validation and product presentation. Core owns protocol planning. */
 
-import { utils, constants } from 'ethers';
-import { buildCreateRoleBatch, buildCreateGroupBatch, mergeBatches } from '@/lib/accessV2/proposalBuilders';
-import { checkBatchSubmittable } from '@/lib/accessV2/submission';
-import { predictLints } from '@/lib/accessV2/vouch';
+import { MAX_SPONSORED_CALLS, checkBatchSubmittable } from '@/lib/accessV2/submission';
 import {
-  buildClassVoterCall,
   classByIndex,
-  classLabel,
   classVoterSummary,
   contractClassIndex,
   directClassIndex,
 } from '@/lib/voting/votingClasses';
 import { describePermChanges, permChangeSummaries } from '@/config/setterDefinitions';
 import {
-  dedupeDomains,
-  dedupeEmails,
   domainError,
   emailError,
   joinMethods,
   joinConfigError,
   usesEmailEligibility,
-  EMAIL_ELIGIBILITY_UNAVAILABLE,
 } from '@/lib/accessV2/joinConfig';
-import { buildSetOrgMetadataAdminCall, canSetOrgMetadataAdmin } from '@/lib/accessV2/orgAdmin';
-import { DEFAULT_SPONSORSHIP, PAYMASTER_SUBJECT_TYPE, sponsorshipError, buildSubjectBudgetCall, buildPasskeyRulesCall } from '@/lib/accessV2/sponsorship';
+import { DEFAULT_SPONSORSHIP, sponsorshipError } from '@/lib/accessV2/sponsorship';
 import { PERM_KEYS } from '@/lib/accessV2/permKeys';
-import { buildSetManagerConfig } from '@/lib/accessV2/txBuilders';
-import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 // Re-exported so the two doors (and their tests) keep one import for everything class-related.
 export { classByIndex, contractClassIndex };
-import { toAddressSet } from '@/lib/voting/v2VoteActions';
 
 export const ROLE_FORM_KIND = Object.freeze({ ROLE: 'role', GROUP: 'group' });
 
-/** TaskManager.ConfigKey — the two org-wide task grants that are still LIVE on a v2 org. */
-export const TM_CONFIG_KEY = Object.freeze({
-  CREATOR_HAT_ALLOWED: 1,
-  ORGANIZER_HAT_ALLOWED: 7,
-});
-
-export const taskManagerConfigInterface = new utils.Interface([
-  'function setConfig(uint8 key, bytes value)',
-]);
-export const roleEmailConfigInterface = new utils.Interface([
-  'function setActiveAllowlist(bytes32 root, bytes32 cid)',
-  'function setHatMinterAuthorization(address minter, bool authorized)',
-]);
-const PREVIEW_COMMITMENT = `0x${'01'.repeat(32)}`;
+/** Shared ballot copy for the visible review and actual proposal payload. */
+export const roleOptionNames = ({ stage, kind }) => stage === 'existing'
+  ? ['Apply settings', 'Reject'] : kind === ROLE_FORM_KIND.GROUP
+    ? ['Create group', 'Reject'] : ['Create role', 'Reject'];
 
 const MAX_SEATS = 4294967295;
 const isAddress = (a) => typeof a === 'string' && /^0x[0-9a-fA-F]{40}$/.test(a) && !/^0x0{40}$/i.test(a);
@@ -107,6 +56,7 @@ function pickedClassIdx(value) {
 export function defaultRoleForm() {
   return {
     kind: ROLE_FORM_KIND.ROLE,
+    creationMode: 'staged',
     name: '',
     description: '',
     imageURI: '',
@@ -169,6 +119,13 @@ export function normalizeRoleForm(form = {}) {
     f.groupIds = [];
     delete f.perms.QJ_AUTOJOIN;
   }
+  // Optional organization-wide changes require their own visible consent. Turning
+  // a parent off discards hidden choices, including when restoring an older draft.
+  f.sponsorship.includeConfiguredEmailRules = f.sponsorship.enabled && f.sponsorship.supportPasskeys
+    && f.sponsorship.includeConfiguredEmailRules === true;
+  f.sponsorship.initializeClaimBudget = f.sponsorship.enabled && f.sponsorship.supportPasskeys
+    && (f.sponsorship.includeConfiguredEmailRules || f.join.domains.length > 0 || f.emailInvites.length > 0)
+    && f.sponsorship.initializeClaimBudget === true;
   return f;
 }
 
@@ -184,13 +141,6 @@ export function effectiveMaxMembers(form) {
 }
 
 /** Does this form ask for anything the DefaultAllowStrongPerms lint cares about? */
-function hasStrongPerms(form) {
-  const f = normalizeRoleForm(form);
-  const anyPerm = Object.values(f.perms || {}).some((v) => (typeof v === 'number' ? v > 0 : Boolean(v)));
-  const anyProject = (f.projectPerms || []).some((p) => Number(p?.mask) > 0);
-  return anyPerm || anyProject || f.canCreateTasks || f.canOrganizeFolders || f.bindingVote;
-}
-
 // ── Validation ────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -362,6 +312,8 @@ export function roleFormCopy(form) {
   const f = normalizeRoleForm(form);
   const name = trimmed(f.name);
   if (!name) return { title: '', description: '' };
+  if (f.continuationId) return { title: `Configure ${f.kind}: ${name}`, description: `Apply the reviewed settings for the existing ${f.kind} “${name}”. This is the second vote; the ${f.kind} has already been created.` };
+  const staged = f.creationMode !== 'compound';
 
   if (f.kind === ROLE_FORM_KIND.GROUP) {
     const count = (f.memberRoleIds || []).length;
@@ -370,13 +322,14 @@ export function roleFormCopy(form) {
       description:
         `Create the group “${name}”`
         + (count ? ` with ${count} role${count === 1 ? '' : 's'} in it` : '')
-        + '. Every role in a group gets the group’s permissions.',
+        + '. Every role in a group gets the group’s permissions.'
+        + (staged ? ' This vote creates the group with its selected roles in it. Any additional selected settings are saved for a separate configuration vote after creation.' : ''),
     };
   }
 
   const bits = [];
   if (f.openRole) bits.push('anyone can claim it');
-  if (f.limitSeats && Number(f.maxMembers) > 0) bits.push(`${Math.floor(Number(f.maxMembers))} seats`);
+  const seats = f.limitSeats && Number(f.maxMembers) > 0 ? Math.floor(Number(f.maxMembers)) : null;
   if (f.vouching?.enabled) {
     const q = Number(f.vouching.quorum) || 1;
     bits.push(`${q} vouch${q === 1 ? '' : 'es'} to join`);
@@ -387,7 +340,8 @@ export function roleFormCopy(form) {
 
   return {
     title: `${ROLE_TITLE_PREFIX}${name}`,
-    description: `Create the role “${name}”${bits.length ? ` — ${bits.join(', ')}` : ''}.`,
+    description: `Create the role “${name}”${seats ? ` with ${seats} seats` : ''}${bits.length ? ` — ${staged ? 'requested settings for a separate second vote: ' : ''}${bits.join(', ')}` : ''}.`
+      + (staged ? ' This vote creates the role with its details and seat limit. Any additional selected settings are saved for a separate configuration vote after creation.' : ''),
   };
 }
 
@@ -414,11 +368,16 @@ export function resolveBindingClassIdx(form, votingClasses = []) {
  * one line with the same sentences the change-permissions template writes, so a role created
  * here and a role edited there read the same way on the ballot.
  */
-const PERM_COUNT_LINE = /^Give (it|the group) \d+ permissions?/;
 
-function describePerms(form, name) {
+const ownershipCopy = (line, tokenLabel) => line.replace(/participation tokens|share requests|shares/gi,
+  match => /requests/i.test(match) ? `${tokenLabel} requests` : tokenLabel);
+
+function describePerms(form, name, tokenLabel) {
   const f = normalizeRoleForm(form);
-  const out = permChangeSummaries(name, describePermChanges({}, f.perms));
+  const changes = describePermChanges({}, f.perms);
+  const labelled = Object.fromEntries(Object.entries(changes).map(([key, phrases]) => [key,
+    Array.isArray(phrases) ? phrases.map(phrase => ownershipCopy(phrase, tokenLabel)) : phrases]));
+  const out = permChangeSummaries(name, labelled);
   const projects = (f.projectPerms || []).filter(
     (p) => (Number(p?.mask) > 0 || p?.inheritGlobal === false) && p.projectId !== null && p.projectId !== undefined && p.projectId !== ''
   );
@@ -432,381 +391,70 @@ function describePerms(form, name) {
   return out;
 }
 
-/** The two TaskManager `setConfig` grants, keyed by the new subject id. */
-function buildTaskManagerGrants({ taskManagerAddress, subjectId, canCreateTasks, canOrganizeFolders }) {
-  const batch = [];
-  const summaries = [];
-  const warnings = [];
-  const wanted = Boolean(canCreateTasks) || Boolean(canOrganizeFolders);
-  if (!wanted) return { batch, summaries, warnings };
-
-  if (!taskManagerAddress) {
-    warnings.push(
-      'This group has no task manager set up, so the "create projects and tasks" and '
-      + '"organise the folder tree" permissions were left out.'
-    );
-    return { batch, summaries, warnings };
-  }
-
-  const grant = (key) => ({
-    target: taskManagerAddress,
-    value: '0',
-    data: taskManagerConfigInterface.encodeFunctionData('setConfig', [
-      key,
-      utils.defaultAbiCoder.encode(['uint256', 'bool'], [subjectId, true]),
-    ]),
-  });
-
-  if (canCreateTasks) {
-    batch.push(grant(TM_CONFIG_KEY.CREATOR_HAT_ALLOWED));
-    summaries.push('Let it create projects and tasks');
-  }
-  if (canOrganizeFolders) {
-    batch.push(grant(TM_CONFIG_KEY.ORGANIZER_HAT_ALLOWED));
-    summaries.push('Let it organise the project folders');
-  }
-  return { batch, summaries, warnings };
-}
-
-/** The one `addHatToClass` call that gives the new subject a say in binding votes. */
-function buildBindingVoteCall({ hybridVoting, votingClasses, form, subjectId, name }) {
+/** Adapt an opaque core review/preparation for the existing controlled UI and ballot.
+ * A review contains no executable batch. Only core preparation supplies final calldata.
+ * Form fields below describe requested settings; they never select a protocol planner. */
+export function buildRoleFormBatch({ form = {}, operation, nativeSymbol = 'native currency', votingClasses = [],
+  tokenLabel = DEFAULT_TOKEN_LABEL, review, preview = true } = {}) {
+  if (!operation) throw new Error('Refresh the current role settings and review this proposal before continuing.');
   const f = normalizeRoleForm(form);
-  const batch = [];
-  const summaries = [];
+  if (operation.status !== 'ready') return { batch: [], summaries: [], configurationSummaries: [], warnings: [],
+    createsSubject: false, kind: f.kind, stage: null, preview, plan: operation,
+    submittable: { ok: false, code: 'role-unavailable', message: 'Current role settings could not be verified. Refresh and review them again.' } };
+  const data = operation.data, mode = data.mode, group = f.kind === ROLE_FORM_KIND.GROUP;
+  const batch = preview ? [] : (data.batch || []).map(call => ({ target: call.target, value: String(call.value), data: call.calldata }));
+  const summaries = [`${mode === 'existing' ? 'Configure' : 'Create'} the ${group ? 'group' : 'role'} “${f.name}”`];
+  const reviewed = review || data;
+  const describe = effects => (effects || []).flatMap(({ field }) => {
+    if (field === 'maxMembers') return [effectiveMaxMembers(f) > 0 ? `Limit the role to ${effectiveMaxMembers(f)} members` : 'Set no limit on the number of members in this role'];
+    if (field === 'metadata') return [f.description ? `Set the ${group ? 'group' : 'role'} description to “${f.description}”` : `Clear the ${group ? 'group' : 'role'} description`];
+    if (field === 'imageURI') return [f.imageURI ? `Set the ${group ? 'group' : 'role'} image` : `Clear the ${group ? 'group' : 'role'} image`];
+    if (field === 'permissions') return describePerms(f, f.name, tokenLabel);
+    if (field === 'defaultAllow' && f.openRole) return ['Make it open — anyone in the org can join it'];
+    if ((field === 'groupIds' && f.groupIds.length) || (field === 'memberRoleIds' && f.memberRoleIds.length)) return ['Apply the selected role and group memberships'];
+    if (field === 'vouch' && f.vouching.enabled) return [`Allow joining with ${f.vouching.quorum} vouches`];
+    if (field === 'manager' && f.manager.enabled) return ['Let the selected membership manager manage this role or group'];
+    if (field === 'holders') return f.holders.map(holder => {
+      const accepted = reviewed.evidence?.context.data.accounts.find(row => lower(row.account) === lower(holder.address))?.acceptedAnywhere;
+      return `${accepted?.state !== 'known' ? 'Add or invite' : accepted.value ? 'Add' : 'Invite'} ${holder.name || holder.address}`;
+    });
+    if (field === 'taskGrants') return [f.canCreateTasks && 'Let it create projects and tasks', f.canOrganizeFolders && 'Let it organise the project folders'].filter(Boolean);
+    if (field === 'bindingClassIndex') {
+      return [classVoterSummary({ roleName: f.name, classIdx: resolveBindingClassIdx(f, votingClasses), tokenLabel,
+        votingClasses: reviewed.evidence?.context.data.hybrid?.classes || votingClasses })];
+    }
+    if (field === 'editOrgDetails' && f.editOrgDetails) return [`Let members of “${f.name}” edit the org’s name and details`];
+    if (field === 'sponsorship') return [
+      `Set a shared sponsorship limit of ${f.sponsorship.capNative} ${nativeSymbol} per ${f.sponsorship.epochDays} days`,
+      f.sponsorship.supportPasskeys && 'Sponsor membership actions with passkeys across the organization',
+      f.sponsorship.includeConfiguredEmailRules && 'Sponsor the organization’s configured verified email joining actions',
+      f.sponsorship.initializeClaimBudget && `If missing, start an email joining budget of ${f.sponsorship.capNative} ${nativeSymbol} per ${f.sponsorship.epochDays} days, shared across the organization`,
+    ].filter(Boolean);
+    if (field === 'emailAdditions') return [`Allow the selected verified email addresses and domains to claim “${f.name}”`];
+    return [];
+  });
+  const settings = describe(reviewed.currentEffects), deferred = describe(reviewed.deferredEffects);
   const warnings = [];
-
-  // OFF is the normal answer and gets no warning: on every org the Member role already sits in
-  // the one-member-one-vote class, so the people in a new role keep whatever vote their other
-  // roles give them. The old copy (“this role has no say in binding votes”) was false.
-  if (!f.bindingVote) return { batch, summaries, warnings };
-
-  const classIdx = resolveBindingClassIdx(f, votingClasses);
-  if (classIdx < 0) {
-    warnings.push(
-      'This org has no one-member-one-vote class to join, so the new role was not given a vote '
-      + 'in binding votes.'
-    );
-    return { batch, summaries, warnings };
+  for (const consequence of data.consequences || operation.consequences || []) {
+    const copy = {
+      SUBJECT_CREATION_RACE: 'Another role or group creation executing first can change the role id. Coordinate these votes before execution.',
+      REPLACE_ORG_METADATA_ADMIN: 'This replaces the organization’s current role for editing its name and details.',
+      SHARED_SPONSORSHIP_BUDGET: 'The sponsorship limit is shared by everyone in this role or group.',
+      INITIALIZE_EMAIL_CLAIM_BUDGET: 'This starts a shared email joining budget for new members across the organization.',
+      ALLOWLIST_EXECUTION_RACE: 'Other email joining changes may require this vote to be reviewed again before it runs.',
+    }[consequence.code];
+    if (copy) warnings.push(copy);
   }
-  if (!hybridVoting) {
-    warnings.push(
-      'This org’s binding-vote contract hasn’t loaded, so the new role was not given a vote in '
-      + 'binding votes.'
-    );
-    return { batch, summaries, warnings };
-  }
-
-  // A pick that outlived the org's classes (a draft from before a `setClasses` vote) would
-  // revert `InvalidClassCount` inside announceWinner and take the WHOLE batch down with it —
-  // role, permissions and holders — while the vote reads as passed. Drop the call instead.
-  const cls = classByIndex(votingClasses, classIdx);
-  if ((votingClasses || []).length > 0 && !cls) {
-    warnings.push(
-      'The group of voters this role was to join no longer exists, so it was not given a vote in '
-      + 'binding votes. Pick another one.'
-    );
-    return { batch, summaries, warnings };
-  }
-
-  try {
-    batch.push(buildClassVoterCall({ hybridVoting, classIdx, subjectId, add: true }));
-  } catch (err) {
-    warnings.push(err?.message || 'Could not add the new role to a group of voters.');
-    return { batch: [], summaries: [], warnings };
-  }
-
-  summaries.push(classVoterSummary({ roleName: name, classIdx, votingClasses, add: true }));
-  // An EMPTY class is open to every address on chain (HybridVotingCore `if (n == 0) return
-  // true`); the first role added closes it. Voters should know that is what they decide.
-  if (cls && (cls.hatIds || []).length === 0) {
-    warnings.push(
-      `${classLabel(cls, classIdx, { withShare: false })} is currently open to everyone (no role is listed), `
-      + `so this limits that part of every binding vote to “${name}”.`
-    );
-  }
-  return { batch, summaries, warnings };
-}
-
-/**
- * FORM -> one governance batch.
- *
- * @param {object} opts
- * @param {string} opts.authority - MembershipAuthority address
- * @param {string} [opts.hybridVoting] - the org's HybridVoting, for the class call
- * @param {string} [opts.taskManagerAddress]
- * @param {Array} [opts.indexedSubjects] - EVERY indexed subject, for the id prediction
- * @param {Array} [opts.activeProposals] - in-flight proposals, for the id-race warning
- * @param {Set<string>|Array} [opts.inOrgUsers] - the contract's `_isInOrg` set (grant vs offer)
- * @param {Array} [opts.votingClasses] - the org's HybridVoting classes
- * @param {object} opts.form - a RoleForm value
- * @param {string} [opts.metadataCID] - bytes32 CID for `{ name, description }`
- * @returns {{batch: Array, summaries: string[], warnings: string[], gasLimit: number,
- *           predictedSubjectId: string, kind: string, createsSubject: boolean,
- *           submittable: {ok: boolean, code: string|null, message: string|null}}}
- */
-export function buildRoleFormBatch({
-  authority,
-  hybridVoting = '',
-  taskManagerAddress = '',
-  orgRegistry = '',
-  orgId = '',
-  paymasterHub = '',
-  sponsorshipConfig = null,
-  nativeSymbol = 'native tokens',
-  zkEmailAddress = '',
-  emailConfig = null,
-  emailAllowlist = null,
-  executor = '',
-  preview = false,
-  indexedSubjects = [],
-  activeProposals = [],
-  inOrgUsers = null,
-  votingClasses = [],
-  form = {},
-  metadataCID = null,
-} = {}) {
-  if (!authority) {
-    throw new Error('This org’s roles contract hasn’t loaded yet — please try again in a moment.');
-  }
-
-  const f = normalizeRoleForm(form);
-  // Encoding has the same validation as the visible form. A missing class pick may resolve to
-  // the current DIRECT class; every other invalid field must stop instead of being rounded/dropped.
-  const resolvedClass = f.bindingVote ? resolveBindingClassIdx(f, votingClasses) : f.bindingClassIdx;
-  const validationForm = { ...f, bindingVote: f.bindingVote && resolvedClass >= 0, bindingClassIdx: resolvedClass };
-  const formError = roleFormError(validationForm);
-  if (formError) throw new Error(formError);
-  const group = f.kind === ROLE_FORM_KIND.GROUP;
-  const name = trimmed(f.name);
-  const inOrg = toAddressSet(inOrgUsers);
-
-  const projectPerms = (f.projectPerms || [])
-    .filter((p) => p && p.projectId !== null && p.projectId !== undefined && p.projectId !== '')
-    .map((p) => ({ projectId: p.projectId, mask: Number(p.mask) || 0, inheritGlobal: p.inheritGlobal !== false }));
-
-  const holders = (f.holders || [])
-    .filter((h) => h && isAddress(h.address))
-    .map((h) => ({
-      address: h.address,
-      name: h.name || '',
-      inOrg: inOrg.has(lower(h.address)),
-      // Someone put into a role at creation can still resign from it — only an elected seat is
-      // locked to governance. The People step can still opt in per person.
-      sticky: Boolean(h.sticky),
-    }));
-
-  const shared = {
-    authority,
-    existingSubjects: indexedSubjects,
-    activeProposals,
-  };
-  const metadata = metadataCID ? { metadataCID } : {};
-
-  const base = group
-    ? buildCreateGroupBatch({
-      ...shared,
-      config: {
-        name,
-        imageURI: f.imageURI || '',
-        ...metadata,
-        memberRoleIds: [...new Set((f.memberRoleIds || []).map((id) => String(id)))],
-        perms: f.perms,
-        projectPerms,
-      },
-    })
-    : buildCreateRoleBatch({
-      ...shared,
-      config: {
-        name,
-        imageURI: f.imageURI || '',
-        ...metadata,
-        maxMembers: effectiveMaxMembers(f),
-        defaultAllow: Boolean(f.openRole),
-        groupIds: [...new Set((f.groupIds || []).map((id) => String(id)))],
-        perms: f.perms,
-        projectPerms,
-        vouch: f.vouching?.enabled
-          ? {
-            quorum: Number(f.vouching.quorum) || 1,
-            voucherSubjectId: f.vouching.voucherSubjectId || 0,
-            selfVouch: Boolean(f.vouching.selfVouch),
-          }
-          : null,
-        manager: f.manager.enabled ? f.manager : null,
-        initialHolders: holders,
-      },
-    });
-
-  const subjectId = base.subjectId;
-  const groupManager = { batch: [], summaries: [] };
-  if (group && f.manager.enabled) {
-    groupManager.batch.push(buildSetManagerConfig(authority, subjectId, f.manager));
-    groupManager.summaries.push('Let the selected membership manager manage the roles in this group');
-  }
-
-  const taskGrants = buildTaskManagerGrants({
-    taskManagerAddress,
-    subjectId,
-    canCreateTasks: f.canCreateTasks,
-    canOrganizeFolders: f.canOrganizeFolders,
-  });
-
-  const binding = buildBindingVoteCall({
-    hybridVoting,
-    votingClasses,
-    form: f,
-    subjectId,
-    name: name || 'this role',
-  });
-
-  const contextErrors = [];
-  // This designation can be a role OR a group: OrgRegistry resolves the opaque subject via router.
-  const orgDetails = { batch: [], summaries: [], warnings: [] };
-  if (f.editOrgDetails) {
-    if (canSetOrgMetadataAdmin({ orgRegistry, orgId })) {
-      orgDetails.batch.push(buildSetOrgMetadataAdminCall({ orgRegistry, orgId, subjectId }));
-      orgDetails.summaries.push(`Let members of “${name}” edit the org’s name and details`);
-      orgDetails.warnings.push(
-        'The org has one role or group designated to edit its details. This replaces the current designation.'
-      );
-    } else {
-      contextErrors.push('The org registry must load before editing org details can be assigned.');
-    }
-  }
-
-  const sponsorship = { batch: [], summaries: [], warnings: [] };
-  if (f.sponsorship.enabled) {
-    if (!isAddress(paymasterHub) || !sponsorshipConfig?.ready || !sponsorshipConfig?.canConfigure) {
-      contextErrors.push(sponsorshipConfig?.error || 'Gas sponsorship is not ready or this org’s voting executor cannot configure it.');
-    } else {
-      sponsorship.batch.push(buildSubjectBudgetCall({ paymasterHub, orgId, subjectId, config: f.sponsorship }));
-      sponsorship.summaries.push(`Set a shared gas sponsorship limit of ${f.sponsorship.capNative} ${nativeSymbol} per ${f.sponsorship.epochDays} days for “${name}”`);
-      if (f.sponsorship.supportPasskeys) {
-        sponsorship.batch.push(buildPasskeyRulesCall({ paymasterHub, orgId, authority, zkEmailAddress, orgRegistry, editOrgDetails: f.editOrgDetails }));
-        sponsorship.summaries.push('Enable org sponsorship rules for passkey membership actions and configured email claims');
-        if (!group && usesEmailEligibility(f)) {
-          if (sponsorshipConfig.claimBudgetMissing === true && isAddress(zkEmailAddress)) {
-            sponsorship.batch.push(buildSubjectBudgetCall({
-              paymasterHub, orgId, subjectId: zkEmailAddress, config: f.sponsorship,
-              subjectType: PAYMASTER_SUBJECT_TYPE.CLAIM,
-            }));
-            sponsorship.summaries.push(`Initialize the org’s shared email-claim gas budget at ${f.sponsorship.capNative} ${nativeSymbol} per ${f.sponsorship.epochDays} days`);
-          } else if (sponsorshipConfig.claimBudgetMissing !== false) {
-            contextErrors.push('The org’s email-claim gas budget must be checked before enabling passkey email joining.');
-          }
-        }
-      }
-      sponsorship.warnings.push('Gas sponsorship also needs available org funds and compatible fee limits. These limits are shared by all members of the role or group.');
-    }
-  }
-
-  const inviteDomains = group ? [] : dedupeDomains(f.join?.domains);
-  const inviteEmails = group ? [] : dedupeEmails((f.emailInvites || []).map((e) => e?.email ?? e));
-  const invitePlan = { domains: inviteDomains, emails: inviteEmails };
-  const email = { batch: [], summaries: [], warnings: [] };
-  if (!group && usesEmailEligibility(f)) {
-    if (!isAddress(zkEmailAddress) || !emailConfig?.ready || !emailConfig.enabled || !emailConfig.authorityMatches) {
-      contextErrors.push(emailConfig?.error || EMAIL_ELIGIBILITY_UNAVAILABLE);
-    } else {
-      if (inviteDomains.length && emailConfig.domainEnabled === false) contextErrors.push('This org’s email-domain verifier is not configured.');
-      if (inviteEmails.length && emailConfig.emailEnabled === false) contextErrors.push('This org’s specific-email verifier is not configured.');
-      // Authorizing the existing org module enables MembershipAuthority.setEmailVerified and
-      // Executor.mintHatsForUser. It does not change the Executor's authority/router wiring.
-      if (emailConfig.minterAuthorized === false) {
-        if (!isAddress(executor)) contextErrors.push('The org executor must load before email joining can be enabled.');
-        else email.batch.push({ target: executor, value: '0', data: roleEmailConfigInterface.encodeFunctionData('setHatMinterAuthorization', [zkEmailAddress, true]) });
-      } else if (emailConfig.minterAuthorized !== true) {
-        contextErrors.push('Email joining authorization has not loaded.');
-      }
-      let root = emailAllowlist?.root;
-      let cid = emailAllowlist?.cid;
-      if (emailAllowlist && String(emailAllowlist.subjectId || '') !== subjectId) {
-        contextErrors.push('The role id changed while preparing email invites. Refresh and review the proposal again.');
-      } else if (!root || !cid) {
-        if (preview) { root = PREVIEW_COMMITMENT; cid = PREVIEW_COMMITMENT; }
-        else contextErrors.push('Prepare the merged email allowlist before submitting this proposal.');
-      }
-      if (root && cid) {
-        try {
-          if (!utils.isHexString(root, 32) || root === constants.HashZero) throw new Error();
-          // The general CID utility hashes arbitrary strings as a fallback; that is unsafe for
-          // a committed allowlist because it produces a CID that can never be fetched.
-          if (!utils.isHexString(cid, 32) && !/^Qm[1-9A-HJ-NP-Za-km-z]{44}$/.test(cid)) throw new Error();
-          const cidBytes = utils.isHexString(cid, 32) ? cid : ipfsCidToBytes32(cid);
-          if (!utils.isHexString(cidBytes, 32) || cidBytes === constants.HashZero) throw new Error();
-          email.batch.push({ target: zkEmailAddress, value: '0', data: roleEmailConfigInterface.encodeFunctionData('setActiveAllowlist', [root, cidBytes]) });
-        } catch { contextErrors.push('The prepared email allowlist has an invalid root or content address.'); }
-      }
-      if (inviteDomains.length) email.summaries.push(`Allow verified emails from ${inviteDomains.join(', ')} to claim “${name}”`);
-      if (inviteEmails.length) email.summaries.push(`Allow ${inviteEmails.length} specific email address${inviteEmails.length === 1 ? '' : 'es'} to claim “${name}” after proving ownership`);
-      email.warnings.push('This merges the org’s current email allowlist. Another email-list vote executing first can make the list stale; coordinate those votes before execution.');
-    }
-  }
-
-  const merged = mergeBatches(base, groupManager, taskGrants, binding, orgDetails, sponsorship, email);
-  const warnings = [...merged.warnings];
-
-  // The config-time lints the contract emits AFTER the write. Shown here, before the vote opens,
-  // is the only moment anyone can act on them.
-  if (!group) {
-    const lints = predictLints({
-      defaultAllow: Boolean(f.openRole),
-      vouchQuorum: f.vouching?.enabled ? Number(f.vouching.quorum) || 1 : 0,
-      maxMembers: effectiveMaxMembers(f),
-      hasStrongPerms: hasStrongPerms(f),
-      voucherSubjectId: f.vouching?.enabled && f.vouching.selfVouch
-        ? subjectId
-        : f.vouching?.voucherSubjectId,
-      subjectId,
-    });
-    for (const lint of lints) warnings.push(lint.message);
-  }
-
-  // A kind switch can leave the other kind's answers behind. They are dropped rather than
-  // encoded — say so instead of silently losing people.
-  if (group && (form.holders || []).some((h) => isAddress(h?.address))) {
-    warnings.push(
-      'Groups have no members of their own — the people you listed were left out. Add them to one '
-      + 'of the roles in this group instead.'
-    );
-  }
-
-  // NOT folded into `warnings`: a batch over the on-chain ceiling is unsubmittable, and both
-  // doors gate on `submittable.ok` — a sentence in the ballot metadata would be read by voters of
-  // a proposal that could never have been created.
-  //
-  // The same gate refuses a form whose answers the encoder had to DROP because a contract address
-  // had not loaded: proposing “a role that votes” without the addHatToClass call, or “creates
-  // tasks” without the TaskManager grants, is a different role from the one on screen.
-  const missingContext = [];
-  if (f.bindingVote && !hybridVoting) missingContext.push('binding-vote contract');
-  if (f.bindingVote && (!classByIndex(votingClasses, resolveBindingClassIdx(f, votingClasses)) || !binding.batch.length)) {
-    contextErrors.push('The selected group of voters no longer exists. Choose an available voting group.');
-  }
-  if ((f.canCreateTasks || f.canOrganizeFolders) && !taskManagerAddress) missingContext.push('task manager');
-  const submittable = missingContext.length
-    ? {
-      ok: false,
-      code: 'context-missing',
-      message: `This org’s ${missingContext.join(' and ')} hasn’t loaded, so this can’t be proposed yet — give it a moment.`,
-    }
-    : contextErrors.length
-      ? { ok: false, code: 'context-missing', message: contextErrors.join(' ') }
-      : checkBatchSubmittable(merged.batch);
-
-  return {
-    batch: merged.batch,
-    summaries: merged.summaries.flatMap((s) => (PERM_COUNT_LINE.test(s) ? describePerms(f, name) : [s])),
-    warnings,
-    invitePlan,
-    preview: Boolean(preview),
-    joinSummary: group ? [] : joinMethods(f),
-    gasLimit: merged.gasLimit,
-    predictedSubjectId: subjectId,
-    kind: f.kind,
-    createsSubject: true,
-    submittable,
-  };
+  if (data.requiresConfiguration && mode === 'create') warnings.push('Step 1 of 2: this vote creates the role or group. After it passes and runs, use Finish configuration on the voting page to review and submit a separate vote for your saved settings. Nobody is added and permissions are not granted by this first vote.');
+  return { batch, summaries: [...summaries, ...settings],
+    configurationSummaries: deferred, warnings, plan: operation,
+    fingerprint: data.fingerprint, predictedSubjectId: data.predictedSubjectId || null, subjectId: mode === 'existing' ? data.subjectId : null,
+    stage: mode, requiresConfiguration: data.requiresConfiguration, kind: f.kind,
+    createsSubject: preview ? data.preview.createsSubject : mode !== 'existing',
+    gasLimit: 400_000 + 250_000 * (preview ? data.preview.callCount : batch.length),
+    joinSummary: group ? [] : joinMethods(f), preview,
+    submittable: preview ? { ok: Number.isSafeInteger(data.preview.callCount) && data.preview.callCount > 0 && data.preview.callCount <= MAX_SPONSORED_CALLS,
+      message: `A vote can include at most ${MAX_SPONSORED_CALLS} steps. Split these settings into separate votes.` } : checkBatchSubmittable(batch) };
 }
 
 export default buildRoleFormBatch;

@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { ethers } from 'ethers';
+import { encodePaymasterData, encodeAccountPaymasterData, encodeClaimPaymasterData, encodeSolidarityOnboardingPaymasterData, encodeOrgDeployPaymasterData } from '@/services/web3/passkey/paymasterData';
 import {
   budgetRejection,
   budgetVerdict,
+  checkSponsorship,
   initCodeOf,
   isPaymasterRejection,
   parsePaymasterData,
@@ -42,6 +45,43 @@ describe('parsePaymasterData', () => {
     expect(parsePaymasterData('0x01')).toBeNull();
     expect(parsePaymasterData(undefined)).toBeNull();
     expect(parsePaymasterData(PAYMASTER_DATA + '00')).toBeNull();
+  });
+});
+
+describe('canonical sponsorship payload and budget integration', () => {
+  const account = '0x1111111111111111111111111111111111111111';
+  const zero = ethers.constants.HashZero;
+
+  it('encodes all host sponsorship modes with exact uint64 mailbox commitments', () => {
+    const mailbox = '9007199254740993123';
+    const payload = encodePaymasterData({ orgId: ORG, subjectType: 1, subjectId: HAT, ruleId: 4294967295, mailboxCommit: mailbox });
+    expect(payload).toBe(ethers.utils.solidityPack(['uint8', 'bytes32', 'uint8', 'bytes32', 'uint32', 'uint64'], [1, ORG, 1, HAT, 4294967295, mailbox]));
+    expect(parsePaymasterData(payload).mailboxCommit).toBe(mailbox);
+    expect(parsePaymasterData(encodeAccountPaymasterData({ accountAddress: account, orgId: ORG })).subjectId).toBe(ethers.utils.hexZeroPad(account, 32));
+    expect(parsePaymasterData(encodeClaimPaymasterData({ claimTarget: account, orgId: ORG })).subjectType).toBe(5);
+    expect(parsePaymasterData(encodeSolidarityOnboardingPaymasterData())).toMatchObject({ subjectType: 3, orgId: zero, subjectId: zero });
+    expect(parsePaymasterData(encodeOrgDeployPaymasterData())).toMatchObject({ subjectType: 4, orgId: zero, subjectId: zero });
+  });
+
+  it('rejects unsupported versions, overflowing subjects/rules/mailbox and nonzero solidarity identities', () => {
+    expect(parsePaymasterData(`0x02${PAYMASTER_DATA.slice(4)}`)).toBeNull();
+    for (const override of [{ subjectId: 1n << 256n }, { ruleId: 1n << 32n }, { mailboxCommit: 1n << 64n }, { subjectId: Number.MAX_SAFE_INTEGER + 1 }]) {
+      expect(() => encodePaymasterData({ orgId: ORG, subjectType: 1, subjectId: HAT, ...override })).toThrow();
+    }
+    expect(() => encodePaymasterData({ orgId: ORG, subjectType: 3, subjectId: zero })).toThrow();
+    expect(() => requiredPrefund({ ...OP, callGasLimit: -1n })).toThrow();
+    expect(() => remainingBudget({ ...BUDGET, capPerEpoch: 1n << 128n }, NOW)).toThrow();
+  });
+
+  it('reads the exact HAT key and block timestamp for the final buffered reservation', async () => {
+    const publicClient = {
+      readContract: vi.fn().mockResolvedValue(BUDGET),
+      getBlock: vi.fn().mockResolvedValue({ timestamp: BigInt(NOW) }),
+    };
+    const verdict = await checkSponsorship({ publicClient, paymasterAddress: account, userOp: { ...OP, paymasterData: PAYMASTER_DATA } });
+    expect(publicClient.readContract).toHaveBeenCalledWith(expect.objectContaining({ functionName: 'getBudget', args: [ORG, '0xe8a3189ea8b4321202beeb985dd2f15521d338e82a121a0d0828b73beedf6c0a'] }));
+    expect(publicClient.getBlock).toHaveBeenCalledExactlyOnceWith({ blockTag: 'latest' });
+    expect(verdict).toMatchObject({ checked: true, fits: false, needed: 2734404750000000n, remaining: 1971151400000000n });
   });
 });
 

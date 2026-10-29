@@ -4,7 +4,6 @@
  */
 
 export { OrgOverviewCard } from './OrgOverviewCard';
-export { RoleHierarchyTree } from './RoleHierarchyTree';
 export { PermissionsMatrix } from './PermissionsMatrix';
 export { MembersSection } from './MembersSection';
 export { GovernanceConfigSection } from './GovernanceConfigSection';

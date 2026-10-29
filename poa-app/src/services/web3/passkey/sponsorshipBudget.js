@@ -17,84 +17,56 @@
  *     builder is about to commit to and says whether the reservation fits.
  */
 
-import { concat, formatEther, hexToBigInt, hexToNumber, keccak256, pad, slice, toHex } from 'viem';
+import { formatEther } from 'viem';
+import { ethers } from 'ethers';
+import { parseSponsorshipPayload, paymasterSubjectKey, SUBJECT_TYPE } from '@poa-box/core/sponsorship/codec';
+import { requiredPrefundV07, remainingBudget as coreRemainingBudget } from '@poa-box/core/sponsorship/budget';
+import { requireRawUint } from '@poa-box/core/amounts';
+import { PaymasterHubAbi } from '@poa-box/core/abis/PaymasterHub';
 
-/** `PaymasterHub.getBudget` — the one view this module needs. */
-export const HUB_BUDGET_ABI = [
-  {
-    type: 'function',
-    name: 'getBudget',
-    stateMutability: 'view',
-    inputs: [
-      { name: 'orgId', type: 'bytes32' },
-      { name: 'key', type: 'bytes32' },
-    ],
-    outputs: [
-      {
-        type: 'tuple',
-        components: [
-          { name: 'capPerEpoch', type: 'uint128' },
-          { name: 'usedInEpoch', type: 'uint128' },
-          { name: 'epochLen', type: 'uint32' },
-          { name: 'epochStart', type: 'uint32' },
-        ],
-      },
-    ],
-  },
-];
+// A leaf ABI keeps account/write support inside the existing lazy runtime.
+export const HUB_BUDGET_ABI = PaymasterHubAbi;
 
 /** The hub's `BudgetExceeded()` selector — shared with BudgetLib, disambiguated by the AA33 marker. */
-export const BUDGET_EXCEEDED_SELECTOR = '0x50b2c4e1';
+export const BUDGET_EXCEEDED_SELECTOR = new ethers.utils.Interface(PaymasterHubAbi).getSighash('BudgetExceeded');
 
 /**
  * Subject types whose budget lives under `keccak256(abi.encodePacked(type, id))` — the org-scoped
  * paths (ACCOUNT 0x00, HAT 0x01, CLAIM 0x05). ONBOARDING (0x03) and ORG_DEPLOY (0x04) are paid by
  * the solidarity fund through a different check and are not pre-flighted here.
  */
-const KEYED_SUBJECT_TYPES = new Set([0x00, 0x01, 0x05]);
+const KEYED_SUBJECT_TYPES = new Set([SUBJECT_TYPE.ACCOUNT, SUBJECT_TYPE.HAT, SUBJECT_TYPE.CLAIM]);
 
 /** paymasterData layout (after the paymaster address): version(1) orgId(32) type(1) id(32) ruleId(4) mailbox(8). */
-const PAYMASTER_DATA_BYTES = 78;
-
 export function parsePaymasterData(hex) {
-  if (typeof hex !== 'string' || !/^0x[0-9a-fA-F]+$/.test(hex)) return null;
-  if ((hex.length - 2) / 2 !== PAYMASTER_DATA_BYTES) return null;
-  return {
-    version: hexToNumber(slice(hex, 0, 1)),
-    orgId: slice(hex, 1, 33),
-    subjectType: hexToNumber(slice(hex, 33, 34)),
-    subjectId: slice(hex, 34, 66),
-    ruleId: hexToNumber(slice(hex, 66, 70)),
-  };
+  if (typeof hex !== 'string') return null;
+  try {
+    const parsed = parseSponsorshipPayload(hex);
+    // Preserve this host helper's historical numeric uint32 field.
+    return { ...parsed, ruleId: Number(parsed.ruleId) };
+  } catch {
+    return null;
+  }
 }
 
-/** `keccak256(abi.encodePacked(uint8 subjectType, bytes32 subjectId))` — PaymasterHub's budget key. */
-export function subjectKey(subjectType, subjectId) {
-  return keccak256(concat([toHex(subjectType, { size: 1 }), pad(subjectId, { size: 32 })]));
-}
+export const subjectKey = paymasterSubjectKey;
 
-/**
- * EntryPoint v0.7 `_getRequiredPrefund`: every gas limit on the op, times maxFeePerGas. This is
- * the `maxCost` the hub reserves against the budget in `validatePaymasterUserOp`.
- */
+/** Host operations omit self-funded paymaster gas; core takes explicit zeroes. */
 export function requiredPrefund(userOp) {
-  const n = (v) => (v === undefined || v === null ? 0n : BigInt(v));
-  const gas = n(userOp.verificationGasLimit)
-    + n(userOp.callGasLimit)
-    + n(userOp.paymasterVerificationGasLimit)
-    + n(userOp.paymasterPostOpGasLimit)
-    + n(userOp.preVerificationGas);
-  return gas * n(userOp.maxFeePerGas);
+  return BigInt(requiredPrefundV07({
+    ...userOp,
+    paymasterVerificationGasLimit: userOp.paymasterVerificationGasLimit ?? 0,
+    paymasterPostOpGasLimit: userOp.paymasterPostOpGasLimit ?? 0,
+  }));
 }
 
-/** What the subject can still spend this epoch, with the epoch roll the hub applies on the way in. */
 export function remainingBudget(budget, nowSeconds) {
-  const cap = BigInt(budget.capPerEpoch ?? 0);
-  const used = BigInt(budget.usedInEpoch ?? 0);
-  const epochLen = Number(budget.epochLen ?? 0);
-  const epochStart = Number(budget.epochStart ?? 0);
-  if (epochLen > 0 && Number(nowSeconds) >= epochStart + epochLen) return cap;
-  return cap > used ? cap - used : 0n;
+  return BigInt(coreRemainingBudget({
+    capPerEpoch: budget.capPerEpoch ?? 0,
+    usedInEpoch: budget.usedInEpoch ?? 0,
+    epochLen: budget.epochLen ?? 0,
+    epochStart: budget.epochStart ?? 0,
+  }, nowSeconds));
 }
 
 /**
@@ -107,9 +79,11 @@ export function budgetVerdict({ budget, userOp, now, graceSeconds = EPOCH_GRACE_
   // Inclusion happens after the prompt; within a minute of the roll, judge as if it had rolled.
   // Wrong in that direction costs nothing — a genuine refusal is caught by the submission retry —
   // while wrong the other way pushes an op the hub would have sponsored onto the member's wallet.
-  const epochLen = Number(budget.epochLen ?? 0);
-  const epochEnd = Number(budget.epochStart ?? 0) + epochLen;
-  const at = epochLen > 0 && Number(now) < epochEnd && epochEnd - Number(now) <= graceSeconds ? epochEnd : now;
+  const epochLen = BigInt(requireRawUint(budget.epochLen ?? 0, 32));
+  const epochEnd = BigInt(requireRawUint(budget.epochStart ?? 0, 32)) + epochLen;
+  const current = BigInt(requireRawUint(now));
+  const grace = BigInt(requireRawUint(graceSeconds));
+  const at = epochLen > 0n && current < epochEnd && epochEnd - current <= grace ? epochEnd : current;
   const remaining = remainingBudget(budget, at);
   const needed = requiredPrefund(userOp);
   return { fits: needed <= remaining, remaining, needed, unset: BigInt(budget.capPerEpoch ?? 0) === 0n };
@@ -194,4 +168,4 @@ export function initCodeOf(userOp) {
   return userOp.factory + String(userOp.factoryData || '0x').slice(2);
 }
 
-export const hexToBigIntSafe = (v) => (typeof v === 'string' ? hexToBigInt(v) : BigInt(v ?? 0));
+export const hexToBigIntSafe = (v) => BigInt(v ?? 0);

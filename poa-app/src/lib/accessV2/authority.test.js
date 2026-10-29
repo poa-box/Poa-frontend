@@ -85,3 +85,8 @@ describe('moduleUsesAuthority — membershipAuthority() == 0 means LEGACY', () =
     expect(moduleUsesAuthority(AUTHORITY_ADDRESS.toUpperCase())).toBe(true);
   });
 });
+
+
+it('rejects malformed authority pointers instead of enabling current controls', () => {
+  for (const value of ['not-an-address', '0xabc', '0x12345', '0x', '0']) expect(moduleUsesAuthority(value)).toBe(false);
+});

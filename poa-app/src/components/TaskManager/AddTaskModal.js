@@ -1,3 +1,4 @@
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import DeadlineFields from './DeadlineFields';
 import { localDateStrToEndOfDaySec, secToLocalDateStr } from '@/util/deadlineUtils';
@@ -177,7 +178,7 @@ const AddTaskModal = ({
   // This component has no project in scope; both mount points resolve one.
   canAssign = false,
 }) => {
-  const { orgChainId, tokenLabel, taskPayoutHoursOnly, taskPayoutHourlyRate } = usePOContext();
+  const { orgChainId, tokenLabel = DEFAULT_TOKEN_LABEL, taskPayoutHoursOnly, taskPayoutHourlyRate } = usePOContext();
   const isDraftMode = mode === 'draft';
   const showAssign = !isDraftMode && canAssign;
 
@@ -684,7 +685,7 @@ const AddTaskModal = ({
               </FormControl>
             </SimpleGrid>
             <Text fontSize="xs" color="gray.500" mt={3}>
-              This bounty will be paid in addition to {tokenLabel.toLowerCase()}
+              This bounty will be paid in addition to {tokenLabel}
             </Text>
           </Box>
         )}

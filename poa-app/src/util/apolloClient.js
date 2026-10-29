@@ -1,9 +1,9 @@
 // apolloClient.js
 import { useMemo } from 'react';
-import { ApolloClient, InMemoryCache, from } from '@apollo/client';
+import { ApolloClient, ApolloLink, InMemoryCache, from } from '@apollo/client';
 import { HttpLink } from '@apollo/client/link/http';
 import { RetryLink } from '@apollo/client/link/retry';
-import { DEFAULT_SUBGRAPH_URL } from '../config/networks';
+import { DEFAULT_SUBGRAPH_URL } from '@/config/networks';
 import { fetchWithTimeout, shouldRetryNetworkError } from '@/util/fetchWithTimeout';
 
 // Increment this when subgraph schema changes significantly to clear stale cache
@@ -54,6 +54,12 @@ const retryLink = new RetryLink({
 function createLink(endpoint) {
   return from([
     retryLink,
+    // Evidence-bearing reads need the actual response, before Apollo fills
+    // absent fields from older cache entries (especially a terminal _meta).
+    new ApolloLink((operation, forward) => forward(operation).map((result) => {
+      operation.getContext().onCoreResponse?.(result);
+      return result;
+    })),
     new HttpLink({ uri: endpoint, fetch: fetchWithTimeout }),
   ]);
 }

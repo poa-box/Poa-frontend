@@ -28,16 +28,16 @@ const ChainSponsorshipCard = ({ chain }) => {
             bg={onboarding?.enabled ? 'green.50' : 'warmGray.100'}
             color={onboarding?.enabled ? 'green.600' : 'warmGray.500'}
           >
-            {onboarding?.enabled ? 'Enabled' : 'Disabled'}
+            {onboarding?.enabled === true ? 'Enabled' : onboarding?.enabled === false ? 'Disabled' : 'Unavailable'}
           </Badge>
         </HStack>
         {onboarding ? (
           <VStack spacing={0} align="stretch">
-            <ConfigRow label="Max Cost per Creation" value={`${parseFloat(onboarding.maxGasPerCreation).toFixed(4)} ${chain.nativeCurrency}`} />
-            <ConfigRow label="Daily Limit" value={`${onboarding.dailyCreationLimit} accounts`} />
+            <ConfigRow label="Max Cost per Creation" value={`${onboarding.maxGasPerCreation ?? '—'} ${chain.nativeCurrency}`} />
+            <ConfigRow label="Daily Limit" value={`${onboarding.dailyCreationLimit ?? '—'} accounts`} />
           </VStack>
         ) : (
-          <Text fontSize="xs" color="warmGray.400">Not configured</Text>
+          <Text fontSize="xs" color="warmGray.400">Configuration unavailable</Text>
         )}
       </Box>
 
@@ -52,17 +52,17 @@ const ChainSponsorshipCard = ({ chain }) => {
             bg={orgDeploy?.enabled ? 'green.50' : 'warmGray.100'}
             color={orgDeploy?.enabled ? 'green.600' : 'warmGray.500'}
           >
-            {orgDeploy?.enabled ? 'Enabled' : 'Disabled'}
+            {orgDeploy?.enabled === true ? 'Enabled' : orgDeploy?.enabled === false ? 'Disabled' : 'Unavailable'}
           </Badge>
         </HStack>
         {orgDeploy ? (
           <VStack spacing={0} align="stretch">
-            <ConfigRow label="Max Cost per Deploy" value={`${parseFloat(orgDeploy.maxGasPerDeploy).toFixed(4)} ${chain.nativeCurrency}`} />
-            <ConfigRow label="Daily Limit" value={`${orgDeploy.dailyDeployLimit} deploys`} />
-            <ConfigRow label="Max per Account" value={`${orgDeploy.maxDeploysPerAccount} lifetime`} />
+            <ConfigRow label="Max Cost per Deploy" value={`${orgDeploy.maxGasPerDeploy ?? '—'} ${chain.nativeCurrency}`} />
+            <ConfigRow label="Daily Limit" value={`${orgDeploy.dailyDeployLimit ?? '—'} deploys`} />
+            <ConfigRow label="Max per Account" value={`${orgDeploy.maxDeploysPerAccount ?? '—'} lifetime`} />
           </VStack>
         ) : (
-          <Text fontSize="xs" color="warmGray.400">Not configured</Text>
+          <Text fontSize="xs" color="warmGray.400">Configuration unavailable</Text>
         )}
       </Box>
     </Box>
@@ -80,7 +80,7 @@ const SponsorshipSection = ({ chains }) => (
           Paymaster Configuration
         </Heading>
         <Text fontSize="sm" color="warmGray.500" mb={6}>
-          ERC-4337 paymaster settings for gasless account creation and org deployment. Funded by the solidarity fund.
+          Indexed sponsorship settings for account creation and organization deployment. Missing settings remain unavailable until they are indexed.
         </Text>
 
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>

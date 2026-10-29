@@ -2,9 +2,7 @@
 
 import React, { createContext, useContext, useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { NETWORKS } from '@/config/networks';
-import { fetchSupportedOrganizations } from '@/util/orgDirectory';
-import { fetchOrgTaskCounts } from '@/util/orgTaskCounts';
-import { isHiddenOrg } from '@/util/hiddenOrgs';
+import { loadProfileHubDirectory, profileHubOrganization } from '@/context/profileHubDirectory';
 
 const ProfileHubContext = createContext();
 
@@ -23,79 +21,55 @@ export const useProfileHubContext = () => {
 export const ProfileHubProvider = ({ children }) => {
     const [allOrgs, setAllOrgs] = useState([]);
     const [taskCounts, setTaskCounts] = useState({});
+    const [memberTotals, setMemberTotals] = useState({});
     // Default to loading=true so consumers see a skeleton from frame 1 (no
     // empty-state flash). The actual network fetch is deferred until a
     // consumer subscribes via useProfileHubContext() — pages that never read
     // the org list (every non-/explore route) avoid the cross-chain fan-out
     // entirely.
     const [loading, setLoading] = useState(true);
+    const [unavailableChains, setUnavailableChains] = useState([]);
     const startedRef = useRef(false);
+    const generation = useRef(0);
+    const previousOrgs = useRef([]);
+    useEffect(() => () => { generation.current++; startedRef.current = false; }, []);
 
-    const ensureLoaded = useCallback(() => {
-        if (startedRef.current) return;
+    const load = useCallback((retry = false) => {
+        if (startedRef.current && !retry) return;
         startedRef.current = true;
-        (async () => {
-            const entries = Object.values(NETWORKS).filter(n => !n.isTestnet);
-            const results = await Promise.all(
-                entries.map(net => fetchSupportedOrganizations(net.subgraphUrl).then(orgs => orgs.map(org => ({ ...org, _network: net }))).catch(error => {
-                    console.warn(`[ProfileHub] ${net.name} organization directory unavailable:`, error.message);
-                    return [];
-                }))
-            );
-            const merged = results.flat().sort((a, b) =>
-                Number(a.deployedAt || 0) - Number(b.deployedAt || 0)
-            );
-            setAllOrgs(merged);
-            setLoading(false);
-
-            // Let the directory render while its task counts load separately.
-            // Failed sources keep their organizations and show unavailable counts.
-            await Promise.all(entries.map(async (net, index) => {
-                const managerIds = [...new Set(results[index]
-                    .filter(org => !isHiddenOrg(org.name || org.id))
-                    .map(org => org.taskManager?.id).filter(Boolean))];
-                let counts;
-                try {
-                    counts = await fetchOrgTaskCounts(net.subgraphUrl, managerIds);
-                } catch (error) {
-                    console.warn('[ProfileHub] Task counts unavailable:', error.message);
-                    counts = Object.fromEntries(managerIds.map(id => [id, null]));
-                }
-                setTaskCounts(previous => ({
-                    ...previous,
-                    ...Object.fromEntries(Object.entries(counts).map(([id, count]) => [`${net.chainId}:${id}`, count])),
-                }));
-            }));
-        })();
+        const request = ++generation.current;
+        setLoading(true);
+        setTaskCounts({});
+        setMemberTotals({});
+        return loadProfileHubDirectory(Object.values(NETWORKS).filter(n => !n.isTestnet), {
+            previous: previousOrgs.current,
+            force: retry,
+            isCurrent: () => generation.current === request,
+            onDirectory: (orgs, unavailable) => {
+                previousOrgs.current = orgs;
+                setAllOrgs(orgs);
+                setUnavailableChains(unavailable);
+                setLoading(false);
+            },
+            onCounts: counts => setTaskCounts(previous => ({ ...previous, ...counts })),
+            onMemberTotals: totals => setMemberTotals(previous => ({ ...previous, ...totals })),
+        });
     }, []);
+    const ensureLoaded = useCallback(() => load(), [load]);
+    const refetch = useCallback(() => load(true), [load]);
 
     const perpetualOrganizations = useMemo(() => {
-        return allOrgs.map(org => {
-            const network = org._network;
-            return {
-                id: org.name || org.id,
-                orgId: org.id,
-                logoHash: org.metadataHash,
-                logoCid: org.metadata?.logo || null,
-                totalMembers: org.users?.length || 0,
-                taskCounts: org.taskManager?.id
-                    ? taskCounts[`${network.chainId}:${org.taskManager.id}`]
-                    : { open: 0, total: 0 },
-                aboutInfo: org.metadata || null,
-                deployedAt: org.deployedAt,
-                quickJoinContract: org.quickJoin?.id,
-                participationToken: org.participationToken,
-                chainId: network.chainId,
-                networkName: network.name,
-            };
-        });
-    }, [allOrgs, taskCounts]);
+        return allOrgs.map(org => profileHubOrganization(org, taskCounts, memberTotals));
+    }, [allOrgs, taskCounts, memberTotals]);
 
     const contextValue = useMemo(() => ({
         perpetualOrganizations,
         isLoading: loading,
+        isComplete: unavailableChains.length === 0 && !loading,
+        unavailableChains,
+        refetch,
         ensureLoaded,
-    }), [perpetualOrganizations, loading, ensureLoaded]);
+    }), [perpetualOrganizations, loading, unavailableChains, refetch, ensureLoaded]);
 
     return (
         <ProfileHubContext.Provider value={contextValue}>

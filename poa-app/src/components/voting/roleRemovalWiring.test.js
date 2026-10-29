@@ -51,11 +51,11 @@ describe('role-removal vote production wiring', () => {
   });
 
   it('runs fresh canRemove checks and preserves the finalization floor across devices', () => {
-    expect(page).toContain('await preflightRoleRemovals({');
+    expect(page).toContain('recheckGovernanceSubmission(proposalData, proposalData.governancePlanning)');
     expect(page).toContain('The selected role was renamed.');
     expect(page).toContain('recordGasFloor(');
-    expect(page).toContain('if (!result?.success) return false;');
-    expect(page).toContain('return true;');
+    expect(page).toMatch(/if \(!result\?\.success\) \{ roleSubmission\?\.notSubmitted\(\); return result \|\| false; \}/);
+    expect(page).toContain('return result;');
     expect(detail).toContain('onFinalize(contractAddress, proposalId, isBinding, poll)');
     expect(actions).toContain('roleRemovalGasFloorFromProposal(proposal)');
   });
@@ -76,10 +76,7 @@ describe('role-removal vote production wiring', () => {
   });
 
   it('never reconciles a draft against a truncated membership page', () => {
-    expect(membershipsHook).toContain('fetchAllAuthorityMembershipRows({');
-    expect(membershipsHook).toContain('first: AUTHORITY_MEMBERSHIP_PAGE_SIZE');
-    expect(membershipsHook).toContain("fetchPolicy: 'no-cache'");
-    expect(membershipsHook).toContain('complete: authority.enabled ? complete : false');
+    expect(membershipsHook).toContain('useAuthorityEvidence');
     expect(configurator).toContain('complete: membershipsComplete');
     expect(configurator).toContain('|| !membershipsComplete');
   });

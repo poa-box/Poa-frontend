@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { print } from 'graphql';
 import { fetchLatestRejectedSubmission } from './taskSubmissionHistory';
 
 const TASK_ID = '0xf57024fc77915fce8f2608afdd027941bcee3336-19';
@@ -76,3 +77,26 @@ describe('fetchLatestRejectedSubmission', () => {
     expect(fetchFromIpfs).not.toHaveBeenCalled();
   });
 });
+
+
+  it('uses the core-linked immutable selection without unrelated history reads', async () => {
+    const client = { query: vi.fn().mockResolvedValue({ data: { task: null } }) };
+    await fetchLatestRejectedSubmission({ client, taskId: TASK_ID });
+    const document = print(client.query.mock.calls[0][0].query);
+    expect(document).toContain('latestRejection');
+    expect(document).toContain('submissionHash');
+    expect(document).not.toContain('rejectionCursor');
+    expect(document).not.toContain('latestSubmission');
+  });
+
+  it('retains known empty submission and propagates query failures', async () => {
+    const fetchFromIpfs = vi.fn();
+    const client = { query: vi.fn().mockResolvedValue({ data: { task: {
+      latestRejection: { submission: { metadata: { submission: '' }, submissionHash: SUBMISSION_HASH } },
+    } } }) };
+    await expect(fetchLatestRejectedSubmission({ client, taskId: TASK_ID, fetchFromIpfs })).resolves.toBe('');
+    expect(fetchFromIpfs).not.toHaveBeenCalled();
+    const error = new Error('mock endpoint outage');
+    client.query.mockRejectedValueOnce(error);
+    await expect(fetchLatestRejectedSubmission({ client, taskId: TASK_ID })).rejects.toBe(error);
+  });
