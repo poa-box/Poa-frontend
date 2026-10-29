@@ -14,8 +14,8 @@
  */
 
 import { encodeFunctionData } from 'viem';
+import { computeCounterfactualAddress } from '@poa-box/browser/passkeys';
 import { PasskeyAccountAbi as PasskeyAccountABI } from '@poa-box/core/abis/PasskeyAccount';
-import { PasskeyAccountFactoryAbi as PasskeyAccountFactoryABI } from '@poa-box/core/abis/PasskeyAccountFactory';
 import { enrollmentJournal, submitEnrollment, reconcileEnrollment, persistPending } from '@/services/web3/domain/enrollmentSubmission';
 import { UniversalAccountRegistryAbi as UniversalAccountRegistryABI } from '@poa-box/core/abis/UniversalAccountRegistry';
 import { ZkEmailInvitesAbi as ZkEmailInvitesABI } from '@poa-box/core/abis/ZkEmailInvites';
@@ -127,12 +127,7 @@ export class ZkEmailOnboardingService {
     const credential = pending || await createPasskeyCredential(username);
     if (!pending) persistPending(this, { ...credential, flow: 'zkemail' }, null, username);
     this.scopeGuard();
-    const accountAddress = await this.publicClient.readContract({
-      address: this.factoryAddress,
-      abi: PasskeyAccountFactoryABI,
-      functionName: 'getAddress',
-      args: [credential.credentialId, credential.publicKeyX, credential.publicKeyY, BigInt(credential.salt)],
-    });
+    const accountAddress = await computeCounterfactualAddress(this.publicClient, this.factoryAddress, credential);
     this.scopeGuard();
     persistPending(this, { ...credential, flow: 'zkemail' }, accountAddress, username);
     return { credential, accountAddress };

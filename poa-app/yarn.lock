@@ -2871,6 +2871,12 @@
     tslib "^2.8.1"
     tsyringe "^4.10.0"
 
+"@poa-box/browser@file:vendor/poa-box-browser-0.1.0-5d141798592c.tgz":
+  version "0.1.0"
+  resolved "file:vendor/poa-box-browser-0.1.0-5d141798592c.tgz#4c1af31007eb975601c66eb2ddedb63786026b2e"
+  dependencies:
+    "@poa-box/core" "2.1.0"
+
 "@poa-box/core@2.1.0":
   version "2.1.0"
   resolved "https://registry.npmjs.org/@poa-box/core/-/core-2.1.0.tgz#09ad0209fac27089aafe0691b4a777c85becce3d"

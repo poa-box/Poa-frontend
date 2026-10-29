@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { p256 } from '@noble/curves/p256';
 import { ethers } from 'ethers';
+import { createPublicClient, custom } from 'viem';
 import { restoreCredentialKeys, resolveAccountDeployment } from '@/services/web3/passkey/accountReadiness';
 const ACCOUNT = '0x1111111111111111111111111111111111111111';
 const FACTORY = '0x2222222222222222222222222222222222222222';
@@ -45,6 +46,21 @@ describe('positive deployment readiness', () => {
     const client = sourceClient();
     expect(await resolveAccountDeployment({ credential, publicClient: client, chainId: 100 })).toEqual({ status: 'deployed', initCode: '0x' });
     expect(client.readContract).not.toHaveBeenCalled();
+  });
+  it('accepts viem’s actual undefined result for an empty account while retaining factory and address checks', async () => {
+    const rpc = vi.fn(async ({ method, params }) => {
+      if (method === 'eth_chainId') return '0x64';
+      if (method === 'eth_getCode') return params[0].toLowerCase() === ACCOUNT ? '0x' : '0x1234';
+      if (method === 'eth_call') return ethers.utils.defaultAbiCoder.encode(['address'], [ACCOUNT]);
+      throw new Error('Unexpected offline RPC: ' + method);
+    });
+    const client = createPublicClient({ transport: custom({ request: rpc }) });
+    expect(await client.getBytecode({ address: ACCOUNT })).toBeUndefined();
+    const ready = await resolveAccountDeployment({ credential, factoryAddress: FACTORY, publicClient: client, chainId: 100 });
+    expect(ready.status).toBe('deployable');
+    expect(ready.initCode.slice(0, 42)).toBe(FACTORY);
+    expect(rpc.mock.calls.some(([request]) => request.method === 'eth_call')).toBe(true);
+    expect(fetch).not.toHaveBeenCalled();
   });
   it('builds initCode only after chain, factory code and identical CREATE2 address checks', async () => {
     const client = sourceClient();

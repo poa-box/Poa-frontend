@@ -9,56 +9,8 @@ import { managerIntentKey, DELEGATED_SUBMISSION_LEASE, snapshotCallValue, snapsh
 import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 import { parseError, Web3ErrorCategory } from '@/lib/errors';
 import { calculateGasLimit, createGasOptions, getNetworkByChainId } from '@/config';
-import { BigNumber, providers } from 'ethers';
-
-/** Keep ethers' ContractTransaction/wait behavior, but guard its actual wallet
- * request after JsonRpcSigner's internal async block/name/transaction setup.
- * This provider is request-local; the application's shared provider is untouched.
- */
-async function guardedRpcSigner(signer, { beforeSend, assertCurrent, assertIntent, onDispatch, onHash }) {
-  if (!(signer instanceof providers.JsonRpcSigner) || !(signer.provider instanceof providers.Web3Provider)) return null;
-  const transport = signer.provider.provider;
-  const account = (await signer.getAddress()).toLowerCase();
-  const network = await signer.provider.getNetwork();
-  const request = typeof transport?.request === 'function' ? transport.request.bind(transport)
-    : ({ method, params }) => signer.provider.send(method, params);
-  let walletChanged = false;
-  let dispatched = false;
-  const changed = () => { walletChanged = true; };
-  const listens = typeof transport?.on === 'function' && typeof transport?.removeListener === 'function';
-  if (listens) { transport.on('accountsChanged', changed); transport.on('chainChanged', changed); }
-  const current = () => {
-    assertCurrent();
-    if (walletChanged) throw new Error('Your account or network changed. Please try again.');
-  };
-  const provider = new providers.Web3Provider({ request: async payload => {
-    if (payload.method !== 'eth_sendTransaction') return request(payload);
-    current();
-    if (dispatched) throw new Error('This transaction has already been submitted. Check its status before trying again.');
-    const accounts = await request({ method: 'eth_accounts', params: [] });
-    const chain = await request({ method: 'eth_chainId', params: [] });
-    current();
-    if (!Array.isArray(accounts) || accounts[0]?.toLowerCase() !== account) throw new Error('Your account changed. Please try again.');
-    if (typeof chain !== 'string' || !/^0x[\da-f]+$/i.test(chain) || BigInt(chain) !== BigInt(network.chainId)) throw new Error('Your network changed. Please try again.');
-    await beforeSend();
-    // Only synchronous checks follow this final authority read. Invoke the
-    // original EIP-1193 wallet boundary directly, without another ethers send.
-    current();
-    const tx = payload.params?.[0];
-    if (tx?.from?.toLowerCase() !== account || (tx.chainId !== undefined && BigInt(tx.chainId) !== BigInt(network.chainId))) throw new Error('The transaction account or network changed. Please try again.');
-    assertIntent(tx);
-    dispatched = true;
-    onDispatch();
-    const hash = await request(payload);
-    // Persist the acknowledged identity before ethers' transaction lookup/wait.
-    onHash(hash);
-    return hash;
-  } }, network);
-  return { signer: provider.getSigner(account), dispose() {
-    try { if (listens) { transport.removeListener('accountsChanged', changed); transport.removeListener('chainChanged', changed); } } catch { /* Cleanup cannot replace a known result. */ }
-    try { provider.removeAllListeners(); } catch { /* The shared provider is never modified. */ }
-  } };
-}
+import { BigNumber } from 'ethers';
+import { guardedRpcSigner } from '@poa-box/browser/wallet';
 
 /**
  * Transaction states for tracking progress

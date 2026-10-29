@@ -43,6 +43,32 @@ describe('real ethers-contract signer binding at the direct wallet boundary', ()
     expect(contract.interface.decodeFunctionData('deposit', sent.data)[0].toString()).toBe('1');
   });
 
+  it('fences wallet round-trip events during the initial shared signer setup and removes listeners', async () => {
+    const listeners = new Map();
+    const request = vi.fn(async ({ method }) => {
+      if (method === 'eth_chainId') return '0x64';
+      throw new Error('Offline wallet setup must not dispatch: ' + method);
+    });
+    const ethereum = { request, on: (name, listener) => listeners.set(name, listener),
+      removeListener: name => listeners.delete(name) };
+    const provider = new ethers.providers.Web3Provider(ethereum, { name: 'gnosis', chainId: 100 });
+    let releaseNetwork;
+    vi.spyOn(provider, 'getNetwork').mockImplementation(() => new Promise(resolve => { releaseNetwork = resolve; }));
+    const signer = provider.getSigner(ACCOUNT);
+    const contract = new ethers.Contract(TARGET, ['function deposit(uint256 amount) payable'], signer);
+    const manager = new TransactionManager(signer, { accountAddress: ACCOUNT, chainId: 100,
+      publicClient: { getBlockNumber: async () => 39n } });
+    const pending = manager.execute(contract, 'deposit', ['1']);
+    await vi.waitFor(() => expect(typeof releaseNetwork).toBe('function'));
+    expect(listeners.size).toBe(2);
+    listeners.get('accountsChanged')([OTHER]); listeners.get('accountsChanged')([ACCOUNT]);
+    releaseNetwork({ name: 'gnosis', chainId: 100 });
+    expect((await pending).success).toBe(false);
+    expect(listeners.size).toBe(0);
+    expect(request.mock.calls.some(([payload]) => payload.method === 'eth_sendTransaction')).toBe(false);
+    expect(manager.getPendingSubmission()).toBeNull();
+  });
+
   it.each(['review expiry', 'host scope change', 'wallet account change', 'wallet chain change', 'wallet account round-trip event', 'wallet chain round-trip event', 'cancellation'])('refuses actual JsonRpcSigner dispatch after %s during ethers internal block lookup', async change => {
     let now = 1000, current = true, releaseBlock, walletAccount = ACCOUNT, chain = '0x64';
     const controller = new AbortController();

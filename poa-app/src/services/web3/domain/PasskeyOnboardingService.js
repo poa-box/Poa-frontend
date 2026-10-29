@@ -11,10 +11,10 @@
  */
 
 import { encodeFunctionData } from 'viem';
+import { computeCounterfactualAddress } from '@poa-box/browser/passkeys';
 import { encodeIntent } from '@poa-box/core/tx/intent';
 import { buildRegisterAccount, buildRegisterAndQuickJoinWithPasskey } from '@poa-box/core/tx/user';
 import { PasskeyAccountAbi as PasskeyAccountABI } from '@poa-box/core/abis/PasskeyAccount';
-import { PasskeyAccountFactoryAbi as PasskeyAccountFactoryABI } from '@poa-box/core/abis/PasskeyAccountFactory';
 import { UniversalAccountRegistryAbi as UniversalAccountRegistryABI } from '@poa-box/core/abis/UniversalAccountRegistry';
 import { requireValidUsername } from '@/services/web3/utils/validation';
 import { createPasskeyCredential } from '@/services/web3/passkey/passkeyCreate';
@@ -95,12 +95,7 @@ export class PasskeyOnboardingService {
    * Compute the counterfactual address for a credential without deploying.
    */
   static async computeCounterfactualAddress(publicClient, factoryAddress, credential) {
-    return publicClient.readContract({
-      address: factoryAddress,
-      abi: PasskeyAccountFactoryABI,
-      functionName: 'getAddress',
-      args: [credential.credentialId, credential.publicKeyX, credential.publicKeyY, credential.salt],
-    });
+    return computeCounterfactualAddress(publicClient, factoryAddress, credential);
   }
 
   /**
@@ -194,12 +189,7 @@ export class PasskeyOnboardingService {
 
       // Step 2: Compute counterfactual address
       onStep(OnboardingStep.COMPUTING_ADDRESS);
-      const accountAddress = await this.publicClient.readContract({
-        address: this.factoryAddress,
-        abi: PasskeyAccountFactoryABI,
-        functionName: 'getAddress',
-        args: [credentialId, publicKeyX, publicKeyY, salt],
-      });
+      const accountAddress = await computeCounterfactualAddress(this.publicClient, this.factoryAddress, credential);
       if (pending?.accountAddress && pending.accountAddress.toLowerCase() !== accountAddress.toLowerCase()) {
         throw new Error('We couldn’t verify your saved account. Please check your earlier account setup.');
       }

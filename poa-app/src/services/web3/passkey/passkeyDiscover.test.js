@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ethers } from 'ethers';
+import { createHash } from 'node:crypto';
 
 const mocks = vi.hoisted(() => ({ authenticate: vi.fn(), pending: vi.fn() }));
 vi.mock('@simplewebauthn/browser', async importOriginal => ({ ...await importOriginal(), startAuthentication: mocks.authenticate }));
@@ -14,18 +15,23 @@ const X = `0x${'22'.repeat(32)}`;
 const Y = `0x${'33'.repeat(32)}`;
 const row = (overrides = {}) => ({ id: 'credential-1', credentialId: DIGEST, active: true, account: { id: ACCOUNT }, publicKeyX: X, publicKeyY: Y, ...overrides });
 const reply = rows => ({ ok: true, json: async () => ({ data: { passkeyCredentials: rows } }) });
+const discoveredAssertion = ({ optionsJSON }) => ({ rawId: RAW, response: {
+  authenticatorData: Buffer.concat([createHash('sha256').update(optionsJSON.rpId).digest(), Buffer.from([5, 0, 0, 0, 0])]).toString('base64url'),
+  clientDataJSON: Buffer.from(JSON.stringify({ type: 'webauthn.get', challenge: optionsJSON.challenge, origin: window.location.origin })).toString('base64url'),
+  signature: Buffer.from([0x30, 6, 0x02, 1, 1, 0x02, 1, 2]).toString('base64url'),
+} });
 
 beforeEach(() => {
   vi.clearAllMocks(); mocks.authenticate.mockReset();
-  vi.stubGlobal('window', { location: { hostname: 'test.local' } });
-  mocks.authenticate.mockResolvedValue({ rawId: RAW });
+  vi.stubGlobal('window', { location: { hostname: 'test.local', origin: 'https://test.local' } });
+  mocks.authenticate.mockImplementation(async options => discoveredAssertion(options));
   mocks.pending.mockReturnValue(null);
 });
 afterEach(() => vi.unstubAllGlobals());
 
 describe('canonical credential discovery inside the browser host', () => {
   it.each(['AbortError', 'NotAllowedError', 'SecurityError', 'NetworkError'])('never starts another picker or lookup after %s', async name => {
-    vi.stubGlobal('window', { location: { hostname: 'www.poa.box' } });
+    vi.stubGlobal('window', { location: { hostname: 'www.poa.box', origin: 'https://www.poa.box' } });
     vi.stubGlobal('fetch', vi.fn(() => { throw new Error('Lookup after cancelled ceremony'); }));
     const error = Object.assign(new Error('Ceremony rejected'), { name });
     mocks.authenticate.mockRejectedValueOnce(error).mockResolvedValueOnce({ rawId: RAW });

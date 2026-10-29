@@ -91,7 +91,8 @@
     "viem": "^2.56.3",
     "vm-browserify": "^1.1.2",
     "wagmi": "^2.19.5",
-    "zod": "^4.5.4"
+    "zod": "^4.5.4",
+    "@poa-box/browser": "file:vendor/poa-box-browser-0.1.0-5d141798592c.tgz"
   },
   "devDependencies": {
     "@types/react": "18.3.31",

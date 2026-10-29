@@ -1,19 +1,2 @@
-/**
- * passkeyUtils.js
- * Shared passkey credential utilities.
- */
-
-import { credentialIdDigest } from '@poa-box/core/accounts/codecs';
-import { base64URLStringToBuffer } from '@simplewebauthn/browser';
-
-/**
- * Compute a bytes32 credentialId from a raw WebAuthn credential ID.
- * credentialId = keccak256(rawIdBytes)
- *
- * @param {string} rawCredentialIdBase64 - base64url-encoded raw credential ID
- * @returns {string} bytes32 hex string
- */
-export function computeCredentialId(rawCredentialIdBase64) {
-  const rawIdBytes = new Uint8Array(base64URLStringToBuffer(rawCredentialIdBase64));
-  return credentialIdDigest(rawIdBytes);
-}
+/** Canonical digest for the public WebAuthn credential pointer. */
+export { computeCredentialId } from '@poa-box/browser/passkeys';

@@ -4,14 +4,12 @@
  * Triggers the OS passkey picker and looks up the account from the subgraph.
  */
 
-import { bufferToBase64URLString } from '@simplewebauthn/browser';
-import { derivePasskeySalt } from '@poa-box/core/accounts/codecs';
+import { startAuthentication } from '@simplewebauthn/browser';
+import { discoverPasskeyCredential as discoverCredential } from '@poa-box/browser/passkeys';
 import { readCredentialFacts } from '@poa-box/core/reads/protocol';
-import { computeCredentialId } from '@/services/web3/passkey/passkeyUtils';
 import { findPendingCredentialByCredentialId } from '@/services/web3/passkey/passkeyStorage';
 import { getAllSubgraphUrls } from '@/config/networks';
 import { getWebAuthnRpId } from '@/config/passkey';
-import { authenticateWithRpFallback } from '@/services/web3/passkey/authenticate';
 
 /**
  * Trigger WebAuthn discoverable authentication and look up the account from the subgraph.
@@ -19,62 +17,15 @@ import { authenticateWithRpFallback } from '@/services/web3/passkey/authenticate
  *
  * @returns {Object} Credential data: { credentialId, rawCredentialId, accountAddress, salt }
  */
-export async function discoverPasskeyCredential() {
-  // Generate a random challenge (not verified server-side)
-  const challengeBytes = crypto.getRandomValues(new Uint8Array(32));
-  const challenge = bufferToBase64URLString(challengeBytes);
-
-  // A cancelled picker is final; only explicit RP mismatch permits compatibility fallback.
-  const primaryRpId = getWebAuthnRpId();
-
-  const opts = (rpId) => ({
-    optionsJSON: {
-      challenge,
-      rpId,
-      allowCredentials: [],
-      userVerification: 'required',
-      timeout: 120000,
-    },
+export function discoverPasskeyCredential() {
+  return discoverCredential({
+    rpId: getWebAuthnRpId(),
+    origin: window.location.origin,
+    hostname: window.location.hostname,
+    adapter: { startAuthentication },
+    lookupAccount: lookupAccountByCredentialId,
+    findPendingCredentialByCredentialId,
   });
-
-  const assertion = await authenticateWithRpFallback(opts, primaryRpId);
-
-  // Extract the raw credential ID
-  const rawCredentialId = assertion.rawId;
-
-  // Compute on-chain credentialId
-  const credentialId = computeCredentialId(rawCredentialId);
-
-  // Derive salt deterministically (same as during account creation)
-  const salt = BigInt(derivePasskeySalt(credentialId)).toString();
-
-  // Look up the account address across ALL chain subgraphs
-  let account;
-  let lookupError;
-  try {
-    account = await lookupAccountByCredentialId(credentialId);
-  } catch (error) {
-    lookupError = error;
-  }
-  if (account) {
-    return { credentialId, rawCredentialId, ...account, salt };
-  }
-
-  // Fallback: check pending credentials for undeployed accounts (vouch-first flow)
-  const pendingMatch = findPendingCredentialByCredentialId(credentialId);
-  if (pendingMatch) {
-    return {
-      credentialId,
-      rawCredentialId,
-      accountAddress: pendingMatch.accountAddress,
-      publicKeyX: pendingMatch.publicKeyX,
-      publicKeyY: pendingMatch.publicKeyY,
-      salt,
-    };
-  }
-
-  if (lookupError) throw lookupError;
-  throw new Error('No account found for this passkey. You may need to create an account first.');
 }
 
 /**

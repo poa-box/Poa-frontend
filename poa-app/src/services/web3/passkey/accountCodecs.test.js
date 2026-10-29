@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ethers } from 'ethers';
+import { createHash } from 'node:crypto';
 import { getUserOperationHash } from 'viem/account-abstraction';
 import { packUserOperationV07 } from '@poa-box/core/accounts/userop-v07';
 import { derivePasskeySalt, packPasskeySignature, unpackPasskeySignature } from '@poa-box/core/accounts/codecs';
@@ -51,7 +52,7 @@ describe('adopted account protocol codecs', () => {
     const rawId = Buffer.from([1, 2, 3, 250, 251, 252]).toString('base64url');
     const challenge = Buffer.from('11'.repeat(32), 'hex').toString('base64url');
     const clientData = JSON.stringify({ type: 'webauthn.get', challenge, origin: 'https://test.local' });
-    const authenticatorData = Uint8Array.from({ length: 37 }, (_, index) => index);
+    const authenticatorData = Buffer.concat([createHash('sha256').update('test.local').digest(), Buffer.from([5, 0, 0, 0, 0])]);
     const n = BigInt('0xffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551');
     // Synthetic DER fixture: r=1, high s=n-1. No authenticator or signer is used.
     const der = Buffer.from(`3026020101022100${(n - 1n).toString(16)}`, 'hex');

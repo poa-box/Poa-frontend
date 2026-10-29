@@ -13,7 +13,8 @@ subgraph-pop/
 # Verification artifacts (screenshots, gifs, logs, ids, fingerprints)
 .context/
 
-# Historical local package candidates; the application installs from npm.
+# Ignore historical local candidates; explicitly tracked browser candidates are
+# retained for reproducible CI until the new package is published.
 /poa-app/vendor/*.tgz
 
 # Smithers CLI can drop a SQLite db at the repo root — never commit it
