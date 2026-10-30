@@ -26,7 +26,9 @@ import { NETWORKS, DEFAULT_NETWORK } from '@/config/networks';
 
 import { registrationChallenge } from '@poa-box/core/accounts/codecs';
 import { enrollmentJournal, submitEnrollment, reconcileEnrollment, persistPending } from '@/services/web3/domain/enrollmentSubmission';
-import { requirePendingEnrollment } from '@/services/web3/passkey/passkeyStorage';
+import { requirePendingEnrollment, readPendingEnrollment, savePendingCredential } from '@/services/web3/passkey/passkeyStorage';
+import { reconcileUserOperationSubmission } from '@/services/web3/core/userOperationSubmission';
+import { pendingSubmissionError } from '@/services/web3/core/submissionJournal';
 
 // Host registration deadline: 14 days; retained during protocol migration.
 const REGISTRATION_DEADLINE_SECONDS = 1209600;
@@ -36,6 +38,7 @@ const REGISTRATION_DEADLINE_SECONDS = 1209600;
  */
 export const OnboardingStep = {
   IDLE: 'idle',
+  CHECKING_USERNAME: 'checking_username',
   CREATING_CREDENTIAL: 'creating_credential',
   COMPUTING_ADDRESS: 'computing_address',
   BUILDING_TRANSACTION: 'building_transaction',
@@ -51,6 +54,7 @@ export const OnboardingStep = {
  * Step descriptions for UI display
  */
 export const STEP_MESSAGES = {
+  [OnboardingStep.CHECKING_USERNAME]: 'Checking your username...',
   [OnboardingStep.CREATING_CREDENTIAL]: 'Creating your passkey...',
   [OnboardingStep.COMPUTING_ADDRESS]: 'Computing your account address...',
   [OnboardingStep.BUILDING_TRANSACTION]: 'Preparing your account...',
@@ -111,6 +115,82 @@ export class PasskeyOnboardingService {
     });
   }
 
+  async _requireAvailableUsername(username) {
+    this.scopeGuard();
+    const owner = await this.publicClient.readContract({
+      address: this.registryAddress, abi: UniversalAccountRegistryABI,
+      functionName: 'getAddressOfUsername', args: [username],
+    });
+    this.scopeGuard();
+    if (typeof owner !== 'string' || !/^0x[\da-f]{40}$/i.test(owner)) {
+      throw new Error('Could not check this username. Please try again.');
+    }
+    if (!/^0x0{40}$/i.test(owner)) {
+      throw Object.assign(new Error('This username is already taken. Choose another.'), { code: 'USERNAME_TAKEN' });
+    }
+  }
+
+  _requireUnchangedPending(expected) {
+    this.scopeGuard();
+    const current = requirePendingEnrollment(this, { flow: 'onboarding', username: expected.username });
+    if (!current || JSON.stringify(current) !== JSON.stringify(expected)) {
+      throw new Error('Your saved account setup changed. Check its status again.');
+    }
+    return current;
+  }
+
+  /** Rename only the same unsent/definitely failed setup under its account lock. */
+  async _prepareUsername(username) {
+    const pending = requirePendingEnrollment(this, { flow: 'onboarding' });
+    if (pending?.confirmation?.status === 'succeeded') throw new Error('Your earlier account setup is confirmed. Check its status to continue.');
+    if (pending?.confirmation != null && pending.confirmation.status !== 'failed') {
+      throw new Error('Check your earlier account setup before trying again.');
+    }
+    if (!pending || pending.username === username) {
+      await this._requireAvailableUsername(username);
+      this.scopeGuard();
+      if (pending) this._requireUnchangedPending(pending);
+      return pending;
+    }
+    const saved = readPendingEnrollment(this);
+    if (saved?.provenance !== 'matched' || pending.sourceProvenance !== 'observed'
+      || !pending.initiator || !this.initiator) {
+      throw new Error('Finish or check your earlier account setup before changing its username.');
+    }
+    const accountAddress = await computeCounterfactualAddress(this.publicClient, this.factoryAddress, pending);
+    this.scopeGuard(); this._requireUnchangedPending(pending);
+    if (pending.accountAddress && pending.accountAddress.toLowerCase() !== accountAddress.toLowerCase()) {
+      throw new Error('We couldn’t verify your saved account. Please check your earlier account setup.');
+    }
+    const journal = enrollmentJournal(this, accountAddress);
+    const release = await journal.acquire();
+    try {
+      this.scopeGuard(); journal.assertLease();
+      journal.abandonUnsent();
+      if (journal.readPendingAccount()) throw pendingSubmissionError(journal.readPendingAccount());
+      this._requireUnchangedPending(pending);
+      if (pending.confirmation != null) {
+        const confirmation = pending.confirmation;
+        if (confirmation.chainId !== this.chainId || confirmation.accountAddress?.toLowerCase() !== accountAddress.toLowerCase()
+          || confirmation.sender?.toLowerCase() !== accountAddress.toLowerCase()
+          || confirmation.entryPoint?.toLowerCase() !== ENTRY_POINT_ADDRESS.toLowerCase()
+          || !/^0x[\da-f]{64}$/i.test(confirmation.transactionHash || '')
+          || !/^0x[\da-f]{64}$/i.test(confirmation.computedHash || '') || confirmation.nonce == null) {
+          throw new Error('The earlier account setup could not be verified. Check its status again.');
+        }
+        const result = await reconcileUserOperationSubmission({ ...confirmation, txHash: confirmation.transactionHash }, this.bundlerClient, this.publicClient);
+        this.scopeGuard(); journal.assertLease(); this._requireUnchangedPending(pending);
+        if (result.outcome.status !== 'failed') throw new Error('Check your earlier account setup before changing its username.');
+      }
+      await this._requireAvailableUsername(username);
+      this.scopeGuard(); journal.assertLease(); this._requireUnchangedPending(pending);
+      if (journal.readPendingAccount()) throw pendingSubmissionError(journal.readPendingAccount());
+      // Preserve the original credential/account/source and failure evidence.
+      savePendingCredential({ ...pending, username });
+      return requirePendingEnrollment(this, { flow: 'onboarding', username });
+    } finally { await release(); }
+  }
+
   /**
    * Build the callData for org-mode onboarding using registerAndQuickJoinWithPasskey.
    * Signs the registration challenge (biometric prompt) and encodes the execute call.
@@ -169,17 +249,18 @@ export class PasskeyOnboardingService {
     try {
       this.scopeGuard();
       requireValidUsername(username);
+      if (await this.publicClient.getChainId() !== this.chainId) throw new Error('This network is unavailable. Please try again.');
+      this.scopeGuard();
+      onStep(OnboardingStep.CHECKING_USERNAME);
+      const pending = await this._prepareUsername(username);
+      this.scopeGuard();
       // Step 1: Create passkey credential (biometric prompt #1)
       onStep(OnboardingStep.CREATING_CREDENTIAL);
-      const pending = requirePendingEnrollment(this, { flow: 'onboarding', username });
-      if (pending?.confirmation?.status === 'succeeded') throw new Error('Your earlier account setup is confirmed. Check its status to continue.');
       if (pending && (pending.username !== username || pending.credentialChainId !== this.chainId
         || pending.registryAddress?.toLowerCase() !== this.registryAddress.toLowerCase()
         || pending.factoryAddress?.toLowerCase() !== this.factoryAddress.toLowerCase())) {
         throw new Error('Finish or check your earlier account setup before creating another account.');
       }
-      if (await this.publicClient.getChainId() !== this.chainId) throw new Error('This network is unavailable. Please try again.');
-      this.scopeGuard();
       const credential = pending ? { ...pending, salt: BigInt(pending.salt) } : await createPasskeyCredential(username);
       // Preserve a completed local ceremony even if its captured UI changed during the prompt.
       if (!pending) persistPending(this, credential, null, username);
@@ -190,12 +271,18 @@ export class PasskeyOnboardingService {
       // Step 2: Compute counterfactual address
       onStep(OnboardingStep.COMPUTING_ADDRESS);
       const accountAddress = await computeCounterfactualAddress(this.publicClient, this.factoryAddress, credential);
+      this.scopeGuard();
+      if (pending) this._requireUnchangedPending(pending);
       if (pending?.accountAddress && pending.accountAddress.toLowerCase() !== accountAddress.toLowerCase()) {
         throw new Error('We couldn’t verify your saved account. Please check your earlier account setup.');
       }
 
 
       persistPending(this, credential, accountAddress, username);
+      // A name may be claimed while the credential prompt was open. Keep the
+      // saved passkey but stop before registration signing if that happened.
+      await this._requireAvailableUsername(username);
+      this.scopeGuard();
       // Step 3: Build the UserOp
       onStep(OnboardingStep.BUILDING_TRANSACTION);
 

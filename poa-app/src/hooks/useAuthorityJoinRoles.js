@@ -7,7 +7,7 @@ import { useWeb3Services } from '@/hooks/useWeb3Services';
 /** Preflight every public role: newcomers have no indexed membership row until their first event. */
 export function useAuthorityJoinRoles() {
   const { accountAddress, isAuthHydrated } = useAuth();
-  const { roles, authority, loading, error, refetch: refetchSubjects } = useAuthoritySubjects();
+  const { roles, authority, loading, error, snapshot, refetch: refetchSubjects } = useAuthoritySubjects();
   const { refetch: refetchAuthority } = authority;
   const { membershipAuthority } = useWeb3Services();
   const [result, setResult] = useState({ key: null, states: {} });
@@ -48,5 +48,5 @@ export function useAuthorityJoinRoles() {
     });
     return () => { cancelled = true; };
   }, [key, roles, authority.enabled, authority.address, accountAddress, isAuthHydrated, membershipAuthority, revision]);
-  return { roles, authority, loading, error, states: result.key === key ? result.states : {}, refetch };
+  return { roles, authority, loading, error, snapshot, states: result.key === key ? result.states : {}, refetch };
 }

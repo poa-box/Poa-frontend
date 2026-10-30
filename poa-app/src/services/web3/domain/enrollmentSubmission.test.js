@@ -53,7 +53,8 @@ function setup(kind, { failure, logs, status = 'success', guard = () => {}, depl
   const publicClient = { getChainId: vi.fn(async () => 100),
     getBlock: vi.fn(async ({ blockNumber }) => ({ number: blockNumber, hash: BLOCK_HASH })),
     getBytecode: vi.fn(async ({ address }) => address.toLowerCase() === ACCOUNT && !deployed ? '0x' : '0x1234'),
-    readContract: vi.fn(async ({ functionName }) => functionName === 'getAddress' ? ACCOUNT : NONCE),
+    readContract: vi.fn(async ({ functionName }) => functionName === 'getAddress' ? ACCOUNT
+      : functionName === 'getAddressOfUsername' ? ethers.constants.AddressZero : NONCE),
     getTransactionReceipt: vi.fn(async () => rawReceipt) };
   const bundlerClient = {
     sendUserOperation: vi.fn(async userOp => {
