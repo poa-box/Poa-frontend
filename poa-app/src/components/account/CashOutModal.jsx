@@ -6,7 +6,7 @@ import { useAccount, useSwitchChain, useConfig, getConnectorClient, clientToSign
  * to create the ZKP2P deposit. No relay tx, no backend trigger.
  */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Modal, ModalOverlay, ModalContent, ModalHeader, ModalBody, ModalFooter, ModalCloseButton,
   VStack, HStack, Text, Input, InputGroup, InputRightElement, Button,
@@ -16,8 +16,12 @@ import { FiCheck, FiDollarSign } from 'react-icons/fi';
 import { ethers } from 'ethers';
 import { useAuth } from '@/context/authState';
 import { formatTokenAmount } from '@/util/formatToken';
+import { parseDecimalAmountToRaw } from '@poa-box/core/amounts';
+import { useOrganizationWriteScope } from '@/lib/organization/useOrganizationWriteScope';
+import { assetActionsAvailable, knownRawAmount } from '@/services/web3/domain/accountFinancialEvidence';
 import {
   ARBITRUM_CHAIN_ID,
+  USDC_ARBITRUM,
   DEFAULT_CONVERSION_RATE,
   PAYMENT_PLATFORMS,
   prepareCashOut,
@@ -51,18 +55,11 @@ const PROGRESS_BY_STEP = {
 const VENMO_SPREAD_PCT = 2;
 const BRIDGE_FEE_PCT = 0.5;
 
-// Minimal ERC20 ABI for the one-time Permit2 approval
-const ERC20_ALLOWANCE_ABI = [
-  { type: 'function', name: 'allowance', stateMutability: 'view',
-    inputs: [{ name: 'owner', type: 'address' }, { name: 'spender', type: 'address' }],
-    outputs: [{ type: 'uint256' }] },
-  { type: 'function', name: 'approve', stateMutability: 'nonpayable',
-    inputs: [{ name: 'spender', type: 'address' }, { name: 'amount', type: 'uint256' }],
-    outputs: [{ type: 'bool' }] },
-];
-
-function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
-  const { isPasskeyUser } = useAuth();
+function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess, nativeBalance = null, errors = [], coverage }) {
+  const { isPasskeyUser, accountAddress: resolvedAccount, isSessionCurrent, isAuthHydrated, sessionGeneration } = useAuth();
+  const actionRef = useRef(false);
+  const canUseBalance = assetActionsAvailable({ token, nativeBalance, errors, coverage });
+  const captureScope = useOrganizationWriteScope({ orgId: [isOpen, token?.address, token?.balance, nativeBalance, canUseBalance, isPasskeyUser, isAuthHydrated, sessionGeneration].join(':'), chainId: token?.chainId, account: resolvedAccount });
   const { switchChainAsync } = useSwitchChain();
   const wagmiConfig = useConfig();
   const { chain: currentChain } = useAccount();
@@ -87,12 +84,13 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
 
   const parsedAmount = useMemo(() => {
     if (!amount || !token) return 0n;
-    try { return ethers.utils.parseUnits(amount, token.decimals).toBigInt(); }
+    try { return BigInt(parseDecimalAmountToRaw(amount, token.decimals)); }
     catch { return 0n; }
   }, [amount, token]);
 
   const balanceBigInt = useMemo(() => {
-    try { return BigInt(token?.balance || '0'); } catch { return 0n; }
+    const raw = knownRawAmount(token?.balance);
+    return raw === null ? null : BigInt(raw);
   }, [token?.balance]);
 
   const estimatedReceive = useMemo(() => {
@@ -102,10 +100,13 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
   }, [amount, parsedAmount]);
 
   const isValid =
+    canUseBalance && isAuthHydrated !== false &&
+    !!accountAddress && resolvedAccount?.toLowerCase() === accountAddress.toLowerCase() &&
     parsedAmount > 0n &&
     parsedAmount <= balanceBigInt &&
     payeeId.length >= 2 &&
     token?.chainId === ARBITRUM_CHAIN_ID &&
+    token?.address?.toLowerCase() === USDC_ARBITRUM.toLowerCase() &&
     !isPasskeyUser; // see passkey notice below
 
   const handleStep = useCallback(({ step: name, message }) => {
@@ -114,9 +115,16 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
   }, []);
 
   const handleCashOut = useCallback(async () => {
-    if (!isValid) return;
-
+    if (!isValid || actionRef.current) return;
+    actionRef.current = true;
+    const scope = captureScope();
+    const guard = () => {
+      scope.assertCurrent();
+      if (isAuthHydrated === false || resolvedAccount?.toLowerCase() !== accountAddress?.toLowerCase()
+        || (isSessionCurrent && !isSessionCurrent())) throw new Error('Your account changed. Please try again.');
+    };
     try {
+      guard();
       setStep(STEPS.processing);
       setError(null);
 
@@ -127,57 +135,59 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
         platform,
         payeeHandle: payeeId,
         conversionRate: DEFAULT_CONVERSION_RATE,
-        onStep: handleStep,
+        onStep: event => { guard(); handleStep(event); },
       });
 
+      guard();
       // 2. Make sure we're on Arbitrum
       if (currentChain?.id !== ARBITRUM_CHAIN_ID) {
         await switchChainAsync({ chainId: ARBITRUM_CHAIN_ID });
       }
+      guard();
       const connectorClient = await getConnectorClient(wagmiConfig, { chainId: ARBITRUM_CHAIN_ID });
+      guard();
       const signer = clientToSigner(connectorClient);
       if (!signer) throw new Error('Wallet not ready — reconnect and try again.');
 
-      // 3. Approve USDC → Permit2 if allowance < amount. We use max approval
-      //    so subsequent cashouts skip this step entirely (Permit2 limits
-      //    risk via per-cashout signed nonces; max approval is safe here).
-      const erc20 = new ethers.Contract(approval.token, ERC20_ALLOWANCE_ABI, signer);
-      const currentAllowance = (await erc20.allowance(accountAddress, approval.spender)).toBigInt();
-      if (currentAllowance < approval.amount) {
-        handleStep({ step: 'approving', message: 'Approving USDC (one-time)…' });
-        const approveTx = await erc20.approve(approval.spender, ethers.constants.MaxUint256);
-        await approveTx.wait();
-      }
+      const { createAccountTransferService } = await import('@/services/web3/domain/AccountTransferService');
+      guard();
+      const service = await createAccountTransferService({ chainId: ARBITRUM_CHAIN_ID,
+        accountAddress, isPasskeyUser: false, guard, getSigner: async () => clientToSigner(await getConnectorClient(wagmiConfig, { chainId: ARBITRUM_CHAIN_ID })) });
+      guard();
+      const approved = await service.approveIfNeeded(approval, { onStateChange: () => {
+        guard(); handleStep({ step: 'approving', message: 'Approving USDC (one-time)…' });
+      } });
+      guard();
+      if (!approved.success) throw approved.error;
 
       // 4. Sign the Permit2 typed data (single signature)
       handleStep({ step: 'signing', message: 'Sign to confirm cashout…' });
-      const signature = await signer._signTypedData(
-        typedData.domain,
-        // ethers v5 _signTypedData wants types WITHOUT the EIP712Domain entry
-        stripDomainType(typedData.types),
-        typedData.message
-      );
+      guard();
+      const signature = await service.signCashout(typedData);
 
+      guard();
       // 5. Submit to Bungee — solver picks up, delivers atomically
       handleStep({ step: 'submitted', message: 'Submitting to bridge…' });
+      guard();
       await submit(signature);
+      guard();
 
       setStep(STEPS.complete);
       setProgressPercent(100);
       onSuccess?.();
     } catch (err) {
-      console.error('[CashOut] Error:', err);
+      if (!scope.isCurrent()) return;
       setError(formatCashOutError(err));
       setStep(STEPS.error);
-    }
+    } finally { actionRef.current = false; }
   }, [
     isValid, parsedAmount, accountAddress, platform, payeeId,
-    currentChain, switchChainAsync, wagmiConfig, handleStep, onSuccess,
+    currentChain, switchChainAsync, wagmiConfig, handleStep, onSuccess, captureScope, isAuthHydrated, resolvedAccount, isSessionCurrent,
   ]);
 
   const handleMax = () => {
-    if (!token) return;
-    setAmount(formatTokenAmount(token.balance, token.decimals, 2));
+    if (!token || !canUseBalance) return;
+    setAmount(ethers.utils.formatUnits(token.balance, token.decimals));
   };
 
   const isProcessing = step === STEPS.processing;
@@ -241,13 +251,17 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
                   <VStack align="start" spacing={1}>
                     <Text fontWeight="bold">Passkey cashout coming soon</Text>
                     <Text fontSize="xs">
-                      Atomic cashout uses a Permit2 signature, which today's PasskeyAccount
-                      can't produce. Connect a wallet (MetaMask, Rainbow, etc.) to use cashout
-                      while we ship the contract upgrade.
+                      Connect the wallet that holds your USDC to use cashout.
                     </Text>
                   </VStack>
                 </Alert>
               )}
+
+              {!canUseBalance && <Alert status="warning" borderRadius="lg"><AlertIcon />
+                {balanceBigInt === null || knownRawAmount(nativeBalance) === null || !['complete', 'incomplete'].includes(coverage)
+                  ? 'Balance or network fee balance unavailable. Refresh balances before continuing.'
+                  : 'A positive USDC balance and funds for network fees are needed. Refresh balances before continuing.'}
+              </Alert>}
 
               {token && token.chainId !== ARBITRUM_CHAIN_ID && (
                 <Alert status="warning" borderRadius="lg" bg="yellow.900" color="yellow.200" fontSize="sm">
@@ -262,7 +276,7 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
                     <Text fontSize="sm" color="gray.300">{token.symbol}</Text>
                   </HStack>
                   <Text fontSize="xs" color="gray.500">
-                    Balance: {formatTokenAmount(token.balance, token.decimals, 2)}
+                    Balance: {balanceBigInt === null ? 'Unavailable' : formatTokenAmount(token.balance, token.decimals, 2)}
                   </Text>
                 </HStack>
               )}
@@ -305,16 +319,16 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
                     _focus={{ borderColor: 'purple.400', boxShadow: '0 0 0 1px var(--chakra-colors-purple-400)' }}
                   />
                   <InputRightElement pr={1}>
-                    <Button size="xs" variant="ghost" colorScheme="purple" onClick={handleMax}>MAX</Button>
+                    <Button size="xs" variant="ghost" colorScheme="purple" isDisabled={!canUseBalance} onClick={handleMax}>MAX</Button>
                   </InputRightElement>
                 </InputGroup>
               </Box>
 
-              {amount && parsedAmount > balanceBigInt && (
+              {amount && balanceBigInt !== null && parsedAmount > balanceBigInt && (
                 <Text fontSize="xs" color="red.300">Amount exceeds your balance</Text>
               )}
 
-              {estimatedReceive && parsedAmount > 0n && parsedAmount <= balanceBigInt && (
+              {estimatedReceive && canUseBalance && parsedAmount > 0n && parsedAmount <= balanceBigInt && (
                 <Box w="100%" p={3} bg="rgba(0,0,0,0.3)" borderRadius="lg">
                   <VStack spacing={1} align="stretch">
                     <HStack justify="space-between">
@@ -362,15 +376,6 @@ function CashOutModal({ isOpen, onClose, token, accountAddress, onSuccess }) {
 }
 
 /*══════════════════════════════════ HELPERS ══════════════════════════════════*/
-
-/**
- * ethers v5 `_signTypedData` rejects an `EIP712Domain` entry in the types map.
- * Bungee's quote includes it; we strip it before passing to the signer.
- */
-function stripDomainType(types) {
-  const { EIP712Domain, ...rest } = types || {};
-  return rest;
-}
 
 /**
  * Map common ethers/viem/wagmi rejection codes to user-friendly text.

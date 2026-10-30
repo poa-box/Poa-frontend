@@ -100,11 +100,7 @@ export function PowerBundleCard({
               >
                 <HStack spacing={2}>
                   <Text>{role.name}</Text>
-                  {role.hierarchy.adminRoleIndex === null && (
-                    <Badge size="xs" colorScheme="gray">
-                      Leader
-                    </Badge>
-                  )}
+
                 </HStack>
               </Checkbox>
             ))}

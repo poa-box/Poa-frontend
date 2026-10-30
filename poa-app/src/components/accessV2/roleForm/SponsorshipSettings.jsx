@@ -4,44 +4,55 @@ import {
   Switch, Text, VStack,
 } from '@chakra-ui/react';
 import { tokensFor } from '@/components/accessV2/roleForm/formTokens';
+import { DEFAULT_SPONSORSHIP } from '@/lib/accessV2/sponsorship';
 
-export default function SponsorshipSettings({ value, onChange, config, onRetry, kind = 'role', emailJoining = false, variant }) {
+export default function SponsorshipSettings({ value, onChange, config, emailConfig, onRetry, kind = 'role', emailJoining = false, variant }) {
   const t = tokensFor(variant);
-  const sponsorship = { enabled: true, capNative: '0.25', epochDays: 30, supportPasskeys: true, ...value };
-  const symbol = config?.nativeSymbol || 'native token';
+  const sponsorship = { ...DEFAULT_SPONSORSHIP, ...value };
+  const symbol = config?.nativeSymbol || 'native currency';
   const canConfigure = config?.ready && config?.canConfigure;
+  const emailAvailable = emailConfig?.ready && emailConfig.enabled && emailConfig.authorityMatches;
+  const emailSelected = emailJoining || sponsorship.includeConfiguredEmailRules;
+  const change = patch => {
+    const next = { ...sponsorship, ...patch };
+    if (!next.enabled || !next.supportPasskeys) {
+      next.includeConfiguredEmailRules = false;
+      next.initializeClaimBudget = false;
+    } else if (!emailJoining && !next.includeConfiguredEmailRules) next.initializeClaimBudget = false;
+    onChange(next);
+  };
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState(null);
   const retry = async () => {
     setRetrying(true);
     setRetryError(null);
     try { await onRetry?.(); }
-    catch (error) { setRetryError(error?.message || 'Unable to reload gas sponsorship.'); }
+    catch (error) { setRetryError(error?.message || 'Unable to reload sponsorship.'); }
     finally { setRetrying(false); }
   };
 
   return (
     <VStack align="stretch" spacing={4}>
       <Box>
-        <Text fontSize="sm" color={t.label} fontWeight="medium">Gas sponsorship</Text>
+        <Text fontSize="sm" color={t.label} fontWeight="medium">Sponsorship</Text>
         <Text fontSize="xs" color={t.help} mt={1}>
-          Cover eligible passkey transactions from the org’s funded gas balance. A new spending limit
+          Cover eligible passkey actions from the organization’s funded balance. A new spending limit
           is shared by everyone holding this {kind}.
         </Text>
       </Box>
       {config?.paused && (
         <Alert status="warning" borderRadius="md" fontSize="sm">
           <AlertIcon />
-          Gas sponsorship is currently paused. This budget will be available once sponsorship resumes and the org has funds.
+          Sponsorship is currently paused. This budget will be available once sponsorship resumes and the org has funds.
         </Alert>
       )}
       {!canConfigure ? (
         <VStack align="stretch" spacing={3}>
         <Alert status="info" borderRadius="md" fontSize="sm" alignItems="flex-start">
           <AlertIcon />
-          {!config?.ready
-            ? 'Checking whether this org’s governance can configure gas sponsorship…'
-            : config.error || 'This org’s governance is not authorized to set sponsorship budgets. An org operator must configure the budget in the paymaster.'}
+          {config?.error || (!config?.ready
+            ? 'Checking whether this organization’s governance can configure sponsorship…'
+            : 'This organization’s governance is not authorized to set sponsorship budgets.')}
         </Alert>
         {sponsorship.enabled ? (
           <Button
@@ -51,7 +62,7 @@ export default function SponsorshipSettings({ value, onChange, config, onRetry, 
             whiteSpace="normal"
             height="auto"
             py={2}
-            onClick={() => onChange({ ...sponsorship, enabled: false })}
+            onClick={() => change({ enabled: false })}
             data-testid="role-form-sponsorship-skip"
           >
             Continue with existing org sponsorship
@@ -70,15 +81,15 @@ export default function SponsorshipSettings({ value, onChange, config, onRetry, 
         <>
           <HStack justify="space-between" align="start">
             <Box pr={3}>
-              <Text fontSize="sm" color={t.label}>Set a sponsored gas budget</Text>
+              <Text fontSize="sm" color={t.label}>Set a sponsored action budget</Text>
               <Text fontSize="xs" color={t.help}>
                 Starts at {sponsorship.capNative} {symbol} every {sponsorship.epochDays} days.
               </Text>
             </Box>
             <Switch
-              aria-label="Set a sponsored gas budget"
+              aria-label="Set a sponsored action budget"
               isChecked={sponsorship.enabled}
-              onChange={(e) => onChange({ ...sponsorship, enabled: e.target.checked })}
+              onChange={(e) => change({ enabled: e.target.checked })}
               colorScheme={t.accent}
               data-testid="role-form-sponsorship-enabled"
             />
@@ -86,10 +97,10 @@ export default function SponsorshipSettings({ value, onChange, config, onRetry, 
           {sponsorship.enabled && (
             <SimpleGrid columns={{ base: 1, sm: 2 }} spacing={3}>
               <FormControl>
-                <FormLabel color={t.label} fontSize="xs">Shared gas limit ({symbol})</FormLabel>
+                <FormLabel color={t.label} fontSize="xs">Shared sponsorship limit ({symbol})</FormLabel>
                 <Input
                   value={sponsorship.capNative}
-                  onChange={(e) => onChange({ ...sponsorship, capNative: e.target.value })}
+                  onChange={(e) => change({ capNative: e.target.value })}
                   inputMode="decimal"
                   size="sm"
                   data-testid="role-form-sponsorship-cap"
@@ -100,7 +111,7 @@ export default function SponsorshipSettings({ value, onChange, config, onRetry, 
                 <FormLabel color={t.label} fontSize="xs">Budget resets every (days)</FormLabel>
                 <Input
                   value={sponsorship.epochDays}
-                  onChange={(e) => onChange({ ...sponsorship, epochDays: e.target.value })}
+                  onChange={(e) => change({ epochDays: e.target.value })}
                   inputMode="decimal"
                   size="sm"
                   data-testid="role-form-sponsorship-epoch"
@@ -112,7 +123,7 @@ export default function SponsorshipSettings({ value, onChange, config, onRetry, 
           {sponsorship.enabled && (
             <Checkbox
               isChecked={sponsorship.supportPasskeys}
-              onChange={(e) => onChange({ ...sponsorship, supportPasskeys: e.target.checked })}
+              onChange={(e) => change({ supportPasskeys: e.target.checked })}
               colorScheme={t.accent}
               alignItems="flex-start"
               data-testid="role-form-sponsorship-passkeys"
@@ -121,20 +132,64 @@ export default function SponsorshipSettings({ value, onChange, config, onRetry, 
                 <Text fontSize="sm" color={t.label}>Allow membership actions with passkeys</Text>
                 <Text fontSize="xs" color={t.help}>
                   Enable the org’s sponsorship rules for claiming and leaving roles, vouching,
-                  delegated actions and verified email claims. These rules apply across the org.
+                  and delegated membership actions. These rules apply across the organization.
                 </Text>
               </VStack>
             </Checkbox>
           )}
-          {emailJoining && sponsorship.enabled && sponsorship.supportPasskeys && config?.claimBudgetMissing && (
-            <Text fontSize="xs" color={t.help}>
-              This also starts an email joining budget of {sponsorship.capNative} {symbol} every{' '}
-              {sponsorship.epochDays} days so people can claim before holding a role. That budget is shared
-              by all new email joiners across the org.
-            </Text>
+          {sponsorship.enabled && sponsorship.supportPasskeys && (
+            <VStack align="stretch" spacing={3}>
+              <Checkbox
+                isChecked={sponsorship.includeConfiguredEmailRules}
+                isDisabled={!emailAvailable && !sponsorship.includeConfiguredEmailRules}
+                onChange={(e) => change({ includeConfiguredEmailRules: e.target.checked })}
+                colorScheme={t.accent}
+                alignItems="flex-start"
+                data-testid="role-form-sponsorship-email-rules"
+              >
+                <VStack align="start" spacing={0} ml={1}>
+                  <Text fontSize="sm" color={t.label}>Sponsor configured email joining actions</Text>
+                  <Text fontSize="xs" color={t.help}>
+                    Include the organization’s existing verified email joining options. This changes
+                    sponsorship across the organization. Email addresses or domains selected for this
+                    role already include their needed joining actions.
+                  </Text>
+                </VStack>
+              </Checkbox>
+              {!emailAvailable && <Text fontSize="xs" color={t.help}>
+                {emailConfig?.error || (!emailConfig?.ready ? 'Checking email joining options…' : 'Email joining is not available for this organization.')}
+              </Text>}
+              {emailSelected && config?.claimBudgetMissing && (
+                <Checkbox
+                  isChecked={sponsorship.initializeClaimBudget}
+                  onChange={(e) => change({ initializeClaimBudget: e.target.checked })}
+                  colorScheme={t.accent}
+                  alignItems="flex-start"
+                  data-testid="role-form-sponsorship-claim-budget"
+                >
+                  <VStack align="start" spacing={0} ml={1}>
+                    <Text fontSize="sm" color={t.label}>Start the shared email joining budget</Text>
+                    <Text fontSize="xs" color={t.help}>
+                      Allow up to {sponsorship.capNative} {symbol} every {sponsorship.epochDays} days
+                      so people can join before holding a role. All new email joiners across the
+                      organization share this budget. Select this to continue with sponsored email joining.
+                    </Text>
+                  </VStack>
+                </Checkbox>
+              )}
+              {emailSelected && !config?.claimBudgetReady && !config?.claimBudgetMissing && (
+                <Text fontSize="xs" color={t.help}>The shared email joining budget could not be verified. Recheck sponsorship before review.</Text>
+              )}
+              {emailSelected && !config?.claimBudgetMissing && sponsorship.initializeClaimBudget && (
+                <Checkbox isChecked onChange={() => change({ initializeClaimBudget: false })} colorScheme={t.accent}
+                  data-testid="role-form-sponsorship-claim-budget">
+                  <Text fontSize="xs" color={t.help}>Keep permission to start the shared email joining budget if it is missing at review.</Text>
+                </Checkbox>
+              )}
+            </VStack>
           )}
           <Text fontSize="xs" color={t.help}>
-            The org must fund its gas balance. Turning this off leaves its other sponsorship budgets in place.
+            The org must fund its sponsorship balance. Turning this off leaves its other sponsorship budgets in place.
           </Text>
         </>
       )}
@@ -142,7 +197,7 @@ export default function SponsorshipSettings({ value, onChange, config, onRetry, 
         <Text fontSize="xs" color={t.label} fontWeight="medium">Passkey actions</Text>
         <Text fontSize="xs" color={t.help} mt={1}>
           Eligible actions still require the member’s usual permissions. Spending limits and the org’s
-          available gas balance also apply. This budget does not grant additional permissions.
+          available sponsorship balance also apply. This budget does not grant additional permissions.
         </Text>
         {config?.actionsError && <Text fontSize="xs" color={t.help} mt={2}>{config.actionsError}</Text>}
       </Box>

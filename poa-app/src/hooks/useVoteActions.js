@@ -18,12 +18,11 @@
  */
 
 import { useCallback } from 'react';
-import { useWeb3Services, useTransactionWithNotification } from './useWeb3Services';
+import { useWeb3Services, useTransactionWithNotification } from '@/hooks/useWeb3Services';
 import { useNotification } from '@/context/NotificationContext';
-import { VotingType } from '@/services/web3/domain/VotingService';
+import { VotingType } from '@/lib/services/votingType';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { readGasFloor, clearGasFloor, gasFloorOptions } from '@/lib/accessV2/gasFloors';
-import { parseExecutionFailure } from '@/lib/voting/proposalReceipt';
 import { describeExecutionFailure } from '@/lib/errors/contractErrors';
 import { roleRemovalGasFloorFromProposal } from '@/lib/accessV2/roleRemoval';
 
@@ -113,7 +112,8 @@ export function useVoteActions(votingTypeSelected) {
     // that would eventually say it is a refetch away. Purely additive: the count DID land, so the
     // result stays `success` and PollDetail's confirm dialog still closes.
     if (result?.success && result?.receipt) {
-      const failure = parseExecutionFailure(result.receipt, contractAddress);
+      const { parseExecutionFailure } = await import('@/lib/voting/proposalReceipt');
+      const failure = parseExecutionFailure(result.receipt, contractAddress, proposalId);
       if (failure) {
         addNotification(
           describeExecutionFailure(failure.reason)

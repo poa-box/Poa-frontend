@@ -23,5 +23,6 @@ export function createLazyBundler(loadClient) {
     getUserOperationGasPrice: (...args) => call('getUserOperationGasPrice', args),
     sendUserOperation: (...args) => call('sendUserOperation', args),
     waitForUserOperationReceipt: (...args) => call('waitForUserOperationReceipt', args),
+    getUserOperationReceipt: (...args) => call('getUserOperationReceipt', args),
   };
 }

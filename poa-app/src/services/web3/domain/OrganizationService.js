@@ -3,14 +3,19 @@
  * Handles organization membership operations (QuickJoin)
  */
 
-import QuickJoinABI from '../../../../abi/QuickJoinNew.json';
-import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
-import { requireAddress, requireValidUsername } from '../utils/validation';
-import { signRegistrationChallenge, computeRegistrationChallenge } from '../passkey/passkeySign';
-import { signRegistration } from '../utils/registrySigner';
-import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
+import { UniversalAccountRegistryAbi as UniversalAccountRegistryABI } from '@poa-box/core/abis/UniversalAccountRegistry';
+import { requireAddress, requireValidUsername } from '@/services/web3/utils/validation';
+import { signRegistrationChallenge } from '@/services/web3/passkey/passkeySign';
+import { signRegistration } from '@/services/web3/utils/registrySigner';
+import { NETWORKS, DEFAULT_NETWORK } from '@/config/networks';
 
-// Registration deadline: 5 minutes
+import { buildQuickJoinWithUser, buildRegisterAndQuickJoin, buildRegisterAndQuickJoinWithPasskey } from '@poa-box/core/tx/user';
+import { executeCoreIntent } from '@/services/web3/core/coreIntent';
+import { pendingSubmissionError } from '@/services/web3/core/submissionJournal';
+
+import { registrationChallenge } from '@poa-box/core/accounts/codecs';
+
+// Host registration deadline: 14 days; retained during protocol migration.
 const REGISTRATION_DEADLINE_SECONDS = 1209600;
 
 /**
@@ -45,6 +50,12 @@ export class OrganizationService {
    * @returns {Promise<TransactionResult>}
    */
   async registerAndJoinNewUser(contractAddress, username, credential, options = {}) {
+    const guard = () => {
+      this.txManager.assertCurrent?.();
+      const pending = this.txManager.getPendingSubmission?.();
+      if (pending) throw pendingSubmissionError(pending);
+    };
+    guard();
     requireAddress(contractAddress, 'QuickJoin contract address');
     requireValidUsername(username);
 
@@ -70,38 +81,27 @@ export class OrganizationService {
       const registryContract = this.factory.createReadOnly(this.registryAddress, UniversalAccountRegistryABI);
       nonce = BigInt(await registryContract.nonces(accountAddress));
     }
+    guard();
     const deadline = BigInt(Math.floor(Date.now() / 1000) + REGISTRATION_DEADLINE_SECONDS);
 
     // Compute and sign the registration challenge (biometric prompt #1)
-    const challengeHash = computeRegistrationChallenge({
-      accountAddress,
+    const challengeHash = registrationChallenge({
+      user: accountAddress,
       username,
       nonce,
       deadline,
       chainId: this.chainId,
       registryAddress: this.registryAddress,
-    });
+    }, 'passkey');
 
-    console.log('[OrganizationService] Signing registration challenge...');
     const auth = await signRegistrationChallenge(challengeHash, rawCredentialId);
+    guard();
 
-    // Call registerAndQuickJoinWithPasskey on QuickJoin
-    // SmartAccountTransactionManager wraps this in execute() and signs the UserOp (biometric prompt #2)
-    console.log('[OrganizationService] Calling registerAndQuickJoinWithPasskey...');
-    const quickJoinContract = this.factory.createWritable(contractAddress, QuickJoinABI);
-
-    return this.txManager.execute(
-      quickJoinContract,
-      'registerAndQuickJoinWithPasskey',
-      [
-        [credentialId, publicKeyX, publicKeyY, BigInt(salt)],
-        username,
-        deadline,
-        nonce,
-        [auth.authenticatorData, auth.clientDataJSON, auth.challengeIndex, auth.typeIndex, auth.r, auth.s],
-      ],
-      options
-    );
+    return executeCoreIntent(this.factory, this.txManager, buildRegisterAndQuickJoinWithPasskey({
+      quickJoinAddress: contractAddress,
+      passkey: { credentialId, publicKeyX, publicKeyY, salt },
+      username, deadline, nonce, auth,
+    }), options);
   }
 
   /**
@@ -115,6 +115,12 @@ export class OrganizationService {
    * @returns {Promise<TransactionResult>}
    */
   async registerAndJoinEOA(contractAddress, username, signer, options = {}) {
+    const guard = () => {
+      this.txManager.assertCurrent?.();
+      const pending = this.txManager.getPendingSubmission?.();
+      if (pending) throw pendingSubmissionError(pending);
+    };
+    guard();
     requireAddress(contractAddress, 'QuickJoin contract address');
     requireValidUsername(username);
 
@@ -123,24 +129,21 @@ export class OrganizationService {
     }
 
     // Sign registration via EIP-712
-    console.log('[OrganizationService] Requesting EIP-712 registration signature...');
     const { deadline, nonce, signature } = await signRegistration({
       signer,
       registryAddress: this.registryAddress,
       username,
+      guard,
     });
+    guard();
 
     const userAddress = await signer.getAddress();
+    guard();
 
-    console.log('[OrganizationService] Calling registerAndQuickJoin...');
-    const quickJoinContract = this.factory.createWritable(contractAddress, QuickJoinABI);
-
-    return this.txManager.execute(
-      quickJoinContract,
-      'registerAndQuickJoin',
-      [userAddress, username, deadline, nonce, signature],
-      options
-    );
+    return executeCoreIntent(this.factory, this.txManager, buildRegisterAndQuickJoin({
+      quickJoinAddress: contractAddress, user: userAddress, username,
+      deadline: deadline.toString(), nonce: nonce.toString(), signature,
+    }), options);
   }
 
   /**
@@ -152,9 +155,8 @@ export class OrganizationService {
   async quickJoinWithUser(contractAddress, options = {}) {
     requireAddress(contractAddress, 'QuickJoin contract address');
 
-    const contract = this.factory.createWritable(contractAddress, QuickJoinABI);
-
-    return this.txManager.execute(contract, 'quickJoinWithUser', [], options);
+    return executeCoreIntent(this.factory, this.txManager,
+      buildQuickJoinWithUser({ quickJoinAddress: contractAddress }), options);
   }
 
 

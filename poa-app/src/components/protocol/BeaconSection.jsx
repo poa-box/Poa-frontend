@@ -22,6 +22,8 @@ const BeaconSection = ({ chains }) => {
     return upgrades.sort((a, b) => parseInt(b.upgradedAt || b.blockTimestamp || 0) - parseInt(a.upgradedAt || a.blockTimestamp || 0));
   }, [chains]);
 
+  const unavailable = Object.values(chains).some((chain) => chain.historyCoverage?.beacon?.status === 'unavailable');
+
   return (
     <Box as="section" py={{ base: 12, md: 16 }} bg="warmGray.50">
       <Container maxW="6xl">
@@ -33,12 +35,13 @@ const BeaconSection = ({ chains }) => {
             Beacon Upgrade History
           </Heading>
           <Text fontSize="sm" color="warmGray.500" mb={6}>
-            All contract implementations are upgraded via beacon proxy pattern. Upgrades propagate cross-chain via Hyperlane.
+            Recent indexed upgrades across the available networks. Each source shows up to 50 events; the table displays the latest 30.
           </Text>
 
+          {unavailable && <Text role="status" color="warmGray.500" mb={4}>Some upgrade history is unavailable.</Text>}
           {allUpgrades.length === 0 ? (
             <Box bg="white" border="1px solid" borderColor="warmGray.100" borderRadius="xl" p={8} textAlign="center">
-              <Text color="warmGray.400">No upgrade history indexed yet</Text>
+              <Text color="warmGray.400">{unavailable ? 'Upgrade history is unavailable' : 'No upgrade history indexed yet'}</Text>
             </Box>
           ) : (
             <Box bg="white" border="1px solid" borderColor="warmGray.100" borderRadius="xl" overflow="hidden">

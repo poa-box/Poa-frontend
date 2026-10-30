@@ -1,18 +1,22 @@
 import React from 'react';
 import { Box, Text, VStack } from '@chakra-ui/react';
-import { PERM_CATALOGUE, TASK_PERM_BITS } from '@/lib/accessV2/permKeys';
+import { permissionCatalogue, TASK_PERM_BITS } from '@/lib/accessV2/permKeys';
 import { tokensFor } from '@/components/accessV2/roleForm/formTokens';
+import { usePOContext } from '@/context/POContext';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 /** Keep inherited grants visible without presenting a local checkbox that could revoke them. */
 export default function InheritedPermissions({ groups = [], variant }) {
   const t = tokensFor(variant);
+  const { tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext() || {};
+  const catalogue = permissionCatalogue(tokenLabel);
   if (!groups.length) return null;
   return (
     <Box p={3} bg={t.subtleBg} border="1px solid" borderColor={t.panelBorder} borderRadius="lg">
       <Text fontSize="xs" color={t.label} fontWeight="semibold" mb={2}>Also inherited from groups</Text>
       <VStack align="stretch" spacing={2}>
         {groups.map((group) => {
-          const labels = PERM_CATALOGUE.flatMap((entry) => {
+          const labels = catalogue.flatMap((entry) => {
             const value = Number(group.permEffective?.(entry.key) || 0);
             if (!value) return [];
             return entry.mask

@@ -18,7 +18,7 @@ import { useMyMemberships } from './useAuthorityMemberships';
  *   `isHatRestricted`, `restrictedHatIds`
  */
 export function useActivationGate(poll) {
-  const { rows, loading, enabled } = useMyMemberships();
+  const { rows, loading, enabled, activationEvidence } = useMyMemberships();
 
   const restrictedSubjectIds = poll?.isHatRestricted ? (poll?.restrictedHatIds || []) : [];
   // Depend on the joined ids, not the array identity: VotingContext rebuilds the poll object on
@@ -28,13 +28,14 @@ export function useActivationGate(poll) {
   return useMemo(
     () => ballotActivation({
       enabled,
-      loading,
+      loading: loading || !activationEvidence,
       rows,
+      activationEvidence,
+      restrictionsKnown: poll?.isHatRestricted === false || (poll?.isHatRestricted === true && Array.isArray(poll?.restrictedHatIds)),
       restrictedSubjectIds: restrictionKey ? restrictionKey.split(',') : [],
-      proposalCreatedAt: poll?.startTimestamp,
+      proposalCreatedAtFact: poll?.proposalCreatedAt,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [enabled, loading, rows, restrictionKey, poll?.startTimestamp]
+    [enabled, loading, rows, restrictionKey, poll?.proposalCreatedAt, poll?.isHatRestricted, poll?.restrictedHatIds, activationEvidence]
   );
 }
 

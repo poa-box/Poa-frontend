@@ -56,18 +56,19 @@ import {
   toSec,
   nowMs,
 } from '@/util/deadlineUtils';
-import { canReleaseTask, releaseActionLabel, releaseConfirmCopy, ReleaseReason } from '@/util/releaseGate';
+import { releaseActionLabel, releaseConfirmCopy, ReleaseReason } from '@/util/releaseGate';
 import { useNow } from '@/hooks/useNow';
+import { releasePresentation } from '@/lib/tasks/releasePresentation';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import { useDataBaseContext } from '@/context/dataBaseContext';
 import { useUserContext } from '@/context/UserContext';
+import { useAuth } from '@/context/authState';
 import { useIPFScontext } from '@/context/ipfsContext';
 import { useRouter } from 'next/router';
 import { useProjectContext } from '@/context/ProjectContext';
 import { UserSearchInput } from '@/components/common';
 import UserIdentity from '@/components/common/UserIdentity';
 import {
-  projectTaskPermissions,
-  taskEditRights,
   PERMISSION_MESSAGES,
 } from '../../util/permissions';
 import { useOrgName } from '@/hooks/useOrgName';
@@ -200,23 +201,30 @@ const ExpandableText = ({
 };
 
 const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
+  const taskRef = useRef(task);
+  taskRef.current = task;
   const [submission, setSubmission] = useState('');
   const [selectedAssignee, setSelectedAssignee] = useState(null);
   const [isAssigning, setIsAssigning] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
-  const { moveTask, deleteTask, applyForTask, approveApplication, assignTask, takeOverTask, releaseTask, rejectTask, getPreviousSubmission } = useTaskBoard();
-  const { hasMemberRole, address: account, fetchUserDetails, userData } = useUserContext();
-  const { projectsData, releasesSupported } = useProjectContext();
+  const { moveTask, deleteTask, applyForTask, approveApplication, assignTask, takeOverTask, releaseTask, rejectTask, getPreviousSubmission, getTaskMetadata } = useTaskBoard();
+  const { fetchUserDetails, userData } = useUserContext();
+  const { accountAddress: account } = useAuth();
+  const { projectsData, releasesSupported, getTaskActions, ensureTaskApplications, getTaskApplicationRead } = useProjectContext();
   const { getUsernameByAddress, setSelectedProject, projects } = useDataBaseContext();
   const { safeFetchFromIpfs } = useIPFScontext();
   const router = useRouter();
   const userDAO = useOrgName();
   const poContext = usePOContext();
-  const { tokenLabel, taskPayoutHoursOnly } = poContext;
+  const { tokenLabel = DEFAULT_TOKEN_LABEL, taskPayoutHoursOnly } = poContext;
   const taskShareLink = useShareLink('/tasks/', { org: userDAO, projectId: task.projectId, task: task.id }, poContext);
   const toast = useToast();
   const { isOpen, onOpen, onClose} = useDisclosure();
   const { isOpen: isApplicationModalOpen, onOpen: onOpenApplicationModal, onClose: onCloseApplicationModal } = useDisclosure();
+  const applicationsRead = getTaskApplicationRead?.(task);
+  const applicants = applicationsRead?.applicants || task?.applicants;
+  useEffect(() => { if (isOpen && task?.requiresApplication) void ensureTaskApplications?.(task); },
+    [isOpen, task, ensureTaskApplications]);
   const releaseConfirm = useDisclosure();
   const releaseCancelRef = useRef();
   const [showAssignSection, setShowAssignSection] = useState(false);
@@ -229,42 +237,45 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
   const orgDisplayName = userDAO || 'this org';
 
   // IPFS metadata state
-  const [taskMetadata, setTaskMetadata] = useState(null);
-  const [submissionMetadata, setSubmissionMetadata] = useState(null);
-  const [rejectionMetadata, setRejectionMetadata] = useState(null);
-  const [metadataLoading, setMetadataLoading] = useState(false);
+  // Bind resolved documents during render as well as cancelling old requests.
+  // Effects reset after a commit; an unkeyed prior document could otherwise
+  // briefly describe a different task/hash/account before that reset runs.
+  const metadataIdentity = JSON.stringify([task.id, task.projectId, task.metadataHash, task.submissionHash,
+    task.rejectionHash, account?.toLowerCase(), poContext.orgId, poContext.orgChainId, poContext.subgraphUrl]);
+  const [taskMetadataRead, setTaskMetadataRead] = useState(null);
+  const [baseTaskMetadataRead, setBaseTaskMetadataRead] = useState(null);
+  const [submissionMetadataRead, setSubmissionMetadataRead] = useState(null);
+  const [rejectionMetadataRead, setRejectionMetadataRead] = useState(null);
+  const taskMetadata = taskMetadataRead?.identity === metadataIdentity ? taskMetadataRead.document : null;
+  const baseTaskMetadata = baseTaskMetadataRead?.identity === metadataIdentity ? baseTaskMetadataRead.document : null;
+  const submissionMetadata = submissionMetadataRead?.identity === metadataIdentity ? submissionMetadataRead.document : null;
+  const rejectionMetadata = rejectionMetadataRead?.identity === metadataIdentity ? rejectionMetadataRead.document : null;
+  const [metadataLoadingIdentity, setMetadataLoadingIdentity] = useState(null);
+  const metadataLoading = metadataLoadingIdentity === metadataIdentity;
+  const displayedDescription = task.description ?? taskMetadata?.description;
   const [previousSubmission, setPreviousSubmission] = useState(null);
   const [previousSubmissionLoading, setPreviousSubmissionLoading] = useState(false);
   const [previousSubmissionUnavailable, setPreviousSubmissionUnavailable] = useState(false);
-  const displayedSubmission = task?.submission ?? submissionMetadata?.submission ?? null;
+  const displayedSubmission = task?.submission ?? baseTaskMetadata?.submission ?? submissionMetadata?.submission ?? null;
+  // Board rows supply medium/1 presentation defaults while metadata is indexing.
+  // The complete document for this exact pointer is authoritative once loaded.
+  const displayedDifficulty = baseTaskMetadata?.difficulty ?? taskMetadata?.difficulty ?? task.difficulty ?? 'Unknown';
+  const displayedHours = baseTaskMetadata?.estHours ?? taskMetadata?.estHours ?? taskMetadata?.estimatedHours ?? task.estHours ?? 0;
 
   // Application IPFS content state
   const [applicationContents, setApplicationContents] = useState({});
   const [applicationsLoading, setApplicationsLoading] = useState(false);
 
-  const userHatIds = useMemo(() => userData?.hatIds || [], [userData]);
   const currentProject = useMemo(() => {
     return projectsData?.find(p => p.id === task?.projectId);
   }, [projectsData, task?.projectId]);
 
-  // Every TaskManager gate for this project, resolved exactly as the contract does:
-  // the per-hat mask (project mask shadows global, else global) OR being one of this
-  // project's managers. `account` is the tx's msg.sender under both auth types —
-  // the ERC-4337 smart account for passkey users, the EOA otherwise.
-  const perms = useMemo(
-    () => projectTaskPermissions(currentProject, userHatIds, account),
-    [currentProject, userHatIds, account],
-  );
-
-  const canReviewTask = perms.canReview;
-  const canAssign = perms.canAssign;
-
-  // Status-dependent edit rights: terminal tasks are immutable; EDIT_FULL works in any
-  // non-terminal status; a CREATE hat may still edit while the task is UNCLAIMED.
-  const { canEditFull: canEditTaskFull, canEditMeta: canEditTaskMetadata } = useMemo(
-    () => taskEditRights(perms, columnId),
-    [perms, columnId],
-  );
+  const now = useNow(15000);
+  const actions = useMemo(() => getTaskActions(task, currentProject, now), [getTaskActions, task, currentProject, now]);
+  const canReviewTask = actions.reject.state === 'allowed';
+  const canAssign = actions.assign.state === 'allowed';
+  const canEditTaskFull = actions.editFull.state === 'allowed' && task.absoluteDeadline !== undefined && task.completionWindow !== undefined;
+  const canEditTaskMetadata = actions.editMetadata.state === 'allowed';
 
   // EDIT_META without EDIT_FULL routes the save through updateTaskMetadata
   // (title + metadataHash only) instead of the full updateTask.
@@ -272,34 +283,23 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
 
   // Check if current user has already applied for this task
   const userApplication = useMemo(() => {
-    if (!account || !task?.applicants) return null;
-    return task.applicants.find(
+    if (!account || !applicants || !applicationsRead?.snapshot) return null;
+    return applicants.find(
       a => a.address?.toLowerCase() === account?.toLowerCase()
     );
-  }, [task?.applicants, account]);
+  }, [applicants, account, applicationsRead?.snapshot]);
 
   // Deadlines (v6)
-  const now = useNow(15000);
   const isClaimer = !!account && task?.claimedBy?.toLowerCase() === account?.toLowerCase();
   const claimExpired = columnId === 'inProgress' && isClaimExpired(task, now);
-  // `completeTask` additionally requires SELF_REVIEW when the reviewer is the claimer
-  // (project managers are exempt, which `perms.canSelfReview` already folds in).
-  // Rejecting only needs REVIEW, so it keeps using `canReviewTask`.
-  const canCompleteReview = canReviewTask && (!isClaimer || perms.canSelfReview);
-  // v7 claim release. The gate lives in util/releaseGate so the contract's two
-  // routes (claimer always; ASSIGN holder only once expired) are decided in one
-  // pure, tested place. `now` is threaded in so the button re-evaluates on the
-  // same 15s tick as the countdown rather than going stale.
+  // Core distinguishes completing one's own work from rejecting a submission.
+  const canCompleteReview = actions.complete.state === 'allowed';
+  // Release uses the same scoped core decision and 15s clock as the countdown.
   // `releasesSupported` gates the action on the org's INDEXER, not the chain: an
   // endpoint without the TaskUnclaimed handler would let the tx succeed and then
   // keep rendering the task as claimed forever.
-  const release = useMemo(
-    () => canReleaseTask(
-      { task, columnId, address: account, canAssign, releasesIndexed: releasesSupported },
-      now
-    ),
-    [task, columnId, account, canAssign, releasesSupported, now]
-  );
+  const release = useMemo(() => releasePresentation(actions.release, task, account, releasesSupported),
+    [actions.release, task, account, releasesSupported]);
   const enforcedDeadline = columnId === 'inProgress' ? effectiveDeadlineSec(task) : null;
   const taskDue = dueDateSec(task);
   const taskAbs = toSec(task?.absoluteDeadline);
@@ -346,16 +346,20 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
       const needsRejectionMetadata = !task.rejectionReason && task.rejectionHash &&
         task.rejectionCount > 0 && !rejectionMetadata;
 
-      if (!needsTaskMetadata && !needsSubmissionMetadata && !needsRejectionMetadata) return;
+      if (!needsTaskMetadata && !needsSubmissionMetadata && !needsRejectionMetadata) {
+        setMetadataLoadingIdentity(previous => previous === metadataIdentity ? null : previous);
+        return;
+      }
 
-      if (!cancelled) setMetadataLoading(true);
+      if (!cancelled) setMetadataLoadingIdentity(metadataIdentity);
 
       // Fetch task metadata (description, difficulty, estHours) - IPFS fallback
       if (needsTaskMetadata) {
         try {
           const metadata = await safeFetchFromIpfs(task.metadataHash);
           if (!cancelled && metadata) {
-            setTaskMetadata(metadata);
+            setTaskMetadataRead(previous => previous?.identity === metadataIdentity && previous.verified
+              ? previous : { identity: metadataIdentity, document: metadata });
           }
         } catch (err) {
           console.error('[TaskCardModal] IPFS fallback failed for task metadata:', err);
@@ -367,7 +371,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
         try {
           const metadata = await safeFetchFromIpfs(task.submissionHash);
           if (!cancelled && metadata) {
-            setSubmissionMetadata(metadata);
+            setSubmissionMetadataRead({ identity: metadataIdentity, document: metadata });
           }
         } catch (err) {
           console.error('[TaskCardModal] IPFS fallback failed for submission metadata:', err);
@@ -379,19 +383,37 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
         try {
           const metadata = await safeFetchFromIpfs(task.rejectionHash);
           if (!cancelled && metadata) {
-            setRejectionMetadata(metadata);
+            setRejectionMetadataRead({ identity: metadataIdentity, document: metadata });
           }
         } catch (err) {
           console.error('[TaskCardModal] IPFS fallback failed for rejection metadata:', err);
         }
       }
 
-      if (!cancelled) setMetadataLoading(false);
+      if (!cancelled) setMetadataLoadingIdentity(previous => previous === metadataIdentity ? null : previous);
     };
 
     fetchIpfsMetadata();
     return () => { cancelled = true; };
-  }, [isOpen, task, safeFetchFromIpfs, taskMetadata, submissionMetadata, rejectionMetadata]);
+  }, [isOpen, task, metadataIdentity, safeFetchFromIpfs, taskMetadata, submissionMetadata, rejectionMetadata]);
+
+  useEffect(() => {
+    let cancelled = false;
+    setTaskMetadataRead(null);
+    setBaseTaskMetadataRead(null);
+    setSubmissionMetadataRead(null);
+    setRejectionMetadataRead(null);
+    const capturedTask = taskRef.current;
+    if (isOpen && !capturedTask.isIndexing) {
+      getTaskMetadata(capturedTask).then(document => {
+        if (!cancelled) {
+          setTaskMetadataRead({ identity: metadataIdentity, document, verified: true });
+          setBaseTaskMetadataRead({ identity: metadataIdentity, document });
+        }
+      }).catch(() => { /* Edits/submissions fail closed at the action boundary. */ });
+    }
+    return () => { cancelled = true; };
+  }, [isOpen, metadataIdentity, task.isIndexing, getTaskMetadata]);
 
   // A rejection moves the task back to In Progress and clears its mutable
   // submissionHash. The subgraph retains an immutable TaskSubmission and links
@@ -436,9 +458,9 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
     let cancelled = false;
 
     const fetchApplicationContents = async () => {
-      if (!isOpen || !task?.applicants?.length) return;
+      if (!isOpen || !applicants?.length) return;
 
-      const hashesToFetch = task.applicants.filter(
+      const hashesToFetch = applicants.filter(
         a => a.applicationHash && !a.metadata && !applicationContents[a.address]
       );
       if (hashesToFetch.length === 0) return;
@@ -467,7 +489,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
 
     fetchApplicationContents();
     return () => { cancelled = true; };
-  }, [isOpen, task?.applicants, safeFetchFromIpfs]);
+  }, [isOpen, applicants, safeFetchFromIpfs, applicationContents]);
 
   const handleCloseModal = async () => {
     // Set flag to prevent useEffect from re-opening
@@ -497,7 +519,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
 
   // Handle applying for a task (for tasks that require application)
   const handleApply = async (applicationData) => {
-    if (!hasMemberRole) {
+    if (actions.apply.state !== 'allowed') {
       toast({
         title: 'Membership Required',
         description: 'You must be a member to apply for this task.',
@@ -533,10 +555,10 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
 
   // Handle approving an application (requires ASSIGN permission)
   const handleApproveApplication = async (applicantAddress, applicantUsername) => {
-    if (!canAssign) {
+    if (!canAssign || !getTaskApplicationRead?.(task)?.snapshot) {
       toast({
         title: 'Permission Required',
-        description: 'You must have assign permissions to approve applications.',
+        description: 'Current applications and assign permissions must be available before approving.',
         status: 'warning',
         duration: 4000,
         isClosable: true,
@@ -658,10 +680,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
     // nowMs(), not Date.now(): every other deadline surface honours the
     // `poa.devNowOffsetMs` time-travel offset, and a handler on the real clock
     // would refuse the very release the button just offered under the offset.
-    const live = canReleaseTask(
-      { task, columnId, address: account, canAssign, releasesIndexed: releasesSupported },
-      nowMs()
-    );
+    const live = releasePresentation(getTaskActions(task, currentProject, nowMs()).release, task, account, releasesSupported);
     if (!live.allowed) {
       releaseConfirm.onClose();
       toast({
@@ -698,7 +717,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
         });
         return;
       }
-      if (hasMemberRole) {
+      if (actions.apply.state === 'allowed') {
         onOpenApplicationModal();
       } else {
         toast({
@@ -715,7 +734,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
 
     // Validate permissions and inputs BEFORE closing modal
     if (columnId === 'open') {
-      if (!hasMemberRole) {
+      if (actions.claim.state !== 'allowed') {
         toast({
           title: 'Membership Required',
           description: 'You must be a member to claim this task. Go to user page to join.',
@@ -733,7 +752,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
       // task over instead of submitting. Application-gated tasks route through
       // the application modal — approval performs the takeover on-chain.
       if (!isClaimer && claimExpired) {
-        if (!hasMemberRole) {
+        if ((task.requiresApplication ? actions.apply : actions.claim).state !== 'allowed') {
           toast({
             title: 'Membership Required',
             description: 'You must be a member to take over this task. Go to user page to join.',
@@ -785,7 +804,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
         });
         return;
       }
-      if (!hasMemberRole) {
+      if (actions.submit.state !== 'allowed') {
         toast({
           title: 'Membership Required',
           description: 'You must be a member to submit. Go to user page to join.',
@@ -865,10 +884,8 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
 
   const [isEditTaskModalOpen, setIsEditTaskModalOpen] = useState(false);
 
-  // Edit gating is entirely `taskEditRights` (which already encodes the contract's
-  // status rules): terminal tasks never editable; EDIT_META / EDIT_FULL in any
-  // non-terminal status; CREATE while still UNCLAIMED.
-  const canShowEditButton = canEditTaskMetadata;
+  // Editing needs both the scoped decision and a complete verified metadata base.
+  const canShowEditButton = canEditTaskMetadata && baseTaskMetadata !== null;
 
   const handleOpenEditTaskModal = () => {
     if (canShowEditButton) {
@@ -975,26 +992,26 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                       border="1px solid"
                       borderColor="whiteAlpha.100"
                     >
-                      {metadataLoading ? (
+                      {metadataLoading && displayedDescription == null ? (
                         <Text fontSize="sm" lineHeight="6" color="gray.200">
                           Loading task details...
                         </Text>
                       ) : (
                         <ExpandableText
-                          text={task.description ?? taskMetadata?.description ?? 'No description available'}
+                          text={displayedDescription ?? 'No description available'}
                           collapsedLines={{ base: 4, md: 5 }}
                           expandLabel="Show full description"
                         />
                       )}
                     </Box>
                     <HStack mt={3} spacing={3} flexWrap="wrap" rowGap={2}>
-                      <Badge colorScheme={difficultyColorScheme[(task.difficulty || taskMetadata?.difficulty)?.toLowerCase()?.replace(" ", "") || 'easy']}>
-                        {task.difficulty || taskMetadata?.difficulty || 'Unknown'}
+                      <Badge colorScheme={difficultyColorScheme[displayedDifficulty?.toLowerCase()?.replace(" ", "") || 'easy']}>
+                        {displayedDifficulty}
                       </Badge>
                       <Badge colorScheme="blue">
                         {taskPayoutHoursOnly
-                          ? formatEstTime(task.estHours || taskMetadata?.estHours || 0)
-                          : `${task.estHours || taskMetadata?.estHours || '0'} hrs`}
+                          ? formatEstTime(displayedHours)
+                          : `${displayedHours} hrs`}
                       </Badge>
                       {taskDue !== null && (
                         <Tooltip label={taskAbs !== null ? 'Hard deadline — enforced on-chain' : 'Due date (display-only)'} placement="top">
@@ -1281,11 +1298,13 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                   )}
 
                   {/* Applicants Section */}
-                  {columnId === 'open' && task.requiresApplication && canAssign && task.applicants && task.applicants.length > 0 && (
+                  {task.requiresApplication && (!applicationsRead || applicationsRead.loading) && <Text>Checking applications…</Text>}
+                  {task.requiresApplication && applicationsRead?.error && <Box><Text>{applicationsRead.error}</Text><Button onClick={() => ensureTaskApplications(task, true)}>Try again</Button></Box>}
+                  {columnId === 'open' && task.requiresApplication && canAssign && applicants && applicants.length > 0 && (
                     <Box w="100%" p={4} bg="whiteAlpha.50" borderRadius="lg" border="1px solid" borderColor="whiteAlpha.100">
-                      <SectionHeader>Applicants ({task.applicants.length})</SectionHeader>
+                      <SectionHeader>Applicants ({applicants.length}{applicationsRead?.snapshot ? '' : '+'})</SectionHeader>
                       <VStack spacing={3} align="stretch">
-                        {task.applicants.map((applicant, index) => {
+                        {applicants.map((applicant, index) => {
                           const appContent = applicant.metadata || applicationContents[applicant.address];
                           return (
                             <Box
@@ -1315,6 +1334,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                                   size="sm"
                                   colorScheme="green"
                                   variant="outline"
+                                  isDisabled={!applicationsRead?.snapshot}
                                   onClick={() => handleApproveApplication(applicant.address, applicant.username)}
                                 >
                                   Approve
@@ -1554,6 +1574,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                     colorScheme={columnId === 'inProgress' && !isClaimer && claimExpired ? 'orange' : 'teal'}
                     isDisabled={
                       task.isIndexing ||
+                      (task.requiresApplication && (columnId === 'open' || (columnId === 'inProgress' && !isClaimer && claimExpired)) && actions.apply.state === 'unknown') ||
                       (columnId === 'open' && task.requiresApplication && hasApplied) ||
                       (columnId === 'inProgress' && !isClaimer && !claimExpired) ||
                       (columnId === 'inProgress' && !isClaimer && claimExpired && task.requiresApplication && hasApplied)
@@ -1578,10 +1599,14 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
           // onEditTask path is used otherwise.
           onEditTask={isMetadataOnlyEditor ? onEditTaskMetadata : onEditTask}
           metadataOnly={isMetadataOnlyEditor}
-          task={task}
+          task={{ ...task, description: baseTaskMetadata?.description ?? task.description,
+            difficulty: baseTaskMetadata?.difficulty ?? task.difficulty,
+            estHours: baseTaskMetadata?.estHours ?? task.estHours,
+            dueDate: baseTaskMetadata ? baseTaskMetadata.dueDate ?? null : task.dueDate,
+            submission: baseTaskMetadata?.submission ?? task.submission }}
           onDeleteTask={(taskId) => deleteTask(taskId, columnId)}
           // cancelTask is gated on CREATE (or project manager) and reverts unless UNCLAIMED.
-          allowDelete={columnId === 'open' && perms.canCreate}
+          allowDelete={actions.cancel.state === 'allowed'}
         />
       )}
 

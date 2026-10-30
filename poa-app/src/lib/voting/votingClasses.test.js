@@ -38,7 +38,8 @@ describe('class shape helpers', () => {
 
   it('labels classes in the vocabulary the rule diff already uses', () => {
     expect(classLabel(TEST6_CLASSES[0], 0)).toBe('Members (one vote each) · 80%');
-    expect(classLabel(TEST6_CLASSES[1], 1)).toBe('Contributors (weighted by shares) · 20%');
+    expect(classLabel(TEST6_CLASSES[1], 1)).toBe('Contributors (weighted by Shares) · 20%');
+    expect(classLabel(TEST6_CLASSES[1], 1, { tokenLabel: 'pOa', withShare: false })).toBe('Contributors (weighted by pOa)');
     expect(classLabel(undefined, 2)).toBe('Class 3');
   });
 
@@ -79,6 +80,8 @@ describe('classVoterSummary', () => {
     expect(classVoterSummary({ roleName: 'Treasurer', classIdx: 0, votingClasses: TEST6_CLASSES, add: true }))
       .toBe('Let members of “Treasurer” vote in binding votes as Members (one vote each).');
     expect(classVoterSummary({ roleName: 'Treasurer', classIdx: 1, votingClasses: TEST6_CLASSES, add: false }))
-      .toBe('Stop members of “Treasurer” voting in binding votes as Contributors (weighted by shares).');
+      .toBe('Stop members of “Treasurer” voting in binding votes as Contributors (weighted by Shares).');
+    expect(classVoterSummary({ roleName: 'Treasurer', classIdx: 1, votingClasses: TEST6_CLASSES, tokenLabel: 'pOa' }))
+      .toContain('weighted by pOa');
   });
 });

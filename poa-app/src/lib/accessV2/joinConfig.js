@@ -24,12 +24,10 @@
  * PURE.
  */
 
-/** ASCII-only lowercase + trim — byte-identical to `lib/zkemail/allowlist.norm`. */
-export function asciiLower(value) {
-  return String(value ?? '')
-    .trim()
-    .replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
-}
+import { norm } from '@poa-box/core/zkemail';
+
+/** ASCII-only normalization shared with the email commitment codec. */
+export const asciiLower = norm;
 
 const PRINTABLE_ASCII = /^[\x20-\x7E]+$/;
 // The email circuits/hash helper pack at most 192 ASCII bytes, even though DNS/RFC limits are larger.

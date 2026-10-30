@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { ethers } from 'ethers';
+import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 
 const mocks = vi.hoisted(() => ({
   buildUserOpWithFallback: vi.fn(),
@@ -41,10 +43,15 @@ function mockUserOp(overrides = {}) {
   };
 }
 
-function makeManager(sendUserOperation = vi.fn(async () => `0x${'3'.repeat(64)}`)) {
+function makeManager(sendUserOperation = vi.fn(async () => `0x${'1'.repeat(64)}`)) {
   const receipt = {
     success: true,
-    receipt: { transactionHash: `0x${'2'.repeat(64)}`, blockNumber: 1 },
+    receipt: {
+      transactionHash: `0x${'2'.repeat(64)}`, blockNumber: 1, status: 1,
+      logs: [{ address: ENTRY_POINT_ADDRESS, ...new ethers.utils.Interface([
+        'event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)',
+      ]).encodeEventLog('UserOperationEvent', [`0x${'1'.repeat(64)}`, ACCOUNT, ethers.constants.AddressZero, 0, true, 10, 20]) }],
+    },
   };
   return new EOA7702TransactionManager({
     accountAddress: ACCOUNT,
@@ -74,6 +81,9 @@ function fakeContract() {
 describe('EOA7702TransactionManager gas floors', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     mocks.buildEOAAuthorization.mockResolvedValue({ address: DELEGATION });
     mocks.signUserOpWithWallet.mockResolvedValue(`0x${'4'.repeat(130)}`);
     mocks.buildUserOpWithFallback.mockResolvedValue(mockUserOp());
@@ -118,7 +128,7 @@ describe('EOA7702TransactionManager gas floors', () => {
     const paymasterError = new Error('AA33 validatePaymasterUserOp reverted');
     const send = vi.fn()
       .mockRejectedValueOnce(paymasterError)
-      .mockResolvedValueOnce(`0x${'3'.repeat(64)}`);
+      .mockResolvedValueOnce(`0x${'1'.repeat(64)}`);
     const manager = makeManager(send);
     mocks.buildUserOpWithFallback
       .mockResolvedValueOnce(mockUserOp({ paymaster: PAYMASTER }))

@@ -40,7 +40,7 @@ const HeroSection = ({ aggregated, isLoading }) => (
           Poa Protocol. Live transparency.
         </Heading>
         <Text fontSize={{ base: 'md', md: 'lg' }} color="whiteAlpha.700" maxW="720px" mx="auto" mb={6} lineHeight="1.7">
-          Poa Protocol is the open-source infrastructure that powers every community-owned organization on poa.box. The dashboard below shows real-time state across every supported chain: deployed organizations, solidarity-fund balance, gas sponsorship metrics, and protocol upgrade history. Everything on this page is verifiable on-chain. There is no central admin, and there is no opaque approval process.
+          Poa Protocol is the open-source infrastructure that powers every community-owned organization on poa.box. The dashboard below shows indexed information across supported chains: deployed organizations, solidarity-fund balance, gas sponsorship metrics, and protocol upgrade history. Updates can take time to appear, and unavailable sources are shown separately.
         </Text>
         <Text fontSize={{ base: 'sm', md: 'md' }} color="whiteAlpha.600" maxW="640px" mx="auto" mb={10} lineHeight="1.7">
           New here? See the{' '}
@@ -55,11 +55,11 @@ const HeroSection = ({ aggregated, isLoading }) => (
         </Text>
 
         <HStack spacing={4} justify="center" flexWrap="wrap">
-          <StatPill icon={HiUserGroup} value={isLoading ? '...' : aggregated.totalOrgs} label="Organizations" />
-          <StatPill icon={HiGlobeAlt} value={isLoading ? '...' : aggregated.totalAccounts} label="Accounts" />
+          <StatPill icon={HiUserGroup} value={isLoading ? '...' : (aggregated.totalOrgs ?? '—')} label="Organizations" />
+          <StatPill icon={HiGlobeAlt} value={isLoading ? '...' : (aggregated.totalAccounts ?? '—')} label="Accounts" />
           <StatPill icon={HiLink} value={isLoading ? '...' : aggregated.chainsActive} label="Chains" />
-          <StatPill icon={HiCube} value={isLoading ? '...' : aggregated.totalBeacons} label="Beacon Types" />
-          <StatPill icon={HiLightningBolt} value={isLoading ? '...' : aggregated.totalUserOps} label="Txs Sponsored" />
+          <StatPill icon={HiCube} value={isLoading ? '...' : (aggregated.totalBeacons ?? '—')} label="Beacon Types" />
+          <StatPill icon={HiLightningBolt} value={isLoading ? '...' : (aggregated.totalUserOps ?? '—')} label="Txs Sponsored" />
         </HStack>
       </MotionBox>
     </Container>

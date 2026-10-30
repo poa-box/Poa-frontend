@@ -20,6 +20,9 @@
  * oversized batch cannot even be proposed — it is not a "the vote passes then execution fails"
  * situation. Verified 20 on live Gnosis deployments (Test6 executor + both voting modules).
  */
-export const MAX_CALLS_PER_BATCH = 20;
+import { GOVERNANCE_LIMITS } from '@poa-box/core/governance/capabilities';
 
-export default { MAX_CALLS_PER_BATCH };
+export const MAX_CALLS_PER_BATCH = GOVERNANCE_LIMITS.maxCallsPerBatch;
+
+const contractLimits = { MAX_CALLS_PER_BATCH };
+export default contractLimits;

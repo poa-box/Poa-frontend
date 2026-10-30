@@ -16,7 +16,11 @@
  * PURE.
  */
 
-import { toSubjectId } from './ids';
+import { toSubjectId } from '@/lib/accessV2/ids';
+import { predictAuthorityLints, LINT_CODE as CORE_LINT_CODE } from '@poa-box/core/authority/lifecycle';
+import { normalizeSubjectId } from '@poa-box/core/authority/ids';
+import { projectSubjectMembership } from '@poa-box/core/authority/permissions';
+import { knownFact } from '@poa-box/core/data/facts';
 
 /** Normalise a subgraph SubjectVouchConfig row. */
 export function normalizeVouchConfig(raw) {
@@ -124,15 +128,17 @@ export function hasVouched(records = [], config, voucher) {
 export function isMemberOfVoucherSubject(voucherSubjectId, subjects = [], isMemberOf) {
   const id = toSubjectId(voucherSubjectId);
   if (!id || id === '0' || typeof isMemberOf !== 'function') return false;
-
-  const subject = (subjects || []).find((s) => s && s.subjectId === id) || null;
-  // Unknown subject (subject list still loading, or a subject outside this authority): fall back to
-  // the direct row. Roles are the common case and this keeps the check working without the list.
-  if (!subject || !subject.isGroup) return Boolean(isMemberOf(id));
-
-  // Group: a user is in it iff they are an active member of at least one active member-role —
-  // the same derivation the contract does.
-  return (subject.memberRoleIds || []).some((roleId) => Boolean(isMemberOf(roleId)));
+  const subject = (subjects || []).find((s) => s?.subjectId === id);
+  // Direct ROLE facts remain available before the subject roster arrives.
+  if (!subject) return isMemberOf(id) === true;
+  const data = {
+    subjects: (subjects || []).filter(Boolean).map(s => ({ subjectId: s.subjectId, kind: s.isGroup ? 'Group' : 'Role', name: s.name ?? null })),
+    permissions: [],
+    groupEdges: (subjects || []).filter(s => s?.isGroup).flatMap(group => (group.memberRoleIds || []).map(role => ({ id: `${group.subjectId}:${role}`, groupSubjectId: group.subjectId, roleSubjectId: role, isActive: true }))),
+  };
+  const memberships = data.subjects.filter(s => s.kind === 'Role').map(s => ({ subjectId: s.subjectId, isMember: knownFact(isMemberOf(s.subjectId) === true) }));
+  const fact = projectSubjectMembership(data, id, memberships);
+  return fact.state === 'known' && fact.value;
 }
 
 export function canVouch({ config, records = [], viewer, target, viewerIsVoucherMember, paused = false }) {
@@ -163,14 +169,7 @@ export function vouchProgressCopy(progress) {
  * CONFIG-TIME LINTS (§2) — non-reverting warnings the contract emits and the config UI should
  * show BEFORE the write, not after. Mirrors `AccessV2Types.LintCode`.
  */
-export const LINT_CODE = {
-  0: 'None',
-  1: 'QuorumNoOp',
-  2: 'VouchWithMaxMembers',
-  3: 'DefaultAllowStrongPerms',
-  4: 'GroupFanout',
-  5: 'SelfVoucher',
-};
+export const LINT_CODE = Object.fromEntries(Object.entries(CORE_LINT_CODE).map(([name, code]) => [code, name]));
 
 export const LINT_COPY = {
   QuorumNoOp:
@@ -190,12 +189,24 @@ export const LINT_COPY = {
  * Deliberately mirrors the contract's conditions and nothing more.
  */
 export function predictLints({ defaultAllow, vouchQuorum, maxMembers, hasStrongPerms, voucherSubjectId, subjectId } = {}) {
-  const out = [];
-  if (defaultAllow && Number(vouchQuorum || 0) > 0) out.push('QuorumNoOp');
-  if (Number(vouchQuorum || 0) > 0 && Number(maxMembers || 0) > 0) out.push('VouchWithMaxMembers');
-  if (defaultAllow && hasStrongPerms) out.push('DefaultAllowStrongPerms');
-  if (voucherSubjectId && subjectId && String(voucherSubjectId) === String(subjectId)) {
-    out.push('SelfVoucher');
-  }
-  return out.map((code) => ({ code, message: LINT_COPY[code] }));
+  const codes = predictAuthorityLints({
+    subjectId: subjectId ?? '0', voucherSubjectId: voucherSubjectId ?? '0',
+    defaultAllow: defaultAllow === true, vouchQuorum: vouchQuorum ?? 0, maxMembers: maxMembers ?? 0,
+    permCount: hasStrongPerms ? 1 : 0, groupFanout: 0,
+  });
+  return codes.map((code) => ({ code: LINT_CODE[code], message: LINT_COPY[LINT_CODE[code]] }));
+}
+
+/**
+ * An unsaved form has no allocated subject ID. Model only its explicit self-vouch
+ * choice with numeric witnesses for the core's equality check, never an allocation
+ * prediction. Keep a selected external ID strict and choose a distinct witness,
+ * including when it is zero. An unanswered picker is distinct too; roleFormError
+ * still blocks it. These witnesses must never enter the form or a submitted plan.
+ */
+export function predictDraftLints({ selfVouch = false, voucherSubjectId, ...config } = {}) {
+  const voucher = selfVouch ? '0'
+    : voucherSubjectId === '' || voucherSubjectId == null ? '1' : normalizeSubjectId(voucherSubjectId);
+  const subject = selfVouch || voucher !== '0' ? '0' : '1';
+  return predictLints({ ...config, subjectId: subject, voucherSubjectId: voucher });
 }

@@ -10,6 +10,11 @@
  * prove time (host on IPFS/CDN; never bundled).
  */
 
+import { EMAIL_CIRCUIT_RECIPES, buildEmailClaimCommand, buildCircuitInputHints, projectGroth16Proof } from '@poa-box/core/email/proof';
+import { Buffer } from 'buffer';
+import { rawEmailBytes } from '@/lib/zkemail/rawEmail';
+import { retainEmailProofProjection } from '@/lib/zkemail/proofProjection';
+
 // Proving artifacts are hosted free on The Graph's IPFS: each ~8MB zkey part is pinned individually
 // and a per-circuit MANIFEST (its own CID) lists the part CIDs + the wasm CID. `GATEWAY` is a URL
 // template (`{cid}` placeholder). Override any of these via env when re-hosting (e.g. on Pinata).
@@ -18,13 +23,12 @@ const MANIFEST = {
   PopRoleClaim: process.env.NEXT_PUBLIC_ZKEMAIL_V1_MANIFEST || 'QmcvZPhcdLA8NQUimRzTDCqFY7y1ujbQZ6AJjdPm2NozGc',
   PopRoleClaimV2: process.env.NEXT_PUBLIC_ZKEMAIL_V2_MANIFEST || 'QmU4MJG8rAsfXrGb2sdFCBwcBCosDoVTPKUE5bXowe7Gx4',
 };
-const MAX_HEADERS_LENGTH = 1024;
-const FROM_WINDOW = 256; // == FROM_WINDOW in PopRoleClaimV2.circom
-const COMMAND_PREFIX = 'Claim POP role for 0x';
+const MAX_HEADERS_LENGTH = EMAIL_CIRCUIT_RECIPES.v1.maxHeadersLength;
+
 
 /** The on-chain command the email subject must contain, binding the claim to `claimer`. */
 export function buildCommand(claimer) {
-  return `Claim POP role for ${claimer}`;
+  return buildEmailClaimCommand(claimer);
 }
 
 /**
@@ -38,7 +42,7 @@ export async function prefetchCircuitArtifacts(kind) {
   const cid = MANIFEST[name];
   if (!GATEWAY || !cid || cid.startsWith('__')) return;
   try {
-    const { prefetchZkey } = await import('./zkeyLoader');
+    const { prefetchZkey } = await import('@/lib/zkemail/zkeyLoader');
     prefetchZkey(GATEWAY, cid);
   } catch (_) {
     /* best-effort warm-up only */
@@ -68,8 +72,6 @@ export function parseEml(emlText) {
   return { from, fromEmail, fromDomain, dkimDomain };
 }
 
-const u256 = (s) => '0x' + BigInt(s).toString(16);
-const b32 = (s) => '0x' + BigInt(s).toString(16).padStart(64, '0');
 
 function _requireManifest(name) {
   const cid = MANIFEST[name];
@@ -79,76 +81,32 @@ function _requireManifest(name) {
   }
 }
 
-/** Find a byte subsequence in the canonicalized header (returns start index or -1). */
-function _find(header, bytes, from = 0) {
-  for (let i = from; i + bytes.length <= header.length; i++) {
-    let ok = true;
-    for (let j = 0; j < bytes.length; j++) {
-      if (header[i + j] !== bytes[j]) {
-        ok = false;
-        break;
-      }
-    }
-    if (ok) return i;
-  }
-  return -1;
-}
-const _bytesOf = (s) => Array.from(s, (c) => c.charCodeAt(0));
-
-/** DKIM-verify + derive base circuit inputs + the bound commandIndex. Shared by both circuits. */
-async function _baseInputs(emlText, claimer) {
-  const { generateEmailVerifierInputs } = await import('@zk-email/helpers/dist/input-generators');
-  const inputs = await generateEmailVerifierInputs(emlText, {
-    ignoreBodyHashCheck: true,
-    maxHeadersLength: MAX_HEADERS_LENGTH,
+/** DKIM verification remains a lazy browser engine; canonical hints consume its signed bytes. */
+async function _baseInputs(emlText, claimer, version) {
+  const [{ generateEmailVerifierInputsFromDKIMResult }, { verifyDKIMSignature }] = await Promise.all([
+    import('@zk-email/helpers/dist/input-generators'), import('@zk-email/helpers/dist/dkim'),
+  ]);
+  const verified = await verifyDKIMSignature(Buffer.from(rawEmailBytes(emlText)));
+  const inputs = generateEmailVerifierInputsFromDKIMResult(verified, {
+    ignoreBodyHashCheck: true, maxHeadersLength: MAX_HEADERS_LENGTH,
   });
-  const header = inputs.emailHeader.map(Number);
-
-  const commandIndex = _find(header, _bytesOf(COMMAND_PREFIX));
-  if (commandIndex < 0) {
-    throw new Error(
-      'The signed email must contain "Claim POP role for 0x<your address>" in its subject — send it from the address you want to verify.',
-    );
+  const parsed = parseEml(emlText);
+  if (!parsed.fromEmail) throw new Error('Could not read the From email address from the email.');
+  if (!parsed.fromDomain) throw new Error('Could not read the sender’s email domain.');
+  let hints;
+  try { hints = buildCircuitInputHints({
+    version, emailHeader: inputs.emailHeader,
+    // The helper's emailHeaderLength includes SHA padding; use the verified raw header length.
+    signedHeaderLength: verified.headers.length,
+    fromEmail: parsed.fromEmail, dkimDomain: verified.signingDomain || parsed.dkimDomain, claimer,
+  }); } catch (error) {
+    if (/bound claim command/i.test(error.message) && /^subject:[^\r\n]*=\?/im.test(emlText)) {
+      throw new Error('Your email provider encoded the subject in a format this verification cannot use. Send a fresh email with the exact plain-text subject shown above.');
+    }
+    throw error;
   }
-  inputs.commandIndex = String(commandIndex);
-  return { inputs, header };
-}
-
-/**
- * Compute the From-field window hints both circuits need (Blocker 2): the window start, the address
- * offset within it, and the '@' offset within the address (for the in-circuit domain split). Sets them
- * on `inputs`. Matches `circuits/scripts/gen-inputs.mjs`.
- */
-function _fromWindowInputs(inputs, header, fromEmail) {
-  const fromIdx = _find(header, _bytesOf('from:'));
-  if (fromIdx < 0) throw new Error('From field not found in the signed header.');
-  let fromWindowIndex;
-  if (fromIdx === 0) fromWindowIndex = 0;
-  else if (header[fromIdx - 2] === 13 && header[fromIdx - 1] === 10) fromWindowIndex = fromIdx - 2;
-  else throw new Error('From field not preceded by CRLF (unexpected canonicalization).');
-
-  const emailIdx = _find(header, _bytesOf(fromEmail), fromWindowIndex);
-  if (emailIdx < 0 || emailIdx + fromEmail.length > fromWindowIndex + FROM_WINDOW) {
-    throw new Error('From email address is not within the signed From window.');
-  }
-  const atPos = fromEmail.indexOf('@');
-  if (atPos < 0) throw new Error('From email address has no "@".');
-
-  inputs.fromWindowIndex = String(fromWindowIndex);
-  inputs.emailIndexInWindow = String(emailIdx - fromWindowIndex);
-  inputs.atIndex = String(atPos);
-}
-
-function _formatProof(proof) {
-  return {
-    pA: [u256(proof.pi_a[0]), u256(proof.pi_a[1])],
-    // snarkjs returns G2 coordinates in the reverse order the Solidity verifier expects — swap each pair.
-    pB: [
-      [u256(proof.pi_b[0][1]), u256(proof.pi_b[0][0])],
-      [u256(proof.pi_b[1][1]), u256(proof.pi_b[1][0])],
-    ],
-    pC: [u256(proof.pi_c[0]), u256(proof.pi_c[1])],
-  };
+  for (const key of ['commandIndex', 'fromWindowIndex', 'emailIndexInWindow', 'atIndex']) inputs[key] = hints[key];
+  return { inputs, parsed };
 }
 
 /**
@@ -157,30 +115,16 @@ function _formatProof(proof) {
  */
 export async function generateDomainProof({ emlText, claimer, onProgress }) {
   _requireManifest('PopRoleClaim');
-  const { inputs, header } = await _baseInputs(emlText, claimer);
-  const { fromDomain, fromEmail } = parseEml(emlText);
-  if (!fromEmail) throw new Error('Could not read the From email address from the email.');
-  if (!fromDomain) throw new Error('Could not read the sender’s email domain.');
-  // Blocker 2: v1 now extracts the From address in-circuit to prove its domain, so it needs the same
-  // From-window hints as v2.
-  _fromWindowInputs(inputs, header, fromEmail);
-
-  const [{ loadZkey }, snarkjs] = await Promise.all([import('./zkeyLoader'), import('snarkjs')]);
-  const { zkey, wasmUrl } = await loadZkey(GATEWAY, MANIFEST.PopRoleClaim, onProgress); // chunked -> in-memory zkey
+  const { inputs, parsed } = await _baseInputs(emlText, claimer, 'v1');
+  const [{ loadZkey }, snarkjs] = await Promise.all([import('@/lib/zkemail/zkeyLoader'), import('snarkjs')]);
+  const { zkey, wasmUrl } = await loadZkey(GATEWAY, MANIFEST.PopRoleClaim, onProgress);
   if (onProgress) onProgress({ phase: 'prove' });
   const { proof, publicSignals } = await snarkjs.groth16.fullProve(inputs, wasmUrl, zkey);
-  // publicSignals = [pubkeyHash, emailNullifier, claimerAddress, fromDomainHash]
-  if (BigInt(publicSignals[2]) !== BigInt(claimer)) {
-    throw new Error('This proof is bound to a different address than your connected account.');
-  }
+  const projection = projectGroth16Proof({ version: 'v1', proof, publicSignals, claimer });
   return {
-    proof: {
-      ..._formatProof(proof),
-      pubkeyHash: b32(publicSignals[0]),
-      emailNullifier: b32(publicSignals[1]),
-      fromDomainHash: b32(publicSignals[3]),
-    },
-    meta: { domain: fromDomain, fromEmail, nullifier: b32(publicSignals[1]) },
+    proof: retainEmailProofProjection(projection),
+    meta: { domain: parsed.fromDomain, fromEmail: parsed.fromEmail,
+       nullifier: projection.proof.emailNullifier },
   };
 }
 
@@ -192,30 +136,15 @@ export async function generateDomainProof({ emlText, claimer, onProgress }) {
  */
 export async function generateEmailAddressProof({ emlText, claimer, onProgress }) {
   _requireManifest('PopRoleClaimV2');
-  const { inputs, header } = await _baseInputs(emlText, claimer);
-  const { fromDomain, fromEmail } = parseEml(emlText);
-  if (!fromEmail) throw new Error('Could not read the From email address from the email.');
-  if (!fromDomain) throw new Error('Could not read the sender’s email domain.');
-
-  // Locate the From field + the email + the '@' within a 256-byte window (matches the circuit + gen-inputs).
-  _fromWindowInputs(inputs, header, fromEmail);
-
-  const [{ loadZkey }, snarkjs] = await Promise.all([import('./zkeyLoader'), import('snarkjs')]);
-  const { zkey, wasmUrl } = await loadZkey(GATEWAY, MANIFEST.PopRoleClaimV2, onProgress); // chunked -> in-memory zkey
+  const { inputs, parsed } = await _baseInputs(emlText, claimer, 'v2');
+  const [{ loadZkey }, snarkjs] = await Promise.all([import('@/lib/zkemail/zkeyLoader'), import('snarkjs')]);
+  const { zkey, wasmUrl } = await loadZkey(GATEWAY, MANIFEST.PopRoleClaimV2, onProgress);
   if (onProgress) onProgress({ phase: 'prove' });
   const { proof, publicSignals } = await snarkjs.groth16.fullProve(inputs, wasmUrl, zkey);
-  // publicSignals = [pubkeyHash, emailNullifier, claimerAddress, emailHash, fromDomainHash]
-  if (BigInt(publicSignals[2]) !== BigInt(claimer)) {
-    throw new Error('This proof is bound to a different address than your connected account.');
-  }
+  const projection = projectGroth16Proof({ version: 'v2', proof, publicSignals, claimer });
   return {
-    proof: {
-      ..._formatProof(proof),
-      pubkeyHash: b32(publicSignals[0]),
-      emailNullifier: b32(publicSignals[1]),
-      emailHash: b32(publicSignals[3]),
-      fromDomainHash: b32(publicSignals[4]),
-    },
-    meta: { domain: fromDomain, fromEmail, emailHash: b32(publicSignals[3]), nullifier: b32(publicSignals[1]) },
+    proof: retainEmailProofProjection(projection),
+    meta: { domain: parsed.fromDomain, fromEmail: parsed.fromEmail,
+      emailHash: projection.proof.emailHash, nullifier: projection.proof.emailNullifier },
   };
 }

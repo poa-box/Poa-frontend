@@ -3,7 +3,8 @@
  * Input validation for Web3 operations
  */
 
-import { ethers } from 'ethers';
+import { isValidAddress } from '@poa-box/core/encoding';
+import { requireValidUsername as coreRequireUsername, requirePositiveNumber as coreRequirePositiveNumber } from '@poa-box/core/validation';
 
 /**
  * Validate that a value is a non-empty string
@@ -24,7 +25,7 @@ export function requireString(value, name) {
  * @throws {Error} If validation fails
  */
 export function requireAddress(address, name = 'Address') {
-  if (!address || !ethers.utils.isAddress(address)) {
+  if (!address || !isValidAddress(address)) {
     throw new Error(`${name} must be a valid Ethereum address`);
   }
 }
@@ -37,7 +38,9 @@ export function requireAddress(address, name = 'Address') {
  */
 export function requirePositiveNumber(value, name) {
   const num = Number(value);
-  if (isNaN(num) || num <= 0) {
+  try {
+    coreRequirePositiveNumber(num, name);
+  } catch {
     throw new Error(`${name} must be a positive number`);
   }
 }
@@ -80,26 +83,6 @@ export function requireNonEmptyArray(value, name) {
 }
 
 /**
- * Validate voting weights sum to 100
- * @param {number[]} weights - Array of weights
- * @throws {Error} If weights don't sum to 100
- */
-export function requireValidVoteWeights(weights) {
-  requireNonEmptyArray(weights, 'Vote weights');
-
-  const total = weights.reduce((sum, w) => sum + Number(w), 0);
-  if (total !== 100) {
-    throw new Error(`Vote weights must sum to 100 (got ${total})`);
-  }
-
-  for (const weight of weights) {
-    if (typeof weight !== 'number' || weight < 0 || weight > 100) {
-      throw new Error('Each weight must be a number between 0 and 100');
-    }
-  }
-}
-
-/**
  * Validate username format
  * @param {string} username - Username to validate
  * @param {number} [minLength=3] - Minimum length
@@ -117,7 +100,12 @@ export function requireValidUsername(username, minLength = 3, maxLength = 32) {
     throw new Error(`Username must be at most ${maxLength} characters`);
   }
 
-  // Check for valid characters (alphanumeric and underscores)
+  if (minLength === 3 && maxLength === 32) {
+    coreRequireUsername(username);
+    return;
+  }
+
+  // Preserve the host API's explicitly customized length policy.
   if (!/^[a-zA-Z0-9_]+$/.test(username)) {
     throw new Error('Username can only contain letters, numbers, and underscores');
   }

@@ -4,12 +4,18 @@
  * Supports both EOA (RainbowKit/wagmi) and Passkey (ERC-4337) auth types.
  */
 
+import { keccak256 } from '@ethersproject/keccak256';
+import { toUtf8Bytes } from '@ethersproject/strings';
 import { useMemo, useCallback, useState, useEffect, useRef } from 'react';
+import { createAccountHost } from '@/services/web3/core/accountHost';
+import { resolveAccountWriteSource } from '@/services/web3/core/accountWriteSource';
+import { executeUsernameUpdate } from '@/services/web3/core/accountActions';
 import { guardService } from '@/lib/services/runtimeScope';
 import { selectServiceOptions } from '@/lib/services/serviceOptions';
 import { useQuery } from '@apollo/client';
 import { getClient, useSubgraphClient } from '@/util/apolloClient';
-import { encodeFunctionData } from 'viem';
+import { resolveAccountDeployment, restoreCredentialKeys } from '@/services/web3/passkey/accountReadiness';
+import { savePasskeyCredential } from '@/services/web3/passkey/passkeyStorage';
 import { useEthersSigner, useEthersProvider, clientToSigner } from '@/components/ProviderConverter';
 import { useWalletClient, useSwitchChain, useConfig } from 'wagmi';
 import { getWalletClient, getAccount } from 'wagmi/actions';
@@ -23,7 +29,7 @@ import { DEFAULT_NETWORK, DEFAULT_CHAIN_ID, NETWORKS } from '../config/networks'
 import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
 import { FETCH_PAYMASTER_ORG_CONFIG, FETCH_PASSKEY_FACTORY_ADDRESS } from '../util/passkeyQueries';
 import { createChainClients } from '../services/web3/utils/chainClients';
-import PasskeyAccountFactoryABI from '../../abi/PasskeyAccountFactory.json';
+
 
 // Core services
 import { ContractFactory, createContractFactory } from '../services/web3/core/ContractFactory';
@@ -53,7 +59,7 @@ import { RoleCreationService } from '@/services/web3/domain/RoleCreationService'
  * @param {string} [options.network] - Network name (defaults to DEFAULT_NETWORK)
  * @returns {Object} Object containing all services and utilities
  */
-export function useWeb3ServicesRuntime({ guard }) {
+export function useWeb3ServicesRuntime({ guard: scopeGuard }) {
 
   // Org context first — the EOA signer + tx path must target the org's chain.
   // Accounts live on the Arbitrum home chain, while org writes and authority
@@ -73,7 +79,12 @@ export function useWeb3ServicesRuntime({ guard }) {
   // when no wallet is connected and no chainId is specified).
   const provider = useEthersProvider({ chainId: DEFAULT_CHAIN_ID });
   const orgReadProvider = useEthersProvider({ chainId: orgChainId || DEFAULT_CHAIN_ID });
-  const { isPasskeyUser, isAuthenticated, isAuthHydrated, passkeyConnecting, passkeyState, publicClient, bundlerClient } = useAuth();
+  const { accountAddress, authType, isSessionCurrent, sessionGeneration, isPasskeyUser, isAuthenticated, isAuthHydrated, passkeyConnecting, passkeyState, publicClient, bundlerClient } = useAuth();
+  const guard = useCallback(() => {
+    scopeGuard();
+    if (isAuthHydrated === false) throw new Error('Your account is still loading. Please try again.');
+    if (isSessionCurrent && !isSessionCurrent()) throw new Error('Your account changed. Please try again.');
+  }, [scopeGuard, isSessionCurrent, isAuthHydrated]);
   const { switchChainAsync } = useSwitchChain();
   const wagmiConfig = useConfig();
 
@@ -89,7 +100,7 @@ export function useWeb3ServicesRuntime({ guard }) {
     }
     const clients = createChainClients(orgChainId);
     if (!clients) {
-      return { effectivePublicClient: publicClient, effectiveBundlerClient: bundlerClient, effectiveChainId: DEFAULT_CHAIN_ID };
+      return { effectivePublicClient: null, effectiveBundlerClient: null, effectiveChainId: orgChainId };
     }
     return { effectivePublicClient: clients.publicClient, effectiveBundlerClient: clients.bundlerClient, effectiveChainId: orgChainId };
   }, [isCrossChain, orgChainId, publicClient, bundlerClient]);
@@ -116,92 +127,43 @@ export function useWeb3ServicesRuntime({ guard }) {
 
   // For passkey cross-chain: fetch factory address from org chain to compute initCode
   const { data: factoryData } = useQuery(FETCH_PASSKEY_FACTORY_ADDRESS, {
-    skip: !isPasskeyUser || !isCrossChain || !subgraphUrl,
+    skip: !isPasskeyUser || !subgraphUrl,
     client: orgClient,
   });
   const orgFactoryAddress = factoryData?.passkeyAccountFactories?.[0]?.id || null;
 
-  // Compute initCode for cross-chain passkey account deployment.
-  // Verifies the target chain factory produces the same CREATE2 address (factories at
-  // different addresses on different chains produce different account addresses).
-  // SmartAccountTransactionManager will check account existence at call time before using it.
-  const [crossChainInitCode, setCrossChainInitCode] = useState('0x');
-  // Track whether cross-chain initCode resolution has completed (so we can
-  // block isReady until it finishes and prevent transactions from firing early).
-  // Lazy-initialize: for non-passkey/non-cross-chain users, start resolved (true)
-  // to avoid a false→true transition that triggers an extra render in every instance.
-  const needsCrossChainInit = isPasskeyUser && isCrossChain;
-  const [crossChainInitCodeResolved, setCrossChainInitCodeResolved] = useState(() => !needsCrossChainInit);
-  const initCodeScope = JSON.stringify([effectiveChainId, orgFactoryAddress, passkeyState?.accountAddress, passkeyState?.credentialId]);
-  const [resolvedInitCodeScope, setResolvedInitCodeScope] = useState(null);
-  const initCodeReady = !needsCrossChainInit || (crossChainInitCodeResolved && resolvedInitCodeScope === initCodeScope);
-
+  // Deployment readiness is positive evidence, never a settled failed promise.
+  const [deployment, setDeployment] = useState(null);
+  const initCodeScope = JSON.stringify([effectiveChainId, subgraphUrl, orgFactoryAddress, passkeyState]);
+  const initCodeReady = !isPasskeyUser || deployment?.scope === initCodeScope;
+  const crossChainInitCode = initCodeReady ? deployment?.initCode || '0x' : '0x';
+  const needsCrossChainInit = isPasskeyUser;
 
   useEffect(() => {
-    if (!isPasskeyUser || !isCrossChain) {
-      // Not cross-chain — no initCode needed, immediately resolved.
-      // No-op setState when value already matches (React bails out).
-      setCrossChainInitCode('0x');
-      setCrossChainInitCodeResolved(true);
-      return;
-    }
-
-    if (!orgFactoryAddress || !passkeyState || !effectivePublicClient) {
-      // Cross-chain but deps not ready yet — mark as unresolved
-      setCrossChainInitCode('0x');
-      setCrossChainInitCodeResolved(false);
-      return;
-    }
-
-    setCrossChainInitCodeResolved(false);
-    setResolvedInitCodeScope(null);
+    if (!isPasskeyUser || !passkeyState || !effectivePublicClient) return;
     let cancelled = false;
-
-    async function verifyAndBuildInitCode() {
-      try {
-        // Verify factory produces the same account address on the target chain
-        const targetAddress = await effectivePublicClient.readContract({
-          address: orgFactoryAddress,
-          abi: PasskeyAccountFactoryABI,
-          functionName: 'getAddress',
-          args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
+    const assertCurrent = () => {
+      guard();
+      if (cancelled) throw new Error('Your account changed. Please try again.');
+    };
+    async function resolve() {
+      // Legacy discovery can omit unindexed keys. Recover only from its observed source.
+      let credential = passkeyState;
+      if (!credential.publicKeyX || !credential.publicKeyY) {
+        credential = await restoreCredentialKeys(credential, {
+          clientForChain: chainId => createChainClients(chainId)?.publicClient, guard: assertCurrent,
         });
-
-        if (cancelled) return;
-
-        if (targetAddress.toLowerCase() !== passkeyState.accountAddress.toLowerCase()) {
-          console.error(
-            `[useWeb3Services] Cross-chain CREATE2 mismatch: target factory produces ${targetAddress}, ` +
-            `expected ${passkeyState.accountAddress}. Cross-chain account deployment unavailable.`
-          );
-          setCrossChainInitCode('0x');
-          setResolvedInitCodeScope(initCodeScope);
-          setCrossChainInitCodeResolved(true);
-          return;
-        }
-
-        const factoryCallData = encodeFunctionData({
-          abi: PasskeyAccountFactoryABI,
-          functionName: 'createAccount',
-          args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
-        });
-        setCrossChainInitCode(orgFactoryAddress + factoryCallData.slice(2));
-      } catch (e) {
-        if (!cancelled) {
-          console.warn('[useWeb3Services] Failed to verify cross-chain factory:', e.message);
-          setCrossChainInitCode('0x');
-        }
-      } finally {
-        if (!cancelled) {
-          setResolvedInitCodeScope(initCodeScope);
-          setCrossChainInitCodeResolved(true);
-        }
+        assertCurrent();
+        savePasskeyCredential(credential);
       }
+      const ready = await resolveAccountDeployment({ credential, factoryAddress: orgFactoryAddress,
+        publicClient: effectivePublicClient, chainId: effectiveChainId, guard: assertCurrent });
+      assertCurrent();
+      setDeployment({ ...ready, scope: initCodeScope });
     }
-
-    verifyAndBuildInitCode();
+    resolve().catch(() => { /* Unknown source/factory stays unresolved; no unsafe fallback. */ });
     return () => { cancelled = true; };
-  }, [isPasskeyUser, isCrossChain, orgFactoryAddress, passkeyState, effectivePublicClient, initCodeScope]);
+  }, [isPasskeyUser, passkeyState, effectivePublicClient, effectiveChainId, orgFactoryAddress, initCodeScope, guard]);
 
   // Check if this org has gas sponsorship enabled (subgraph lookup, no RPC)
   const { data: pmConfig } = useQuery(FETCH_PAYMASTER_ORG_CONFIG, {
@@ -273,7 +235,7 @@ export function useWeb3ServicesRuntime({ guard }) {
   // it never silently continues on a stale/ambient signer (the -32603 failure mode).
   const ensureOrgChain = useMemo(
     () => createEnsureOrgChain({
-      orgChainId,
+      orgChainId: orgChainId || DEFAULT_CHAIN_ID,
       isPasskeyUser,
       e2eEnabled: process.env.NEXT_PUBLIC_E2E_MODE === 'true',
       wagmiConfig,
@@ -284,6 +246,10 @@ export function useWeb3ServicesRuntime({ guard }) {
     }),
     [orgChainId, isPasskeyUser, switchChainAsync, wagmiConfig]
   );
+
+  const submissionContext = useMemo(() => ({ orgId, authType, generation: sessionGeneration,
+    scopeKey: keccak256(toUtf8Bytes(JSON.stringify([orgId, subgraphUrl, effectiveChainId, accountAddress, authType]))),
+  }), [orgId, authType, sessionGeneration, subgraphUrl, effectiveChainId, accountAddress]);
 
   const rawTxManager = useMemo(() => {
     if (isPasskeyUser) {
@@ -299,6 +265,8 @@ export function useWeb3ServicesRuntime({ guard }) {
         orgId,
         hatIds,
         chainId: effectiveChainId,
+        scopeGuard: guard,
+        submissionContext,
         initCode: needsCrossChainInit && initCodeReady ? crossChainInitCode : '0x',
       });
     }
@@ -309,6 +277,8 @@ export function useWeb3ServicesRuntime({ guard }) {
     // returns { signer, walletClient }; the direct manager only needs the signer.
     if (!signer) return null;
     const directTxManager = createTransactionManager(signer, {
+      scopeGuard: guard, accountAddress, chainId: effectiveChainId, submissionContext,
+      publicClient: effectivePublicClient, bundlerClient: effectiveBundlerClient,
       ensureChain: async () => (await ensureOrgChain())?.signer ?? null,
     });
 
@@ -320,6 +290,8 @@ export function useWeb3ServicesRuntime({ guard }) {
         && effectivePublicClient && effectiveBundlerClient) {
       return createEOA7702TransactionManager({
         accountAddress: walletClient.account.address,
+        scopeGuard: guard,
+        submissionContext,
         walletClient,
         publicClient: effectivePublicClient,
         bundlerClient: effectiveBundlerClient,
@@ -339,16 +311,36 @@ export function useWeb3ServicesRuntime({ guard }) {
     }
 
     return directTxManager;
-  }, [signer, isPasskeyUser, passkeyState, effectivePublicClient, effectiveBundlerClient, paymasterAddress, orgId, hatIds, effectiveChainId, crossChainInitCode, needsCrossChainInit, initCodeReady, eoa7702Capable, walletClient, ensureOrgChain]);
+  }, [signer, isPasskeyUser, passkeyState, effectivePublicClient, effectiveBundlerClient, paymasterAddress, orgId, hatIds, effectiveChainId, crossChainInitCode, needsCrossChainInit, initCodeReady, eoa7702Capable, walletClient, ensureOrgChain, guard, accountAddress, submissionContext]);
 
-  const txManager = useMemo(() => guardService(rawTxManager, () => {
-    guard();
-    if (!initCodeReady) {
-      const error = new Error(buildNotReadyMessage(ReadyState.INITIALIZING));
-      error.userMessage = error.message;
-      throw error;
-    }
-  }), [rawTxManager, guard, initCodeReady]);
+  const txManager = useMemo(() => {
+    const scoped = guardService(rawTxManager, guard);
+    if (!scoped) return null;
+    return new Proxy(scoped, { get(target, key) {
+      const value = target[key];
+      if (!['execute', 'executeBatch'].includes(key)) return value;
+      return (...args) => {
+        guard();
+        if (!initCodeReady) throw new Error(buildNotReadyMessage(ReadyState.INITIALIZING));
+        return value(...args);
+      };
+    } });
+  }, [rawTxManager, guard, initCodeReady]);
+
+  const changeAccountUsername = useCallback((username, options = {}) => executeUsernameUpdate({
+    username, options, guard,
+    resolveSource: purpose => resolveAccountWriteSource(accountAddress, { purpose, guard }),
+    createHost: source => createAccountHost({ source, accountAddress, isPasskeyUser, passkeyState, guard,
+      ensureWallet: async chainId => {
+        guard();
+        await switchChainAsync({ chainId });
+        guard();
+        const walletClient = await getWalletClient(wagmiConfig, { chainId });
+        guard();
+        return { walletClient, signer: clientToSigner(walletClient) };
+      },
+    }),
+  }), [accountAddress, isPasskeyUser, passkeyState, guard, switchChainAsync, wagmiConfig]);
 
   // Create domain services
   const services = useMemo(() => {
@@ -370,8 +362,11 @@ export function useWeb3ServicesRuntime({ guard }) {
       };
     }
 
+    const user = createUserService(factory, txManager, registryAddress);
+    // Preserve the UserService API while routing renames by actual registration provenance.
+    user.changeUsername = changeAccountUsername;
     return {
-      user: createUserService(factory, txManager, registryAddress),
+      user,
       organization: createOrganizationService(factory, txManager, registryAddress, effectiveChainId),
       voting: createVotingService(factory, txManager, ipfsService),
       task: createTaskService(factory, txManager, ipfsService),
@@ -383,7 +378,7 @@ export function useWeb3ServicesRuntime({ guard }) {
       tokenRequest: createTokenRequestService(factory, txManager, ipfsService),
       treasury: createTreasuryService(factory, txManager),
     };
-  }, [factory, authorityReadFactory, txManager, ipfsService, registryAddress, effectiveChainId]);
+  }, [factory, authorityReadFactory, txManager, ipfsService, registryAddress, effectiveChainId, changeAccountUsername]);
 
   // A per-consumer content-store override changes only storage-aware services.
   const getServicesForOptions = useCallback((options = {}) => {

@@ -3,9 +3,10 @@
  * Handles user account operations with UniversalAccountRegistry
  */
 
-import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
+import { buildRegisterAccount, buildChangeUsername } from '@poa-box/core/tx/user';
+import { executeCoreIntent } from '@/services/web3/core/coreIntent';
 import { getUniversalAccountRegistryAddress } from '@/config';
-import { requireValidUsername } from '../utils/validation';
+import { requireValidUsername } from '@/services/web3/utils/validation';
 
 /**
  * UserService - User registration and account management
@@ -44,9 +45,8 @@ export class UserService {
     requireValidUsername(username);
 
     const address = this._getRegistryAddress();
-    const contract = this.factory.createWritable(address, UniversalAccountRegistryABI);
-
-    return this.txManager.execute(contract, 'registerAccount', [username], options);
+    return executeCoreIntent(this.factory, this.txManager,
+      buildRegisterAccount({ registryAddress: address, username }), options);
   }
 
   /**
@@ -59,9 +59,8 @@ export class UserService {
     requireValidUsername(username);
 
     const address = this._getRegistryAddress();
-    const contract = this.factory.createWritable(address, UniversalAccountRegistryABI);
-
-    return this.txManager.execute(contract, 'changeUsername', [username], options);
+    return executeCoreIntent(this.factory, this.txManager,
+      buildChangeUsername({ registryAddress: address, newUsername: username }), options);
   }
 }
 

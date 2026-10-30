@@ -27,52 +27,17 @@ export {
   ACTION_TYPES,
 } from './context/deployerReducer';
 
-// Utilities
-export {
-  indicesToBitmap,
-  bitmapToIndices,
-  isRoleInBitmap,
-  addRoleToBitmap,
-  removeRoleFromBitmap,
-  toggleRoleInBitmap,
-  createAllRolesBitmap,
-  countRolesInBitmap,
-  permissionsToBitmaps,
-  bitmapsToPermissions,
-} from './utils/bitmapUtils';
-
-export {
-  buildHierarchyTree,
-  getDescendants,
-  getAncestors,
-  getRoleDepth,
-  detectCycles,
-  wouldCreateCycle,
-  getValidParentOptions,
-  flattenHierarchy,
-  validateHierarchy,
-  reorderByDependency,
-} from './utils/hierarchyUtils';
-
+// Core-backed launch helpers
 export {
   generateOrgId,
-  mapRole,
-  mapVotingClasses,
-  buildRoleAssignments,
-  mapPaymasterConfig,
   getPaymasterFundingValue,
-  buildTaskManagerPerms,
   buildBootstrapConfig,
-  mapStateToDeploymentParams,
   createDeploymentConfig,
   validateDeploymentConfig,
-  logDeploymentParams,
 } from './utils/deploymentMapper';
 
 export {
   mapStateToAccessV2DeploymentParams,
-  mapAccessV2Groups,
-  buildAccessV2TaskManagerPerms,
   validateAccessV2Representability,
 } from './utils/deploymentMapperV2';
 
@@ -139,7 +104,6 @@ export { VotingStep } from './steps/VotingStep';
 export { ReviewStep } from './steps/ReviewStep';
 
 // Re-export for convenience
-export * as bitmapUtils from './utils/bitmapUtils';
 export * as hierarchyUtils from './utils/hierarchyUtils';
 export * as deploymentMapper from './utils/deploymentMapper';
 export * as validationSchemas from './validation/schemas';

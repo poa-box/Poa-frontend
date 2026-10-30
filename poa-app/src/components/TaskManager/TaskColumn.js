@@ -14,7 +14,8 @@ import { useUserContext } from '@/context/UserContext';
 import { useOrgName } from '@/hooks/useOrgName';
 import { useTaskDrafts } from '@/hooks/useTaskDrafts';
 import { calculatePayout } from '../../util/taskUtils';
-import { projectTaskPermissions, PERMISSION_MESSAGES } from '../../util/permissions';
+import { PERMISSION_MESSAGES } from '@/util/permissions';
+import { nowMs } from '@/util/deadlineUtils';
 import { useTaskFilters } from './views/useTaskFilters';
 import { FilteredEmptyState } from './views/TaskFilterBar';
 
@@ -41,35 +42,27 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
   const { draftsForProject, addDraft, replaceDraft, removeDraft, clearProjectDrafts } = useTaskDrafts();
   const { accountAddress: account } = useAuth();
   const { taskManagerContractAddress } = usePOContext();
-  const { taskCount, projectsData } = useProjectContext();
+  const { taskCount, projectsData, getTaskActions } = useProjectContext();
   const toast = useToast();
-  const { graphUsername, hasMemberRole: userHasMemberRole, userData } = useUserContext();
+  const { graphUsername } = useUserContext();
   // Shared filter predicate (search + quick-filter chips). Applied per-card at
   // render so the original task index stays correct for edit-by-index.
   const { predicate, isFiltering } = useTaskFilters();
 
   // Get user's current hat IDs for permission checking
-  const userHatIds = useMemo(() => userData?.hatIds || [], [userData]);
 
   // Find the current project's role permissions
   const currentProject = useMemo(() => {
     return projectsData?.find(p => p.name === projectName || p.title === projectName);
   }, [projectsData, projectName]);
 
-  // Every TaskManager gate for this project, resolved as the contract does: the
-  // per-hat mask (project shadows global) OR being one of this project's managers.
-  const perms = useMemo(
-    () => projectTaskPermissions(currentProject, userHatIds, account),
-    [currentProject, userHatIds, account],
-  );
   const currentProjectId = currentProject?.id;
   const projectDrafts = useMemo(
     () => (currentProjectId ? draftsForProject(currentProjectId) : []),
     [currentProjectId, draftsForProject]
   );
 
-  const canCreateTask = perms.canCreate;
-  const canReviewTask = perms.canReview;
+  const canCreateTask = getTaskActions(null, currentProject).create.state === 'allowed';
 
   // Empty state icons and messages, moved from TaskBoard for consistency
   const emptyStateIcons = {
@@ -86,12 +79,16 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
     'Completed': 'The finish line is waiting for your first completed task. Keep pushing!'
   };
 
-  let hasMemberRole = userHasMemberRole;
-  const hasMemberRoleRef = useRef(hasMemberRole);
-  // useDrop's spec is memoised once, so the drop handler reads authority through refs.
-  const canReviewTaskRef = useRef(canReviewTask);
-  const canSelfReviewRef = useRef(perms.canSelfReview);
-  const accountRef = useRef(account);
+  const policyRef = useRef({ getTaskActions, currentProject });
+  policyRef.current = { getTaskActions, currentProject };
+  const dropAllowed = item => {
+    const { currentProject: project, getTaskActions: decide } = policyRef.current;
+    const transition = { open: 'inProgress', inProgress: 'inReview', inReview: 'completed' };
+    if (transition[item.columnId] !== columnId) return false;
+    const savedTask = project?.columns?.flatMap(column => column.tasks).find(task => task.id === item.id);
+    const action = { inProgress: 'claim', inReview: 'submit', completed: 'complete' }[columnId];
+    return decide(savedTask, project, nowMs())[action]?.state === 'allowed';
+  };
 
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
@@ -112,22 +109,6 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
       }
     }
   }), [title, canCreateTask, toast]);
-
-  useEffect(() => {
-    hasMemberRoleRef.current = hasMemberRole;
-  }, [hasMemberRole]);
-
-  useEffect(() => {
-    canReviewTaskRef.current = canReviewTask;
-  }, [canReviewTask]);
-
-  useEffect(() => {
-    canSelfReviewRef.current = perms.canSelfReview;
-  }, [perms.canSelfReview]);
-
-  useEffect(() => {
-    accountRef.current = account;
-  }, [account]);
 
   // Auto-open the AddTaskModal in draft mode when navigated here with
   // ?openDrafts=1 (set by NavBar's "Open <project> drafts" button). Only the
@@ -200,48 +181,13 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
   // Enhanced drop behavior with debugging for tracing issues
   const [{ isOver, canDrop }, drop] = useDrop(() => ({
     accept: 'task',
-    canDrop: () => true, // Always allow dropping
+    canDrop: dropAllowed,
     drop: async(item) => {
-      if (!hasMemberRoleRef.current && title !== 'Completed') {
-        toast({
-          title: 'Membership Required',
-          description: 'You must be a member to move tasks. Go to user page to join.',
-          status: 'warning',
-          duration: 4000,
-          isClosable: true,
-          position: 'top',
-        });
+      if (!dropAllowed(item)) {
+        toast({ title: 'Action unavailable', description: 'Wait for task details and your permissions, then try again.',
+          status: 'warning', duration: 4000, isClosable: true });
         return;
       }
-      else if (!canReviewTaskRef.current && title === 'Completed') {
-        toast({
-          title: 'Permission Required',
-          description: PERMISSION_MESSAGES.REQUIRE_REVIEW,
-          status: 'warning',
-          duration: 4000,
-          isClosable: true,
-          position: 'top',
-        });
-        return;
-      }
-      // completeTask needs SELF_REVIEW when the reviewer is the claimer (PMs exempt).
-      else if (
-        title === 'Completed' &&
-        item.claimedBy && accountRef.current &&
-        item.claimedBy.toLowerCase() === accountRef.current.toLowerCase() &&
-        !canSelfReviewRef.current
-      ) {
-        toast({
-          title: 'Permission Required',
-          description: PERMISSION_MESSAGES.REQUIRE_SELF_REVIEW,
-          status: 'warning',
-          duration: 4000,
-          isClosable: true,
-          position: 'top',
-        });
-        return;
-      }
-      // Note: Token minting is now handled automatically by the contract on task completion
 
       // Only allow valid forward transitions:
       // open → inProgress (claim), inProgress → inReview (submit), inReview → completed (complete)
@@ -515,7 +461,7 @@ const TaskColumn = forwardRef(({ title, tasks, columnId, projectName, isMobile =
           // createAndAssignTask checks CREATE **and** ASSIGN together, so offering the
           // assignee field to a CREATE-only hat would lose the whole task, not just the
           // assignment.
-          canAssign={perms.canCreateAndAssign}
+          canAssign={getTaskActions(null, currentProject).createAndAssign.state === 'allowed'}
           isOpen={isAddTaskModalOpen}
           onClose={handleCloseAddTaskModal}
           onAddTask={handleAddTask}

@@ -34,6 +34,9 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ZkEmailInvitesAbi } from '@poa-box/core/abis/ZkEmailInvites';
+import { FETCH_ZKEMAIL_MODULE } from '@poa-box/core/graph/documents/zkemail';
+import { useAuth } from '@/context/authState';
 import { ethers } from 'ethers';
 import { usePOContext } from '@/context/POContext';
 import { useIPFScontext } from '@/context/ipfsContext';
@@ -41,10 +44,7 @@ import { getNetworkByChainId } from '@/config/networks';
 import { assertRootMatches } from '@/lib/zkemail/allowlist';
 
 const ZERO_ROOT = '0x0000000000000000000000000000000000000000000000000000000000000000';
-const READ_ABI = [
-  'function merkleRoot() view returns (bytes32)',
-  'function allowlistCid() view returns (bytes32)',
-];
+
 
 // Public read fallbacks: the primary public RPCs rate-limit browsers (observed live: a single
 // failed merkleRoot() read used to kill the whole claim flow). Order: configured URL first.
@@ -69,7 +69,7 @@ export async function readCommitment(rpcUrls, address) {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const provider = new ethers.providers.JsonRpcProvider(url);
-        const contract = new ethers.Contract(address, READ_ABI, provider);
+        const contract = new ethers.Contract(address, ZkEmailInvitesAbi, provider);
         // SEQUENTIAL, not Promise.all: two concurrent eth_calls double the per-IP rate-limit
         // pressure on public RPCs, so the second (allowlistCid) intermittently returns empty →
         // ethers CALL_EXCEPTION data="0x" (observed live). One at a time is far more reliable.
@@ -108,22 +108,21 @@ const SUBGRAPH_ENTRIES_MAX = 1000;
  *     fallback the old code reached immediately)
  * Never throws.
  */
-async function readSummaryFromSubgraph(subgraphUrl, moduleAddress) {
+async function readSummaryFromSubgraph(subgraphUrl, moduleAddress, orgId) {
   try {
-    const query = `{ zkEmailInvites(id: "${String(moduleAddress).toLowerCase()}") {
-      activeRoot
-      activeAllowlist { root entries(first: ${SUBGRAPH_ENTRIES_MAX}, orderBy: index) { entryType identifier hatIds } }
-    } }`;
+    const query = FETCH_ZKEMAIL_MODULE;
     const res = await fetch(subgraphUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query }),
+      body: JSON.stringify({ query, variables: { orgId } }),
       signal: AbortSignal.timeout(6000),
     });
     if (!res.ok) return null;
     const json = await res.json();
     if (json.errors || !json.data) return null;
-    const node = json.data.zkEmailInvites;
+    if (json.data.organization?.id?.toLowerCase() !== orgId?.toLowerCase()) return null;
+    const node = json.data.organization?.zkEmailInvites;
+    if (node?.id?.toLowerCase() !== moduleAddress.toLowerCase()) return null;
     if (!node) return null;
     if (!node.activeRoot || node.activeRoot === ZERO_ROOT) return null;
     const list = node.activeAllowlist;
@@ -163,17 +162,19 @@ export function hatKey(id) {
 }
 
 export function useZkEmailInviteSummary() {
-  const { zkEmailInvitesAddress, zkEmailInvitesEnabled, orgChainId, subgraphUrl, roleNames: contextRoleNames } =
+  const { orgId, zkEmailInvitesAddress, zkEmailInvitesEnabled, orgChainId, subgraphUrl, roleNames: contextRoleNames } =
     usePOContext();
   const { safeFetchFromIpfs, bytes32ToIpfsCid } = useIPFScontext();
 
-  const [state, setState] = useState(EMPTY);
+  const auth = useAuth();
+  const key = JSON.stringify([orgId, zkEmailInvitesAddress?.toLowerCase(), orgChainId, subgraphUrl,
+    auth.accountAddress?.toLowerCase(), auth.authType, auth.isAuthHydrated, auth.sessionGeneration]);
+  const [savedState, setState] = useState(EMPTY);
   const [tick, setTick] = useState(0); // bumped by refresh() — re-runs the reads for dormant/degraded/unknown
   const refresh = useCallback(() => setTick((t) => t + 1), []);
 
   useEffect(() => {
     let alive = true;
-    const key = `${String(zkEmailInvitesAddress || '').toLowerCase()}:${orgChainId || ''}`;
 
     if (!zkEmailInvitesEnabled || !zkEmailInvitesAddress) {
       setState({ ...EMPTY, key });
@@ -197,7 +198,7 @@ export function useZkEmailInviteSummary() {
       //    every ambiguous state (zero root, missing/empty/mismatched file, errors) returns null and
       //    the on-chain path below stays the sole authority for dormant/degraded/unknown.
       if (subgraphUrl) {
-        const sg = await readSummaryFromSubgraph(subgraphUrl, zkEmailInvitesAddress);
+        const sg = await readSummaryFromSubgraph(subgraphUrl, zkEmailInvitesAddress, orgId);
         if (!alive) return;
         if (sg) {
           setState({
@@ -292,7 +293,9 @@ export function useZkEmailInviteSummary() {
       alive = false;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [zkEmailInvitesEnabled, zkEmailInvitesAddress, orgChainId, subgraphUrl, tick, safeFetchFromIpfs, bytes32ToIpfsCid]);
+  }, [key, orgId, zkEmailInvitesEnabled, zkEmailInvitesAddress, orgChainId, subgraphUrl, tick, safeFetchFromIpfs, bytes32ToIpfsCid]);
+
+  const state = useMemo(() => savedState.key === key ? savedState : { ...EMPTY, key, status: zkEmailInvitesEnabled ? 'loading' : 'absent' }, [savedState, key, zkEmailInvitesEnabled]);
 
   // Render-time role-name mapping: POContext role refreshes update names WITHOUT re-running the
   // network reads (doc hatIds are hex; the subgraph uses decimal strings — bridge via BigInt).

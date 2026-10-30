@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useAuth } from '@/context/authState';
 import { useUserContext } from '@/context/UserContext';
 import { useProjectContext } from '@/context/ProjectContext';
-import { isTaskMine, taskNeedsReview } from '@/util/taskIndicators';
+import { isTaskMine } from '@/util/taskIndicators';
 
 /**
  * Shared per-task indicator hook so the card, the list row, the filter chips,
@@ -21,12 +21,10 @@ export function useTaskIndicators(task, columnId) {
   const {
     address: ctxAddress,
     graphUsername,
-    userData,
   } = useUserContext() || {};
-  const { projectsData } = useProjectContext() || {};
+  const { projectsData, getTaskActions } = useProjectContext() || {};
 
   const address = accountAddress || ctxAddress || '';
-  const userHatIds = useMemo(() => userData?.hatIds || [], [userData?.hatIds]);
   const col = columnId || task?.columnId;
   const projectId = task?.projectId;
 
@@ -41,8 +39,8 @@ export function useTaskIndicators(task, columnId) {
   );
 
   const needsMyReview = useMemo(
-    () => taskNeedsReview(col, project, userHatIds, address, task),
-    [col, project, userHatIds, address, task],
+    () => col === 'inReview' && getTaskActions(task, project).complete.state === 'allowed',
+    [col, project, getTaskActions, task],
   );
 
   return { isMine, needsMyReview };

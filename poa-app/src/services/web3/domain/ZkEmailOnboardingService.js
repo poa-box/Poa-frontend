@@ -14,28 +14,29 @@
  */
 
 import { encodeFunctionData } from 'viem';
-import PasskeyAccountABI from '../../../../abi/PasskeyAccount.json';
-import PasskeyAccountFactoryABI from '../../../../abi/PasskeyAccountFactory.json';
-import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
-import ZkEmailInvitesABI from '../../../../abi/ZkEmailInvites.json';
-import { createPasskeyCredential } from '../passkey/passkeyCreate';
-import { signUserOpWithPasskey, signRegistrationChallenge, computeRegistrationChallenge } from '../passkey/passkeySign';
-import { buildUserOpWithFallback, getUserOpHash } from '../passkey/userOpBuilder';
-import { encodeClaimPaymasterData, encodeHatPaymasterData } from '../passkey/paymasterData';
-import { ENTRY_POINT_ADDRESS } from '../../../config/passkey';
+import { computeCounterfactualAddress } from '@poa-box/core/browser/passkeys';
+import { PasskeyAccountAbi as PasskeyAccountABI } from '@poa-box/core/abis/PasskeyAccount';
+import { enrollmentJournal, submitEnrollment, reconcileEnrollment, persistPending } from '@/services/web3/domain/enrollmentSubmission';
+import { UniversalAccountRegistryAbi as UniversalAccountRegistryABI } from '@poa-box/core/abis/UniversalAccountRegistry';
+import { ZkEmailInvitesAbi as ZkEmailInvitesABI } from '@poa-box/core/abis/ZkEmailInvites';
+import { requirePendingEnrollment } from '@/services/web3/passkey/passkeyStorage';
+import { requireValidUsername } from '@/services/web3/utils/validation';
+import { createPasskeyCredential } from '@/services/web3/passkey/passkeyCreate';
+import { signUserOpWithPasskey, signRegistrationChallenge } from '@/services/web3/passkey/passkeySign';
+import { buildUserOpWithFallback, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
+import { encodeClaimPaymasterData, encodeHatPaymasterData } from '@/services/web3/passkey/paymasterData';
+import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
+
+import { buildRegisterAndClaimByDomainWithPasskey, buildRegisterAndClaimByEmailWithPasskey } from '@poa-box/core/tx/zkemail';
+import { canAbandonSubmissionRecovery } from '@poa-box/core/execute/recovery';
+import { encodeIntent } from '@poa-box/core/tx/intent';
+import { registrationChallenge } from '@poa-box/core/accounts/codecs';
 
 const REGISTRATION_DEADLINE_SECONDS = 1209600;
 
+import { emailProofProjection } from '@/lib/zkemail/proofProjection';
+
 const toBig = (v) => BigInt(v);
-const proofTupleDomain = (p) => ({
-  pA: p.pA.map(toBig),
-  pB: p.pB.map((pair) => pair.map(toBig)),
-  pC: p.pC.map(toBig),
-  pubkeyHash: p.pubkeyHash,
-  emailNullifier: p.emailNullifier,
-  fromDomainHash: p.fromDomainHash,
-});
-const proofTupleEmail = (p) => ({ ...proofTupleDomain(p), emailHash: p.emailHash });
 
 export class ZkEmailOnboardingService {
   constructor({
@@ -47,7 +48,15 @@ export class ZkEmailOnboardingService {
     paymasterAddress,
     orgId,
     chainId,
+    scopeGuard = () => {},
+    submissionJournal,
+    initiator,
+    orgName,
   }) {
+    this.scopeGuard = scopeGuard;
+    this.initiator = initiator;
+    this.orgName = orgName;
+    this.submissionJournal = submissionJournal;
     this.publicClient = publicClient;
     this.bundlerClient = bundlerClient;
     this.factoryAddress = factoryAddress;
@@ -60,15 +69,19 @@ export class ZkEmailOnboardingService {
 
   /** Read on the same org chain that receives the onboarding UserOp. */
   async getActiveAllowlist() {
-    const read = (functionName) => this.publicClient.readContract({
+    this.scopeGuard();
+    const read = (functionName) => { this.scopeGuard(); return this.publicClient.readContract({
       address: this.zkEmailInvitesAddress, abi: ZkEmailInvitesABI, functionName,
-    });
+    }); };
     for (let attempt = 0; ; attempt++) {
       try {
         const root = await read('merkleRoot');
+        this.scopeGuard();
         const cid = await read('allowlistCid');
+        this.scopeGuard();
         return { root, cid };
       } catch (error) {
+        this.scopeGuard();
         if (attempt >= 2) throw error;
         await new Promise((resolve) => setTimeout(resolve, 600));
       }
@@ -76,10 +89,13 @@ export class ZkEmailOnboardingService {
   }
 
   async isEmailRegistered(hash) {
-    return this.publicClient.readContract({
+    this.scopeGuard();
+    const registered = await this.publicClient.readContract({
       address: this.zkEmailInvitesAddress, abi: ZkEmailInvitesABI,
       functionName: 'isEmailRegistered', args: [hash],
     });
+    this.scopeGuard();
+    return registered;
   }
 
   /**
@@ -88,25 +104,32 @@ export class ZkEmailOnboardingService {
    * @returns {{ credential: Object, accountAddress: string }}
    */
   async createPendingCredential(username) {
+    this.scopeGuard();
+    requireValidUsername(username);
+    const pending = requirePendingEnrollment(this, { flow: 'zkemail', username });
+    if (pending?.accountAddress) return { credential: pending, accountAddress: pending.accountAddress };
+    if (await this.publicClient.getChainId() !== this.chainId) throw new Error('This network is unavailable. Please try again.');
+    this.scopeGuard();
     // Bare email claims do not need enrollment infrastructure, but this combined path does.
     // Verify the module's factory before producing a credential/address for the claim email.
     const accountRegistry = await this.publicClient.readContract({
       address: this.zkEmailInvitesAddress, abi: ZkEmailInvitesABI, functionName: 'accountRegistry',
     });
+    this.scopeGuard();
     const universalFactory = await this.publicClient.readContract({
       address: this.zkEmailInvitesAddress, abi: ZkEmailInvitesABI, functionName: 'universalFactory',
     });
+    this.scopeGuard();
     if (String(accountRegistry).toLowerCase() !== this.registryAddress.toLowerCase()
       || String(universalFactory).toLowerCase() !== this.factoryAddress.toLowerCase()) {
       throw new Error('Creating an account while claiming an email invite is not configured for this org. Sign in with an existing account to claim.');
     }
-    const credential = await createPasskeyCredential(username);
-    const accountAddress = await this.publicClient.readContract({
-      address: this.factoryAddress,
-      abi: PasskeyAccountFactoryABI,
-      functionName: 'getAddress',
-      args: [credential.credentialId, credential.publicKeyX, credential.publicKeyY, credential.salt],
-    });
+    const credential = pending || await createPasskeyCredential(username);
+    if (!pending) persistPending(this, { ...credential, flow: 'zkemail' }, null, username);
+    this.scopeGuard();
+    const accountAddress = await computeCounterfactualAddress(this.publicClient, this.factoryAddress, credential);
+    this.scopeGuard();
+    persistPending(this, { ...credential, flow: 'zkemail' }, accountAddress, username);
     return { credential, accountAddress };
   }
 
@@ -125,102 +148,98 @@ export class ZkEmailOnboardingService {
    * @returns {{ accountAddress, transactionHash }}
    */
   async registerAndClaim({ credential, accountAddress, username, mode, proof, hatIds, merkleProof, onStep = () => {} }) {
+    const report = onStep;
+    onStep = (...args) => { this.scopeGuard(); report(...args); };
+    this.scopeGuard();
+    if (!['domain', 'email'].includes(mode)) throw new Error('Unknown email claim mode.');
+    const projectedProof = emailProofProjection(proof, mode === 'email' ? 'v2' : 'v1', accountAddress);
     const { credentialId, publicKeyX, publicKeyY, rawCredentialId } = credential;
     const salt = toBig(credential.salt);
 
-    // initCode only while the account is still counterfactual (idempotent across retries: a failed
-    // op that already deployed the account must not resend initCode or the EntryPoint rejects AA10).
-    const code = await this.publicClient.getBytecode({ address: accountAddress });
-    let initCode = '0x';
-    if (!code || code === '0x') {
-      const factoryCallData = encodeFunctionData({
-        abi: PasskeyAccountFactoryABI,
-        functionName: 'createAccount',
-        args: [credentialId, publicKeyX, publicKeyY, salt],
-      });
-      initCode = this.factoryAddress + factoryCallData.slice(2);
+    let confirmed;
+    try { confirmed = await submitEnrollment(this, { credential, accountAddress, username,
+      onConfirming: () => onStep('confirming'),
+      prepare: async (initCode, { prepareForSigning }) => {
+        // Registry EIP-712 registration challenge (same machinery as QuickJoin's WithPasskey path).
+        const nonce = await this.publicClient.readContract({
+          address: this.registryAddress,
+          abi: UniversalAccountRegistryABI,
+          functionName: 'nonces',
+          args: [accountAddress],
+        });
+        this.scopeGuard();
+        const deadline = BigInt(Math.floor(Date.now() / 1000) + REGISTRATION_DEADLINE_SECONDS);
+        const challengeHash = registrationChallenge({
+          user: accountAddress,
+          username,
+          nonce,
+          deadline,
+          chainId: this.chainId,
+          registryAddress: this.registryAddress,
+        }, 'passkey');
+        onStep('signing_registration');
+        const auth = await signRegistrationChallenge(challengeHash, rawCredentialId);
+
+        this.scopeGuard();
+        const builder = mode === 'email' ? buildRegisterAndClaimByEmailWithPasskey : buildRegisterAndClaimByDomainWithPasskey;
+        const inner = encodeIntent(builder({
+          zkEmailInvitesAddress: this.zkEmailInvitesAddress, orgId: this.orgId, claimer: accountAddress,
+          passkey: { credentialId, publicKeyX, publicKeyY, salt }, username, deadline, nonce, auth,
+          proof: projectedProof, hatIds, merkleProof,
+        })).data;
+        const callData = encodeFunctionData({
+          abi: PasskeyAccountABI,
+          functionName: 'execute',
+          args: [this.zkEmailInvitesAddress, 0n, inner],
+        });
+
+        // CLAIM subject (0x05) first: the hub binds the op to the ZkEmailInvites proxy and does NO
+        // eligibility pre-check — required for a FRESH account's first claim (a HAT subject fails
+        // validation before the claim can grant eligibility). Budget: keccak(0x05, proxy). The entry
+        // hats follow as fallback subjects for orgs whose claim budget isn't configured yet.
+        const paymasterDataEntries = [
+          encodeClaimPaymasterData({ claimTarget: this.zkEmailInvitesAddress, orgId: this.orgId }),
+          ...hatIds.map((hatId) => encodeHatPaymasterData({ hatId, orgId: this.orgId })),
+        ];
+        const userOp = await buildUserOpWithFallback({
+          sender: accountAddress,
+          callData,
+          bundlerClient: this.bundlerClient,
+          publicClient: this.publicClient,
+          initCode,
+          paymasterAddress: this.paymasterAddress,
+          paymasterDataEntries,
+        });
+
+        onStep('signing');
+        const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, this.chainId);
+        prepareForSigning(userOp);
+        userOp.signature = await signUserOpWithPasskey(userOpHash, rawCredentialId);
+
+        onStep('submitting');
+        return userOp;
+      },
+    }); } catch (error) {
+      // The shared enrollment host may annotate a signing cancellation before its finally
+      // abandons the unsent journal. Preserve the actual refusal once that cleanup is proven.
+      if (error.category === 'submission_unknown' && error.submission?.recovery
+        && canAbandonSubmissionRecovery(error.submission.recovery) && !this.getPendingSubmission(accountAddress)) {
+        delete error.category; delete error.userMessage; delete error.submission;
+      }
+      throw error;
     }
-
-    // Registry EIP-712 registration challenge (same machinery as QuickJoin's WithPasskey path).
-    const nonce = await this.publicClient.readContract({
-      address: this.registryAddress,
-      abi: UniversalAccountRegistryABI,
-      functionName: 'nonces',
-      args: [accountAddress],
-    });
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + REGISTRATION_DEADLINE_SECONDS);
-    const challengeHash = computeRegistrationChallenge({
-      accountAddress,
-      username,
-      nonce,
-      deadline,
-      chainId: this.chainId,
-      registryAddress: this.registryAddress,
-    });
-    onStep('signing_registration');
-    const auth = await signRegistrationChallenge(challengeHash, rawCredentialId);
-
-    const isEmail = mode === 'email';
-    const inner = encodeFunctionData({
-      abi: ZkEmailInvitesABI,
-      functionName: isEmail ? 'registerAndClaimByEmailWithPasskey' : 'registerAndClaimByDomainWithPasskey',
-      args: [
-        { credentialId, publicKeyX, publicKeyY, salt },
-        username,
-        deadline,
-        nonce,
-        auth,
-        isEmail ? proofTupleEmail(proof) : proofTupleDomain(proof),
-        hatIds.map(toBig),
-        merkleProof,
-      ],
-    });
-    const callData = encodeFunctionData({
-      abi: PasskeyAccountABI,
-      functionName: 'execute',
-      args: [this.zkEmailInvitesAddress, 0n, inner],
-    });
-
-    // CLAIM subject (0x05) first: the hub binds the op to the ZkEmailInvites proxy and does NO
-    // eligibility pre-check — required for a FRESH account's first claim (a HAT subject fails
-    // validation before the claim can grant eligibility). Budget: keccak(0x05, proxy). The entry
-    // hats follow as fallback subjects for orgs whose claim budget isn't configured yet.
-    const paymasterDataEntries = [
-      encodeClaimPaymasterData({ claimTarget: this.zkEmailInvitesAddress, orgId: this.orgId }),
-      ...hatIds.map((hatId) => encodeHatPaymasterData({ hatId, orgId: this.orgId })),
-    ];
-    const userOp = await buildUserOpWithFallback({
-      sender: accountAddress,
-      callData,
-      bundlerClient: this.bundlerClient,
-      publicClient: this.publicClient,
-      initCode,
-      paymasterAddress: this.paymasterAddress,
-      paymasterDataEntries,
-    });
-
-    onStep('signing');
-    const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, this.chainId);
-    userOp.signature = await signUserOpWithPasskey(userOpHash, rawCredentialId);
-
-    onStep('submitting');
-    const submittedHash = await this.bundlerClient.sendUserOperation({
-      ...userOp,
-      entryPointAddress: ENTRY_POINT_ADDRESS,
-    });
-
-    onStep('confirming');
-    const receipt = await this.bundlerClient.waitForUserOperationReceipt({ hash: submittedHash, timeout: 120_000 });
-    if (!receipt.success) {
-      throw new Error(receipt.reason || 'Register-and-claim UserOp failed on-chain');
-    }
+    const { receipt } = confirmed;
     return {
       accountAddress,
-      transactionHash: receipt.receipt.transactionHash,
+      transactionHash: receipt.transactionHash,
       // Callers thread this into the subgraph-sync + refresh machinery (role:claimed).
-      blockNumber: Number(receipt.receipt.blockNumber),
+      blockNumber: Number(receipt.blockNumber),
     };
   }
+
+  getPendingSubmission(accountAddress) { return enrollmentJournal(this, accountAddress).read(); }
+
+  reconcileSubmission(submission = this.lastSubmission) { return reconcileEnrollment(this, submission); }
 }
 
 export function createZkEmailOnboardingService(params) {

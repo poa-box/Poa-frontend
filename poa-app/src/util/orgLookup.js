@@ -1,4 +1,7 @@
-import { isSupportedOrganization, ORGANIZATION_SUPPORT_FIELDS } from '@/lib/supportedOrganizations';
+import { isSupportedOrganization } from '@/lib/supportedOrganizations';
+import { print } from 'graphql';
+import { coreDocument } from '@/lib/graphql/coreDocuments';
+import { GET_ORG_BY_NAME } from '@poa-box/core/graph/documents/org';
 import { takeOrganizationPrefetch } from '@/lib/graphql/organizationPrefetch';
 
 export const ORG_LOOKUP_HINT_TTL_MS = 5 * 60 * 1000;
@@ -89,7 +92,7 @@ export async function fetchOrgByName(source, name, { signal, query, variables = 
     const request = (async () => {
       if (controller.signal.aborted) return null;
       const body = JSON.stringify({
-        query: query || `query FindOrg($name: String!) { organizations(where: { name: $name }, first: 100) { id name ${ORGANIZATION_SUPPORT_FIELDS} } }`,
+        query: query || print(coreDocument(GET_ORG_BY_NAME, { name: 'FindOrg' })),
         variables: { ...variables, name },
       });
       const prefetched = takeOrganizationPrefetch(source.url, body, controller.signal);
@@ -108,7 +111,7 @@ export async function fetchOrgByName(source, name, { signal, query, variables = 
       if (!response.ok && response.status !== 400) throw new Error(`Org lookup HTTP ${response.status}`);
       const json = reused ? response.json : await response.json();
       if (json?.errors?.length) {
-        const error = new Error(json.errors[0]?.message || 'Org lookup GraphQL error');
+        const error = new Error('Organization lookup query failed');
         error.name = 'GraphQLResponseError';
         error.isSchemaError = json.errors.every(({ message, extensions }) =>
           extensions?.code === 'GRAPHQL_VALIDATION_FAILED'

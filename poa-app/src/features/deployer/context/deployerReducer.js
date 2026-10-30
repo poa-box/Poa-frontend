@@ -14,14 +14,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { DEFAULT_DEPLOY_CHAIN_ID, NETWORKS, DEFAULT_DEPLOY_NETWORK, getNetworkByChainId } from '../../../config/networks';
 
-// Lazy import to avoid circular dependency (philosophyMapper imports VOTING_STRATEGY from this file)
-let _sliderToVotingConfig;
-function getSliderToVotingConfig() {
-  if (!_sliderToVotingConfig) {
-    _sliderToVotingConfig = require('../utils/philosophyMapper').sliderToVotingConfig;
-  }
-  return _sliderToVotingConfig;
-}
+import { sliderToVotingConfig } from '@/features/deployer/utils/philosophyMapper';
+const getSliderToVotingConfig = () => sliderToVotingConfig;
 
 // Step constants - New flow
 export const STEPS = {
@@ -124,60 +118,15 @@ export const PERMISSION_DESCRIPTIONS = {
   },
 };
 
-/**
- * A role that requires vouches must NOT be eligible by default.
- *
- * A default-eligible hat satisfies eligibility for everyone, so pairing it with a
- * vouch quorum silently makes the quorum a no-op — and since POP PR #185 the
- * contracts reject the pair outright: `EligibilityModule` reverts
- * `DefaultEligibilityConflictsWithVouch` mid-deploy, and `QuickJoin` reverts
- * `HatOpenlyClaimable` on every claim of an open hat.
- *
- * ONE-DIRECTIONAL on purpose. Turning vouching OFF does not force the role open:
- * "not vouched, not default-eligible" is a legitimate admin-granted-only role
- * (the deployer still grants per-wearer eligibility to mintToDeployer /
- * additionalWearers). The only unreachable combination is a JOIN-TIME role with
- * neither, which `mapStateToDeploymentParams` normalizes and
- * `validateDeploymentConfig` reports.
- *
- * Enforced here rather than in each role editor so simple mode, advanced mode, the
- * standalone RoleForm, templates and philosophy variations can't drift apart.
- */
-export const applyVouchEligibilityInvariant = (role) => {
-  if (!role?.vouching || !role?.defaults) return role;
-  if (!role.vouching.enabled || !role.defaults.eligible) return role;
-  return { ...role, defaults: { ...role.defaults, eligible: false } };
-};
+// Native roles are flat. Membership changes are governed; vouches enable claims.
+export const applyVouchEligibilityInvariant = role => role?.vouching?.enabled
+  ? { ...role, open: false } : role;
 
-// Create a default role object
 export const createDefaultRole = (index = 0, name = 'New Role') => ({
-  id: uuidv4(),
-  name,
-  description: '', // Role description for IPFS metadata
-  image: '',
-  canVote: true,
-  vouching: {
-    enabled: false,
-    quorum: 0,
-    voucherRoleIndex: 0,
-    combineWithHierarchy: false,
-  },
-  defaults: {
-    eligible: true,
-    standing: true,
-  },
-  hierarchy: {
-    adminRoleIndex: null, // null = top-level (will be converted to MaxUint256)
-  },
-  distribution: {
-    mintToDeployer: true, // All roles minted to deployer by default
-    additionalWearers: [],  // Resolved addresses (populated before deployment)
-    additionalMembers: [],  // [{ address, username }] picked in the Team step
-  },
-  hatConfig: {
-    maxSupply: 1000,
-    mutableHat: true,
-  },
+  id: uuidv4(), name, description: '', image: '', canVote: true,
+  open: true, maxMembers: 1000,
+  vouching: { enabled: false, quorum: 0, voucherRoleIndex: 0 },
+  distribution: { mintToDeployer: true, additionalWearers: [], additionalMembers: [] },
 });
 
 // Create a default voting class
@@ -271,22 +220,11 @@ export const initialState = {
     // defaults: "<orgName> Token" / "PT".
     tokenName: '',
     tokenSymbol: '',
+    useTokenSymbol: false,
   },
 
   // Roles configuration
-  roles: [
-    {
-      ...createDefaultRole(0, 'Member'),
-      hierarchy: { adminRoleIndex: 1 }, // Points to Executive
-    },
-    {
-      ...createDefaultRole(1, 'Executive'),
-      id: uuidv4(),
-      name: 'Executive',
-      distribution: { mintToDeployer: true, additionalWearers: [], additionalMembers: [] },
-      hierarchy: { adminRoleIndex: null }, // Top-level
-    },
-  ],
+  roles: [createDefaultRole(0, 'Member'), { ...createDefaultRole(1, 'Executive'), open: false }],
 
   // Permissions configuration
   // Arrays of role indices that have each permission
@@ -321,7 +259,6 @@ export const initialState = {
   // Feature toggles
   features: {
     educationHubEnabled: false,
-    electionHubEnabled: false,
     zkEmailInvitesEnabled: false,
     hideTreasury: false,
   },
@@ -351,7 +288,7 @@ export const initialState = {
   // Resolved to hat IDs + applied via TaskManager.bootstrapGlobalPerms at deploy.
   taskManagerPerms: {},
 
-  // DirectDemocracy execution-target whitelist (literal addresses). Empty = none.
+  // Polls never execute calls. Imported nonempty targets require draft review.
   ddInitialTargets: [],
 
   // Bootstrap: initial projects + tasks created atomically at deploy. Empty = none.
@@ -504,7 +441,7 @@ function adjustPermissionsAfterRoleRemoval(permissions, removedIndex) {
  */
 function adjustRolesAfterRoleRemoval(roles, removedIndex) {
   return roles.map(role => {
-    const adminIdx = role.hierarchy.adminRoleIndex;
+    const adminIdx = role.hierarchy?.adminRoleIndex;
 
     // If this role pointed to the removed role, point to null (top-level)
     if (adminIdx === removedIndex) {
@@ -608,7 +545,7 @@ function remapRoleIndexedState(state, newRoles, mapFn) {
     const newVoucher = remapSingle(role.vouching?.voucherRoleIndex);
     return {
       ...role,
-      hierarchy: { ...role.hierarchy, adminRoleIndex: newAdmin },
+      ...(role.hierarchy ? { hierarchy: { ...role.hierarchy, adminRoleIndex: newAdmin } } : {}),
       vouching: { ...role.vouching, voucherRoleIndex: keep(newVoucher) ? newVoucher : 0 },
     };
   });
@@ -1423,7 +1360,7 @@ export function deployerReducer(state, action) {
       };
 
     // Org-wide TaskManager permissions: set the full uint8 mask for a role.
-    // mask 0 removes the entry (keeps the map sparse — see buildTaskManagerPerms).
+    // mask 0 removes the entry (keeps the map sparse — see the core deployment assembler).
     case ACTION_TYPES.SET_TASK_MANAGER_PERM: {
       const { roleIndex, mask } = action.payload;
       const next = { ...state.taskManagerPerms };

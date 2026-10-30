@@ -135,3 +135,27 @@ describe('parseExecutionFailure', () => {
     expect(parseExecutionFailure(undefined)).toBeNull();
   });
 });
+
+// Exact proposal/emitter provenance is essential in batched finalization receipts.
+describe('core exact proposal receipt outcomes', () => {
+  it('does not report a different proposal failure as the requested finalize failure', () => {
+    const events = new utils.Interface(['event ProposalExecutionFailed(uint256 indexed id, uint256 indexed winningIdx, bytes reason)']);
+    const largeId = '90071992547409931234567890';
+    const event = events.encodeEventLog(events.getEvent('ProposalExecutionFailed'), [largeId, 1, '0x']);
+    const receipt = { logs: [{ address: VOTING, ...event }] };
+    expect(parseExecutionFailure(receipt, VOTING, largeId)?.proposalId).toBe(largeId);
+    expect(parseExecutionFailure(receipt, VOTING, '90071992547409931234567891')).toBeNull();
+  });
+
+  it('keeps valid=false, winner zero and nonexecution distinct from missing evidence', async () => {
+    const { parseProposalReceiptOutcome } = await import('./proposalReceipt');
+    const events = new utils.Interface(['event Winner(uint256 indexed id, uint256 indexed winningIdx, bool valid, bool executed, uint64 timestamp)']);
+    const event = events.encodeEventLog(events.getEvent('Winner'), [0, 0, false, false, 123]);
+    const scope = { votingAddress: VOTING, executorAddress: OTHER, proposalId: '0' };
+    const result = parseProposalReceiptOutcome([{ address: VOTING, ...event }], scope);
+    expect(result.winningOption).toMatchObject({ state: 'known', value: '0' });
+    expect(result.valid).toMatchObject({ state: 'known', value: false });
+    expect(result.execution).toMatchObject({ state: 'known', value: 'not-executed' });
+    expect(parseProposalReceiptOutcome([], scope).execution.state).toBe('unknown');
+  });
+});

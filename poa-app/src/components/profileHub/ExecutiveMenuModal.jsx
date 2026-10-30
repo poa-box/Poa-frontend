@@ -26,6 +26,8 @@ import {
 } from '@chakra-ui/react';
 import { FiShield, FiUsers, FiCheck, FiChevronDown, FiChevronUp } from 'react-icons/fi';
 import { PendingRequestsPanel } from '@/components/tokenRequest';
+import { usePOContext } from '@/context/POContext';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 const glassLayerStyle = {
   position: 'absolute',
@@ -91,6 +93,7 @@ function MenuSection({ icon, title, badge, children, defaultOpen = false }) {
  */
 const ExecutiveMenuModal = ({ isOpen, onClose, hasApproverRole = false }) => {
   const toast = useToast();
+  const { tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
 
   const handleGrantRole = () => {
     toast({
@@ -143,10 +146,10 @@ const ExecutiveMenuModal = ({ isOpen, onClose, hasApproverRole = false }) => {
             {hasApproverRole && (
               <MenuSection
                 icon={FiCheck}
-                title="Share Request Approvals"
+                title={`${tokenLabel} Request Approvals`}
                 defaultOpen={true}
               >
-                <Box mt={2}>
+                <Box mt={2} color="whiteAlpha.900">
                   <PendingRequestsPanel />
                 </Box>
               </MenuSection>
@@ -185,8 +188,8 @@ const ExecutiveMenuModal = ({ isOpen, onClose, hasApproverRole = false }) => {
               </Text>
               <HStack spacing={4} flexWrap="wrap">
                 {hasApproverRole && (
-                  <Badge colorScheme="green" px={2} py={1}>
-                    Token Approvals
+                  <Badge colorScheme="green" px={2} py={1} textTransform="none">
+                    {tokenLabel} Approvals
                   </Badge>
                 )}
                 <Badge colorScheme="purple" px={2} py={1}>

@@ -1,40 +1,33 @@
-import { isSupportedOrganization, ORGANIZATION_SUPPORT_FIELDS } from '@/lib/supportedOrganizations';
+import { print } from 'graphql';
+import { FETCH_ORG_DIRECTORY_PAGE } from '@poa-box/core/graph/documents/org';
+import { requireCompleteSnapshot } from '@poa-box/core/data/facts';
+import { getAllSubgraphUrls } from '@/config/networks';
+import { coreDocument } from '@/lib/graphql/coreDocuments';
+import { PublicDataUnavailable } from '@/lib/graphql/coreQuery';
 
-const PAGE_SIZE = 100;
-export const ORGANIZATION_DIRECTORY_QUERY = `
-  query FetchAllOrgs($after: Bytes!, $first: Int!) {
-    organizations(first: $first, where: { id_gt: $after }, orderBy: id, orderDirection: asc) {
-      id name metadataHash deployedAt
-      ${ORGANIZATION_SUPPORT_FIELDS}
-      metadata { description logo }
-      participationToken { id totalSupply }
-      quickJoin { id }
-      taskManager { id }
-      users(first: 1000) { id }
-    }
-  }
-`;
+// Keep the host's remaining card relation; current member counts need authority facts.
+export const ORGANIZATION_DIRECTORY_QUERY = print(coreDocument(FETCH_ORG_DIRECTORY_PAGE, {
+  fields: { organizations: { add: 'quickJoin { id }' } },
+}));
 
-/** Every page must support cutover fields. Never retry with a legacy schema document. */
-export async function fetchSupportedOrganizations(endpoint, { fetcher = fetch } = {}) {
-  const organizations = [];
-  let after = '0x';
-  while (true) {
-    const response = await fetcher(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: ORGANIZATION_DIRECTORY_QUERY, variables: { after, first: PAGE_SIZE } }),
-      signal: AbortSignal.timeout(8000),
-    });
-    if (!response.ok) throw new Error(`Organization directory HTTP ${response.status}`);
-    const json = await response.json();
-    if (json?.errors?.length) throw new Error(json.errors[0].message || 'Organization directory query failed');
-    const page = json?.data?.organizations;
-    if (!Array.isArray(page)) throw new Error('Organization directory returned no organization list');
-    organizations.push(...page.filter(isSupportedOrganization));
-    if (page.length < PAGE_SIZE) return organizations;
-    const next = page.at(-1)?.id;
-    if (!next || next <= after) throw new Error('Organization directory cursor did not advance');
-    after = next;
-  }
+export async function fetchSupportedOrganizations(endpoint, { fetcher = fetch, chainId, maxPages = 100 } = {}) {
+  const selectedChain = chainId ?? getAllSubgraphUrls().find((source) => source.url === endpoint)?.chainId;
+  const source = { chainId: selectedChain, endpoint, indexed: true, snapshot: 'latest', method: 'graph' };
+  const signal = AbortSignal.timeout(8000);
+  const { readOrganizationDirectoryFacts } = await import('@poa-box/core/reads/org');
+  const snapshot = await readOrganizationDirectoryFacts({
+    source, pageSize: 100, maxPages,
+    query: async (query, variables) => {
+      const response = await fetcher(endpoint, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: ORGANIZATION_DIRECTORY_QUERY, variables }), signal,
+      });
+      if (!response.ok) throw new PublicDataUnavailable();
+      const result = await response.json();
+      if (result?.errors?.length) throw new PublicDataUnavailable();
+      return result?.data;
+    },
+  });
+  try { return Object.defineProperty([...requireCompleteSnapshot(snapshot)], 'snapshot', { value: snapshot }); }
+  catch { throw new PublicDataUnavailable(snapshot.coverage); }
 }

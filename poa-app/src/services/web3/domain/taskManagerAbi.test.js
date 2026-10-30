@@ -1,6 +1,5 @@
 /**
- * The TaskManager ABI in abi/ is hand-maintained — there is no extract-abis
- * script in this repo — so it rots silently. A missing `unclaimTask` fragment
+ * The adopted TaskManager ABI must continue to expose the deployed lifecycle. A missing `unclaimTask` fragment
  * does not fail a build or a typecheck: the EOA path just gets
  * `contract.estimateGas.unclaimTask === undefined` (a raw TypeError, no parsed
  * revert), and the passkey path throws inside `encodeFunctionData`. Both look
@@ -13,7 +12,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { ethers } from 'ethers';
-import TaskManagerABI from '../../../../abi/TaskManagerNew.json';
+import { getAbi } from '@poa-box/core/contracts';
+const TaskManagerABI = getAbi('TaskManagerNew');
 
 const UNCLAIM_SELECTOR = '0x6103955a';
 

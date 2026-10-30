@@ -119,10 +119,10 @@ function Row({ option, index, isWinner, showSeal, isUserPick, userWeight, animat
             </Text>
           )}
           <Text fontSize={fontSize} fontWeight="700" color={isWinner ? leaderText : 'gray.200'}>
-            {Math.round(target)}%
+            {option.percentage == null ? '—' : `${option.approximate ? '~' : ''}${Math.round(target)}%`}
           </Text>
           <Text fontSize="2xs" color="gray.400">
-            {voters} {Number(voters) === 1 ? 'voter' : 'voters'}
+            {option.tallyUnavailable ? 'Votes unavailable' : `${voters} ${Number(voters) === 1 ? 'voter' : 'voters'}`}
           </Text>
         </HStack>
       </HStack>

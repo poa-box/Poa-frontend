@@ -3,9 +3,8 @@ import { AddIcon } from '@chakra-ui/icons';
 import { Button, Flex, IconButton, Tooltip, useToast } from '@chakra-ui/react';
 import { useTaskBoard } from '@/context/TaskBoardContext';
 import { useProjectContext } from '@/context/ProjectContext';
-import { useUserContext } from '@/context/UserContext';
 import { useTaskDrafts } from '@/hooks/useTaskDrafts';
-import { projectTaskPermissions, PERMISSION_MESSAGES } from '@/util/permissions';
+import { PERMISSION_MESSAGES } from '@/util/permissions';
 import { AddTaskModal } from '@/components/TaskManager/deferredTaskDialogs';
 
 // Owns the "create a task" concern for the List view. Mirrors the create/draft
@@ -24,8 +23,7 @@ export const useTaskCreationCtx = () => useContext(TaskCreationContext);
 export function TaskCreationProvider({ projectName, children }) {
   const toast = useToast();
   const { addTask, addTaskBatch } = useTaskBoard();
-  const { projectsData } = useProjectContext();
-  const { userData, address } = useUserContext();
+  const { projectsData, getTaskActions } = useProjectContext();
   const {
     draftsForProject,
     addDraft,
@@ -38,7 +36,6 @@ export function TaskCreationProvider({ projectName, children }) {
   const [mode, setMode] = useState('quick');
   const [isSubmittingDrafts, setIsSubmittingDrafts] = useState(false);
 
-  const userHatIds = useMemo(() => userData?.hatIds || [], [userData]);
 
   const currentProject = useMemo(
     () => projectsData?.find((p) => p.name === projectName || p.title === projectName),
@@ -47,8 +44,8 @@ export function TaskCreationProvider({ projectName, children }) {
   // Same resolution as TaskColumn's gate: the contract's `_checkPerm` — the
   // per-hat mask (project shadows global) OR being one of this project's managers.
   const perms = useMemo(
-    () => projectTaskPermissions(currentProject, userHatIds, address),
-    [currentProject, userHatIds, address],
+    () => getTaskActions(null, currentProject),
+    [currentProject, getTaskActions],
   );
   const currentProjectId = currentProject?.id;
   const projectDrafts = useMemo(
@@ -56,7 +53,7 @@ export function TaskCreationProvider({ projectName, children }) {
     [currentProjectId, draftsForProject],
   );
 
-  const canCreate = perms.canCreate;
+  const canCreate = perms.create.state === 'allowed';
 
   const close = () => setIsOpen(false);
 
@@ -119,7 +116,7 @@ export function TaskCreationProvider({ projectName, children }) {
       {children}
       <AddTaskModal
         // createAndAssignTask needs CREATE **and** ASSIGN together (see TaskColumn).
-        canAssign={perms.canCreateAndAssign}
+        canAssign={perms.createAndAssign.state === 'allowed'}
         isOpen={isOpen}
         onClose={close}
         onAddTask={handleAddTask}

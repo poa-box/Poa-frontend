@@ -4,12 +4,12 @@
  * Triggers the OS passkey picker and looks up the account from the subgraph.
  */
 
-import { startAuthentication, bufferToBase64URLString } from '@simplewebauthn/browser';
-import { keccak256, encodePacked } from 'viem';
-import { computeCredentialId } from './passkeyUtils';
-import { findPendingCredentialByCredentialId } from './passkeyStorage';
-import { getAllSubgraphUrls } from '../../../config/networks';
-import { getWebAuthnRpId } from '../../../config/passkey';
+import { startAuthentication } from '@simplewebauthn/browser';
+import { discoverPasskeyCredential as discoverCredential } from '@poa-box/core/browser/passkeys';
+import { readCredentialFacts } from '@poa-box/core/reads/protocol';
+import { findPendingCredentialByCredentialId } from '@/services/web3/passkey/passkeyStorage';
+import { getAllSubgraphUrls } from '@/config/networks';
+import { getWebAuthnRpId } from '@/config/passkey';
 
 /**
  * Trigger WebAuthn discoverable authentication and look up the account from the subgraph.
@@ -17,70 +17,15 @@ import { getWebAuthnRpId } from '../../../config/passkey';
  *
  * @returns {Object} Credential data: { credentialId, rawCredentialId, accountAddress, salt }
  */
-export async function discoverPasskeyCredential() {
-  // Generate a random challenge (not verified server-side)
-  const challengeBytes = crypto.getRandomValues(new Uint8Array(32));
-  const challenge = bufferToBase64URLString(challengeBytes);
-
-  // Trigger WebAuthn discoverable authentication (no allowCredentials = OS shows passkey picker).
-  // Try the registrable-domain RP ID first (works for new passkeys and custom domains).
-  // Fall back to the full hostname for legacy passkeys created before the RP ID change.
-  //
-  // NOTE: Unlike the allowCredentials flow in passkeySign, the discoverable flow
-  // shows a full browser dialog even when no passkeys match. Legacy users whose
-  // only passkey uses the old RP ID will need to dismiss the first "no passkeys"
-  // dialog before the fallback fires. This is acceptable during the transition
-  // period and only affects the uncommon case of discover-flow + legacy passkey.
-  const primaryRpId = getWebAuthnRpId();
-
-  const opts = (rpId) => ({
-    optionsJSON: {
-      challenge,
-      rpId,
-      allowCredentials: [],
-      userVerification: 'required',
-      timeout: 120000,
-    },
+export function discoverPasskeyCredential() {
+  return discoverCredential({
+    rpId: getWebAuthnRpId(),
+    origin: window.location.origin,
+    hostname: window.location.hostname,
+    adapter: { startAuthentication },
+    lookupAccount: lookupAccountByCredentialId,
+    findPendingCredentialByCredentialId,
   });
-
-  let assertion;
-  try {
-    assertion = await startAuthentication(opts(primaryRpId));
-  } catch (err) {
-    const fallbackRpId = window.location.hostname;
-    if (fallbackRpId === primaryRpId) throw err;
-    assertion = await startAuthentication(opts(fallbackRpId));
-  }
-
-  // Extract the raw credential ID
-  const rawCredentialId = assertion.rawId;
-
-  // Compute on-chain credentialId
-  const credentialId = computeCredentialId(rawCredentialId);
-
-  // Derive salt deterministically (same as during account creation)
-  const salt = BigInt(
-    keccak256(encodePacked(['bytes32', 'string'], [credentialId, 'poa-salt-v1']))
-  ).toString();
-
-  // Look up the account address across ALL chain subgraphs
-  const accountAddress = await lookupAccountByCredentialId(credentialId);
-  if (accountAddress) {
-    return { credentialId, rawCredentialId, accountAddress, salt };
-  }
-
-  // Fallback: check pending credentials for undeployed accounts (vouch-first flow)
-  const pendingMatch = findPendingCredentialByCredentialId(credentialId);
-  if (pendingMatch) {
-    return {
-      credentialId,
-      rawCredentialId,
-      accountAddress: pendingMatch.accountAddress,
-      salt,
-    };
-  }
-
-  throw new Error('No account found for this passkey. You may need to create an account first.');
 }
 
 /**
@@ -88,37 +33,38 @@ export async function discoverPasskeyCredential() {
  * Accounts may be deployed on any chain, so we query all mainnet subgraphs in parallel.
  */
 async function lookupAccountByCredentialId(credentialId) {
-  const query = `
-    query FindAccountByCredentialId($credentialId: Bytes!) {
-      passkeyCredentials(where: { credentialId: $credentialId }, first: 1) {
-        account {
-          id
-        }
-      }
-    }
-  `;
-
   const sources = getAllSubgraphUrls();
-
-  // Query all chains in parallel for fast resolution
-  const results = await Promise.allSettled(
-    sources.map(async (source) => {
-      const response = await fetch(source.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, variables: { credentialId } }),
-      });
-      const { data } = await response.json();
-      const credential = data?.passkeyCredentials?.[0];
-      return credential?.account?.id || null;
-    })
-  );
-
+  const results = await Promise.allSettled(sources.map(source => lookupCredentialSource(source, credentialId)));
   for (const result of results) {
-    if (result.status === 'fulfilled' && result.value) {
-      return result.value;
-    }
+    if (result.status === 'fulfilled' && result.value) return result.value;
   }
-
+  // Unavailable is not evidence that a member has no account.
+  if (results.some(result => result.status === 'rejected')) {
+    throw new Error('We couldn’t check this passkey’s account. Check your connection and try again.');
+  }
   return null;
+}
+
+async function lookupCredentialSource(source, credentialId) {
+  const facts = await readCredentialFacts({
+    source: { chainId: source.chainId, endpoint: source.url, indexed: true, snapshot: 'latest', method: 'graph' },
+    credentialId, pageSize: 100,
+    query: async (query, variables, scope) => {
+      const response = await fetch(scope.endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query, variables }) });
+      if (!response.ok) throw new Error('Account lookup unavailable.');
+      const body = await response.json();
+      // Structured errors let core select only its exact missing-key schema fallback.
+      return body.errors?.length ? { errors: body.errors } : body.data;
+    },
+  });
+  if (facts.coverage.status !== 'complete') throw new Error('Account lookup incomplete.');
+  const credential = facts.data.find(row => row.active);
+  if (!credential) return null;
+  const key = value => typeof value === 'string' && /^0x[0-9a-fA-F]{64}$/.test(value) && !/^0x0{64}$/.test(value);
+  return {
+    accountAddress: credential.account.id, credentialChainId: source.chainId,
+    ...(key(credential.publicKeyX) && key(credential.publicKeyY)
+      ? { publicKeyX: credential.publicKeyX, publicKeyY: credential.publicKeyY } : {}),
+  };
 }

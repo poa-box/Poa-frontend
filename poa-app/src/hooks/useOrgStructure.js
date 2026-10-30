@@ -3,48 +3,20 @@
  * Used by the /org-structure page to display roles, permissions, and members
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery } from '@apollo/client';
-import { useRefreshSubscription, RefreshEvent } from '../context/RefreshContext';
-import { FETCH_ORG_STRUCTURE_DATA } from '../util/queries';
-import { useIPFScontext } from '../context/ipfsContext';
-import { usePOContext } from '../context/POContext';
-import { formatTokenAmount } from '../util/formatToken';
-import { useSubgraphClient } from '../util/apolloClient';
+import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
+import { FETCH_ORG_STRUCTURE_DATA } from '@/util/queries';
+import { useIPFScontext } from '@/context/ipfsContext';
+import { usePOContext } from '@/context/POContext';
+import { formatTokenAmount } from '@/util/formatToken';
+import { useSubgraphClient } from '@/util/apolloClient';
+import { useAuthorityEvidence } from '@/hooks/accessV2/useAuthorityEvidence';
+import { enrollmentRoleFacts } from '@/hooks/enrollmentRoleFacts';
+import { orgStructurePermissions } from '@/hooks/orgStructurePermissions';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
+import { isLegacyTopHatId } from '@/lib/accessV2/ids';
 import { resolveLegacyRoleName } from '@/lib/roles/roleNames';
-
-/**
- * Permission type mapping for display
- */
-const PERMISSION_LABELS = {
-  Voter: 'Voting',
-  Creator: 'Create Proposals',
-  Member: 'Member Access',
-  Approver: 'Approver',
-  // TaskManager project-creator hats (taskManager.creatorHatIds) — who may create projects.
-  CreateProject: 'Create Projects',
-  // TaskManager TaskPerm bits — surfaced via useOrgStructure's taskManagerHatPermissions
-  // synthesis (TaskManager v4 added BUDGET, v5 added EDIT_META + EDIT_FULL).
-  Create: 'Create Tasks',
-  Claim: 'Claim Tasks',
-  Review: 'Review Tasks',
-  Assign: 'Assign Tasks',
-  SelfReview: 'Self-Review',
-  Budget: 'Edit Budgets',
-  EditMeta: 'Edit Task Metadata',
-  EditFull: 'Edit Tasks (Full)',
-};
-
-const CONTRACT_TYPE_LABELS = {
-  HybridVoting: 'Hybrid Voting',
-  DirectDemocracyVoting: 'Direct Democracy',
-  ParticipationToken: 'Token',
-  QuickJoin: 'Quick Join',
-  EducationHub: 'Education',
-  Executor: 'Executor',
-  ToggleModule: 'Toggle',
-  TaskManager: 'Tasks',
-};
 
 /**
  * Generate fallback role name based on index
@@ -103,25 +75,14 @@ function transformRolesData(roles, roleHatIds, roleNamesFromIPFS = {}, users = [
       fallback: getFallbackRoleName(roleIndex),
     });
 
-    // Method 1: Count from role.wearers (RoleWearer entities)
+    // This historical display window supplies names, never a current member total.
     const roleWearers = role.wearers || [];
-    const activeRoleWearers = roleWearers.filter(w => w.isActive !== false);
-
-    // Method 2: Count from users.currentHatIds
-    const usersWithHat = (users || []).filter(user => {
-      const userHatIds = (user.currentHatIds || []).map(id => normalizeHatId(id));
-      return userHatIds.includes(hatIdNorm);
-    });
-
-    // Use the larger count (in case one source is incomplete)
-    const memberCount = Math.max(activeRoleWearers.length, usersWithHat.length);
 
     // Get hat details
     const hat = role.hat || {};
     const level = hat.level ?? 0;
     const parentHatId = hat.parentHatId;
-    const vouchConfig = hat.vouchConfig;
-    const defaultEligible = hat.defaultEligible ?? false;
+    const defaultEligible = null; // Historical Hats defaults cannot qualify native joining.
     // Role description from the hat's IPFS metadata (set via EligibilityModule.updateHatMetadata).
     // May be empty until the subgraph's IPFS file data source resolves.
     const description = hat.metadata?.description || '';
@@ -132,19 +93,19 @@ function transformRolesData(roles, roleHatIds, roleNamesFromIPFS = {}, users = [
       name,
       description,
       image: role.image || '',
-      canVote: role.canVote ?? true, // Default to true for voting roles
+      canVote: null, // Current permission facts live in the qualified matrix, not historical Role rows.
       level,
       parentHatId,
-      memberCount,
+      memberCount: null,
       defaultEligible,
       wearers: roleWearers.map(w => ({
         address: w.wearer,
         username: w.wearerUsername,
       })),
-      vouchingEnabled: vouchConfig?.enabled || false,
-      vouchingQuorum: vouchConfig?.quorum,
-      vouchingMembershipHatId: vouchConfig?.membershipHatId,
-      permissions: role.permissions || [],
+      vouchingEnabled: null,
+      vouchingQuorum: null,
+      vouchingMembershipHatId: null,
+      permissions: [],
     };
   });
 
@@ -199,102 +160,6 @@ function transformRolesData(roles, roleHatIds, roleNamesFromIPFS = {}, users = [
 }
 
 /**
- * Transform hat permissions into a permissions matrix
- * @param {Array} hatPermissions - Hat permissions from subgraph
- * @param {Array} roles - Transformed roles
- * @returns {Object} Permissions matrix { roleId: { permissionKey: boolean } }
- */
-function buildPermissionsMatrix(hatPermissions, roles) {
-  if (!hatPermissions || !Array.isArray(hatPermissions)) return {};
-
-  const matrix = {};
-
-  // Create a map from normalized hatId to original hatId for lookups
-  const normalizedToOriginal = {};
-  roles.forEach(role => {
-    const normalized = normalizeHatId(role.hatId);
-    normalizedToOriginal[normalized] = role.hatId;
-    matrix[role.hatId] = {};
-  });
-
-  // Fill in permissions (using normalized comparison)
-  hatPermissions.forEach(perm => {
-    const normalizedPermHatId = normalizeHatId(perm.hatId);
-    const originalHatId = normalizedToOriginal[normalizedPermHatId];
-
-    if (perm.allowed && originalHatId && matrix[originalHatId]) {
-      const key = `${perm.contractType}_${perm.permissionRole}`;
-      matrix[originalHatId][key] = true;
-    }
-  });
-
-  return matrix;
-}
-
-/**
- * Get unique permission types for matrix columns
- * @param {Array} hatPermissions - Hat permissions from subgraph
- * @returns {Array} Array of { key, label, contractType, permissionRole }
- */
-// Stable order for the permissions matrix — groups governance first, then tasks, with a
-// stable inner ordering per group so re-renders don't shuffle columns when synthesized
-// entries arrive in different orders.
-const CONTRACT_TYPE_ORDER = [
-  'QuickJoin',
-  'ParticipationToken',
-  'HybridVoting',
-  'DirectDemocracyVoting',
-  'Executor',
-  'EducationHub',
-  'ToggleModule',
-  'TaskManager',
-];
-
-const PERMISSION_ROLE_ORDER = [
-  // governance roles
-  'Voter', 'Creator', 'Approver', 'Member',
-  // TaskManager: project-creation first, then per-task TaskPerm bits (low bit → high bit)
-  'CreateProject',
-  'Create', 'Claim', 'Review', 'Assign', 'SelfReview', 'Budget', 'EditMeta', 'EditFull',
-];
-
-function compareColumns(a, b) {
-  const ai = CONTRACT_TYPE_ORDER.indexOf(a.contractType);
-  const bi = CONTRACT_TYPE_ORDER.indexOf(b.contractType);
-  const aRank = ai === -1 ? CONTRACT_TYPE_ORDER.length : ai;
-  const bRank = bi === -1 ? CONTRACT_TYPE_ORDER.length : bi;
-  if (aRank !== bRank) return aRank - bRank;
-  const ar = PERMISSION_ROLE_ORDER.indexOf(a.permissionRole);
-  const br = PERMISSION_ROLE_ORDER.indexOf(b.permissionRole);
-  const aPermRank = ar === -1 ? PERMISSION_ROLE_ORDER.length : ar;
-  const bPermRank = br === -1 ? PERMISSION_ROLE_ORDER.length : br;
-  return aPermRank - bPermRank;
-}
-
-function getPermissionColumns(hatPermissions) {
-  if (!hatPermissions || !Array.isArray(hatPermissions)) return [];
-
-  const seen = new Set();
-  const columns = [];
-
-  hatPermissions.forEach(perm => {
-    const key = `${perm.contractType}_${perm.permissionRole}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      columns.push({
-        key,
-        contractType: perm.contractType,
-        permissionRole: perm.permissionRole,
-        label: `${CONTRACT_TYPE_LABELS[perm.contractType] || perm.contractType} - ${PERMISSION_LABELS[perm.permissionRole] || perm.permissionRole}`,
-      });
-    }
-  });
-
-  columns.sort(compareColumns);
-  return columns;
-}
-
-/**
  * Transform users into members grouped by role
  * @param {Array} users - Users from subgraph
  * @param {Array} roles - Transformed roles
@@ -344,7 +209,9 @@ function groupMembersByRole(users, roles) {
  * @returns {Object} Org structure data and utilities
  */
 export function useOrgStructure() {
-  const { orgId, roleHatIds, topHatId, subgraphUrl } = usePOContext();
+  const { orgId, roleHatIds, topHatId, subgraphUrl, tokenLabel = DEFAULT_TOKEN_LABEL, poMembers,
+  } = usePOContext();
+  const authority = useAuthorityEvidence();
   const { safeFetchFromIpfs, safeFetchImageFromIpfs } = useIPFScontext();
 
   // State for IPFS metadata
@@ -361,7 +228,7 @@ export function useOrgStructure() {
   // Fetch org structure data from subgraph
   const { data, loading: queryLoading, error, refetch } = useQuery(FETCH_ORG_STRUCTURE_DATA, {
     variables: { orgId },
-    skip: !orgId,
+    skip: !orgId || !subgraphUrl,
     fetchPolicy: 'cache-first',
     client,
   });
@@ -370,24 +237,12 @@ export function useOrgStructure() {
   // event the rest of the app uses (cheap: fires once per claim in this tab).
   useRefreshSubscription(RefreshEvent.ROLE_CLAIMED, () => refetch?.(), [refetch]);
 
-  const org = data?.organization;
-
-  // The matrix used to supplement these subgraph rows with four live eth_calls,
-  // because creator/voting hats seeded inside initialize() emitted no events.
-  // That is fixed upstream: subgraph-pop #186 backfills the HybridVoting and
-  // DirectDemocracyVoting hats at Initialized, and #206 sources TaskManager's
-  // from HatSet. Verified 2026-08-13 — HV Creator, DDV Creator, DDV Voter and
-  // TaskManager CreateProject all match the contracts' own getters exactly on
-  // every live org. The reads were dropped rather than kept as belt-and-braces:
-  // they cost an RPC round trip per mount and could only ever agree.
-  //
-  // EducationHub is the one hat set still NOT backfilled (education-hub.ts has
-  // no equivalent — Decentral Park's deploy-time hub creator is missing from
-  // the subgraph), and useEducationCreateGate still reads it on-chain. This
-  // matrix has never shown an EducationHub column, so nothing is lost here.
+  const org = data?.organization?.id?.toLowerCase() === orgId?.toLowerCase() ? data?.organization : null;
 
   // Load org metadata from subgraph (preferred) or IPFS (fallback)
   useEffect(() => {
+    let alive = true;
+    setOrgMetadata({ description: '', links: [], template: '', logo: null });
     async function fetchMetadata() {
       if (!org?.metadataHash) {
         setMetadataLoading(false);
@@ -411,6 +266,7 @@ export function useOrgStructure() {
         } else {
           // Fallback: fetch from IPFS directly (subgraph hasn't indexed yet)
           const metadata = await safeFetchFromIpfs(org.metadataHash);
+          if (!alive) return;
           if (metadata) {
             setOrgMetadata({
               description: metadata.description || '',
@@ -425,6 +281,7 @@ export function useOrgStructure() {
         // Fetch logo image from IPFS gateway using the CID
         if (logoCid) {
           const logoUrl = await safeFetchImageFromIpfs(logoCid);
+          if (!alive) return;
           if (logoUrl) {
             setOrgMetadata(prev => ({ ...prev, logo: logoUrl }));
           }
@@ -432,12 +289,13 @@ export function useOrgStructure() {
       } catch (err) {
         console.error('Failed to fetch org metadata:', err);
       } finally {
-        setMetadataLoading(false);
+        if (alive) setMetadataLoading(false);
       }
     }
 
     fetchMetadata();
-  }, [org?.metadataHash, org?.metadata, safeFetchFromIpfs, safeFetchImageFromIpfs]);
+    return () => { alive = false; };
+  }, [orgId, subgraphUrl, org?.metadataHash, org?.metadata, safeFetchFromIpfs, safeFetchImageFromIpfs]);
 
   // Strip the EligibilityModule's admin hat from the raw role list before
   // any other downstream logic touches it. `where: { isUserRole: true }`
@@ -456,105 +314,31 @@ export function useOrgStructure() {
     );
   }, [org?.roles, eligibilityAdminHatId]);
 
-  // Hats anyone can claim via quickJoinWithUser without vouching. Sourced
-  // from the subgraph's QuickJoinContract.memberHatIds (see subgraph-pop #179).
-  const memberHatIdSet = useMemo(() => {
-    const ids = org?.quickJoin?.memberHatIds || [];
-    return new Set(ids.map((id) => normalizeHatId(id.toString())));
-  }, [org?.quickJoin?.memberHatIds]);
-
-  // Transform roles data, then annotate with isQuickJoinEligible. Kept as two
-  // passes so transformRolesData stays pure.
-  //
-  // A hat is treated as quick-join-eligible only if it's in memberHatIds AND
-  // the EligibilityModule does not require vouching for it. If both flags are
-  // set on the same hat (Test6's Member is configured this way), the join
-  // would surface a "Join" CTA, but quickJoinWithUser would revert during
-  // isEligible because the user has no vouches yet. Vouching wins, since it's
-  // the more restrictive gate.
+  // Native subjects preserve adopted IDs. Missing native facts never revive historical gates.
   const roles = useMemo(() => {
-    const base = transformRolesData(filteredRoles, roleHatIds, {}, org?.users);
-    return base.map((role) => ({
-      ...role,
-      isQuickJoinEligible:
-        memberHatIdSet.has(normalizeHatId(role.hatId)) && !role.vouchingEnabled,
+    const subjects = authority.snapshot?.data?.subjects || [];
+    const complete = authority.complete && !authority.error;
+    const quickJoinIds = org?.quickJoin?.memberHatIds;
+    const quickJoinKnown = Array.isArray(quickJoinIds);
+    const rows = subjects.filter(subject => subject.kind === 'Role' && !isLegacyTopHatId(subject.subjectId));
+    if (complete && !rows.length) return [];
+    if (!rows.length) return transformRolesData(filteredRoles, roleHatIds, {}, org?.users).map(role => ({
+      ...role, ...enrollmentRoleFacts(null, false), defaultEligible: null, isQuickJoinEligible: null,
     }));
-  }, [filteredRoles, roleHatIds, org?.users, memberHatIdSet]);
-
-  // TaskManager v4/v5 — flatten the org's `taskManager.globalRolePermissions` entries into
-  // HatPermission-shaped rows so they flow through the existing PermissionsMatrix without a
-  // parallel data path. Each non-zero TaskPerm bit emits one synthetic entry per hat.
-  const taskManagerHatPermissions = useMemo(() => {
-    const grants = org?.taskManager?.globalRolePermissions;
-    if (!grants || !grants.length) return [];
-
-    const entries = [];
-    const BITS = [
-      ['canCreate', 'Create'],
-      ['canClaim', 'Claim'],
-      ['canReview', 'Review'],
-      ['canAssign', 'Assign'],
-      ['canSelfReview', 'SelfReview'],
-      ['canBudget', 'Budget'],
-      ['canEditMeta', 'EditMeta'],
-      ['canEditFull', 'EditFull'],
-    ];
-
-    grants.forEach((g) => {
-      BITS.forEach(([flag, role]) => {
-        if (g[flag]) {
-          entries.push({
-            hatId: g.hatId,
-            permissionRole: role,
-            contractType: 'TaskManager',
-            allowed: true,
-          });
-        }
-      });
+    return rows.map(subject => {
+      const historical = filteredRoles?.find(role => normalizeHatId(role.hatId) === normalizeHatId(subject.subjectId));
+      const display = transformRolesData([{ ...historical, id: subject.raw?.id || subject.subjectId,
+        hatId: subject.subjectId, name: subject.name ?? historical?.name }], roleHatIds, {}, org?.users)[0];
+      const facts = enrollmentRoleFacts(subject, complete);
+      return { ...display, ...facts, defaultEligible: facts.isOpen,
+        isQuickJoinEligible: quickJoinKnown && facts.openKnown && facts.vouchingKnown
+          ? quickJoinIds.some(id => normalizeHatId(id) === normalizeHatId(subject.subjectId)) && facts.isOpen && !facts.vouchingEnabled : null };
     });
+  }, [authority.snapshot, authority.complete, authority.error, filteredRoles, roleHatIds, org?.users, org?.quickJoin?.memberHatIds]);
 
-    return entries;
-  }, [org?.taskManager?.globalRolePermissions]);
-
-  // TaskManager creator hats — org.taskManager.creatorHatIds lists which hats may create
-  // PROJECTS (a separate grant from the per-task TaskPerm bits above). Flatten into
-  // HatPermission-shaped rows so the matrix renders a "Create Project" column.
-  const taskManagerCreatorHatPermissions = useMemo(() => {
-    const creatorHatIds = org?.taskManager?.creatorHatIds;
-    if (!creatorHatIds || !creatorHatIds.length) return [];
-    return creatorHatIds.map((hatId) => ({
-      hatId,
-      permissionRole: 'CreateProject',
-      contractType: 'TaskManager',
-      allowed: true,
-    }));
-  }, [org?.taskManager?.creatorHatIds]);
-
-  const mergedHatPermissions = useMemo(() => {
-    const base = org?.hatPermissions || [];
-    // The TaskManager rows are reshaped from org.taskManager (TaskPerm bits and
-    // creatorHatIds) into HatPermission shape; buildPermissionsMatrix ORs the
-    // lot together.
-    return [
-      ...base,
-      ...taskManagerHatPermissions,
-      ...taskManagerCreatorHatPermissions,
-    ];
-  }, [
-    org?.hatPermissions,
-    taskManagerHatPermissions,
-    taskManagerCreatorHatPermissions,
-  ]);
-
-  // Build permissions matrix
-  const permissionsMatrix = useMemo(() => {
-    return buildPermissionsMatrix(mergedHatPermissions, roles);
-  }, [mergedHatPermissions, roles]);
-
-  // Get permission columns
-  const permissionColumns = useMemo(() => {
-    return getPermissionColumns(mergedHatPermissions);
-  }, [mergedHatPermissions]);
+  const { permissionsMatrix, permissionColumns } = useMemo(() => orgStructurePermissions({
+    snapshot: authority.error ? null : authority.snapshot, scope: authority.scope, roles, tokenLabel,
+  }), [authority.snapshot, authority.scope, authority.error, roles, tokenLabel]);
 
   // Group members by role
   const membersByRole = useMemo(() => {
@@ -600,10 +384,10 @@ export function useOrgStructure() {
   }, [org?.participationToken]);
 
   // Loading state
-  const loading = queryLoading || metadataLoading;
+  const loading = queryLoading || metadataLoading || authority.loading;
 
   // Total member count
-  const totalMembers = org?.users?.length || 0;
+  const totalMembers = poMembers ?? null;
 
   // Deployment date
   const deployedAt = org?.deployedAt ? new Date(parseInt(org.deployedAt, 10) * 1000) : null;
@@ -645,7 +429,7 @@ export function useOrgStructure() {
 
     // State
     loading,
-    error,
+    error: error || authority.error,
   };
 }
 

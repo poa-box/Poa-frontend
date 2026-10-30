@@ -5,7 +5,7 @@
  * the caller holds a hat with the BUDGET bit.
  */
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -34,6 +34,9 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { parseUnits, formatUnits } from '@ethersproject/units';
 import { useWeb3 } from '@/hooks/useWeb3Services';
 import { usePOContext } from '@/context/POContext';
+import { useProjectContext } from '@/context/ProjectContext';
+import { useAuth } from '@/context/authState';
+import { assertTaskHostScope, memberTaskError } from '@/lib/tasks/hostScope';
 import { RefreshEvent } from '@/context/RefreshContext';
 import { getTokenByAddress } from '@/util/tokens';
 import { formatTokenAmount } from '@/util/formatToken';
@@ -60,7 +63,13 @@ function isUnlimited(capWei) {
 const EditBudgetModal = ({ isOpen, onClose, project }) => {
   const toast = useToast();
   const { task: taskService, executeWithNotification, isReady, getNotReadyMessage } = useWeb3();
-  const { taskManagerContractAddress, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
+  const { taskManagerContractAddress, orgId, orgChainId, subgraphUrl, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
+
+  const { getTaskActions } = useProjectContext();
+  const { accountAddress, isAuthHydrated } = useAuth();
+  const currentRef = useRef(null);
+  currentRef.current = { project, getTaskActions, scope: { contract: taskManagerContractAddress, orgId,
+    chainId: orgChainId, endpoint: subgraphUrl, account: accountAddress, hydrated: isAuthHydrated, projectId: project?.id } };
 
   const currentCapWei = toBN(project?.cap);
 
@@ -69,7 +78,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
   // open so the "newCap < spent" warning is accurate; without it the
   // user would just bounce off `CapBelowCommitted` at signing time.
   const [liveSpent, setLiveSpent] = useState({ project: null, bounty: {} });
-  const currentSpentWei = liveSpent.project ?? toBN(project?.spent);
+  const currentSpentWei = liveSpent.project;
 
   const [hasCap, setHasCap] = useState(currentCapWei.gt(0));
   const [capInput, setCapInput] = useState(
@@ -90,8 +99,8 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
               const b = await taskService.readBountyBudget(taskManagerContractAddress, project.id, bc.token);
               bountyByToken[bc.token] = b.spent;
             } catch {
-              // Lens read of a non-existent budget reverts — fall back to 0.
-              bountyByToken[bc.token] = BigNumber.from(0);
+              // A failed read does not prove an unused budget.
+              bountyByToken[bc.token] = null;
             }
           })
         );
@@ -145,8 +154,8 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
   }, [hasCap, capInput]);
 
   const capWarning =
-    newCapWei && newCapWei.gt(0) && newCapWei.lt(currentSpentWei)
-      ? `New cap (${formatUnits(newCapWei, 18)}) is below already-spent (${formatUnits(currentSpentWei, 18)} ${tokenLabel}). Contract will revert CapBelowCommitted.`
+    currentSpentWei != null && newCapWei && newCapWei.gt(0) && newCapWei.lt(currentSpentWei)
+      ? `New cap (${formatUnits(newCapWei, 18)}) is below the amount already allocated (${formatUnits(currentSpentWei, 18)} ${tokenLabel}). Choose a larger cap.`
       : null;
 
   const bountyValidation = useMemo(() => {
@@ -178,10 +187,10 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
       if (proposed.gt(MAX_PAYOUT)) {
         issues.push(`${tokenInfo.symbol}: exceeds contract MAX_PAYOUT — use Unlimited instead`);
       }
-      const spent = liveSpent.bounty[bc.token] ?? toBN(bc.spent);
-      if (proposed.lt(spent)) {
+      const spent = liveSpent.bounty[bc.token];
+      if (spent != null && proposed.lt(spent)) {
         issues.push(
-          `${tokenInfo.symbol}: new cap (${edit.cap}) is below spent (${formatTokenAmount(spent.toString(), decimals, decimals <= 6 ? 2 : 2)}). Contract will revert CapBelowCommitted.`
+          `${tokenInfo.symbol}: new cap (${edit.cap}) is below the amount already allocated (${formatTokenAmount(spent.toString(), decimals, 2)}). Choose a larger cap.`
         );
       }
     }
@@ -224,6 +233,10 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
 
   const handleSave = async () => {
     if (saving) return; // double-click guard
+    if (getTaskActions(null, project).budget.state !== 'allowed') {
+      toast({ description: 'Your current permissions do not allow changing this budget.', status: 'warning' });
+      return;
+    }
     if (!taskService || !isReady) {
       toast({ description: getNotReadyMessage(), status: 'info', duration: 4000, isClosable: true });
       return;
@@ -243,13 +256,20 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
     }
 
     setSaving(true);
+    const captured = { ...currentRef.current.scope };
+    const assertCurrent = () => {
+      assertTaskHostScope(currentRef.current.scope, captured);
+      if (currentRef.current.getTaskActions(null, currentRef.current.project).budget.state !== 'allowed') {
+        throw memberTaskError('Your current permissions do not allow changing this budget.');
+      }
+    };
     let allOk = true;
     try {
       for (const change of pendingChanges) {
         const run =
           change.kind === 'projectCap'
-            ? () => taskService.setProjectCap(taskManagerContractAddress, project.id, change.targetCap)
-            : () => taskService.setBountyCap(taskManagerContractAddress, project.id, change.token, change.proposed);
+            ? () => { assertCurrent(); return taskService.setProjectCap(taskManagerContractAddress, project.id, change.targetCap, { assertCurrent }); }
+            : () => { assertCurrent(); return taskService.setBountyCap(taskManagerContractAddress, project.id, change.token, change.proposed, { assertCurrent }); };
         const pending =
           change.kind === 'projectCap'
             ? 'Updating project cap...'
@@ -292,7 +312,7 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
             <Box>
               <Text fontSize="sm" color="gray.500">Currently spent</Text>
               <Text fontWeight="600">
-                {formatTokenAmount(currentSpentWei.toString())} {tokenLabel}
+                {currentSpentWei == null ? '—' : formatTokenAmount(currentSpentWei.toString())} {tokenLabel}
               </Text>
             </Box>
 
@@ -346,8 +366,8 @@ const EditBudgetModal = ({ isOpen, onClose, project }) => {
                         )}
                         <Text fontWeight="600">{tokenInfo.symbol}</Text>
                         <Text fontSize="xs" color="gray.500">
-                          Spent: {formatTokenAmount(
-                            (liveSpent.bounty[bc.token] ?? toBN(bc.spent)).toString(),
+                          Spent: {liveSpent.bounty[bc.token] == null ? '—' : formatTokenAmount(
+                            liveSpent.bounty[bc.token].toString(),
                             tokenInfo.decimals,
                             2,
                           )}

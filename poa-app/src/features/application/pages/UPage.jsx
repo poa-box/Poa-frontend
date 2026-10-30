@@ -5,7 +5,7 @@
  */
 
 import SEOHead from '@/components/common/SEOHead';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Container,
@@ -21,6 +21,7 @@ import {
   IconButton,
   Tooltip,
   Skeleton,
+  Button,
   Icon,
   useToast,
   useColorModeValue,
@@ -30,7 +31,7 @@ import { FiGithub, FiTwitter, FiGlobe } from 'react-icons/fi';
 import { useRouter } from 'next/router';
 import Link from 'next/link';
 import Navbar from '@/components/landing/Navbar';
-import { findUserProfileByUsername, findUserOrgsAcrossChains } from '@/util/crossChainUsername';
+import { usePublicProfile, useProfileMemberships } from '@/features/application/pages/publicProfileReads';
 import { filterUserOrgsForViewedProfile } from '@/util/profileOrgFilter';
 import UserOrgCard from '@/components/profile/UserOrgCard';
 import useIpfsImage from '@/hooks/useIpfsImage';
@@ -39,10 +40,6 @@ const PublicProfilePage = () => {
   const router = useRouter();
   const toast = useToast();
 
-  const [profile, setProfile] = useState(null);
-  const [organizations, setOrganizations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
 
   const bgGradient = useColorModeValue(
@@ -55,41 +52,8 @@ const PublicProfilePage = () => {
 
   const username = router.query.username;
 
-  useEffect(() => {
-    if (!router.isReady) return;
-    if (!username) {
-      setNotFound(true);
-      setLoading(false);
-      return;
-    }
-    let cancelled = false;
-
-    async function loadProfile() {
-      setLoading(true);
-      setNotFound(false);
-
-      const result = await findUserProfileByUsername(username);
-      if (cancelled) return;
-
-      if (!result.address) {
-        setNotFound(true);
-        setLoading(false);
-        return;
-      }
-
-      setProfile(result);
-
-      // Fetch org memberships
-      const orgs = await findUserOrgsAcrossChains(result.address);
-      if (!cancelled) {
-        setOrganizations(orgs);
-        setLoading(false);
-      }
-    }
-
-    loadProfile();
-    return () => { cancelled = true; };
-  }, [router.isReady, username]);
+  const { profile, isLoading: loading, isUnavailable, notFound, refetch } = usePublicProfile(username, router.isReady);
+  const { organizations, isLoading: orgsLoading, isComplete: orgsComplete, isUnavailable: orgsUnavailable, refetch: refetchOrgs } = useProfileMemberships(profile?.address);
 
   const visibleOrganizations = filterUserOrgsForViewedProfile(organizations, username);
 
@@ -127,11 +91,16 @@ const PublicProfilePage = () => {
         <Navbar />
 
         <Container maxW="container.lg" pt={{ base: "80px", md: "100px" }} pb={8}>
-          {loading ? (
+          {loading && !profile ? (
             <VStack spacing={6}>
               <Skeleton height="250px" width="100%" borderRadius="2xl" />
               <Skeleton height="200px" width="100%" borderRadius="2xl" />
             </VStack>
+          ) : isUnavailable && !profile ? (
+            <Card borderRadius="2xl" bg={cardBg}><CardBody p={8}>
+              <Text role="status">This profile is unavailable right now.</Text>
+              <Button onClick={refetch}>Try again</Button>
+            </CardBody></Card>
           ) : notFound ? (
             <Card borderRadius="2xl" boxShadow="2xl" bg={cardBg}>
               <CardBody p={8}>
@@ -152,6 +121,7 @@ const PublicProfilePage = () => {
             </Card>
           ) : (
             <VStack spacing={6} align="stretch">
+              {isUnavailable && <HStack><Text role="status" color="white">Some profile details are unavailable.</Text><Button onClick={refetch}>Try again</Button></HStack>}
               {/* Profile Header Card */}
               <Card borderRadius="2xl" boxShadow="2xl" bg={cardBg}>
                 <CardBody p={[4, 6, 8]}>
@@ -254,11 +224,13 @@ const PublicProfilePage = () => {
                         Organizations
                       </Heading>
                       <Badge colorScheme="purple" fontSize="md" px={3} py={1} borderRadius="full">
-                        {visibleOrganizations.length}
+                        {orgsComplete ? visibleOrganizations.length : 'Unavailable'}
                       </Badge>
                     </HStack>
 
-                    {visibleOrganizations.length === 0 ? (
+                    {orgsUnavailable && <HStack><Text role="status" color={subtextColor}>Some organizations are unavailable.</Text><Button onClick={refetchOrgs}>Try again</Button></HStack>}
+                    {orgsLoading && <Skeleton height="60px" width="100%" />}
+                    {visibleOrganizations.length === 0 && orgsComplete ? (
                       <Text color={subtextColor} textAlign="center" py={4}>
                         Not a member of any organizations yet.
                       </Text>

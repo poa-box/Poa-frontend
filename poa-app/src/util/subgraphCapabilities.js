@@ -22,8 +22,8 @@
  * frontend change.
  */
 
-import * as accessV2Documents from './queriesAccessV2';
-import { deriveRequirements } from './accessV2Requirements';
+import * as accessV2Documents from '@/util/queriesAccessV2';
+import { deriveRequirements } from '@/util/accessV2Requirements';
 
 /** Generated at module load from the v2 documents themselves — see accessV2Requirements. */
 export const ACCESS_V2_REQUIREMENTS = deriveRequirements(Object.values(accessV2Documents));
@@ -68,8 +68,8 @@ export const CAPABILITY = {
    *
    * This one matters more than the others: the v2 entities land on the gateway endpoints only
    * after the Wave-E publish, and one unknown field fails the WHOLE document — so an org whose
-   * endpoint has not been republished (and every org that never migrates) must read this as
-   * "absent" and keep the legacy Hats/EligibilityModule surfaces completely untouched.
+   * endpoint has not been republished must fail closed. Authority controls remain
+   * unavailable; this probe never restores retired membership controls.
    *
    * The requirement list names the fields the v2 documents actually SELECT, not just the entity
    * types, so a partial deployment reads as absent rather than half-working. It is GENERATED from

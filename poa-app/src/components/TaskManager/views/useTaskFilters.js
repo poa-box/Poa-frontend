@@ -15,8 +15,6 @@ import { hasBounty as checkHasBounty } from '@/util/tokens';
 import { isClaimExpired } from '@/util/deadlineUtils';
 import {
   isTaskMine,
-  taskNeedsReview,
-  userCanReviewAnywhere,
 } from '@/util/taskIndicators';
 
 // A single filter surface shared by Board, List, and Gantt. URL query params are
@@ -53,12 +51,10 @@ export function TaskFilterProvider({ children }) {
   const {
     address: ctxAddress,
     graphUsername,
-    userData,
   } = useUserContext() || {};
-  const { projectsData } = useProjectContext() || {};
+  const { projectsData, getTaskActions, hasReviewCapability } = useProjectContext() || {};
 
   const address = accountAddress || ctxAddress || '';
-  const userHatIds = useMemo(() => userData?.hatIds || [], [userData?.hatIds]);
 
   // --- Search text: local-immediate value, debounced URL write ---------------
   const urlQ = typeof router.query.q === 'string' ? router.query.q : '';
@@ -144,8 +140,8 @@ export function TaskFilterProvider({ children }) {
 
   // Chip/section gate: is review possible anywhere for this user?
   const canReviewAnywhere = useMemo(
-    () => userCanReviewAnywhere(projectsData, userHatIds, address),
-    [projectsData, userHatIds, address],
+    () => (projectsData || []).some(project => hasReviewCapability(project)),
+    [projectsData, hasReviewCapability],
   );
 
   const projectById = useMemo(() => {
@@ -176,7 +172,7 @@ export function TaskFilterProvider({ children }) {
             if (!isTaskMine(task, address, graphUsername)) return false;
             break;
           case 'needs-review':
-            if (!taskNeedsReview(col, projectById.get(task.projectId), userHatIds, address, task))
+            if (!(col === 'inReview' && getTaskActions(task, projectById.get(task.projectId)).complete.state === 'allowed'))
               return false;
             break;
           case 'open':
@@ -194,7 +190,7 @@ export function TaskFilterProvider({ children }) {
       }
       return true;
     },
-    [q, activeFilters, address, graphUsername, projectById, userHatIds],
+    [q, activeFilters, address, graphUsername, projectById, getTaskActions],
   );
 
   const isFiltering = q.trim() !== '' || activeFilters.size > 0;

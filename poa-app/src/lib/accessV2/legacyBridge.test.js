@@ -29,6 +29,8 @@ function subject({ id, name, isGroup = false, own = {}, groups = [], vouch = fal
     }
     return acc.toString();
   };
+  s.permFacts = key => ({ value: { state: 'known', value: s.permEffective(key) }, contributions:
+    [s, ...groups].map(row => ({ subjectId: row.subjectId, context: { state: 'known', value: { value: String(row.permGlobal(key)?.value || '0') } } })) });
   return s;
 }
 
@@ -46,11 +48,12 @@ describe('legacyBridge', () => {
       const member = subject({ id: '1', name: 'Member', own: { [PERM_KEYS.DD_VOTE]: 1, [PERM_KEYS.TM_PERMS]: 3 } });
       const view = buildV2MatrixView([member]);
       expect(view.rows.map((r) => r.name)).toEqual(['Member']);
-      expect(view.matrix['1']).toEqual({
+      expect(view.matrix['1']).toMatchObject({
         DirectDemocracyVoting_Voter: true,
         TaskManager_Create: true,
         TaskManager_Claim: true,
       });
+      expect(view.matrix['1'].EducationHub_Creator).toBe(false);
       expect(view.columns.map((c) => c.key)).toEqual([
         'DirectDemocracyVoting_Voter',
         'TaskManager_Create',
@@ -72,7 +75,7 @@ describe('legacyBridge', () => {
       const title = subject({ id: '2', name: 'Co-President', groups: [execs] });
       const view = buildV2MatrixView([title, execs]);
       expect(view.rows.map((r) => r.name)).toEqual(['Executives']);
-      expect(view.matrix.g).toEqual({ HybridVoting_Creator: true });
+      expect(view.matrix.g).toMatchObject({ HybridVoting_Creator: true, EducationHub_Creator: false });
       expect(view.hidden.inheritOnly).toEqual([{ name: 'Co-President', groupNames: ['Executives'] }]);
     });
 
@@ -85,7 +88,7 @@ describe('legacyBridge', () => {
         own: { [PERM_KEYS.PAY_CREATE]: 1, [PERM_KEYS.HV_CREATE]: 1 }, // HV also own — but the group already covers it
       });
       const view = buildV2MatrixView([treasurer, execs]);
-      expect(view.matrix['3']).toEqual({
+      expect(view.matrix['3']).toMatchObject({
         HybridVoting_Creator: 'inherited', // group-covered, even though an own row duplicates it
         PaymentManager_Payments: true, // the genuine addition
       });
@@ -96,7 +99,7 @@ describe('legacyBridge', () => {
       const execs = subject({ id: 'g', name: 'Executives', isGroup: true, own: { [PERM_KEYS.TM_PERMS]: 2 } });
       const lead = subject({ id: '4', name: 'Lead', groups: [execs], own: { [PERM_KEYS.TM_PERMS]: 4 } });
       const view = buildV2MatrixView([lead, execs]);
-      expect(view.matrix['4']).toEqual({
+      expect(view.matrix['4']).toMatchObject({
         TaskManager_Claim: 'inherited',
         TaskManager_Review: true,
       });
@@ -109,7 +112,7 @@ describe('legacyBridge', () => {
     const execs = subject({ id: '3', name: 'Executives', isGroup: true });
     const membersOf = (id) => ({ 1: [{}, {}], 2: [{}] })[id] || [];
     const groupMembers = new Map([['3', ['0xaaa']]]);
-    const rows = buildV2LegacyRoles({ roles: [member, title], groups: [execs], membersOf, groupMembers });
+    const rows = buildV2LegacyRoles({ complete: true, roles: [member, title], groups: [execs], membersOf, groupMembers });
     expect(rows.map((r) => [r.name, r.memberCount, r.isGroup])).toEqual([
       ['Member', 2, false],
       ['Co-President', 1, false],
@@ -117,4 +120,12 @@ describe('legacyBridge', () => {
     ]);
     expect(rows[0].vouchingEnabled).toBe(true);
   });
+});
+
+it('retains unknown current facts instead of describing them as a silent role', () => {
+  const view = buildV2MatrixView([{ subjectId: '1', name: 'Unknown', permEffective: () => '0', permFacts: () => ({ value: { state: 'unknown' }, contributions: [] }) }]);
+  expect(view.rows).toHaveLength(1);
+  expect(view.hidden.silent).toEqual([]);
+  expect(Object.values(view.matrix['1']).every(value => value === null)).toBe(true);
+  expect(buildV2LegacyRoles({ roles: [{ subjectId: '1', activeMemberCount: 200 }] })[0].memberCount).toBeNull();
 });

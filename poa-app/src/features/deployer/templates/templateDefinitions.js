@@ -34,7 +34,6 @@ export const POWER_BUNDLES = {
     name: 'Member Powers',
     description: 'Participate and contribute to the organization',
     permissions: [
-      'quickJoinRoles',
       'tokenMemberRoles',
       'educationMemberRoles',
       'ddVotingRoles',
@@ -76,16 +75,14 @@ const WORKER_COOP_TEMPLATE = {
           enabled: true,
           quorum: 2,
           voucherRoleIndex: 0, // Workers vouch for other Workers
-          combineWithHierarchy: true,
         },
-        defaults: { eligible: false, standing: true },
-        hierarchy: { adminRoleIndex: 1 }, // Managed by Steward
+        open: false,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 1000, mutableHat: true },
+        maxMembers: 1000,
       },
       {
         id: uuidv4(),
@@ -96,21 +93,19 @@ const WORKER_COOP_TEMPLATE = {
           enabled: true,
           quorum: 1,
           voucherRoleIndex: 1, // Stewards vouch for other Stewards
-          combineWithHierarchy: true,
         },
-        defaults: { eligible: false, standing: true },
-        hierarchy: { adminRoleIndex: null }, // Top-level
+        open: false,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 5, mutableHat: true },
+        maxMembers: 5,
       },
     ],
 
     permissions: {
-      quickJoinRoles: [0],           // Workers can quick join
+      quickJoinRoles: [],            // Vouched membership is claimed after peer approval
       tokenMemberRoles: [0, 1],      // Both hold tokens
       tokenApproverRoles: [1],       // Stewards approve
       taskCreatorRoles: [0, 1],      // Both create tasks
@@ -145,7 +140,6 @@ const WORKER_COOP_TEMPLATE = {
 
     features: {
       educationHubEnabled: false,
-      electionHubEnabled: true,
     },
 
     // Governance Only - democratic orgs should vote on metadata changes
@@ -193,16 +187,14 @@ const OPEN_SOURCE_TEMPLATE = {
           enabled: true,
           quorum: 1,
           voucherRoleIndex: 0, // Contributors vouch for other Contributors
-          combineWithHierarchy: true,
         },
-        defaults: { eligible: false, standing: true },
-        hierarchy: { adminRoleIndex: 1 }, // Managed by Maintainer
+        open: false,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 10000, mutableHat: true },
+        maxMembers: 10000,
       },
       {
         id: uuidv4(),
@@ -213,21 +205,19 @@ const OPEN_SOURCE_TEMPLATE = {
           enabled: true,
           quorum: 1,
           voucherRoleIndex: 1, // Maintainers vouch for other Maintainers
-          combineWithHierarchy: true,
         },
-        defaults: { eligible: false, standing: true },
-        hierarchy: { adminRoleIndex: null }, // Top-level
+        open: false,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 20, mutableHat: true },
+        maxMembers: 20,
       },
     ],
 
     permissions: {
-      quickJoinRoles: [0],           // Contributors quick join
+      quickJoinRoles: [],            // Vouched membership is claimed after peer approval
       tokenMemberRoles: [0, 1],      // Both hold tokens
       tokenApproverRoles: [1],       // Maintainers approve
       taskCreatorRoles: [1],         // Maintainers create tasks
@@ -271,7 +261,6 @@ const OPEN_SOURCE_TEMPLATE = {
 
     features: {
       educationHubEnabled: false,
-      electionHubEnabled: true,
     },
 
     // Maintainers manage the project page - they ship releases and manage docs
@@ -319,16 +308,14 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
           enabled: true,
           quorum: 2,
           voucherRoleIndex: 0, // Artists vouch for other Artists
-          combineWithHierarchy: true,
         },
-        defaults: { eligible: false, standing: true },
-        hierarchy: { adminRoleIndex: 1 }, // Managed by Curator
+        open: false,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 100, mutableHat: true },
+        maxMembers: 100,
       },
       {
         id: uuidv4(),
@@ -339,16 +326,14 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
           enabled: true,
           quorum: 1,
           voucherRoleIndex: 1, // Curators vouch for other Curators
-          combineWithHierarchy: true,
         },
-        defaults: { eligible: false, standing: true },
-        hierarchy: { adminRoleIndex: null }, // Top-level
+        open: false,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 10, mutableHat: true },
+        maxMembers: 10,
       },
     ],
 
@@ -388,7 +373,6 @@ const CREATIVE_COLLECTIVE_TEMPLATE = {
 
     features: {
       educationHubEnabled: false,
-      electionHubEnabled: false,
     },
 
     // Governance Only - flat structure, collective decisions
@@ -436,16 +420,14 @@ const COMMUNITY_DAO_TEMPLATE = {
           enabled: true,
           quorum: 1,
           voucherRoleIndex: 0, // Neighbors vouch for other Neighbors
-          combineWithHierarchy: true,
         },
-        defaults: { eligible: false, standing: true },
-        hierarchy: { adminRoleIndex: 1 }, // Managed by Delegate
+        open: false,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 5000, mutableHat: true },
+        maxMembers: 5000,
       },
       {
         id: uuidv4(),
@@ -456,21 +438,19 @@ const COMMUNITY_DAO_TEMPLATE = {
           enabled: true,
           quorum: 1,
           voucherRoleIndex: 1, // Delegates vouch for other Delegates
-          combineWithHierarchy: true,
         },
-        defaults: { eligible: false, standing: true },
-        hierarchy: { adminRoleIndex: null }, // Top-level
+        open: false,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 15, mutableHat: true },
+        maxMembers: 15,
       },
     ],
 
     permissions: {
-      quickJoinRoles: [0],           // Neighbors quick join
+      quickJoinRoles: [],            // Vouched membership is claimed after peer approval
       tokenMemberRoles: [0, 1],      // Both hold tokens
       tokenApproverRoles: [1],       // Delegates approve
       taskCreatorRoles: [0, 1],      // Both create tasks
@@ -514,7 +494,6 @@ const COMMUNITY_DAO_TEMPLATE = {
 
     features: {
       educationHubEnabled: false,
-      electionHubEnabled: true,
     },
 
     // Delegates handle admin operations as elected representatives
@@ -543,7 +522,7 @@ const STUDENT_ORG_TEMPLATE = {
   id: TEMPLATE_IDS.STUDENT_ORG,
   name: 'Student Organization',
   tagline: 'Democratic clubs run by students, for students',
-  description: 'For student clubs, academic societies, and campus groups. Executives handle day-to-day operations while members vote on important decisions. Features education modules and democratic elections.',
+  description: 'For student clubs, academic societies, and campus groups. Executives handle day-to-day operations while members vote on important decisions. Includes education modules and shared decision-making.',
   bestFor: [
     'Campus clubs and student groups',
     'Academic and professional societies',
@@ -562,16 +541,14 @@ const STUDENT_ORG_TEMPLATE = {
           enabled: true,
           quorum: 1,
           voucherRoleIndex: 1, // Executives vouch for new Members
-          combineWithHierarchy: true,
         },
-        defaults: { eligible: false, standing: true },
-        hierarchy: { adminRoleIndex: 1 }, // Managed by Executive
+        open: false,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 1000, mutableHat: true },
+        maxMembers: 1000,
       },
       {
         id: uuidv4(),
@@ -582,21 +559,19 @@ const STUDENT_ORG_TEMPLATE = {
           enabled: true,
           quorum: 1,
           voucherRoleIndex: 1, // Executives vouch for other Executives
-          combineWithHierarchy: true,
         },
-        defaults: { eligible: false, standing: true },
-        hierarchy: { adminRoleIndex: null }, // Top-level
+        open: false,
         distribution: {
           mintToDeployer: true, // Deployer becomes first executive
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 10, mutableHat: true },
+        maxMembers: 10,
       },
     ],
 
     permissions: {
-      quickJoinRoles: [0],           // Members can quick join (after exec approval via vouching)
+      quickJoinRoles: [],            // Vouched membership is claimed after peer approval
       tokenMemberRoles: [0, 1],      // Both hold participation tokens
       tokenApproverRoles: [1],       // Only executives approve token transfers
       taskCreatorRoles: [1],         // Only executives create tasks
@@ -640,7 +615,6 @@ const STUDENT_ORG_TEMPLATE = {
 
     features: {
       educationHubEnabled: true,   // Education hub for training
-      electionHubEnabled: true,    // For democratic executive elections
     },
 
     // Executives handle day-to-day ops including org profile updates
@@ -656,7 +630,7 @@ const STUDENT_ORG_TEMPLATE = {
       identity: 'Give your organization a name that reflects your mission. This will be visible to all members.',
       team: 'Executives run day-to-day operations. Members participate in governance. Executives can invite new members.',
       governance: 'Your 50/50 hybrid voting means both participation (how much you contribute) and democracy (one person, one vote) matter equally.',
-      review: 'Your organization is ready! It supports democratic elections, educational resources, and task management.',
+      review: 'Your organization is ready! It supports educational resources, shared decisions, and task management.',
     },
   },
 };
@@ -687,16 +661,14 @@ const CUSTOM_TEMPLATE = {
           enabled: false,
           quorum: 0,
           voucherRoleIndex: 0,
-          combineWithHierarchy: false,
         },
-        defaults: { eligible: true, standing: true },
-        hierarchy: { adminRoleIndex: 1 }, // Managed by Admin
+        open: true,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 1000, mutableHat: true },
+        maxMembers: 1000,
       },
       {
         id: uuidv4(),
@@ -707,16 +679,14 @@ const CUSTOM_TEMPLATE = {
           enabled: false,
           quorum: 0,
           voucherRoleIndex: 0,
-          combineWithHierarchy: false,
         },
-        defaults: { eligible: true, standing: true },
-        hierarchy: { adminRoleIndex: null }, // Top-level
+        open: false,
         distribution: {
           mintToDeployer: true,
           additionalWearers: [],
           additionalMembers: [],
         },
-        hatConfig: { maxSupply: 10, mutableHat: true },
+        maxMembers: 10,
       },
     ],
 
@@ -756,7 +726,6 @@ const CUSTOM_TEMPLATE = {
 
     features: {
       educationHubEnabled: false,
-      electionHubEnabled: false,
     },
 
     // Governance Only - safe default, user can override

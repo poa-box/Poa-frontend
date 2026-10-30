@@ -11,7 +11,10 @@
  * groups have no acceptance, no maxMembers and are NOT tokens).
  */
 
-import { isLegacyAdoptedId, isLegacyTopHatId, toSubjectId } from './ids';
+import { isLegacyAdoptedId, isLegacyTopHatId, toSubjectId } from '@/lib/accessV2/ids';
+import { decodeIndexedAuthorityCap } from '@poa-box/core/authority/indexed-cap';
+import { projectSubjectMembership } from '@poa-box/core/authority/permissions';
+import { knownFact, unknownFact } from '@poa-box/core/data/facts';
 
 export const SUBJECT_KIND = { ROLE: 'Role', GROUP: 'Group' };
 export const UINT32_MAX = 0xffffffff;
@@ -25,17 +28,13 @@ export const UINT32_MAX = 0xffffffff;
  * negative seat count escape into the UI.
  */
 export function normalizeMaxMembers(value) {
-  const parsed = Number(value ?? 0);
-  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
-    return { maxMembers: 0, unlimitedSeats: true };
+  try {
+    const cap = Number(decodeIndexedAuthorityCap(value));
+    const unlimitedSeats = cap === 0 || cap === UINT32_MAX;
+    return { maxMembers: unlimitedSeats ? 0 : cap, unlimitedSeats };
+  } catch {
+    return { maxMembers: null, unlimitedSeats: false };
   }
-
-  const uint32 = parsed < 0 ? parsed + (UINT32_MAX + 1) : parsed;
-  const unlimitedSeats = uint32 === 0 || uint32 === UINT32_MAX;
-  return {
-    maxMembers: unlimitedSeats ? 0 : uint32,
-    unlimitedSeats,
-  };
 }
 
 /**
@@ -176,15 +175,23 @@ export function attachGroups(subjects = [], compositions = []) {
  * @returns {string[]} lowercased member addresses
  */
 export function deriveGroupMembers(groupId, rolesByGroup, memberships = []) {
-  const roleIds = new Set(rolesByGroup.get(toSubjectId(groupId)) || []);
-  if (roleIds.size === 0) return [];
-  const out = new Set();
-  for (const m of memberships || []) {
-    if (!m || !m.isMember) continue;
-    if (!roleIds.has(toSubjectId(m.subjectId ?? m.subject))) continue;
-    out.add(String(m.user).toLowerCase());
-  }
-  return [...out];
+  const id = toSubjectId(groupId);
+  const roleIds = [...new Set(rolesByGroup.get(id) || [])];
+  if (!id || roleIds.length === 0) return [];
+  const data = {
+    subjects: [{ subjectId: id, kind: 'Group', name: null }, ...roleIds.map(subjectId => ({ subjectId, kind: 'Role', name: null }))],
+    permissions: [],
+    groupEdges: roleIds.map(roleSubjectId => ({ id: `${id}:${roleSubjectId}`, groupSubjectId: id, roleSubjectId, isActive: true })),
+  };
+  const users = [...new Set((memberships || []).filter(Boolean).map(row => String(row.user || '').toLowerCase()))];
+  return users.filter(user => {
+    const facts = roleIds.map(subjectId => {
+      const row = (memberships || []).find(m => m && String(m.user || '').toLowerCase() === user && toSubjectId(m.subjectId ?? m.subject) === subjectId);
+      return { subjectId, isMember: typeof row?.isMember === 'boolean' ? knownFact(row.isMember) : unknownFact('MEMBERSHIP_UNAVAILABLE') };
+    });
+    const membership = projectSubjectMembership(data, id, facts);
+    return user && membership.state === 'known' && membership.value;
+  });
 }
 
 /**

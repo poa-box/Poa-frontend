@@ -6,21 +6,8 @@
  */
 
 import { ethers } from 'ethers';
-import UniversalAccountRegistryABI from '../../../../abi/UniversalAccountRegistry.json';
-
-// EIP-712 domain constants — must match UniversalAccountRegistry.sol
-const DOMAIN_NAME = 'UniversalAccountRegistry';
-const DOMAIN_VERSION = '1';
-
-// EIP-712 type definition — matches _REGISTER_TYPEHASH in the contract
-const REGISTER_ACCOUNT_TYPES = {
-  RegisterAccount: [
-    { name: 'user', type: 'address' },
-    { name: 'username', type: 'string' },
-    { name: 'nonce', type: 'uint256' },
-    { name: 'deadline', type: 'uint256' },
-  ],
-};
+import { REGISTER_ACCOUNT_TYPES, registrationDomain } from '@poa-box/core/accounts/codecs';
+import { UniversalAccountRegistryAbi as UniversalAccountRegistryABI } from '@poa-box/core/abis/UniversalAccountRegistry';
 
 /**
  * Fetch the user's current nonce from the UniversalAccountRegistry.
@@ -58,28 +45,28 @@ export async function fetchExistingUsername(registryAddress, userAddress, provid
  * @param {ethers.providers.Provider} [params.readProvider] - Provider for on-chain reads (nonce, block). Falls back to signer.provider.
  * @returns {Promise<{ deadline: ethers.BigNumber, nonce: ethers.BigNumber, signature: string }>}
  */
-export async function signRegistration({ signer, registryAddress, username, deadlineSeconds = 300, chainId, readProvider }) {
+export async function signRegistration({ signer, registryAddress, username, deadlineSeconds = 300, chainId, readProvider, guard = () => {} }) {
+  guard();
   if (!signer) throw new Error('Signer is required for EIP-712 signing');
   if (!registryAddress) throw new Error('Registry address is required');
   if (!username || username.trim().length === 0) throw new Error('Username is required');
 
   const resolvedChainId = chainId || await signer.getChainId();
+  guard();
   const userAddress = await signer.getAddress();
+  guard();
   const provider = readProvider || signer.provider;
 
   // Read current nonce from the registry contract via the read provider
   const nonce = await fetchRegistryNonce(registryAddress, userAddress, provider);
+  guard();
 
   // Deadline based on latest block timestamp (avoids client-clock skew)
   const block = await provider.getBlock('latest');
+  guard();
   const deadline = ethers.BigNumber.from(block.timestamp).add(deadlineSeconds);
 
-  const domain = {
-    name: DOMAIN_NAME,
-    version: DOMAIN_VERSION,
-    chainId: resolvedChainId,
-    verifyingContract: registryAddress,
-  };
+  const domain = registrationDomain(resolvedChainId, registryAddress);
 
   const message = {
     user: userAddress,
@@ -90,6 +77,7 @@ export async function signRegistration({ signer, registryAddress, username, dead
 
   // ethers v5: _signTypedData calls eth_signTypedData_v4
   const signature = await signer._signTypedData(domain, REGISTER_ACCOUNT_TYPES, message);
+  guard();
 
   return { deadline, nonce, signature };
 }

@@ -16,14 +16,17 @@
  * `actionReasonCopy()` / `removalBlockers()`, and never let a user meet a raw revert.
  */
 
-import MembershipAuthorityABI from '../../../../abi/MembershipAuthority.json';
-import { requireAddress } from '../utils/validation';
+import { MembershipAuthorityAbi as MembershipAuthorityABI } from '@poa-box/core/abis/MembershipAuthority';
+import { buildAuthorityAction } from '@poa-box/core/tx/authority';
+import { normalizeSubjectId } from '@poa-box/core/authority/ids';
+import { executeCoreIntent } from '@/services/web3/core/coreIntent';
+import { requireAddress } from '@/services/web3/utils/validation';
 
 const requireSubject = (subjectId) => {
   if (subjectId === null || subjectId === undefined || subjectId === '') {
     throw new Error('Subject id is required');
   }
-  return String(subjectId);
+  return normalizeSubjectId(subjectId);
 };
 
 export class MembershipAuthorityService {
@@ -38,9 +41,10 @@ export class MembershipAuthorityService {
     this.txManager = transactionManager;
   }
 
-  _writable(authority) {
+  _execute(authority, method, args, options) {
     requireAddress(authority, 'MembershipAuthority address');
-    return this.factory.createWritable(authority, MembershipAuthorityABI);
+    return executeCoreIntent(this.factory, this.txManager,
+      buildAuthorityAction({ authorityAddress: authority, method, args }), options);
   }
 
   _readonly(authority) {
@@ -56,7 +60,7 @@ export class MembershipAuthorityService {
    */
   async claim(authority, subjectId, options = {}) {
     const id = requireSubject(subjectId);
-    return this.txManager.execute(this._writable(authority), 'claim', [id], {
+    return this._execute(authority, 'claim', [id], {
       paymasterHatIds: [id],
       ...options,
     });
@@ -64,8 +68,8 @@ export class MembershipAuthorityService {
 
   /** Resign. A sticky governance grant survives this and the seat stays claimable. */
   async renounce(authority, subjectId, options = {}) {
-    return this.txManager.execute(
-      this._writable(authority),
+    return this._execute(
+      authority,
       'renounce',
       [requireSubject(subjectId)],
       options
@@ -74,8 +78,8 @@ export class MembershipAuthorityService {
 
   async vouch(authority, subjectId, user, options = {}) {
     requireAddress(user, 'User address');
-    return this.txManager.execute(
-      this._writable(authority),
+    return this._execute(
+      authority,
       'vouch',
       [requireSubject(subjectId), user],
       options
@@ -84,8 +88,8 @@ export class MembershipAuthorityService {
 
   async revokeVouch(authority, subjectId, user, options = {}) {
     requireAddress(user, 'User address');
-    return this.txManager.execute(
-      this._writable(authority),
+    return this._execute(
+      authority,
       'revokeVouch',
       [requireSubject(subjectId), user],
       options
@@ -96,8 +100,8 @@ export class MembershipAuthorityService {
 
   async delegatedGrant(authority, subjectId, user, options = {}) {
     requireAddress(user, 'User address');
-    return this.txManager.execute(
-      this._writable(authority),
+    return this._execute(
+      authority,
       'delegatedGrant',
       [requireSubject(subjectId), user],
       options
@@ -106,8 +110,8 @@ export class MembershipAuthorityService {
 
   async delegatedOffer(authority, subjectId, user, options = {}) {
     requireAddress(user, 'User address');
-    return this.txManager.execute(
-      this._writable(authority),
+    return this._execute(
+      authority,
       'delegatedOffer',
       [requireSubject(subjectId), user],
       options
@@ -120,8 +124,8 @@ export class MembershipAuthorityService {
    */
   async delegatedRemove(authority, subjectId, user, ban = false, options = {}) {
     requireAddress(user, 'User address');
-    return this.txManager.execute(
-      this._writable(authority),
+    return this._execute(
+      authority,
       'delegatedRemove',
       [requireSubject(subjectId), user, Boolean(ban)],
       options
@@ -130,8 +134,8 @@ export class MembershipAuthorityService {
 
   async delegatedUnremove(authority, subjectId, user, options = {}) {
     requireAddress(user, 'User address');
-    return this.txManager.execute(
-      this._writable(authority),
+    return this._execute(
+      authority,
       'delegatedUnremove',
       [requireSubject(subjectId), user],
       options
@@ -139,16 +143,16 @@ export class MembershipAuthorityService {
   }
 
   async finalize(authority, pendingId, options = {}) {
-    return this.txManager.execute(
-      this._writable(authority),
+    return this._execute(
+      authority,
       'finalize',
-      [String(pendingId)],
+      [normalizeSubjectId(pendingId)],
       options
     );
   }
 
   async cancel(authority, pendingId, options = {}) {
-    return this.txManager.execute(this._writable(authority), 'cancel', [String(pendingId)], options);
+    return this._execute(authority, 'cancel', [normalizeSubjectId(pendingId)], options);
   }
 
   /**
@@ -159,8 +163,8 @@ export class MembershipAuthorityService {
   async reconcile(authority, subjectId, users, options = {}) {
     const list = Array.isArray(users) ? users : [users];
     list.forEach((u) => requireAddress(u, 'User address'));
-    return this.txManager.execute(
-      this._writable(authority),
+    return this._execute(
+      authority,
       'reconcile(uint256,address[])',
       [requireSubject(subjectId), list],
       options

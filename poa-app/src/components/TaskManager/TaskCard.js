@@ -1,3 +1,4 @@
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import React from 'react';
 import { Box, Text, HStack, Badge, Flex, Spacer, Tooltip, Icon, Image } from '@chakra-ui/react';
 import UserIdentity from '@/components/common/UserIdentity';
@@ -29,7 +30,7 @@ import { darkCardStyle } from '@/components/shared/glassStyles';
 // real task's column, including when that column isn't mounted on mobile.
 const TaskCard = ({ task, columnId, isMobile, isTakeoverGhost = false }) => {
   const poContext = usePOContext();
-  const tokenLabel = poContext?.tokenLabel || 'Shares';
+  const tokenLabel = poContext?.tokenLabel || DEFAULT_TOKEN_LABEL;
   const { id, name, description, difficulty, estHours, claimedBy, claimerUsername, projectId, Payout, bountyToken, bountyPayout, bountyPayoutRaw, rejectionCount, releaseCount, requiresApplication, applicants } = task;
   // Orgs that pay by hours only enter/track time in 15-min steps, so show a
   // "1h 30m" duration instead of decimal "1.5 hrs".

@@ -32,6 +32,8 @@ import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import { educationDialogStyle, educationFieldStyle } from '@/components/eduHub/educationStyles';
 import { useWeb3 } from '@/hooks/useWeb3Services';
 import { getNetworkByChainId } from '@/config/networks';
+import { hasValidModuleReward, prepareModuleForm } from '@/lib/tasks/educationForm';
+import { assertTaskHostScope } from '@/lib/tasks/hostScope';
 
 const fieldStyle = educationFieldStyle;
 
@@ -53,9 +55,13 @@ function validResourceLink(value) {
 }
 
 export default function CreateModuleModal({ isOpen, onClose }) {
-  const { educationHubAddress, orgChainId, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
+  const { educationHubAddress, orgId, subgraphUrl, orgChainId, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
   const { education, executeWithNotification } = useWeb3();
-  const { isPasskeyUser } = useAuth();
+  const { isPasskeyUser, accountAddress, isAuthHydrated } = useAuth();
+  const scope = { contract: educationHubAddress, orgId, endpoint: subgraphUrl, chainId: orgChainId,
+    account: accountAddress, hydrated: isAuthHydrated };
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
   const { chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const toast = useToast();
@@ -76,7 +82,7 @@ export default function CreateModuleModal({ isOpen, onClose }) {
     description: !moduleDescription.trim(),
     link: !validResourceLink(moduleLink),
     question: !moduleQuestion.trim(),
-    payout: !Number.isFinite(Number(payout)) || Number(payout) <= 0,
+    payout: !hasValidModuleReward(payout),
     answers: answers.some((answer) => !answer.trim()),
     correctAnswer: !Number.isInteger(correctAnswerIndex)
       || correctAnswerIndex < 0
@@ -89,7 +95,7 @@ export default function CreateModuleModal({ isOpen, onClose }) {
 
   const handleCreate = async (event) => {
     event.preventDefault();
-    if (submittingRef.current || !education || !educationHubAddress) return;
+    if (submittingRef.current || !education || !educationHubAddress || !isAuthHydrated || !accountAddress) return;
     setShowErrors(true);
     if (Object.values(errors).some(Boolean)) {
       const [fieldName] = [
@@ -112,6 +118,8 @@ export default function CreateModuleModal({ isOpen, onClose }) {
 
     submittingRef.current = true;
     setIsSubmitting(true);
+    const captured = { ...scopeRef.current };
+    const assertCurrent = () => assertTaskHostScope(scopeRef.current, captured);
 
     try {
       // EOA transactions must use the organization's network; passkeys route
@@ -137,25 +145,21 @@ export default function CreateModuleModal({ isOpen, onClose }) {
         }
       }
 
-      const formData = {
-        name: moduleTitle.trim(),
-        description: moduleDescription.trim(),
-        link: moduleLink.trim(),
-        quiz: [moduleQuestion.trim()],
-        answers: [answers.map((answer) => answer.trim())],
-        correctAnswers: [correctAnswerIndex],
-        payout: Number(payout),
-      };
+      assertCurrent();
+      const formData = prepareModuleForm({ title: moduleTitle, description: moduleDescription, link: moduleLink,
+        question: moduleQuestion, answers, correctAnswerIndex, payout });
 
       const result = await executeWithNotification(
-        () => education.createModule(educationHubAddress, formData),
+        () => education.createModule(educationHubAddress, formData, { assertCurrent }),
         {
           pendingMessage: 'Creating education module...',
           successMessage: 'Module created successfully!',
+          errorMessage: 'Please check the module details and try again.',
           refreshEvent: 'module:created',
         }
       );
 
+      assertCurrent();
       if (result?.success) {
         setModuleTitle('');
         setModuleDescription('');
@@ -167,6 +171,8 @@ export default function CreateModuleModal({ isOpen, onClose }) {
         setShowErrors(false);
         onClose();
       }
+    } catch {
+      toast({ title: 'Module could not be created', description: 'Reopen the module form and try again.', status: 'error' });
     } finally {
       submittingRef.current = false;
       setIsSubmitting(false);

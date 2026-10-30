@@ -21,24 +21,27 @@ import {
   useToast,
 } from '@chakra-ui/react';
 import { useProfileUpdate } from '@/hooks/useProfileUpdate';
-import { useRefreshEmit } from '@/context/RefreshContext';
+import { useAuth } from '@/context/authState';
+import { useRef } from 'react';
 import AvatarUpload from '@/components/account/AvatarUpload';
 
 const STEP_LABELS = {
   idle: '',
-  uploading: 'Uploading to IPFS...',
+  uploading: 'Saving your profile...',
   building: 'Building transaction...',
   signing: 'Sign to confirm...',
   submitting: 'Submitting...',
-  confirming: 'Confirming on chain...',
+  confirming: 'Confirming...',
   success: 'Profile updated!',
   error: 'Something went wrong.',
 };
 
 const ProfileEditor = ({ currentMetadata, onSuccess }) => {
   const toast = useToast();
-  const { updateProfile, isUpdating, error, step, reset } = useProfileUpdate();
-  const { emit } = useRefreshEmit();
+  const { updateProfile, isUpdating, error, step } = useProfileUpdate();
+  const auth = useAuth();
+  const currentIdentity = useRef(null);
+  currentIdentity.current = `${auth.accountAddress}:${auth.authType}:${auth.sessionGeneration}`;
 
   const [bio, setBio] = useState('');
   const [github, setGithub] = useState('');
@@ -60,6 +63,7 @@ const ProfileEditor = ({ currentMetadata, onSuccess }) => {
   }, [currentMetadata]);
 
   const handleSubmit = async () => {
+    const identity = currentIdentity.current;
     try {
       const profileData = {};
       if (bio.trim()) profileData.bio = bio.trim();
@@ -68,21 +72,20 @@ const ProfileEditor = ({ currentMetadata, onSuccess }) => {
       if (twitter.trim()) profileData.twitter = twitter.trim();
       if (website.trim()) profileData.website = website.trim();
 
-      const txHash = await updateProfile(profileData);
+      await updateProfile(profileData);
 
+      if (identity !== currentIdentity.current || auth.isSessionCurrent?.() === false) return;
       toast({
         title: 'Profile updated',
-        description: 'Your profile has been saved on-chain.',
+        description: 'Your profile has been saved.',
         status: 'success',
         duration: 5000,
         isClosable: true,
       });
 
-      if (emit) {
-        emit('user:profile_updated', { transactionHash: txHash });
-      }
       if (onSuccess) onSuccess();
     } catch (err) {
+      if (identity !== currentIdentity.current || auth.isSessionCurrent?.() === false) return;
       toast({
         title: 'Profile update failed',
         description: err.message || 'Unknown error',

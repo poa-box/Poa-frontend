@@ -2871,6 +2871,18 @@
     tslib "^2.8.1"
     tsyringe "^4.10.0"
 
+"@poa-box/core@2.2.0":
+  version "2.2.0"
+  resolved "https://registry.yarnpkg.com/@poa-box/core/-/core-2.2.0.tgz#5c5fcf579f992dd1c6b2fb3e52cb7e1d34444a86"
+  integrity sha512-VUXnkXzidSV9R76B+7mZCzrWkRSO/XETDPuagnkpeMIiX7jtBeqB6oz6ZxbccSuErfqgTZNCMq0Lw8IK4RhU/A==
+  dependencies:
+    "@ethersproject/bytes" "^5.8.0"
+    "@ethersproject/keccak256" "^5.8.0"
+    "@ethersproject/strings" "^5.8.0"
+    "@openzeppelin/merkle-tree" "^1.0.8"
+    bs58 "^6.0.0"
+    poseidon-lite "^0.3.0"
+
 "@popperjs/core@^2.11.8":
   version "2.11.8"
   resolved "https://registry.yarnpkg.com/@popperjs/core/-/core-2.11.8.tgz#6b79032e760a0899cd4204710beede972a3a185f"
@@ -9699,6 +9711,11 @@ porto@0.2.35:
     ox "^0.9.6"
     zod "^4.1.5"
     zustand "^5.0.1"
+
+poseidon-lite@^0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/poseidon-lite/-/poseidon-lite-0.3.0.tgz#93c42f6f9b870f154f2722dfd686b909c4285765"
+  integrity sha512-ilJj4MIve4uBEG7SrtPqUUNkvpJ/pLVbndxa0WvebcQqeIhe+h72JR4g0EvwchUzm9sOQDlOjiDNmRAgxNZl4A==
 
 possible-typed-array-names@^1.0.0, possible-typed-array-names@^1.1.0:
   version "1.1.0"

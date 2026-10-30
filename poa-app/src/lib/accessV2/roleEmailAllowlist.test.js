@@ -59,12 +59,10 @@ describe('role email list preservation', () => {
     expect(built.doc.entries[0].hatIds).toEqual(['0x1', '0x64']);
   });
 
-  it('retains private entries through the membership settings reader and builder', async () => {
+  it('keeps private display rows private and rejects them as authored plaintext input', async () => {
     const built = await buildRoleEmailAllowlist({ form, subjectId: ROLE, orgId: ORG, currentRoot: EMPTY_EMAIL_ROOT });
     const rows = readInvites(built.doc);
-    const rebuilt = await buildAllowlist({ orgId: ORG, entries: rows });
-    expect(rebuilt.root).toBe(built.root);
-    expect(rebuilt.json).not.toContain('alice@');
+    await expect(buildAllowlist({ orgId: ORG, entries: rows })).rejects.toThrow();
     const privateRows = rows.filter((row) => row.type === 'email');
     expect(privateRows).toHaveLength(2);
     expect(inviteKey(privateRows[0])).not.toBe(inviteKey(privateRows[1]));

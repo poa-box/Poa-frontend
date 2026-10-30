@@ -11,8 +11,11 @@
  * submit it for the in-circuit-bound address — so it works from a passkey UserOp (gasless) or an EOA tx.
  */
 
-import ZkEmailInvitesABI from '../../../../abi/ZkEmailInvites.json';
-import { requireAddress } from '../utils/validation';
+import { ZkEmailInvitesAbi as ZkEmailInvitesABI } from '@poa-box/core/abis/ZkEmailInvites';
+import { buildClaimRoleByDomain, buildClaimRoleByEmail } from '@poa-box/core/tx/zkemail';
+import { executeCoreIntent } from '@/services/web3/core/coreIntent';
+import { emailProofProjection } from '@/lib/zkemail/proofProjection';
+import { requireAddress } from '@/services/web3/utils/validation';
 
 const EXECUTOR_READ_ABI = [
   'function hats() view returns (address)',
@@ -44,8 +47,10 @@ export class ZkEmailInvitesService {
     requireAddress(contractAddress, 'ZkEmailInvites contract address');
     requireAddress(claimer, 'Claimer address');
     if (!proof) throw new Error('Email proof is required');
-    const contract = this.factory.createWritable(contractAddress, ZkEmailInvitesABI);
-    return this.txManager.execute(contract, 'claimRoleByDomain', [proof, claimer, hatIds, merkleProof], options);
+    return executeCoreIntent(this.factory, this.txManager, buildClaimRoleByDomain({
+      zkEmailInvitesAddress: contractAddress, proof: emailProofProjection(proof, 'v1', claimer),
+      claimer, hatIds, merkleProof,
+    }), options);
   }
 
   /**
@@ -56,8 +61,10 @@ export class ZkEmailInvitesService {
     requireAddress(contractAddress, 'ZkEmailInvites contract address');
     requireAddress(claimer, 'Claimer address');
     if (!proof) throw new Error('Email proof is required');
-    const contract = this.factory.createWritable(contractAddress, ZkEmailInvitesABI);
-    return this.txManager.execute(contract, 'claimRoleByEmail', [proof, claimer, hatIds, merkleProof], options);
+    return executeCoreIntent(this.factory, this.txManager, buildClaimRoleByEmail({
+      zkEmailInvitesAddress: contractAddress, proof: emailProofProjection(proof, 'v2', claimer),
+      claimer, hatIds, merkleProof,
+    }), options);
   }
 
   /**

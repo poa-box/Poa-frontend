@@ -8,7 +8,7 @@
  * Notes / contract semantics this UI encodes:
  * - CREATE is granted to every role by default (the deploy uses
  *   roleAssignments.taskCreatorRolesBitmap = all roles), so its checkbox is shown
- *   checked + disabled. buildTaskManagerPerms() re-adds CREATE to every emitted
+ *   checked + disabled. the core deployment assembler re-adds CREATE to every emitted
  *   mask because bootstrapGlobalPerms OVERWRITES the global mask.
  * - EDIT_FULL is a strict superset of EDIT_META: selecting EDIT_FULL implies
  *   EDIT_META (shown checked + disabled); clearing EDIT_META also clears EDIT_FULL.
@@ -41,7 +41,7 @@ import { TaskPermission, hasPermission } from '@/util/permissions';
 // Column metadata for the 8 TaskPerm bits (matches src/util/permissions.js).
 const TASK_PERM_COLUMNS = [
   { key: 'CREATE', bit: TaskPermission.CREATE, label: 'Create', alwaysOn: true,
-    description: 'Create tasks. Granted to every role by default.' },
+    description: 'Create tasks. Follows the selected task creator roles.' },
   { key: 'CLAIM', bit: TaskPermission.CLAIM, label: 'Claim',
     description: 'Claim / apply for tasks across the org.' },
   { key: 'REVIEW', bit: TaskPermission.REVIEW, label: 'Review',
@@ -51,7 +51,7 @@ const TASK_PERM_COLUMNS = [
   { key: 'SELF_REVIEW', bit: TaskPermission.SELF_REVIEW, label: 'Self-Review',
     description: 'Allow the claimer to complete their own task.' },
   { key: 'BUDGET', bit: TaskPermission.BUDGET, label: 'Budget',
-    description: 'Edit project participation-token cap and bounty caps.' },
+    description: 'Edit project reward limits and bounty budgets.' },
   { key: 'EDIT_META', bit: TaskPermission.EDIT_META, label: 'Edit Meta',
     description: 'Edit title / metadata on claimed or submitted tasks.' },
   { key: 'EDIT_FULL', bit: TaskPermission.EDIT_FULL, label: 'Edit Full',
@@ -77,7 +77,7 @@ function computeNewMask(currentMask, bit, checked) {
   } else {
     mask &= ~bit;
   }
-  // CREATE is always-on at deploy and re-added by buildTaskManagerPerms; never
+  // CREATE is always-on at deploy and re-added by the core deployment assembler; never
   // store it here so the map stays minimal.
   mask &= ~TaskPermission.CREATE;
   return mask & 0xff;
@@ -95,7 +95,7 @@ export function TaskManagerPermsMatrix() {
 
   // Is a perm bit checked for a role (accounting for EDIT_FULL ⊇ EDIT_META)?
   const isChecked = (col, roleIdx) => {
-    if (col.alwaysOn) return true; // CREATE
+    if (col.alwaysOn) return (state.permissions?.taskCreatorRoles || []).includes(roleIdx); // CREATE
     const mask = maskFor(roleIdx);
     if (col.bit === TaskPermission.EDIT_META) {
       return hasPermission(mask, TaskPermission.EDIT_META) || hasPermission(mask, TaskPermission.EDIT_FULL);
@@ -166,7 +166,7 @@ export function TaskManagerPermsMatrix() {
               {roles.map((role, roleIdx) => (
                 <Td key={role.id || roleIdx} textAlign="center">
                   <Tooltip
-                    label={col.alwaysOn ? 'All roles can create tasks by default' :
+                    label={col.alwaysOn ? 'Choose task creators in the role permissions above' :
                       (isDisabled(col, roleIdx) ? 'Included by Edit Full' : undefined)}
                     hasArrow
                     isDisabled={!col.alwaysOn && !isDisabled(col, roleIdx)}
@@ -195,7 +195,7 @@ export function TaskManagerPermsMatrix() {
             const count = grantCount(idx);
             return (
               <Badge key={role.id || idx} colorScheme={count === 0 ? 'gray' : 'purple'} px={2} py={1}>
-                {role.name || `Role ${idx + 1}`}: {count === 0 ? 'Create only' : `+${count}`}
+                {role.name || `Role ${idx + 1}`}: {count === 0 ? ((state.permissions?.taskCreatorRoles || []).includes(idx) ? 'Create only' : 'No grants') : `+${count}`}
               </Badge>
             );
           })}

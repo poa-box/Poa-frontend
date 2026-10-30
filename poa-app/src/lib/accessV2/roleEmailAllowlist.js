@@ -3,7 +3,7 @@
  * setActiveAllowlist replaces ONE org-wide root, so the verified tree is the source of truth.
  * Specific addresses remain local input: every published email row contains only its commitment.
  */
-import { StandardMerkleTree } from '@openzeppelin/merkle-tree';
+import { verifyAllowlistDocument, mergeVerifiedAllowlist, replaceVerifiedAllowlist, projectVerifiedAllowlistLeaves } from '@poa-box/core/email/allowlist';
 import {
   ALLOWLIST_SCHEMA,
   LEAF_TYPES,
@@ -17,8 +17,7 @@ import { bytes32ToIpfsCid, ipfsCidToBytes32 } from '@/services/web3/utils/encodi
 export const EMPTY_EMAIL_ROOT = `0x${'0'.repeat(64)}`;
 const BYTES32 = /^0x[\da-f]{64}$/i;
 const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
-const ids = (values) => [...new Set(values.map((id) => BigInt(id).toString()))]
-  .sort((a, b) => (BigInt(a) < BigInt(b) ? -1 : BigInt(a) > BigInt(b) ? 1 : 0));
+
 
 function canonicalInputs(form) {
   const domains = (form?.join?.domains || []).map((raw) => {
@@ -47,69 +46,40 @@ export async function buildRoleEmailAllowlist({ form, subjectId, orgId, currentD
   const subject = BigInt(subjectId).toString();
   if (BigInt(subject) <= 0n || BigInt(subject) >= (1n << 256n)) throw new Error('The new role ID is invalid.');
   if (!BYTES32.test(currentRoot || '')) throw new Error('Could not read the org’s active email invites.');
-  const rows = new Map();
-  const merge = (type, id, hatIds, identifier = '') => {
-    const key = `${type}:${id.toLowerCase()}`;
-    const before = rows.get(key);
-    rows.set(key, {
-      type,
-      id: id.toLowerCase(),
-      identifier: type === 'domain' ? identifier || before?.identifier || '' : '',
-      hatIds: ids([...(before?.hatIds || []), ...hatIds]),
-    });
-  };
-
+  let current = null;
   if (!same(currentRoot, EMPTY_EMAIL_ROOT)) {
     if (!currentDoc) throw new Error('Could not load the current email invites. Try again to preserve everyone already invited.');
     if (currentDoc.orgId && !same(currentDoc.orgId, orgId)) throw new Error('The email invite file belongs to another org.');
     const tree = assertRootMatches(currentDoc, currentRoot);
-    // Only verified domain names are copied. Email identifiers and uncommitted metadata are never
-    // spread into the new document, even when an older file published plaintext addresses.
+    // Old documents had mutable/incomplete descriptors. Project the root-verified leaves into
+    // core's full descriptors; only a name whose commitment matches may label a domain.
+    // Email display text and role-index hints are deliberately outside committed authority.
     const domainNames = new Map();
     for (const entry of currentDoc.entries || []) {
       if (entry.type !== 'domain') continue;
       const name = normalizeDomain(entry.identifier);
-      if (name && name.length <= 192) domainNames.set((await domainHash(name)).toLowerCase(), name);
+      if (name) domainNames.set((await domainHash(name)).toLowerCase(), name);
     }
-    for (const [, leaf] of tree.entries()) {
-      const kind = Number(leaf[0]);
+    const entries = [...tree.entries()].map(([, leaf]) => {
+      const type = Number(leaf[0]) === 0 ? 'domain' : 'email';
       const id = String(leaf[1]).toLowerCase();
-      if (![0, 1].includes(kind) || !BYTES32.test(id) || !Array.isArray(leaf[2])) {
-        throw new Error('The current email invite file has an unsupported entry.');
-      }
-      const type = kind === 0 ? 'domain' : 'email';
-      if (type === 'domain' && !domainNames.has(id)) {
-        throw new Error('The current email invite file is missing a verified domain name.');
-      }
-      merge(type, id, leaf[2], domainNames.get(id));
-    }
+      if (type === 'domain' && !domainNames.has(id)) throw new Error('The current email invite file is missing a verified domain name.');
+      return { type, identifier: type === 'domain' ? domainNames.get(id) : '',
+        [type === 'domain' ? 'domainHash' : 'emailHash']: id, hatIds: leaf[2], roleIndexes: [] };
+    });
+    current = verifyAllowlistDocument({
+      schema: ALLOWLIST_SCHEMA, orgId, root: currentRoot, leafTypes: [...LEAF_TYPES], entries, treeDump: tree.dump(),
+    }, { orgId, root: currentRoot });
   }
-  for (const domain of input.domains) merge('domain', await domainHash(domain), [subject], domain);
-  const emailHashes = [];
-  for (const email of input.emails) {
-    const hash = await emailHash(email);
-    emailHashes.push(hash);
-    merge('email', hash, [subject]);
-  }
-  const values = [...rows.values()];
-  const tree = StandardMerkleTree.of(values.map((r) => [r.type === 'domain' ? 0 : 1, r.id, r.hatIds]), LEAF_TYPES);
-  const doc = {
-    schema: ALLOWLIST_SCHEMA,
-    orgId,
-    root: tree.root,
-    leafTypes: LEAF_TYPES,
-    entries: values.map((r) => ({
-      type: r.type,
-      identifier: r.identifier,
-      [r.type === 'domain' ? 'domainHash' : 'emailHash']: r.id,
-      hatIds: r.hatIds.map((id) => `0x${BigInt(id).toString(16)}`),
-      roleIndexes: [],
-    })),
-    treeDump: tree.dump(),
-  };
+  const additions = [
+    ...input.domains.map(identifier => ({ type: 'domain', identifier, hatIds: [subject] })),
+    ...input.emails.map(identifier => ({ type: 'email', identifier, hatIds: [subject] })),
+  ];
+  const built = mergeVerifiedAllowlist({ orgId, currentRoot, current, entries: additions });
   return {
-    doc, json: JSON.stringify(doc), root: tree.root, subjectId: subject,
-    domainCount: input.domains.length, emailCount: input.emails.length, emailHashes,
+    doc: built.doc, json: built.json, root: built.root, subjectId: subject, verifiedCurrent: current,
+    domainCount: input.domains.length, emailCount: input.emails.length,
+    emailHashes: await Promise.all(input.emails.map(emailHash)),
   };
 }
 
@@ -158,4 +128,27 @@ export async function prepareRoleEmailAllowlist({
     domainCount: built.domainCount, emailCount: built.emailCount,
     previousRoot: active.root, previousCid: active.cid,
   };
+}
+
+/** Editor rows retain the actual branded source leaf, separate from mutable display/grants. */
+export function verifiedInviteRows(verified) {
+  return projectVerifiedAllowlistLeaves(verified).map(leaf => ({
+    leaf, type: leaf.type, identifier: leaf.identifier, hatIds: [...leaf.hatIds],
+    ...(leaf.type === 'email' ? { emailHash: leaf.id } : {}),
+  }));
+}
+
+export function replaceInviteRows({ orgId, entries, verifiedSource }) {
+  const additions = entries.filter(row => !row.leaf);
+  if (additions.some(row => !row.identifier)) throw new Error('Reload the private invites before saving.');
+  if (!verifiedSource) {
+    if (entries.some(row => row.leaf)) throw new Error('Reload the current invite list before saving.');
+    return mergeVerifiedAllowlist({ orgId, currentRoot: EMPTY_EMAIL_ROOT, entries: additions });
+  }
+  return replaceVerifiedAllowlist({ orgId, currentRoot: verifiedSource.root, current: verifiedSource,
+    retained: entries.filter(row => row.leaf).map(row => ({ leaf: row.leaf,
+      // Preserve committed order for untouched rows, even when display uses another integer form.
+      ...(row.hatIds.length === row.leaf.hatIds.length && row.hatIds.every((id, i) => BigInt(id).toString() === row.leaf.hatIds[i])
+        ? {} : { hatIds: row.hatIds }),
+    })), additions });
 }

@@ -13,11 +13,13 @@
  * keeps "Executives manage Members" alive while an election result stays governance-only.
  */
 
+import { ACTION_REASON as CORE_ACTION_REASON, ELIG_SOURCE, RULE_KIND as CORE_RULE_KIND } from '@poa-box/core/authority/lifecycle';
+
 export const RULE_KIND = { NONE: 'None', GRANT: 'Grant', BAN: 'Ban' };
 export const RULE_AUTHOR = { GOVERNANCE: 'Governance', DELEGATED: 'Delegated' };
 
 /** uint8 values the contract takes for `setRule(subject, user, kind, delegable)`. */
-export const RULE_KIND_ENUM = { None: 0, Grant: 1, Ban: 2 };
+export const RULE_KIND_ENUM = CORE_RULE_KIND;
 
 /** Normalise a subgraph AccessRule row. */
 export function normalizeRule(raw) {
@@ -67,12 +69,7 @@ export const STICKY_COPY = {
  * `RemovalIneffective` revert. A member held by several sources reports all of them.
  * bit = 1 << uint8(EligSource).
  */
-export const ELIG_SOURCE_BIT = {
-  DefaultAllow: 1 << 0,
-  VouchQuorum: 1 << 1,
-  EmailVerified: 1 << 2,
-  StickyGovernanceGrant: 1 << 3,
-};
+export const ELIG_SOURCE_BIT = Object.fromEntries(Object.entries(ELIG_SOURCE).map(([name, index]) => [name, 1 << index]));
 
 /**
  * SOURCE-ACCURATE removal copy, composed from contract data — never frontend guesswork.
@@ -110,20 +107,7 @@ export function removalBlockers(sourceSet) {
 }
 
 /** Mirrors `AccessV2Types.ActionReason` — the preflight reason codes for canGrant/canRemove/canClaim. */
-export const ACTION_REASON = {
-  0: 'Ok',
-  1: 'UnknownSubject',
-  2: 'NotInOrg',
-  3: 'AlreadyMember',
-  4: 'NotMember',
-  5: 'SubjectFull',
-  6: 'BlockedByGovernanceBan',
-  7: 'RemovalIneffective',
-  8: 'NotYetActive',
-  9: 'NoRuleToClaim',
-  10: 'RenouncedClaimable',
-  11: 'Paused',
-};
+export const ACTION_REASON = Object.fromEntries(Object.entries(CORE_ACTION_REASON).map(([name, code]) => [code, name]));
 
 /**
  * One place that turns a preflight reason into user copy. `announceWinner` swallows inner reverts,

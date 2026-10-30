@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import SubmissionRecovery from '@/components/account/SubmissionRecovery';
 import { useAuth } from '@/context/authState';
 import { usePOContext } from '@/context/POContext';
 import { createScopeGuard, serviceScope } from '@/lib/services/runtimeScope';
@@ -24,7 +25,8 @@ class RuntimeErrorBoundary extends React.Component {
 export function Web3ServicesProvider({ children }) {
   const auth = useAuth();
   const po = usePOContext();
-  const scope = serviceScope({ ...po, ...auth });
+  const isSessionCurrent = auth.isSessionCurrent;
+  const scope = JSON.stringify([serviceScope({ ...po, ...auth }), auth.isAuthHydrated, auth.sessionGeneration]);
   const [subscribers, setSubscribers] = useState(0);
   const [explicitRequest, setExplicitRequest] = useState(false);
   const requested = shouldLoadServiceRuntime(subscribers, auth, explicitRequest);
@@ -78,6 +80,10 @@ export function Web3ServicesProvider({ children }) {
 
   const publish = useCallback((next) => setSnapshot(next), []);
   const current = requested ? selectRuntimeSnapshot(snapshot, runtimeScope, runtimeError) : null;
+  const recoveryGuard = useCallback(() => {
+    guard();
+    if (isSessionCurrent?.() === false) throw new Error('Your account changed. Please try again.');
+  }, [guard, isSessionCurrent]);
   const value = useMemo(() => ({
     services: current,
     requestRuntime,
@@ -89,6 +95,7 @@ export function Web3ServicesProvider({ children }) {
   return (
     <Web3ServicesContext.Provider value={value}>
       {children}
+      {current?.txManager && <SubmissionRecovery key={scope} manager={current.txManager} guard={recoveryGuard} accountAddress={auth.accountAddress} />}
       {requested && runtimeError && (
         <div role="alert">
           Account actions could not finish loading.{' '}

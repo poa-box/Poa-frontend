@@ -1,79 +1,37 @@
-/**
- * Format token amounts from BigInt (with 18 decimals) to human-readable format
- * All values from subgraph are assumed to be in wei (18 decimals)
- * @param {string|number|bigint} value - The token amount in wei (18 decimals)
- * @param {number} decimals - Number of decimals in the token (default 18)
- * @param {number} displayDecimals - Number of decimals to show in display (default 0)
- * @returns {string} Formatted token amount
- */
+import { parseDecimalAmountToRaw, requireAssetDecimals, requireRawUint } from '@poa-box/core/amounts';
+
+/** Exact integer math with the host's rounded-integer / truncated-fraction display policy. */
 export function formatTokenAmount(value, decimals = 18, displayDecimals = 0) {
-    // Handle null, undefined, empty string, zero
-    if (value === null || value === undefined || value === '' || value === '0' || value === 0) {
-        return '0';
+  if (value === null || value === undefined || value === '') return '0';
+  try {
+    requireAssetDecimals(decimals);
+    requireAssetDecimals(displayDecimals);
+    // Histories can contain signed deltas. Validate the magnitude with the uint codec.
+    const negative = typeof value === 'string' && /^-\d+$/.test(value);
+    const input = negative ? value.slice(1) : value;
+    const raw = BigInt(requireRawUint(input));
+    if (raw === 0n) return '0';
+    const scale = 10n ** BigInt(decimals);
+    const whole = raw / scale;
+    const fraction = raw % scale;
+    const sign = negative ? '-' : '';
+    if (displayDecimals === 0) {
+      return sign + (whole + (fraction * 2n >= scale ? 1n : 0n)).toString();
     }
-
-    try {
-        // Handle string, number, or bigint input
-        let valueStr = typeof value === 'bigint' ? value.toString() : String(value);
-
-        // Remove any non-numeric characters (keeps minus for negative, but we don't expect negatives)
-        valueStr = valueStr.replace(/[^0-9]/g, '');
-
-        if (!valueStr || valueStr === '0') {
-            return '0';
-        }
-
-        // Always treat as wei (18 decimals) from subgraph
-        // Pad with leading zeros if shorter than decimals+1 to ensure proper slicing
-        const paddedValue = valueStr.padStart(decimals + 1, '0');
-
-        // Split into integer and decimal parts
-        // E.g., "50000000000000000000" (50 tokens) -> integerPart="50", decimalPart="000000000000000000"
-        const integerPart = paddedValue.slice(0, -decimals) || '0';
-        const decimalPart = paddedValue.slice(-decimals);
-
-        // Remove leading zeros from integer part
-        const cleanIntegerPart = integerPart.replace(/^0+/, '') || '0';
-
-        // Format based on displayDecimals
-        if (displayDecimals === 0) {
-            // Round to nearest integer
-            const firstDecimal = parseInt(decimalPart[0] || '0', 10);
-            const intValue = parseInt(cleanIntegerPart, 10);
-            return String(firstDecimal >= 5 ? intValue + 1 : intValue);
-        }
-
-        // Return with specified decimal places
-        const truncatedDecimal = decimalPart.slice(0, displayDecimals);
-        return `${cleanIntegerPart}.${truncatedDecimal}`;
-    } catch (error) {
-        console.error('Error formatting token amount:', error, value);
-        return '0';
-    }
+    const digits = fraction.toString().padStart(decimals, '0').slice(0, displayDecimals).padEnd(displayDecimals, '0');
+    return `${sign}${whole}.${digits}`;
+  } catch {
+    // Display remains recoverable; write parsing below deliberately fails closed.
+    return '0';
+  }
 }
 
-/**
- * Parse token display amount to wei (18 decimals)
- * @param {string|number} amount - Human-readable token amount
- * @param {number} decimals - Number of decimals (default 18)
- * @returns {string} Token amount in wei
- */
+/** Parse literal decimal input once. Never truncate precision or repair malformed text. */
 export function parseTokenAmount(amount, decimals = 18) {
-    if (!amount || amount === '0') return '0';
-
-    try {
-        const amountStr = String(amount);
-        const [intPart, decPart = ''] = amountStr.split('.');
-
-        // Pad or truncate decimal part
-        const paddedDecimal = decPart.padEnd(decimals, '0').slice(0, decimals);
-
-        // Combine and remove leading zeros
-        const weiValue = (intPart + paddedDecimal).replace(/^0+/, '') || '0';
-
-        return weiValue;
-    } catch (error) {
-        console.error('Error parsing token amount:', error, amount);
-        return '0';
-    }
+  if (amount === null || amount === undefined || amount === '') return '0';
+  if (typeof amount === 'number' && (!Number.isFinite(amount) || Math.abs(amount) > Number.MAX_SAFE_INTEGER || Object.is(amount, -0))) {
+    throw new Error('Amount must be an exact decimal string or a safe number.');
+  }
+  if (!['string', 'number', 'bigint'].includes(typeof amount)) throw new Error('Invalid decimal amount.');
+  return parseDecimalAmountToRaw(String(amount), decimals);
 }

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import {
   Modal,
   ModalOverlay,
@@ -21,7 +21,8 @@ import {
   Center,
 } from '@chakra-ui/react';
 import PulseLoader from "@/components/shared/PulseLoader";
-import { useQuery } from '@apollo/client';
+import { readTreasuryShareRequests } from '@/components/treasury/shareHistory';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import {
   AreaChart,
   Area,
@@ -35,7 +36,6 @@ import {
 } from 'recharts';
 import { usePOContext } from '@/context/POContext';
 import { formatTokenAmount } from '@/util/formatToken';
-import { FETCH_ALL_TOKEN_REQUESTS } from '@/util/queries';
 import { useSubgraphClient } from '@/util/apolloClient';
 
 const glassLayerStyle = {
@@ -86,7 +86,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       <Text fontWeight="bold" color="white" mb={1}>{data?.fullDate || label}</Text>
       {data?.dailyMinted !== undefined && (
         <Text color="green.300" fontSize="sm">
-          Day&apos;s Minted: {data.dailyMinted.toLocaleString()}
+          Day&apos;s Rewards: {data.dailyMinted.toLocaleString()}
         </Text>
       )}
       {data?.cumulative !== undefined && (
@@ -112,18 +112,28 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks = [], tokenAddress }) => {
-  const { leaderboardData, subgraphUrl, tokenLabel = 'Shares' } = usePOContext();
-  const tokenLabelLower = tokenLabel.toLowerCase();
+const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks = [], tokenAddress, historyFacts }) => {
+  const { currentHolderCount, currentHolderBalanceRaw, subgraphUrl, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
 
   const client = useSubgraphClient(subgraphUrl);
+  const holdersKnown = currentHolderCount != null;
 
-  // Fetch token requests
-  const { data: requestsData, loading: requestsLoading } = useQuery(FETCH_ALL_TOKEN_REQUESTS, {
-    variables: { tokenAddress: tokenAddress?.toLowerCase() },
-    skip: !tokenAddress || !isOpen,
-    client,
-  });
+  const [requests, setRequests] = useState({ scope: null, snapshot: null, loading: false });
+  const historySource = historyFacts?.source;
+  const requestScope = [tokenAddress, subgraphUrl, historySource?.orgId, historySource?.chainId, historySource?.block?.number, historySource?.block?.hash, isOpen].join(':');
+  useEffect(() => {
+    let active = true;
+    if (!isOpen || !tokenAddress || !historySource || historyFacts.coverage.status !== 'complete') return;
+    setRequests({ scope: requestScope, snapshot: null, loading: true });
+    readTreasuryShareRequests({ client, source: historySource, tokenAddress }).then(snapshot => {
+      if (active) setRequests({ scope: requestScope, snapshot, loading: false });
+    }).catch(() => { if (active) setRequests({ scope: requestScope, snapshot: null, loading: false }); });
+    return () => { active = false; };
+  }, [isOpen, tokenAddress, client, historySource, historyFacts, requestScope]);
+  const requestsLoading = requests.scope === requestScope && requests.loading;
+  const requestsData = useMemo(() => ({ tokenRequests: requests.scope === requestScope ? requests.snapshot?.data || [] : [] }), [requests, requestScope]);
+  const historyReady = historyFacts?.coverage.status === 'complete' && requests.scope === requestScope && requests.snapshot?.coverage.status === 'complete'
+    && completedTasks.every(task => task.payout != null && task.completedAt != null);
 
   // Get approved token requests
   const approvedRequests = useMemo(() => {
@@ -162,21 +172,11 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
 
   // Compute stats from all mint events
   const stats = useMemo(() => {
-    // Calculate holder count from leaderboard
-    const holders = leaderboardData.filter(u => {
-      const balance = u.token || '0';
-      try {
-        return BigInt(balance) > 0n;
-      } catch {
-        return false;
-      }
-    }).length;
-
-    // Calculate total supply as BigInt
+    const holders = currentHolderCount ?? 0;
+    // Average uses the reconciled raw balance sum from that same indexed block.
     const supply = totalSupply ? BigInt(totalSupply) : 0n;
-
-    // Calculate average balance
-    const avgBalance = holders > 0 ? supply / BigInt(holders) : 0n;
+    const avgBalance = holdersKnown && BigInt(holders) > 0n && currentHolderBalanceRaw != null
+      ? BigInt(currentHolderBalanceRaw) / BigInt(holders) : 0n;
 
     // Calculate 30-day metrics from all events
     const thirtyDaysAgo = Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60);
@@ -191,7 +191,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
 
     // Calculate inflation rate
     const inflationRate = supply > 0n
-      ? (Number(monthlyMinted) / Number(supply)) * 100
+      ? Number((monthlyMinted * 10000n) / supply) / 100
       : 0;
 
     // Total minted from all events
@@ -224,7 +224,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
       requestCount,
       recentCount: recentEvents.length,
     };
-  }, [allMintEvents, leaderboardData, totalSupply]);
+  }, [allMintEvents, currentHolderCount, currentHolderBalanceRaw, holdersKnown, totalSupply]);
 
   // Build chart data - daily data points from all mint events
   const chartData = useMemo(() => {
@@ -337,26 +337,27 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
             </Center>
           ) : (
             <VStack spacing={6} align="stretch">
+              {!historyReady && <Text fontSize="sm" color="gray.400">Complete rewards history is unavailable. Recent records may still appear below.</Text>}
               {/* Summary Stats */}
               <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3}>
                 <StatCard
                   label="Total Supply"
                   value={formatTokenAmount(stats.supply.toString(), 18, 0)}
-                  subtext={`${tokenLabelLower} minted`}
+                  subtext={`${tokenLabel} earned`}
                 />
                 <StatCard
                   label="Holders"
-                  value={stats.holders.toLocaleString()}
-                  subtext="members with balance"
+                  value={holdersKnown ? stats.holders.toLocaleString() : 'Unavailable'}
+                  subtext="with a positive balance"
                 />
                 <StatCard
                   label="From Tasks"
-                  value={stats.taskCount.toLocaleString()}
+                  value={historyReady ? stats.taskCount.toLocaleString() : 'Unavailable'}
                   subtext="completed tasks"
                 />
                 <StatCard
                   label="From Requests"
-                  value={stats.requestCount.toLocaleString()}
+                  value={historyReady ? stats.requestCount.toLocaleString() : 'Unavailable'}
                   subtext="approved requests"
                 />
               </SimpleGrid>
@@ -365,7 +366,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
               {chartData.length > 0 && (
                 <Box>
                   <Text fontSize="md" fontWeight="bold" color="white" mb={3}>
-                    Daily Minting Activity
+                    Daily Rewards Activity
                   </Text>
                   <Box h="180px" bg="rgba(0, 0, 0, 0.2)" borderRadius="lg" p={2}>
                     <ResponsiveContainer width="100%" height="100%">
@@ -385,7 +386,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                         <Tooltip content={<CustomTooltip />} />
                         <Bar
                           dataKey="dailyMinted"
-                          name="Daily Minted"
+                          name="Daily Rewards"
                           fill="rgba(72, 187, 120, 0.8)"
                           radius={[2, 2, 0, 0]}
                         />
@@ -437,10 +438,10 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                 </Box>
               )}
 
-              {/* Minting Metrics */}
+              {/* Rewards Metrics */}
               <Box>
                 <Text fontSize="md" fontWeight="bold" color="white" mb={3}>
-                  Minting Metrics
+                  Rewards Metrics
                 </Text>
                 <SimpleGrid columns={{ base: 2, md: 4 }} spacing={3}>
                   <HStack
@@ -451,7 +452,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                   >
                     <Text fontSize="sm" color="gray.400">Monthly Rate</Text>
                     <Text fontWeight="bold" color={stats.inflationRate > 5 ? 'orange.300' : 'green.300'}>
-                      {stats.inflationRate.toFixed(2)}%
+                      {historyReady ? `${stats.inflationRate.toFixed(2)}%` : 'Unavailable'}
                     </Text>
                   </HStack>
                   <HStack
@@ -460,9 +461,9 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                     borderRadius="lg"
                     justify="space-between"
                   >
-                    <Text fontSize="sm" color="gray.400">30-Day Minted</Text>
+                    <Text fontSize="sm" color="gray.400">30-Day Rewards</Text>
                     <Text fontWeight="bold" color="purple.300">
-                      {formatTokenAmount(stats.monthlyMinted.toString(), 18, 0)}
+                      {historyReady ? formatTokenAmount(stats.monthlyMinted.toString(), 18, 0) : 'Unavailable'}
                     </Text>
                   </HStack>
                   <HStack
@@ -473,7 +474,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                   >
                     <Text fontSize="sm" color="gray.400">Avg Payout</Text>
                     <Text fontWeight="bold" color="white">
-                      {formatTokenAmount(stats.avgPayout.toString(), 18, 0)}
+                      {historyReady ? formatTokenAmount(stats.avgPayout.toString(), 18, 0) : 'Unavailable'}
                     </Text>
                   </HStack>
                   <HStack
@@ -484,7 +485,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                   >
                     <Text fontSize="sm" color="gray.400">Avg Balance</Text>
                     <Text fontWeight="bold" color="white">
-                      {formatTokenAmount(stats.avgBalance.toString(), 18, 0)}
+                      {holdersKnown && currentHolderBalanceRaw != null ? formatTokenAmount(stats.avgBalance.toString(), 18, 0) : 'Unavailable'}
                     </Text>
                   </HStack>
                 </SimpleGrid>
@@ -543,7 +544,7 @@ const ParticipationTokenModal = ({ isOpen, onClose, totalSupply, completedTasks 
                 <Box textAlign="center" py={6}>
                   <Text color="gray.400">No mint events yet</Text>
                   <Text fontSize="sm" color="gray.500">
-                    {tokenLabel} are minted from completed tasks and approved requests
+                    {tokenLabel} are earned through completed tasks and approved requests
                   </Text>
                 </Box>
               )}

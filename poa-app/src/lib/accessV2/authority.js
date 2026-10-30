@@ -1,4 +1,5 @@
 /** Authority readiness. Missing schema or an incomplete cutover disables org interaction. */
+import { isValidAddress } from '@poa-box/core/encoding';
 import { isSupportedOrganization } from '@/lib/supportedOrganizations';
 
 /** The three states an org can be in. `pending` = migrated but not yet cut over. */
@@ -90,5 +91,5 @@ export function authorityStatusCopy(auth) {
 export function moduleUsesAuthority(membershipAuthorityAddress) {
   if (!membershipAuthorityAddress) return false;
   const a = String(membershipAuthorityAddress).toLowerCase();
-  return a !== '0x' && a !== `0x${'0'.repeat(40)}` && a !== '0';
+  return isValidAddress(a) && BigInt(a) !== 0n;
 }

@@ -1,3 +1,4 @@
+import { moduleRewardLabel } from '@/lib/tasks/educationForm';
 import { useShareLink } from '@/hooks/useShareLink';
 import React, { useState, useEffect, useMemo } from 'react';
 import {
@@ -47,7 +48,7 @@ import { useOrgGate } from "@/components/shared/OrgDeadEnd";
 const PerpetualOrgDashboard = () => {
   const { ongoingPolls, votingClasses } = useVotingContext();
   const poContext = usePOContext();
-  const { poContextLoading, poDescription, poLinks, logoUrl, activeTaskAmount, completedTaskAmount, ptTokenBalance, poMembers, rules, educationModules, roleHatIds, educationHubEnabled, tokenLabel = DEFAULT_TOKEN_LABEL } = poContext;
+  const { poContextLoading, poDescription, poLinks, logoUrl, ptTokenBalance, poMembers, rules, educationModules, educationModulesRead, roleHatIds, educationHubEnabled, tokenLabel = DEFAULT_TOKEN_LABEL } = poContext;
   const { pageBackground } = useOrgTheme();
   const { startTour, isActive: isTourActive } = useTour();
   const router = useRouter();
@@ -84,7 +85,7 @@ const PerpetualOrgDashboard = () => {
   }, [logoUrl]);
 
   const { leaderboardDisplayData } = usePOContext();
-  const { recommendedTasks } = useProjectContext();
+  const { recommendedTasks, taskTotals } = useProjectContext();
   const { totalMembers, governance } = useOrgStructure();
 
   // On a live-authority org the structure card previews the fold mirror's roles, not the retired
@@ -92,7 +93,7 @@ const PerpetualOrgDashboard = () => {
   const v2 = useAuthoritySubjects();
   const cardRoles = useMemo(() => {
     if (!v2.enabled) return [];
-    return (v2.roles || []).map((r) => ({ id: r.subjectId, hatId: r.hatId, name: r.name, memberCount: r.memberCount }));
+    return (v2.roles || []).map((r) => ({ id: r.subjectId, hatId: r.hatId, name: r.name, memberCount: null }));
   }, [v2.enabled, v2.roles]);
 
   const rolesWithVouching = v2.enabled ? (v2.roles || []).filter(role => role.vouchConfig?.enabled) : [];
@@ -130,10 +131,10 @@ const PerpetualOrgDashboard = () => {
   // when `useTokenSymbol` is set, the "Shares" default otherwise.
   const roleCount = cardRoles?.length || 0;
   const orgStats = [
-    { icon: FiUsers, color: 'purple.300', value: poMembers, label: 'Members', caption: roleCount ? `across ${roleCount} role${roleCount === 1 ? '' : 's'}` : 'in the org' },
+    { icon: FiUsers, color: 'purple.300', value: poMembers ?? '—', label: 'Members', caption: roleCount ? `across ${roleCount} role${roleCount === 1 ? '' : 's'}` : 'in the org' },
     { icon: FiAward, color: 'yellow.300', value: ptTokenBalance, label: `Total ${tokenLabel}`, caption: 'earned by members' },
-    { icon: FiActivity, color: 'blue.300', value: activeTaskAmount, label: 'Active Tasks', caption: 'open or underway' },
-    { icon: FiCheckCircle, color: 'green.300', value: completedTaskAmount, label: 'Completed Tasks', caption: 'finished & paid out' },
+    { icon: FiActivity, color: 'blue.300', value: taskTotals?.active ?? '—', label: 'Active Tasks', caption: 'open or underway' },
+    { icon: FiCheckCircle, color: 'green.300', value: taskTotals?.completed ?? '—', label: 'Completed Tasks', caption: 'finished & paid out' },
   ];
 
   // No org to render: a dead end, not a pending state. After every hook.
@@ -741,6 +742,7 @@ const PerpetualOrgDashboard = () => {
                     </HStack>
                   </VStack>
                   <Box px={{ base: 3, md: 4 }} pt={3} pb={{ base: 3, md: 4 }}>
+                    {educationModulesRead?.error && <Box mb={3}><Text>Learning modules could not finish loading.</Text><Button size="sm" onClick={educationModulesRead.refetch}>Try again</Button></Box>}
                     {educationModules && educationModules.length > 0 ? (
                       <Flex direction="column" gap={3}>
                         {educationModules.slice(0,3).map((module) => (
@@ -770,7 +772,7 @@ const PerpetualOrgDashboard = () => {
                             </HStack>
                             <HStack spacing={3} flexShrink={0}>
                               <Text fontWeight="bold" fontSize={{ base: "sm", md: "md" }} color="teal.200">
-                                +{module.payout} {tokenLabel}
+                                +{moduleRewardLabel(module)} {tokenLabel}
                               </Text>
                               <Link2 href={`/learn/?org=${encodeURIComponent(userDAO)}`}>
                                 <Button colorScheme="teal" size="sm">
@@ -785,10 +787,10 @@ const PerpetualOrgDashboard = () => {
                       <Center py={8} flexDirection="column">
                         <Icon as={FiBookOpen} boxSize={8} color="whiteAlpha.300" mb={3} />
                         <Text fontSize={textSize} color="whiteAlpha.500" fontWeight="medium">
-                          No modules available yet
+                          {educationModulesRead?.loading ? 'Loading learning modules…' : educationModulesRead?.complete ? 'No modules available yet' : 'Learning modules are unavailable'}
                         </Text>
                         <Text fontSize="xs" color="whiteAlpha.300" mt={1}>
-                          Learning modules will be listed here once published
+                          {educationModulesRead?.complete ? 'Learning modules will be listed here once published' : 'Please try again to load the library.'}
                         </Text>
                       </Center>
                     )}

@@ -39,7 +39,7 @@ export function RolesStep() {
 
   // Check for top-level role requirement
   const hasTopLevelRole = state.roles.some(
-    (r) => r.hierarchy.adminRoleIndex === null
+    (r) => r.hierarchy?.adminRoleIndex == null
   );
 
   // Check for at least one voting role

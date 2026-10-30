@@ -9,9 +9,9 @@ import {
   isNativeToken,
   amountDecimalsError,
   amountToWei,
-  paymentManagerAvailability,
-  resolveTransferSource,
-  buildTreasuryTransferBatch,
+  paymentManagerAvailability as coreAvailabilityAdapter,
+  resolveTransferSource as coreSourceAdapter,
+  buildTreasuryTransferBatch as coreBatchAdapter,
   treasuryTransferCopy,
   transferOptionNames,
   TRANSFER_OPTION_NAMES,
@@ -24,6 +24,33 @@ const TM = '0x3d93f0d090356d25e7a1614f0f8764b103ca99bc';
 const BREAD = '0xa555d5344f6FB6c65da19e403Cb4c1eC4a1a5Ee3';
 const USDC = '0xDDAfbb505ad214D7b80b1f830fcCc89B60fB7A83';
 const ALICE = '0x71C7656EC7ab88b098defB751B7401B5f6d8976F';
+
+const EXEC = `0x${'8'.repeat(40)}`;
+const ORG = `0x${'9'.repeat(64)}`;
+const block = { number: '100', hash: `0x${'7'.repeat(64)}` };
+const complete = rows => ({ status: 'complete', receivedKeys: rows, failedIds: [], missingIds: [], issues: [] });
+function treasuryEvidence({ token = BREAD, decimals = 18, balance = '1000000000000000000000000000000', distributions = [], executorBalance = '1000000000000000000000000000000' } = {}) {
+  const asset = { chainId: 100, address: token ? utils.getAddress(token.toLowerCase()) : constants.AddressZero, decimals };
+  const scope = { chainId: 100, orgId: ORG, contracts: { executor: EXEC, paymentManager: PM } };
+  const source = contract => ({ ...scope, contract, endpoint: 'https://rpc.invalid', method: 'eth_call', indexed: false, snapshot: 'pinned', block });
+  const counter = distributions.reduce((max, row) => Math.max(max, Number(row.id)), 0);
+  const rounds = Array.from({ length: counter }, (_, index) => {
+    const id = String(index + 1);
+    const row = distributions.find(d => String(d.id) === id) || { payoutToken: USDC, totalAmount: '1', totalClaimed: '1', finalized: true };
+    return { ...row, payoutToken: utils.getAddress(row.payoutToken.toLowerCase()), distributionId: id, checkpointBlock: '10', creationBlock: { state: 'known', value: '20', source: source(PM) } };
+  });
+  return { scope, block, asset, executor: { source: source(EXEC), data: { asset, rawAmount: executorBalance }, coverage: complete(['balance']) },
+    paymentManager: { source: source(PM), data: { asset, balanceRaw: balance, distributionCounterRaw: String(counter), rounds }, coverage: complete(rounds.map(r => r.distributionId)) } };
+}
+// The original behavioral scenarios now include complete, block-qualified fixture evidence.
+const paymentManagerAvailability = input => coreAvailabilityAdapter({ evidence: treasuryEvidence(input) });
+const resolveTransferSource = input => {
+  const evidence = input.paymentManager?.evidence || treasuryEvidence();
+  return coreSourceAdapter({ ...input, recipient: ALICE, evidence: { ...evidence,
+    executor: { ...evidence.executor, data: { ...evidence.executor.data, rawAmount: input.executorBalance || '0' } } } });
+};
+const buildTreasuryTransferBatch = input => coreBatchAdapter({ ...input, evidence: treasuryEvidence({ token: input.token || '', decimals: input.decimals,
+  ...(input.finalizeIds?.length ? { balance: '100000000000000000', distributions: [TEST6_DIST_1] } : {}) }) });
 
 const pmIface = new utils.Interface(PaymentManagerABI);
 const erc20Iface = new utils.Interface(ERC20ABI);
@@ -267,5 +294,35 @@ describe('transferOptionNames', () => {
       expect(pair[0]).toMatch(/^Yes — /);
       expect(pair[1]).toMatch(/^No — /);
     }
+  });
+});
+
+describe('treasury evidence failure boundaries', () => {
+  it('does not plan from legacy unscoped arrays or manufacture spendable zero', () => {
+    expect(coreAvailabilityAdapter({ balance: '100', distributions: [], token: BREAD })).toMatchObject({ status: 'blocked', spendable: null });
+    expect(coreSourceAdapter({ amountWei: '1', executorBalance: '100' }).ok).toBe(false);
+  });
+  it('rejects a missing round, inconsistent claims, mismatched module and incomplete coverage', () => {
+    const evidence = treasuryEvidence({ distributions: [TEST6_DIST_1] });
+    for (const mutate of [
+      e => { e.paymentManager.data.rounds = []; },
+      e => { e.paymentManager.data.rounds[0].totalClaimed = '100000000000000001'; },
+      e => { e.paymentManager.source.contract = EXEC; },
+      e => { e.paymentManager.coverage.status = 'incomplete'; },
+    ]) {
+      const invalid = structuredClone(evidence); mutate(invalid);
+      expect(coreAvailabilityAdapter({ evidence: invalid }).status).toBe('blocked');
+    }
+  });
+  it('retains unknown creation timing while permitting only the proven uncommitted balance', () => {
+    const evidence = treasuryEvidence({ balance: '100000000000000010', distributions: [TEST6_DIST_1] });
+    evidence.paymentManager.data.rounds[0].creationBlock = { state: 'unknown', code: 'NOT_INDEXED' };
+    expect(coreAvailabilityAdapter({ evidence })).toMatchObject({ status: 'ready', committed: '100000000000000000',
+      spendable: '10', releasable: '0', releaseIds: [], spendableAfterRelease: '10' });
+    expect(evidence.paymentManager.data.rounds[0].creationBlock.state).toBe('unknown');
+  });
+  it('rejects one wei over the available pot and never combines different pots', () => {
+    const evidence = treasuryEvidence({ balance: '5', executorBalance: '5' });
+    expect(coreSourceAdapter({ evidence, amountWei: '6', recipient: ALICE }).ok).toBe(false);
   });
 });

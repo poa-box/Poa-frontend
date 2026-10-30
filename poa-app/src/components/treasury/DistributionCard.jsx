@@ -185,7 +185,7 @@ const DistributionCard = ({
             </HStack>
           ) : (
             <Text fontSize="xs" color={INK.muted} sx={TABULAR}>
-              {distribution.claims?.length || 0} member{(distribution.claims?.length || 0) === 1 ? '' : 's'}
+              {Array.isArray(distribution.claims) ? `${distribution.claims.length}${distribution.claims.length >= 200 ? '+' : ''}` : 'Unknown'} member{(distribution.claims?.length || 0) === 1 ? '' : 's'}
             </Text>
           )}
         </HStack>

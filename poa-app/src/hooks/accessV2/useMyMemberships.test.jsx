@@ -7,12 +7,21 @@ import { ALICE, BOB, AUTHORITY_ADDRESS, MEMBERS_ID, aliceMembership, carolOffer 
 import { PERM_KEYS } from '@/lib/accessV2/permKeys';
 
 const state = vi.hoisted(() => ({ auth: null, authority: null, result: null, queryOptions: null, value: null, permission: null, override: undefined }));
-vi.mock('@apollo/client', async importOriginal => ({ ...await importOriginal(), useQuery: (_query, options) => { state.queryOptions = options; return state.result; } }));
 vi.mock('@/context/POContext', () => ({ usePOContext: () => ({ subgraphUrl: 'https://example.test' }) }));
 vi.mock('@/context/authState', () => ({ useAuth: () => state.auth }));
 vi.mock('@/util/apolloClient', () => ({ useSubgraphClient: () => ({}) }));
 vi.mock('@/context/RefreshContext', () => ({ RefreshEvent: {}, useRefreshSubscription() {} }));
 vi.mock('@/hooks/accessV2/useOrgAuthority', () => ({ useOrgAuthority: () => state.authority }));
+vi.mock('@/hooks/accessV2/useAuthorityEvidence', () => ({ useAuthorityEvidence: () => {
+  const scope = { chainId: 100, orgId: 'org', endpoint: 'https://example.test', contract: state.authority.address };
+  const source = { ...scope, contract: state.result.variables.authority, account: state.result.variables.user,
+    method: 'authority-snapshot', indexed: true, snapshot: 'pinned', block: { number: '1' } };
+  state.queryOptions = { skip: !state.authority.enabled || state.authority.loading || !!state.authority.error };
+  return { scope, authority: state.authority, enabled: state.authority.enabled,
+    error: state.result.error, loading: state.result.loading, refetch() {},
+    snapshot: { source, coverage: { status: 'complete', receivedKeys: [], failedIds: [], missingIds: [], issues: [] },
+      data: { memberships: state.result.data.subjectMemberships.map(row => ({ ...row, subject: { ...row.subject, vouchConfig: null } })), subjects: [{ subjectId: MEMBERS_ID, kind: 'Role' }], groupEdges: [], permissions: [] } } };
+} }));
 vi.mock('@/hooks/accessV2/useAuthoritySubjects', () => ({ useAuthoritySubjects: () => ({
   authority: state.authority, enabled: state.authority.enabled,
   roles: [{ subjectId: MEMBERS_ID, permEffective: () => '1' }],
@@ -54,7 +63,7 @@ describe('current membership scope across account runtime changes', () => {
     ['account switch with updated query variables but old rows', () => { state.auth.accountAddress = BOB; state.result.variables.user = BOB; }],
     ['authority switch with old query variables', () => { state.authority.address = '0x' + '2'.repeat(40); }],
     ['authority switch with updated query variables but old rows', () => { state.authority.address = '0x' + '2'.repeat(40); state.result.variables.authority = state.authority.address; }],
-    ['unverified old cache rows without authority', () => { delete state.result.data.subjectMemberships[0].authority; }],
+    ['unverified old cache without source authority', () => { state.result.variables.authority = undefined; }],
   ])('discards retained grants on %s', (_label, change) => {
     change(); render();
     if (!state.authority.enabled || state.authority.loading || state.authority.error) {
@@ -73,7 +82,15 @@ describe('current membership scope across account runtime changes', () => {
     render();
     expect(state.value.claimable).toEqual([]);
     expect(state.value.loading).toBe(true);
-    expect(state.queryOptions.skip).toBe(true);
+    expect(state.value.activationEvidence).toBeNull();
+  });
+
+  it('keeps an invalid public account separate from the connected viewer’s current grants', () => {
+    state.override = 'not-an-address';
+    render();
+    expect(state.value.rows).toEqual([]);
+    expect(state.value.activationEvidence).toBeNull();
+    expect(state.permission.allowed).toBe(true);
   });
 
   it('allows explicit public membership reads without granting the disconnected viewer permissions', () => {

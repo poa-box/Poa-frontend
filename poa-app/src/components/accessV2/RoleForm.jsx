@@ -38,10 +38,9 @@ import {
 import { FiArrowLeft, FiChevronRight, FiPlus, FiTrash2 } from 'react-icons/fi';
 import UserSearchInput from '@/components/common/UserSearchInput';
 import { STICKY_COPY } from '@/lib/accessV2/rules';
-import { predictLints } from '@/lib/accessV2/vouch';
+import { predictDraftLints } from '@/lib/accessV2/vouch';
 import {
   ROLE_FORM_KIND,
-  buildRoleFormBatch,
   contractClassIndex,
   effectiveMaxMembers,
   normalizeRoleForm,
@@ -57,6 +56,8 @@ import ManagerSettings from '@/components/accessV2/roleForm/ManagerSettings';
 import InheritedPermissions from '@/components/accessV2/roleForm/InheritedPermissions';
 import ProjectPermRows from '@/components/accessV2/roleForm/ProjectPermRows';
 import { tokensFor } from '@/components/accessV2/roleForm/formTokens';
+import { usePOContext } from '@/context/POContext';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 const ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
@@ -110,6 +111,7 @@ const shortAddress = (a) => (String(a || '').length > 10 ? `${a.slice(0, 6)}…$
  */
 export default function RoleForm({ value, onChange, ctx = {}, variant = 'light', onStatus = null, navigationTarget = null, onBackToType = null }) {
   const t = tokensFor(variant);
+  const { tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext() || {};
   const form = useMemo(() => normalizeRoleForm(value), [value]);
   const isGroup = form.kind === ROLE_FORM_KIND.GROUP;
 
@@ -125,7 +127,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
   const [manualAddress, setManualAddress] = useState('');
 
   const update = useCallback(
-    (changes) => onChange?.({ ...form, ...changes }),
+    (changes) => onChange?.(normalizeRoleForm({ ...form, ...changes })),
     [form, onChange]
   );
 
@@ -142,27 +144,40 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
   // The review preview comes from the SAME encoder that will build the proposal, so the sentences
   // on screen are the sentences that go into the proposal's metadata — not a second description of
   // what we hope it does.
+  const [observedPreview, setObservedPreview] = useState(null);
+  const [reviewAttempt, setReviewAttempt] = useState(0);
+  const reviewRoleConfiguration = ctx.reviewRoleConfiguration;
+  const refreshRoleOptions = ctx.refreshRoleCreation;
+  useEffect(() => {
+    const controller = new AbortController();
+    if (refreshRoleOptions) refreshRoleOptions(undefined, { signal: controller.signal }).catch(() => {});
+    return () => controller.abort();
+    // Available options depend on scope/modules, not unfinished form text. The
+    // hook changes this callback when a capability source or lifetime changes.
+  }, [refreshRoleOptions]);
+  const reviewKey = JSON.stringify(form);
+  useEffect(() => {
+    if (current !== 'review' || !reviewRoleConfiguration || !form.name.trim()) return undefined;
+    let active = true;
+    const controller = new AbortController();
+    setObservedPreview({ key: reviewKey, loading: true });
+    reviewRoleConfiguration(form, { signal: controller.signal }).then(built => {
+      if (active) setObservedPreview({ key: reviewKey, built });
+    }, error => {
+      if (active) setObservedPreview({ key: reviewKey, error: error?.message || 'Current role settings could not be verified.' });
+    });
+    return () => { active = false; controller.abort(); };
+    // reviewKey represents the normalized form, including equivalent draft objects.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, reviewRoleConfiguration, reviewKey, reviewAttempt]);
+
   const preview = useMemo(() => {
     if (current !== 'review' || !String(form.name || '').trim()) return {};
     if (!ctx?.authority) return { error: 'Loading this org’s roles and settings…' };
-    try {
-      return { built: buildRoleFormBatch({
-        ...ctx,
-        preview: true,
-        authority: ctx.authority,
-        hybridVoting: ctx.hybridVoting || '',
-        taskManagerAddress: ctx.taskManagerAddress || '',
-        indexedSubjects: ctx.indexedSubjects || [],
-        activeProposals: ctx.activeProposals || [],
-        inOrgUsers: inOrg,
-        votingClasses,
-        form,
-      }) };
-    } catch (error) {
-      return { error: error?.message || 'The proposal preview could not be prepared. Try again.' };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, form, ctx, votingClasses]);
+    if (reviewRoleConfiguration) return observedPreview?.key === reviewKey && !observedPreview.loading
+      ? observedPreview : { error: 'Checking the current role settings…' };
+    return { error: 'Current role settings are still loading. Refresh before reviewing this proposal.' };
+  }, [current, form, ctx?.authority, reviewRoleConfiguration, observedPreview, reviewKey]);
 
   const built = preview.built;
   const currentError = stepError(current, form);
@@ -181,24 +196,24 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
   const classOptions = useMemo(
     () => (votingClasses || []).map((c, i) => ({
       idx: contractClassIndex(votingClasses, i),
-      label: classLabel(c, i),
+      label: classLabel(c, i, { tokenLabel }),
     })),
-    [votingClasses]
+    [votingClasses, tokenLabel]
   );
   const defaultClassIdx = resolveBindingClassIdx({ bindingVote: true, bindingClassIdx: null }, votingClasses);
 
   // The contract's own config-time lints, shown next to the toggles that cause them — this is the
   // only moment anyone can act on them (on chain they arrive as events AFTER the write). The
-  // subject has no id yet, so self-vouching is matched with a sentinel on both sides; the review
-  // screen re-runs the same lints against the real predicted id.
+  // subject has no id yet: the draft adapter models the explicit self-vouch choice without
+  // passing UI sentinels as IDs. Review re-runs the lints against the predicted allocation.
   const vouchLints = useMemo(
-    () => predictLints({
+    () => predictDraftLints({
       defaultAllow: form.openRole,
       vouchQuorum: form.vouching?.enabled ? Number(form.vouching.quorum) || 1 : 0,
       maxMembers: effectiveMaxMembers(form),
       hasStrongPerms: false,
-      voucherSubjectId: form.vouching?.selfVouch ? 'self' : form.vouching?.voucherSubjectId,
-      subjectId: form.vouching?.selfVouch ? 'self' : '',
+      selfVouch: form.vouching?.selfVouch === true,
+      voucherSubjectId: form.vouching?.voucherSubjectId,
     }),
     [form]
   );
@@ -611,7 +626,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
               <AccordionButton px={4} py={3} data-testid="role-form-advanced">
                 <Box flex="1" textAlign="left">
                   <Text fontSize="sm" fontWeight="semibold" color={t.label}>Advanced</Text>
-                  <Text fontSize="xs" color={t.help}>Gas sponsorship, passkeys and role management</Text>
+                  <Text fontSize="xs" color={t.help}>Sponsorship, passkeys and role management</Text>
                 </Box>
                 <AccordionIcon color={t.help} />
               </AccordionButton>
@@ -620,6 +635,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
                   value={form.sponsorship}
                   onChange={(sponsorship) => update({ sponsorship })}
                   config={ctx.sponsorshipConfig}
+                  emailConfig={ctx.emailConfig}
                   onRetry={ctx.refreshRoleCreation}
                   kind={form.kind}
                   emailJoining={!isGroup && (form.join.domains.length > 0 || form.emailInvites.length > 0)}
@@ -888,10 +904,28 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
       {/* ── REVIEW ─────────────────────────────────────────────────────────── */}
       {current === 'review' && (
         <VStack align="stretch" spacing={4}>
+          {form.continuationId ? (
+            <Alert status="info" borderRadius="md" data-testid="role-form-stage-two"><AlertIcon />
+              Step 2 of 2: review the saved settings for the created {isGroup ? 'group' : 'role'}. This is a separate vote. Nothing is submitted until you choose Create vote.
+            </Alert>
+          ) : (
+            <Box>
+              <Text fontSize="sm" color={t.text}>Choose how to apply these settings.</Text>
+              <Button size="sm" variant="outline" mt={2} data-testid="role-form-staged" onClick={() => update({ creationMode: 'staged' })}>
+                Use two votes
+              </Button>
+              <Button size="sm" variant="ghost" mt={2} ml={2} data-testid="role-form-compound" onClick={() => update({ creationMode: 'compound' })}>
+                Check one-vote availability
+              </Button>
+              <Text fontSize="xs" color={t.help} mt={2}>{form.creationMode === 'compound'
+                ? 'One vote needs a complete check of competing role votes. If that history cannot be verified, choose two votes.'
+                : 'First create the role or group, then review and vote on its saved settings after creation. This avoids waiting for unrelated older votes.'}</Text>
+            </Box>
+          )}
           {reviewError && (
             <Alert status="error" borderRadius="md" fontSize="sm" data-testid="role-form-blocked">
               <AlertIcon />
-              {reviewError}
+              <Box>{reviewError}<Button display="block" mt={2} size="sm" onClick={() => setReviewAttempt(value => value + 1)} data-testid="role-form-review-retry">Review again</Button></Box>
             </Alert>
           )}
           {built ? (
@@ -906,6 +940,11 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
                   ))}
                 </VStack>
               </Box>
+              {built.requiresConfiguration && (
+                <Box data-testid="role-form-saved-settings"><Text fontSize="sm" fontWeight="bold" color={t.label}>Saved for the second vote</Text>
+                  <VStack as="ul" align="stretch" pl={4}>{(built.configurationSummaries || []).map((line, i) => <Text as="li" key={i} fontSize="sm" color={t.text}>{line}</Text>)}</VStack>
+                </Box>
+              )}
               {built.warnings.length > 0 && (
                 <Alert
                   status="warning"

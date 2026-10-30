@@ -63,8 +63,10 @@ import SignInModal from '../../../components/passkey/SignInModal';
 import PasskeyOnboardingModal from '../../../components/passkey/PasskeyOnboardingModal';
 import { useDeployer, PERMISSION_KEYS, PERMISSION_DESCRIPTIONS, VOTING_STRATEGY, STEPS } from '../context/DeployerContext';
 import { validateDeployerState } from '../validation/schemas';
-import { validateDeploymentConfig } from '../utils/deploymentMapper';
-import { validateHierarchy } from '../utils/hierarchyUtils';
+import { validateAccessV2Representability } from '@/features/deployer/utils/deploymentMapperV2';
+import { nativeMembershipWarnings } from '@/lib/deployment/nativeDraft';
+import { toCoreDeployConfig } from '@/lib/deployment/coreDeployment';
+import { membershipSummary } from '@/features/deployer/components/role/NativeMembershipFields';
 import NavigationButtons from '../components/common/NavigationButtons';
 import { roleHasBundle } from '../utils/powerBundles';
 import { getAdditionalMembers, countGenesisVoters, memberLabel } from '../utils/additionalMembers';
@@ -74,7 +76,7 @@ import { TaskPermission, hasPermission } from '@/util/permissions';
 import { useAuth } from '@/context/authState';
 
 // TaskPerm bits surfaced in the review summary. CREATE is omitted — it is granted
-// to every role by default at deploy (see TaskManagerPermsMatrix / buildTaskManagerPerms).
+// to every role by default at deploy (see TaskManagerPermsMatrix and the core deployment assembler).
 const TASK_PERM_REVIEW = [
   { bit: TaskPermission.CLAIM, label: 'Claim' },
   { bit: TaskPermission.REVIEW, label: 'Review' },
@@ -357,9 +359,7 @@ function OrganizationHero({ organization, templateName, goToStep }) {
  * RoleCard - Visual card for a single role
  */
 function RoleCard({ role, index, roles, deployerAddress }) {
-  const parentRole = role.hierarchy.adminRoleIndex !== null
-    ? roles[role.hierarchy.adminRoleIndex]
-    : null;
+
 
   // Who actually wears this hat the moment the org launches. Worth stating on
   // the last screen before signing: it's the only irreversible part of the role
@@ -369,7 +369,7 @@ function RoleCard({ role, index, roles, deployerAddress }) {
 
   // The Team step's "that's you" guard can't fire before sign-in, so a founder
   // can list themselves on a role already minted to them. Show them once —
-  // mapStateToDeploymentParams drops the duplicate before it reaches calldata,
+  // The native deployment adapter drops the duplicate before it reaches calldata,
   // because minting one hat twice to one wearer reverts the whole deploy.
   const deployer = deployerAddress ? deployerAddress.toLowerCase() : null;
   const others = additionalMembers.filter(
@@ -397,11 +397,7 @@ function RoleCard({ role, index, roles, deployerAddress }) {
           <Avatar size="sm" name={role.name} bg="amethyst.500" color="white" />
           <Text fontWeight="600" color="warmGray.800">{role.name}</Text>
         </HStack>
-        {parentRole === null && (
-          <Badge bg="amethyst.100" color="amethyst.700" borderRadius="full" fontSize="xs">
-            Top Level
-          </Badge>
-        )}
+
       </HStack>
 
       <HStack spacing={2} flexWrap="wrap">
@@ -415,12 +411,10 @@ function RoleCard({ role, index, roles, deployerAddress }) {
             {role.vouching.quorum} vouches
           </Badge>
         )}
-        {parentRole && (
-          <Text fontSize="xs" color="warmGray.500">
-            Reports to: {parentRole.name}
-          </Text>
-        )}
+
       </HStack>
+
+      <Text fontSize="xs" color="warmGray.600" mt={2}>{membershipSummary(role, roles)}. Membership changes are decided through governance.</Text>
 
       {launchLabels.length > 0 && (
         <HStack
@@ -891,6 +885,17 @@ export function ReviewStep({
   // once in the genesis-voter warning below.
   const { accountAddress } = useAuth();
   const toast = useToast();
+  const metadataAdminLabel = useMemo(() => {
+    try {
+      // Reuse the native adapter's default/sentinel policy used by preparation.
+      const { metadataAdminRoleIndex } = toCoreDeployConfig(state, accountAddress);
+      return metadataAdminRoleIndex === undefined
+        ? 'Founding administrators'
+        : state.roles[metadataAdminRoleIndex]?.name || null;
+    } catch {
+      return null;
+    }
+  }, [state, accountAddress]);
 
   // Get native currency symbol for the selected deploy chain
   const selectedChainId = selectors.getSelectedChainId();
@@ -917,18 +922,17 @@ export function ReviewStep({
 
   // Validate entire state
   const zodValidation = validateDeployerState(state);
-  const configValidation = validateDeploymentConfig(state);
-  const hierarchyValidation = validateHierarchy(state.roles);
-  const isValid = zodValidation.isValid && configValidation.isValid && hierarchyValidation.isValid && isUsernameReady;
+  const configValidation = validateAccessV2Representability(state, accountAddress);
+  const isValid = zodValidation.isValid && configValidation.isValid && isUsernameReady;
 
   // All validation errors combined
   const zodErrorMessages = zodValidation.isValid
     ? []
     : Object.values(zodValidation.errors).flat();
-  const allErrors = [...zodErrorMessages, ...configValidation.errors, ...hierarchyValidation.errors];
+  const allErrors = [...zodErrorMessages, ...configValidation.errors];
 
   // Hierarchy warnings (circular vouching dependencies, etc.)
-  const hierarchyWarnings = hierarchyValidation.warnings || [];
+  const hierarchyWarnings = useMemo(() => nativeMembershipWarnings(state.roles, accountAddress), [state.roles, accountAddress]);
 
   // Get template name
   const selectedTemplate = selectors?.getSelectedTemplate ? selectors.getSelectedTemplate() : null;
@@ -1010,7 +1014,7 @@ export function ReviewStep({
     }
 
     // No vouching warning
-    const hasVouching = state.roles.some(r => r.vouching.enabled);
+    const hasVouching = state.roles.some(r => r.vouching.enabled || !r.open);
     if (!hasVouching && state.roles.length > 0) {
       result.push({
         key: 'no-vouching',
@@ -1367,7 +1371,7 @@ export function ReviewStep({
                     label: 'Member',
                     has: hasMember,
                     color: 'blue',
-                    desc: 'Can join easily, earn and hold tokens, access learning materials, and vote in polls',
+                    desc: 'Can join easily, receive rewards, access learning materials, and vote in polls',
                   },
                   {
                     key: 'creator',
@@ -1517,26 +1521,17 @@ export function ReviewStep({
             <HStack spacing={2}>
               <Text fontSize="sm" fontWeight="600" color="warmGray.700">Metadata Admin:</Text>
               <Badge
-                bg={state.metadataAdminRoleIndex !== null ? 'amethyst.100' : 'warmGray.100'}
-                color={state.metadataAdminRoleIndex !== null ? 'amethyst.700' : 'warmGray.600'}
+                bg={metadataAdminLabel ? 'amethyst.100' : 'warmGray.100'}
+                color={metadataAdminLabel ? 'amethyst.700' : 'warmGray.600'}
                 borderRadius="full"
                 px={3}
               >
-                {state.metadataAdminRoleIndex !== null
-                  ? state.roles[state.metadataAdminRoleIndex]?.name || 'Unknown Role'
-                  : 'Governance Only'}
+                {metadataAdminLabel || 'Not configured'}
               </Badge>
             </HStack>
 
             {/* Direct Democracy targets */}
-            {(state.ddInitialTargets || []).filter(Boolean).length > 0 && (
-              <HStack spacing={2} align="start">
-                <Text fontSize="sm" fontWeight="600" color="warmGray.700">DD Targets:</Text>
-                <Badge bg="amethyst.100" color="amethyst.700" borderRadius="full" px={3}>
-                  {state.ddInitialTargets.filter(Boolean).length} contract{state.ddInitialTargets.filter(Boolean).length !== 1 ? 's' : ''} whitelisted
-                </Badge>
-              </HStack>
-            )}
+
 
             {/* Feature Toggles */}
             <Flex gap={4} flexWrap="wrap">
@@ -1546,12 +1541,7 @@ export function ReviewStep({
                 icon={PiGraduationCap}
                 isEnabled={state.features.educationHubEnabled}
               />
-              <FeatureCard
-                name="Election Hub"
-                description="Run elections for leadership positions"
-                icon={PiHandshake}
-                isEnabled={state.features.electionHubEnabled}
-              />
+
               <FeatureCard
                 name="Email Invites"
                 description="Join a role by proving control of an email address. Ships switched off — curate the list in Settings after launch."

@@ -1,3 +1,5 @@
+import { effectiveTaskDeadlineSeconds } from '@poa-box/core/task-lens';
+
 /**
  * Deadline utilities for TaskManager v6 task deadlines.
  *
@@ -21,7 +23,7 @@ export const DAY_S = 86400;
 export function toSec(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = Math.floor(Number(v));
-  if (!Number.isFinite(n) || n <= 0) return null;
+  if (!Number.isSafeInteger(n) || n <= 0) return null;
   return n;
 }
 
@@ -45,9 +47,7 @@ export function effectiveDeadlineSec(task) {
     if (window !== null && assignedAt !== null) cd = assignedAt + window;
   }
   const abs = toSec(task.absoluteDeadline);
-  if (cd === null) return abs;
-  if (abs === null) return cd;
-  return Math.min(cd, abs);
+  return effectiveTaskDeadlineSeconds({ claimDeadline: cd ?? undefined, absoluteDeadline: abs ?? undefined }) ?? null;
 }
 
 /** True when a claimed task's enforcement deadline has strictly passed. */

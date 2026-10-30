@@ -1,3 +1,4 @@
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import { Box, Text, Button, VStack, HStack, Badge, Modal, ModalOverlay, ModalContent, ModalCloseButton, ModalBody, ModalFooter, Spacer } from '@chakra-ui/react';
 
 // --- Example task detail modal shown during tour ---
@@ -11,7 +12,7 @@ const modalGlassStyle = {
   backgroundColor: 'rgba(33, 33, 33, 0.97)',
 };
 
-export default function ExampleTaskModal({ isOpen, onClose, tokenLabel }) {
+export default function ExampleTaskModal({ isOpen, onClose, tokenLabel = DEFAULT_TOKEN_LABEL }) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} size="3xl" isCentered zIndex={10001}>
       <ModalOverlay bg="transparent" />

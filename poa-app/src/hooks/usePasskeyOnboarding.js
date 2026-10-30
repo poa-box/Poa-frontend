@@ -4,20 +4,23 @@
  * Provides step tracking, error handling, and AuthContext integration.
  */
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { useQuery } from '@apollo/client';
+import { useEnrollmentScope, enrollmentInitiator } from '@/hooks/useEnrollmentScope';
+import { useEnrollmentRecovery } from '@/hooks/useEnrollmentRecovery';
+import { removePendingCredential } from '@/services/web3/passkey/passkeyStorage';
 import { getClient } from '@/util/apolloClient';
 import { useAuth } from '@/context/authState';
-import { usePOContext } from '../context/POContext';
-import { DEFAULT_CHAIN_ID } from '../config/networks';
-import { createChainClients } from '../services/web3/utils/chainClients';
+import { usePOContext } from '@/context/POContext';
+import { DEFAULT_CHAIN_ID } from '@/config/networks';
+import { createChainClients } from '@/services/web3/utils/chainClients';
 import {
   createPasskeyOnboardingService,
   OnboardingStep,
   STEP_MESSAGES,
-} from '../services/web3/domain/PasskeyOnboardingService';
-import { FETCH_INFRASTRUCTURE_ADDRESSES } from '../util/queries';
-import { FETCH_PASSKEY_FACTORY_ADDRESS } from '../util/passkeyQueries';
+} from '@/services/web3/domain/PasskeyOnboardingService';
+import { FETCH_INFRASTRUCTURE_ADDRESSES } from '@/util/queries';
+import { FETCH_PASSKEY_FACTORY_ADDRESS } from '@/util/passkeyQueries';
 
 /**
  * Hook for passkey onboarding within an organization context.
@@ -25,9 +28,11 @@ import { FETCH_PASSKEY_FACTORY_ADDRESS } from '../util/passkeyQueries';
  * @returns {Object} Onboarding state and controls
  */
 export function usePasskeyOnboarding() {
-  const { publicClient: homePublicClient, bundlerClient: homeBundlerClient, activatePasskey } = useAuth();
+  const auth = useAuth();
+  const { publicClient: homePublicClient, bundlerClient: homeBundlerClient, activatePasskey } = auth;
   const { quickJoinContractAddress, orgId, subgraphUrl, orgChainId } = usePOContext();
 
+  const completedActivation = useRef(null);
   const [step, setStep] = useState(OnboardingStep.IDLE);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
@@ -40,7 +45,7 @@ export function usePasskeyOnboarding() {
       return { publicClient: homePublicClient, bundlerClient: homeBundlerClient, chainId: DEFAULT_CHAIN_ID };
     }
     const clients = createChainClients(orgChainId);
-    if (!clients) return { publicClient: homePublicClient, bundlerClient: homeBundlerClient, chainId: DEFAULT_CHAIN_ID };
+    if (!clients) return { publicClient: null, bundlerClient: null, chainId: orgChainId };
     return { publicClient: clients.publicClient, bundlerClient: clients.bundlerClient, chainId: orgChainId };
   }, [isCrossChain, orgChainId, homePublicClient, homeBundlerClient]);
 
@@ -66,6 +71,7 @@ export function usePasskeyOnboarding() {
 
   // Check if all required addresses are available
   const isReady = Boolean(
+    auth.isAuthHydrated !== false && subgraphUrl && orgChainId &&
     publicClient &&
     bundlerClient &&
     factoryAddress &&
@@ -74,6 +80,21 @@ export function usePasskeyOnboarding() {
     paymasterAddress &&
     orgId
   );
+
+  const { guard, scope } = useEnrollmentScope(auth, [orgId, subgraphUrl, orgChainId, quickJoinContractAddress, registryAddress, factoryAddress, paymasterAddress]);
+
+  const source = useMemo(() => ({ chainId, registryAddress, factoryAddress, orgId, targetAddress: quickJoinContractAddress, flow: 'onboarding' }), [chainId, registryAddress, factoryAddress, orgId, quickJoinContractAddress]);
+  useEffect(() => {
+    const completed = completedActivation.current;
+    completedActivation.current = null;
+    if (completed && completed.accountAddress?.toLowerCase() === auth.accountAddress?.toLowerCase()
+      && auth.isPasskeyUser && completed.source === JSON.stringify(source)) {
+      setIsOnboarding(false); return;
+    }
+    setStep(OnboardingStep.IDLE); setError(null); setResult(null); setIsOnboarding(false);
+  }, [scope, auth.accountAddress, auth.isPasskeyUser, source]);
+  const onConfirmed = useCallback(value => { guard(); completedActivation.current = { accountAddress: value.accountAddress, source: JSON.stringify(source) }; setResult(value); setStep(OnboardingStep.SUCCESS); }, [guard, source]);
+  const recovery = useEnrollmentRecovery({ auth, source, guard, onConfirmed });
 
   const stepMessage = STEP_MESSAGES[step] || '';
 
@@ -85,6 +106,7 @@ export function usePasskeyOnboarding() {
    *   Required for org-mode onboarding — the paymaster checks this hat's shared budget.
    */
   const startOnboarding = useCallback(async (username, paymasterHatId) => {
+    guard();
     if (!isReady) {
       setError(new Error('Required infrastructure not available. Please try again later.'));
       return;
@@ -95,6 +117,11 @@ export function usePasskeyOnboarding() {
     setResult(null);
 
     try {
+      if (await publicClient.getChainId() !== chainId) throw new Error('This network is unavailable. Please try again.');
+      guard();
+      const factoryCode = await publicClient.getBytecode({ address: factoryAddress });
+      guard();
+      if (!factoryCode || factoryCode === '0x') throw new Error('Account creation is unavailable on this network.');
       const service = createPasskeyOnboardingService({
         publicClient,
         bundlerClient,
@@ -105,30 +132,36 @@ export function usePasskeyOnboarding() {
         orgId,
         hatId: paymasterHatId,
         chainId,
+        scopeGuard: guard, initiator: enrollmentInitiator(auth),
       });
 
       const onboardResult = await service.onboard(username, (newStep, data) => {
+        guard();
         setStep(newStep);
         if (newStep === OnboardingStep.ERROR) {
           setError(data?.error || new Error('Unknown error'));
         }
       });
 
-      setResult(onboardResult);
+      guard();
+      onConfirmed(onboardResult);
 
       // Save credential and activate passkey auth
-      activatePasskey({
+      await activatePasskey({
         credentialId: onboardResult.credentialId,
         rawCredentialId: onboardResult.rawCredentialId,
         publicKeyX: onboardResult.publicKeyX,
         publicKeyY: onboardResult.publicKeyY,
         accountAddress: onboardResult.accountAddress,
         salt: onboardResult.salt,
+        credentialChainId: chainId,
       });
 
+      removePendingCredential(onboardResult.accountAddress, source);
       return onboardResult;
 
     } catch (err) {
+      try { guard(); } catch { return; }
       // Handle user cancellation gracefully
       if (err.name === 'NotAllowedError' || err.message?.includes('NotAllowedError')) {
         setError(new Error('Passkey creation was cancelled.'));
@@ -137,9 +170,10 @@ export function usePasskeyOnboarding() {
       }
       setStep(OnboardingStep.ERROR);
     } finally {
-      setIsOnboarding(false);
+      try { guard(); setIsOnboarding(false); } catch { /* New scope owns this state. */ }
     }
   }, [
+    guard,
     isReady,
     publicClient,
     bundlerClient,
@@ -150,17 +184,21 @@ export function usePasskeyOnboarding() {
     orgId,
     chainId,
     activatePasskey,
+    onConfirmed,
+    source,
+    auth,
   ]);
 
   /**
    * Reset the onboarding state (e.g., to retry).
    */
   const reset = useCallback(() => {
+    guard();
     setStep(OnboardingStep.IDLE);
     setError(null);
     setResult(null);
     setIsOnboarding(false);
-  }, []);
+  }, [guard]);
 
   return {
     // State
@@ -170,6 +208,7 @@ export function usePasskeyOnboarding() {
     result,
     isOnboarding,
     isReady,
+    ...recovery,
 
     // Actions
     startOnboarding,

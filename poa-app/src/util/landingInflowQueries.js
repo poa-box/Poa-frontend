@@ -1,22 +1,13 @@
-// Root collections include historical pots, not just each org's current address.
-// A full collection causes an explicit failure rather than a truncated headline.
-export const INFLOW_COLLECTION_LIMIT = 1000;
+// Core owns the pot histories and each recorded native stream, including paging.
+export {
+  FETCH_HISTORICAL_POTS_PAGE, FETCH_NATIVE_DEPOSITS_PAGE,
+  FETCH_PAYMASTER_HUB_POTS_PAGE, FETCH_INDEXED_NATIVE_PAYMENTS_PAGE,
+  FETCH_INDEXED_ORG_DEPOSITS_PAGE, FETCH_INDEXED_DONATIONS_PAGE,
+} from '@poa-box/core/graph/documents/inflows';
 
+// Select one observed indexed block before requesting the canonical histories.
 export const LANDING_INFLOWS_QUERY = `
   query LandingInflows {
-    taskManagers(first: 1000) { id createdAtBlock }
-    paymentManagerContracts(first: 1000) { id createdAtBlock }
-    executorContracts(first: 1000) { id createdAtBlock }
-    paymasterHubContracts(first: 1000) { id createdAtBlock }
-    payments(first: 1000, where: { token: "0x0000000000000000000000000000000000000000" }) {
-      id payer amount token transactionHash
-    }
-    paymasterDepositEvents(first: 1000, where: { eventType: OrgDeposit }) {
-      id from amount eventType transactionHash
-    }
-    solidarityEvents(first: 1000, where: { eventType: DonationReceived }) {
-      id from amount eventType transactionHash
-    }
-    _meta { block { number } hasIndexingErrors }
+    _meta { block { number hash timestamp } hasIndexingErrors }
   }
 `;

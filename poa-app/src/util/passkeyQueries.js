@@ -1,107 +1,57 @@
-/**
- * Subgraph queries for passkey and paymaster features.
- */
-
+/** Public display documents; current signing eligibility stays in the runtime. */
 import { gql } from '@apollo/client';
+import * as accounts from '@poa-box/core/graph/documents/accounts';
+import * as protocol from '@poa-box/core/graph/documents/protocol';
+import * as paymaster from '@poa-box/core/graph/documents/paymaster';
+import { coreFields } from '@/lib/graphql/coreDocuments';
 
-/**
- * Fetch the PasskeyAccountFactory address from the subgraph.
- * There's typically one factory deployed per protocol instance.
- */
 export const FETCH_PASSKEY_FACTORY_ADDRESS = gql`
   query FetchPasskeyFactoryAddress {
-    passkeyAccountFactories(first: 1) {
-      id
-      accountBeacon
-    }
+    passkeyAccountFactories(first: 1) { ${coreFields(accounts.FETCH_FACTORY_FACTS, 'passkeyAccountFactories', { only: ['id', 'accountBeacon'] })} }
   }
 `;
 
-/**
- * Check if an address has a deployed passkey smart account.
- */
 export const FETCH_PASSKEY_ACCOUNT = gql`
   query FetchPasskeyAccount($address: Bytes!) {
     passkeyAccounts(where: { id: $address }) {
-      id
-      factory {
-        id
-      }
-      credentials {
-        id
-        credentialId
-        active
-      }
-      createdAt
+      ${coreFields(accounts.FETCH_ACCOUNT_FACTS, 'passkeyAccounts', { only: ['id', 'createdAt'] })}
+      factory { id }
+      credentials { ${coreFields(accounts.FETCH_CREDENTIAL_PAGE, 'passkeyCredentials', { only: ['id', 'credentialId', 'active'] })} }
     }
   }
 `;
 
-/**
- * Fetch the PaymasterHub solidarity fund status.
- * Used on the homepage to determine if solidarity-funded account creation is available.
- */
 export const FETCH_SOLIDARITY_FUND_STATUS = gql`
   query FetchSolidarityFundStatus {
-    paymasterHubContracts(first: 1) {
-      id
-      solidarityBalance
-    }
+    paymasterHubContracts(first: 1) { ${coreFields(accounts.FETCH_SOLIDARITY_STATE, 'paymasterHubContracts', { only: ['id', 'solidarityBalance'] })} }
   }
 `;
 
-/**
- * Fetch paymaster configuration for an organization.
- * Entity existence = org is registered. isPaused controls whether sponsorship is active.
- */
+const configFields = coreFields(protocol.FETCH_PROTOCOL_ORGS_PAGE, 'paymasterOrgConfigs', {
+  only: ['id', 'orgId', 'depositBalance', 'totalSpent', 'totalSolidarityReceived'],
+}) + coreFields(paymaster.FETCH_PAYMASTER_STATE, 'paymasterOrgConfigs', { only: ['isPaused'] });
 export const FETCH_PAYMASTER_ORG_CONFIG = gql`
   query FetchPaymasterOrgConfig($orgId: Bytes!) {
-    paymasterOrgConfigs(where: { orgId: $orgId }) {
-      id
-      orgId
-      isPaused
-      depositBalance
-      totalSpent
-      totalSolidarityReceived
-    }
+    paymasterOrgConfigs(where: { orgId: $orgId }) { ${configFields} }
   }
 `;
 
-/**
- * Fetch gas pool data for an organization's paymaster.
- * Includes balance, stats, deposit history, and usage history.
- */
+// These are the existing UI's recent 50-event windows, not complete histories.
+// Three extra indexed stats fields have no canonical core selector (recorded in evidence).
 export const FETCH_GAS_POOL_DATA = gql`
   query FetchGasPoolData($orgId: Bytes!) {
     paymasterOrgConfigs(where: { orgId: $orgId }) {
-      id
-      orgId
-      isPaused
-      depositBalance
-      totalDeposited
-      totalSpent
-      totalSolidarityReceived
+      ${configFields}
+      ${coreFields(protocol.FETCH_PROTOCOL_ORGS_PAGE, 'paymasterOrgConfigs', { only: ['totalDeposited'] })}
       stats {
-        totalUserOps
-        totalGasSponsored
-        totalDeposited
-        totalSolidarityFeesCollected
-        lastOperationAt
+        ${coreFields(protocol.FETCH_PROTOCOL_ORGS_PAGE, 'paymasterOrgConfigs.stats')}
+        totalDeposited totalSolidarityFeesCollected lastOperationAt
       }
       depositEvents(first: 50, orderBy: eventAt, orderDirection: desc) {
-        id
-        eventType
-        from
-        amount
-        eventAt
-        transactionHash
+        ${coreFields(paymaster.FETCH_PAYMASTER_DEPOSITS_PAGE, 'paymasterDepositEvents', { only: ['id', 'eventType', 'from', 'amount', 'eventAt', 'transactionHash'] })}
       }
       usageEvents(first: 50, orderBy: eventAt, orderDirection: desc) {
-        id
-        delta
-        subjectKey
-        eventAt
-        transactionHash
+        ${coreFields(paymaster.FETCH_PAYMASTER_USAGE_PAGE, 'usageEvents', { only: ['id', 'delta', 'subjectKey', 'eventAt', 'transactionHash'] })}
       }
     }
   }

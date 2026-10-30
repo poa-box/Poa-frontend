@@ -19,14 +19,16 @@ import {
 } from '@chakra-ui/react';
 import { PiCoinVerticalBold } from 'react-icons/pi';
 import { formatTokenAmount } from '@/util/formatToken';
+import { assetActionsAvailable, knownRawAmount } from '@/services/web3/domain/accountFinancialEvidence';
 
-function TokenBalances({ balances, isLoading, onSend, onCashOut, cardStyle, textColor, subtextColor }) {
+function TokenBalances({ balances = [], nativeBalances = {}, errors = [], coverage, isLoading, onRetry, onSend, onCashOut, cardStyle, textColor, subtextColor }) {
+  const incomplete = coverage !== 'complete' || errors.length > 0;
   return (
     <Card borderRadius="2xl" boxShadow="2xl" style={cardStyle}>
       <CardBody p={[4, 6, 8]}>
         <VStack spacing={4} align="stretch">
           <Heading size="md" color={textColor}>
-            Token Balances
+            Balances
           </Heading>
 
           {isLoading ? (
@@ -34,13 +36,20 @@ function TokenBalances({ balances, isLoading, onSend, onCashOut, cardStyle, text
               <Skeleton height="50px" width="100%" borderRadius="lg" />
               <Skeleton height="50px" width="100%" borderRadius="lg" />
             </VStack>
-          ) : balances.length === 0 ? (
+          ) : balances.length === 0 && !incomplete ? (
             <Text color={subtextColor} textAlign="center" py={4} fontSize="sm">
-              No token balances found across chains.
+              No balances found across networks.
             </Text>
           ) : (
             <VStack spacing={3} align="stretch">
-              {balances.map((token) => (
+              {incomplete && <HStack>
+                <Text role="status" color={subtextColor} fontSize="sm">Some balances are unavailable. Refresh before continuing.</Text>
+                {onRetry && <Button size="sm" onClick={onRetry}>Refresh balances</Button>}
+              </HStack>}
+              {balances.map((token) => {
+                const canAct = assetActionsAvailable({ token, nativeBalance: nativeBalances[token.chainId], errors, coverage });
+                const hasBalance = knownRawAmount(token.balance) !== null;
+                return (
                 <HStack
                   key={`${token.chainId}-${token.address}`}
                   p={3}
@@ -85,13 +94,14 @@ function TokenBalances({ balances, isLoading, onSend, onCashOut, cardStyle, text
 
                   <HStack spacing={3}>
                     <Text color={textColor} fontWeight="medium" fontSize="sm" whiteSpace="nowrap">
-                      {formatTokenAmount(token.balance, token.decimals, token.decimals <= 6 ? 2 : 4)}
+                      {hasBalance ? formatTokenAmount(token.balance, token.decimals, token.decimals <= 6 ? 2 : 4) : 'Unavailable'}
                     </Text>
                     <Button
                       size="xs"
                       colorScheme="purple"
                       variant="outline"
-                      onClick={() => onSend(token)}
+                      isDisabled={!canAct}
+                      onClick={() => { if (canAct) onSend(token); }}
                     >
                       Send
                     </Button>
@@ -100,14 +110,17 @@ function TokenBalances({ balances, isLoading, onSend, onCashOut, cardStyle, text
                         size="xs"
                         colorScheme="green"
                         variant="outline"
-                        onClick={() => onCashOut(token)}
+                        isDisabled={!canAct}
+                        onClick={() => { if (canAct) onCashOut(token); }}
                       >
                         Cash Out
                       </Button>
                     )}
                   </HStack>
+                  {knownRawAmount(nativeBalances[token.chainId]) === null && <Text fontSize="xs" color={subtextColor}>Network fee balance unavailable</Text>}
                 </HStack>
-              ))}
+                );
+              })}
             </VStack>
           )}
         </VStack>

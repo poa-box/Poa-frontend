@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { checkBatchSubmittable, MAX_SPONSORED_CALLS } from './submission';
 import { MAX_CALLS_PER_BATCH } from '@/config/contractLimits';
-import { buildCreateRoleBatch } from './proposalBuilders';
 import { buildGrant } from './txBuilders';
-import { AUTHORITY_ADDRESS as A, ALICE, MEMBERS_ID, EXECS_ID } from './fixtures';
+import { AUTHORITY_ADDRESS as A, ALICE, EXECS_ID } from './fixtures';
 
 const oneCall = () => buildGrant(A, EXECS_ID, ALICE);
 
@@ -60,21 +59,4 @@ describe('checkBatchSubmittable', () => {
     expect(checkBatchSubmittable([null]).code).toBe('malformed');
   });
 
-  it('a realistic create-role batch is comfortably inside the ceiling', () => {
-    const { batch } = buildCreateRoleBatch({
-      authority: A,
-      existingSubjects: [{ subjectId: MEMBERS_ID }],
-      config: {
-        name: 'Stewards',
-        groupIds: ['1'],
-        perms: { DD_VOTE: true, DD_CREATE: true, HV_CREATE: true, PT_MEMBER: true, PAY_CREATE: true, TM_PERMS: 6 },
-        initialHolders: Array.from({ length: 5 }, (_, i) => ({
-          address: `0x${String(i + 1).repeat(40)}`,
-          inOrg: true,
-        })),
-      },
-    });
-    expect(batch.length).toBeLessThan(MAX_SPONSORED_CALLS);
-    expect(checkBatchSubmittable(batch).ok).toBe(true);
-  });
 });

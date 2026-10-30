@@ -1,3 +1,4 @@
+import { getTemplateDefaults } from '@/features/deployer/templates/templateDefinitions';
 /**
  * Student Organization Template
  *
@@ -234,7 +235,6 @@ decision needs full engagement.`,
         quorum: 40,
         features: {
           educationHubEnabled: true,
-          electionHubEnabled: true,
         },
       },
       reasoning: `Student government represents all students and needs legitimacy
@@ -508,44 +508,7 @@ Consider term limits and regular election schedules.`,
   },
 
   // Default configuration
-  defaults: {
-    roles: [
-      {
-        name: 'Executive',
-        hierarchy: { adminRoleIndex: null },
-        vouching: { enabled: true, quorum: 1, voucherRoleIndex: 0, combineWithHierarchy: true },
-        defaults: { eligible: false, standing: true },
-        hatConfig: { maxSupply: 10 },
-      },
-      {
-        name: 'Member',
-        hierarchy: { adminRoleIndex: 0 },
-        vouching: { enabled: true, quorum: 1, voucherRoleIndex: 1, combineWithHierarchy: true },
-        defaults: { eligible: false, standing: true },
-        hatConfig: { maxSupply: 500 },
-      },
-    ],
-    permissions: {
-      taskManagers: [0],
-      projectCreators: [0],
-      taskCreators: [0],
-      taskReviewers: [0],
-      taskClaimers: [0, 1],
-      nftCreators: [0],
-      quickJoinRoles: [],
-      memberManagers: [0],
-      ddVoters: [0, 1],
-    },
-    voting: {
-      mode: 'HYBRID',
-      democracyWeight: 70,
-      participationWeight: 30,
-    },
-    features: {
-      educationHubEnabled: true,
-      electionHubEnabled: true,
-    },
-  },
+  defaults: getTemplateDefaults('student-org'),
 
   // UI guidance
   ui: {

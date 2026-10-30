@@ -26,10 +26,9 @@ export const POWER_BUNDLES = {
     id: 'member',
     name: 'Member Powers',
     icon: 'users',
-    description: 'Join quickly, earn shares, access education, vote in polls',
+    description: 'Earn shares, access education, vote in polls',
     color: 'blue',
     permissions: [
-      'quickJoinRoles',
       'tokenMemberRoles',
       'educationMemberRoles',
       'ddVotingRoles',

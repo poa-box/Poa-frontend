@@ -310,9 +310,7 @@ export function VotingClassForm({
               <FormLabel>Minimum Share Balance Required</FormLabel>
               <NumberInput
                 value={formData.minBalance || 0}
-                onChange={(_, val) => {
-                  if (!isNaN(val)) updateField('minBalance', val);
-                }}
+                onChange={(value) => updateField('minBalance', value)}
                 min={0}
               >
                 <NumberInputField />

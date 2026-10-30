@@ -1,5 +1,5 @@
 import { useAccount, useSwitchChain } from '@/context/WalletContext';
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   Box,
   Button,
@@ -26,20 +26,28 @@ import { educationDialogStyle } from '@/components/eduHub/educationStyles';
 import { useAuth } from '@/context/authState';
 import { useWeb3 } from '@/hooks/useWeb3Services';
 import { getNetworkByChainId } from '@/config/networks';
+import { assertTaskHostScope, taskHostScopeKey } from '@/lib/tasks/hostScope';
+import { moduleRewardLabel } from '@/lib/tasks/educationForm';
 
 const QuizModal = ({ module, isCompleted = false }) => {
   const { isOpen, onOpen, onClose } = useDisclosure();
   const [selectedAnswerIndex, setSelectedAnswerIndex] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const { educationHubAddress, orgChainId, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
+  const { educationHubAddress, orgId, subgraphUrl, orgChainId, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
   const { education, executeWithNotification } = useWeb3();
-  const { isPasskeyUser } = useAuth();
+  const { isPasskeyUser, accountAddress, isAuthHydrated } = useAuth();
+  const scope = { contract: educationHubAddress, orgId, endpoint: subgraphUrl, chainId: orgChainId,
+    account: accountAddress, hydrated: isAuthHydrated, projectId: module.id };
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
   const { chain: connectedChain } = useAccount();
   const { switchChainAsync } = useSwitchChain();
   const toast = useToast();
 
   const handleSubmit = useCallback(async () => {
-    if (selectedAnswerIndex === '' || !education) return;
+    if (selectedAnswerIndex === '' || !education || !isAuthHydrated || !accountAddress) return;
+    const captured = { ...scopeRef.current };
+    const assertCurrent = () => assertTaskHostScope(scopeRef.current, captured);
     setIsSubmitting(true);
 
     // Ensure EOA wallet is on the org's chain before transacting
@@ -69,11 +77,13 @@ const QuizModal = ({ module, isCompleted = false }) => {
       () => education.completeModule(
         educationHubAddress,
         module.id,
-        [parseInt(selectedAnswerIndex)]
+        [parseInt(selectedAnswerIndex)],
+        { assertCurrent }
       ),
       {
         pendingMessage: 'Submitting quiz answer...',
         successMessage: 'Quiz completed successfully!',
+        errorMessage: 'Please choose an answer and try again.',
         refreshEvent: 'module:completed',
       }
     );
@@ -93,8 +103,8 @@ const QuizModal = ({ module, isCompleted = false }) => {
     }
 
     setIsSubmitting(false);
-    onClose();
-  }, [selectedAnswerIndex, education, executeWithNotification, educationHubAddress, module.id, toast, onClose, isPasskeyUser, orgChainId, connectedChain, switchChainAsync]);
+    if (taskHostScopeKey(scopeRef.current) === taskHostScopeKey(captured)) onClose();
+  }, [selectedAnswerIndex, education, executeWithNotification, educationHubAddress, module.id, toast, onClose, isPasskeyUser, orgChainId, connectedChain, switchChainAsync, isAuthHydrated, accountAddress]);
 
   return (
     <>
@@ -161,7 +171,7 @@ const QuizModal = ({ module, isCompleted = false }) => {
             >
               <Text fontSize="sm" color="gray.300">Completion reward</Text>
               <Text fontSize="sm" color="purple.200" fontWeight="600">
-                {module.payout} {tokenLabel}
+                {moduleRewardLabel(module)} {tokenLabel}
               </Text>
             </Flex>
             <Box as="fieldset" minW={0} border="0" p={0} m={0}>

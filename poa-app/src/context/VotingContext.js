@@ -13,6 +13,8 @@ import { useRefreshSubscription, useRefreshEmit, RefreshEvent } from './RefreshC
 import { useSubgraphClient } from '../util/apolloClient';
 import { useUserActive } from '../hooks/useUserActive';
 import { useAuth } from '@/context/authState';
+import { selectClassSnapshot } from '@poa-box/core/graph/documents/voting-classes';
+import { proposalTallyView } from '@/lib/voting/hostProjection';
 import {
     createVotingStateReducer,
     selectVotingState,
@@ -75,67 +77,6 @@ export function findUserVote(proposal, address) {
     };
 }
 
-/**
- * Compute per-option scores for a Hybrid proposal using the same N-class
- * slice math the on-chain contract (VotingMath.pickWinnerNSlices) uses:
- *
- *   score[opt] = Σ_c [ optRaw[opt][c] × slice[c] / classTotal[c] ]
- *
- * Each class normalizes option shares independently, then contributes its
- * slice percentage weight. With full weight votes and every class having at
- * least one voter, scores sum to 100. Percentages are derived from these
- * scores (not from flat-summed raw powers, which lets token-balance classes
- * drown out direct-voter classes).
- *
- * @param {Array} votes - Array of Vote entities from the subgraph
- * @param {number} numOptions - Number of options in the proposal
- * @param {number[]} slices - Slice percentages per class (sums to 100)
- * @returns {{scores: number[], voterCounts: number[], distinctVoters: number}}
- */
-function computeHybridOptionScores(votes, numOptions, slices) {
-    const numClasses = slices.length;
-    const classTotalRaw = new Array(numClasses).fill(0n);
-    const optionClassRaw = Array.from({ length: numOptions }, () => new Array(numClasses).fill(0n));
-    const voterCounts = new Array(numOptions).fill(0);
-
-    for (const vote of votes) {
-        const rawPowers = (vote.classRawPowers || []).map(p => BigInt(p || 0));
-        while (rawPowers.length < numClasses) rawPowers.push(0n);
-
-        for (let c = 0; c < numClasses; c++) {
-            classTotalRaw[c] += rawPowers[c];
-        }
-
-        const idxs = vote.optionIndexes || [];
-        const weights = vote.optionWeights || [];
-        for (let i = 0; i < idxs.length; i++) {
-            const optIdx = idxs[i];
-            if (optIdx < 0 || optIdx >= numOptions) continue;
-            const weight = BigInt(weights[i] ?? 100);
-            for (let c = 0; c < numClasses; c++) {
-                optionClassRaw[optIdx][c] += (rawPowers[c] * weight) / 100n;
-            }
-            voterCounts[optIdx] += 1;
-        }
-    }
-
-    const scores = new Array(numOptions).fill(0);
-    for (let opt = 0; opt < numOptions; opt++) {
-        let score = 0;
-        for (let c = 0; c < numClasses; c++) {
-            if (classTotalRaw[c] > 0n) {
-                // Use basis-point precision (×10000) in BigInt math, then convert.
-                // Max contribution per class ≤ slice[c] × 10000 = 1,000,000 — safe in Number.
-                const scoreBp = (optionClassRaw[opt][c] * BigInt(slices[c]) * 10000n) / classTotalRaw[c];
-                score += Number(scoreBp) / 10000;
-            }
-        }
-        scores[opt] = score;
-    }
-
-    return { scores, voterCounts, distinctVoters: votes.length };
-}
-
 function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quorum = 0, votingClasses = [], viewerAddress = null) {
     const currentTime = Math.floor(Date.now() / 1000);
     const endTime = parseInt(proposal.endTimestamp) || 0;
@@ -151,90 +92,17 @@ function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quoru
     const optionNames = metadata.optionNames || [];
     const numOptions = proposal.numOptions || 2;
 
-    const options = [];
-    let totalVotes = 0;
-
-    if (type === 'Hybrid') {
-        // Replicate the on-chain winner math. If we don't have voting classes yet
-        // (subgraph lag or no classes defined), fall back to voter-count only —
-        // percentages may be briefly off until classes load.
-        const slices = votingClasses.map(c => Number(c.slicePct));
-        const votes = proposal.votes || [];
-
-        if (slices.length > 0 && slices.some(s => s > 0)) {
-            const { scores, voterCounts, distinctVoters } = computeHybridOptionScores(
-                votes, numOptions, slices
-            );
-            const scoreSum = scores.reduce((a, b) => a + b, 0);
-            totalVotes = distinctVoters;
-
-            for (let i = 0; i < numOptions; i++) {
-                // Normalize so bars visually sum to 100% even when some classes
-                // have zero voters (contract's raw score can be < 100 in that case).
-                const percentage = scoreSum > 0 ? (scores[i] / scoreSum) * 100 : 0;
-                options.push({
-                    id: `${proposal.id}-option-${i}`,
-                    name: optionNames[i] || `Option ${i + 1}`,
-                    votes: voterCounts[i],
-                    displayVotes: String(voterCounts[i]),
-                    percentage,
-                    currentPercentage: Math.round(percentage),
-                    rawScore: scores[i], // 0-100 scale (contract units) before normalization
-                });
-            }
-        } else {
-            // Fallback: count voters per option with no class weighting
-            const voterCounts = new Array(numOptions).fill(0);
-            for (const vote of votes) {
-                (vote.optionIndexes || []).forEach(optIdx => {
-                    if (optIdx >= 0 && optIdx < numOptions) voterCounts[optIdx] += 1;
-                });
-            }
-            const total = voterCounts.reduce((a, b) => a + b, 0);
-            totalVotes = votes.length;
-            for (let i = 0; i < numOptions; i++) {
-                const percentage = total > 0 ? (voterCounts[i] / total) * 100 : 0;
-                options.push({
-                    id: `${proposal.id}-option-${i}`,
-                    name: optionNames[i] || `Option ${i + 1}`,
-                    votes: voterCounts[i],
-                    displayVotes: String(voterCounts[i]),
-                    percentage,
-                    currentPercentage: Math.round(percentage),
-                });
-            }
-        }
-    } else {
-        // Direct Democracy: 1-person-1-vote with weight distribution
-        const optionWeightSum = new Array(numOptions).fill(0);
-        const voterCounts = new Array(numOptions).fill(0);
-        for (const vote of proposal.votes || []) {
-            (vote.optionIndexes || []).forEach((optIdx, i) => {
-                if (optIdx < 0 || optIdx >= numOptions) return;
-                const weight = vote.optionWeights?.[i] ?? 100;
-                optionWeightSum[optIdx] += weight;
-                voterCounts[optIdx] += 1;
-            });
-            totalVotes += 100;
-        }
-        const totalWeight = optionWeightSum.reduce((a, b) => a + b, 0);
-        for (let i = 0; i < numOptions; i++) {
-            const percentage = totalWeight > 0 ? (optionWeightSum[i] / totalWeight) * 100 : 0;
-            options.push({
-                id: `${proposal.id}-option-${i}`,
-                name: optionNames[i] || `Option ${i + 1}`,
-                votes: voterCounts[i],
-                displayVotes: String(voterCounts[i]),
-                percentage,
-                currentPercentage: Math.round(percentage),
-            });
-        }
-    }
-
-    // Parse winningOption as number (comes as BigInt string from subgraph)
-    const winningOptionNum = proposal.winningOption !== null && proposal.winningOption !== undefined
-        ? parseInt(proposal.winningOption, 10)
-        : null;
+    const tally = proposalTallyView(proposal, type, votingClasses, thresholdPct, quorum);
+    const scoreSum = tally.scores.reduce((sum, value) => sum + value, 0);
+    const totalVotes = tally.totalVotes;
+    const options = Array.from({ length: numOptions }, (_, index) => {
+        const percentage = scoreSum > 0 ? tally.scores[index] / scoreSum * 100 : 0;
+        return { id: `${proposal.id}-option-${index}`, name: optionNames[index] || `Option ${index + 1}`,
+            votes: tally.voterCounts[index], displayVotes: String(tally.voterCounts[index]),
+            percentage: tally.known ? percentage : null, currentPercentage: tally.known ? Math.round(percentage) : null,
+            rawScore: tally.known ? tally.scores[index] : null, approximate: !tally.complete, tallyUnavailable: !tally.known };
+    });
+    const winningOptionNum = tally.results?.announcedWinningOption ?? null;
 
     // Per-viewer vote state (merged votes array includes any optimistic vote).
     // Additive fields only — existing output shape is unchanged.
@@ -269,6 +137,9 @@ function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quoru
         isExpired,
         options,
         totalVotes,
+        tallyKnown: tally.known,
+        tallyComplete: tally.complete,
+        results: tally.results,
         votes: proposal.votes || [],
         votingTypeId,
         type,
@@ -280,7 +151,7 @@ function transformProposal(proposal, votingTypeId, type, thresholdPct = 0, quoru
         // THIS version's classes, not the current ones. null only when the
         // entity value itself is missing (consumers then fall back to current
         // classes); both prod endpoints serve the field (verified 2026-08-02).
-        classesVersion: proposal.classesVersion != null ? Number(proposal.classesVersion) : null,
+        classesVersion: proposal.classesVersion != null ? String(proposal.classesVersion) : null,
         // Passthroughs for subgraph fields that ship later (undefined until the
         // query fetches them — ProposalCard's proposer slot self-enables).
         proposerUsername: proposal.proposerUsername ?? proposal.creatorUsername ?? null,
@@ -326,7 +197,12 @@ export const VotingProvider = ({ children }) => {
         poContextLoading,
         error: orgError,
     } = usePOContext();
+    const { accountAddress, isAuthHydrated, isAuthenticated } = useAuth();
+    const viewerAddress = isAuthHydrated && isAuthenticated ? accountAddress : null;
     const scope = useMemo(() => ({ orgId, subgraphUrl }), [orgId, subgraphUrl]);
+    const identityScope = useMemo(() => ({ scope, account: viewerAddress }), [scope, viewerAddress]);
+    const identityScopeRef = useRef(identityScope);
+    identityScopeRef.current = identityScope;
     const scopeRef = useRef(scope);
     scopeRef.current = scope;
     const scopeMatches = storedState.scope === scope;
@@ -335,8 +211,15 @@ export const VotingProvider = ({ children }) => {
     // fail), so POContext's loading flag cannot protect this derived state.
     const state = selectVotingState(storedState, scope, initialVotingState);
     const client = useSubgraphClient(subgraphUrl);
+    const [powerEvidence, setPowerEvidence] = useState({ scope: null, byId: {} });
+    const registerProposalPowerEvidence = useCallback((id, evidence) => {
+        if (identityScopeRef.current !== identityScope) return;
+        setPowerEvidence(previous => ({ scope: identityScope, byId: {
+            ...(previous.scope === identityScope ? previous.byId : {}), [id]: evidence,
+        } }));
+    }, [identityScope]);
+
     const isActive = useUserActive();
-    const { accountAddress } = useAuth();
 
     // Remote-finalization detector state: last seen ongoing proposal ids per
     // org, plus a ref-stable emit so the data effect can re-broadcast
@@ -498,7 +381,7 @@ export const VotingProvider = ({ children }) => {
             // Transient (gateway hiccup): allow a later attempt rather than
             // telling the user their link is dead.
             rescueAttemptedRef.current.delete(pollId);
-            console.warn('[VotingContext] proposal rescue failed:', e?.message);
+            console.warn('[VotingContext] proposal rescue unavailable');
             return 'error';
         }
     }, [client, proposerSupported, scope]);
@@ -768,13 +651,9 @@ export const VotingProvider = ({ children }) => {
                 // Process voting classes first — transformProposal needs them for
                 // the per-class-weighted percentage math (matches contract logic).
                 // Filter to latest version only (subgraph bug: old versions stay isActive).
-                // Each proposal is transformed against its OWN classesVersion snapshot
-                // (what vote()/winner math enforce on-chain), falling back to the
-                // current classes when the version isn't resolvable.
+                // Exact mounted proposal evidence takes priority. Unrestricted feed rows
+                // use version-scoped class previews; missing or ambiguous rows stay unknown.
                 const rawClasses = org.hybridVoting.votingClasses || [];
-                const maxVersion = rawClasses.reduce(
-                    (max, c) => Math.max(max, Number(c.version || 0)), 0
-                );
                 const normalizeClass = (c) => ({
                     classIndex: Number(c.classIndex),
                     strategy: c.strategy,
@@ -784,8 +663,7 @@ export const VotingProvider = ({ children }) => {
                     asset: c.asset,
                     hatIds: (c.hatIds || []).map(h => h.toString()),
                 });
-                const activeClasses = rawClasses
-                    .filter(c => Number(c.version || 0) === maxVersion)
+                const activeClasses = selectClassSnapshot(rawClasses, null)
                     .map(normalizeClass)
                     .sort((a, b) => a.classIndex - b.classIndex);
                 update.votingClasses = activeClasses;
@@ -795,24 +673,25 @@ export const VotingProvider = ({ children }) => {
                 // vote() enforces the SNAPSHOT, so eligibility for an older
                 // proposal must consult its own version, not the current one.
                 const byVersion = {};
-                rawClasses.forEach((c) => {
-                    const v = Number(c.version || 0);
-                    (byVersion[v] = byVersion[v] || []).push(normalizeClass(c));
-                });
-                Object.values(byVersion).forEach((arr) => arr.sort((a, b) => a.classIndex - b.classIndex));
+                for (const version of new Set(rawClasses.map(cls => String(cls.version)))) {
+                    byVersion[version] = selectClassSnapshot(rawClasses, version).map(normalizeClass);
+                }
                 update.votingClassesByVersion = byVersion;
 
-                hybridProposals = withRescued(org.hybridVoting.proposals, 'Hybrid').map(p =>
-                    transformProposal(
+                hybridProposals = withRescued(org.hybridVoting.proposals, 'Hybrid').map(p => {
+                    const frozen = powerEvidence.scope === identityScope ? powerEvidence.byId[p.id]?.proposal : null;
+                    const classes = frozen?.data.classes || (p.isHatRestricted ? []
+                        : (p.classesVersion != null && byVersion[String(p.classesVersion)]) || []);
+                    return transformProposal(
                         mergeOptimistic(p),
                         org.hybridVoting.id,
                         'Hybrid',
                         hybridThreshold,
                         hybridQuorum,
-                        (p.classesVersion != null && byVersion[Number(p.classesVersion)]) || activeClasses,
-                        accountAddress
-                    )
-                );
+                        classes,
+                        viewerAddress
+                    );
+                });
                 update.hybridVotingOngoing = hybridProposals.filter(p => p.isOngoing);
                 const hybridCompleted = hybridProposals.filter(p => !p.isOngoing);
                 hybridCompleted.sort((a, b) => parseInt(b.endTimestamp) - parseInt(a.endTimestamp));
@@ -833,7 +712,7 @@ export const VotingProvider = ({ children }) => {
                 update.ddThresholdPct = ddThreshold;
                 update.ddQuorum = ddQuorum;
                 ddProposals = withRescued(org.directDemocracyVoting.ddvProposals, 'Direct Democracy').map(p =>
-                    transformProposal(mergeOptimistic(p), org.directDemocracyVoting.id, 'Direct Democracy', ddThreshold, ddQuorum, [], accountAddress)
+                    transformProposal(mergeOptimistic(p), org.directDemocracyVoting.id, 'Direct Democracy', ddThreshold, ddQuorum, [], viewerAddress)
                 );
                 update.democracyVotingOngoing = ddProposals.filter(p => p.isOngoing);
                 const ddCompleted = ddProposals.filter(p => !p.isOngoing);
@@ -881,7 +760,7 @@ export const VotingProvider = ({ children }) => {
         // `extraProposals` is a dependency: an on-demand fetch lands AFTER this
         // effect last ran, and without it the fetched proposals would sit in
         // state and never reach the arrays.
-    }, [data, optimisticVotes, accountAddress, extraProposals, withRescued, scope, scopeMatches]);
+    }, [data, optimisticVotes, viewerAddress, extraProposals, withRescued, scope, scopeMatches, powerEvidence, identityScope]);
 
     // Stable refetch passthrough so a retry banner can re-run the query.
     const refetchVoting = useCallback(() => refetchRef.current?.(), []);
@@ -921,6 +800,8 @@ export const VotingProvider = ({ children }) => {
         votingClasses: state.votingClasses,
         votingClassesByVersion: state.votingClassesByVersion,
         ddVotingHats,
+        proposalPowerEvidenceById: powerEvidence.scope === identityScope ? powerEvidence.byId : EMPTY_PROPOSAL_ENTRIES,
+        registerProposalPowerEvidence,
         hybridThresholdPct: state.hybridThresholdPct,
         hybridQuorum: state.hybridQuorum,
         ddThresholdPct: state.ddThresholdPct,
@@ -928,7 +809,7 @@ export const VotingProvider = ({ children }) => {
     }), [
         state, loading, error, refetchVoting, resolveMissingPoll,
         loadMoreProposals, loadingMore, hasMoreProposals, scopeMatches,
-        addOptimisticVote, removeOptimisticVote, ddVotingHats,
+        addOptimisticVote, removeOptimisticVote, ddVotingHats, powerEvidence, identityScope, registerProposalPowerEvidence,
     ]);
 
     return (

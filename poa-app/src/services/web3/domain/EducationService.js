@@ -1,126 +1,77 @@
-/**
- * EducationService
- * Handles Education Hub operations for learning modules
- */
-
+/** Learning intents retain the existing host storage, notifications and transaction transport. */
 import { ethers } from 'ethers';
-import EducationHubABI from '../../../../abi/EducationHubNew.json';
-import { stringToBytes, ipfsCidToBytes32, parseModuleId } from '../utils/encoding';
-import {
-  requireAddress,
-  requireString,
-  requireNonNegativeNumber,
-} from '../utils/validation';
+import { requireRawUint } from '@poa-box/core/amounts';
+import { parseModuleId } from '@poa-box/core/encoding';
+import { metadataPointerToBytes32 } from '@poa-box/core/encoding/cid';
+import { buildCreateModule, buildCompleteModule, buildUpdateModule } from '@poa-box/core/tx/education';
+import { buildEducationModuleMetadata, serializeEducationModuleMetadata } from '@poa-box/core/metadata/education';
+import { executeCoreIntent } from '@/services/web3/core/coreIntent';
+import { requireAddress, requireString } from '@/services/web3/utils/validation';
+import { moduleRewardRaw } from '@/lib/tasks/educationForm';
 
-/**
- * EducationService - Learning module management
- */
+function scopedModuleId(address, id) {
+  if (typeof id === 'number' && !Number.isSafeInteger(id)) {
+    throw new Error('Module ID must be an exact integer string');
+  }
+  const raw = String(id);
+  if (raw.includes('-') && (raw.split('-').length !== 2 || raw.split('-')[0].toLowerCase() !== address.toLowerCase())) {
+    throw new Error('Module ID belongs to a different EducationHub');
+  }
+  return requireRawUint(parseModuleId(raw));
+}
+
 export class EducationService {
-  /**
-   * @param {ContractFactory} contractFactory - Contract factory instance
-   * @param {TransactionManager} transactionManager - Transaction manager instance
-   * @param {Object} ipfsService - IPFS service for content storage
-   */
   constructor(contractFactory, transactionManager, ipfsService = null) {
     this.factory = contractFactory;
     this.txManager = transactionManager;
     this.ipfs = ipfsService;
   }
 
-  /**
-   * Create an education module
-   * @param {string} contractAddress - EducationHub contract address
-   * @param {Object} moduleData - Module data
-   * @param {string} moduleData.name - Module name
-   * @param {string} moduleData.description - Module description
-   * @param {string} [moduleData.link] - External learning link
-   * @param {string[]} moduleData.quiz - Quiz questions
-   * @param {string[][]} moduleData.answers - Possible answers for each question
-   * @param {number[]} moduleData.correctAnswers - Correct answer indices
-   * @param {number} moduleData.payout - Completion payout (human-readable, e.g. 5 = 5 tokens)
-   * @param {Object} [options={}] - Transaction options
-   * @returns {Promise<TransactionResult>}
-   */
   async createModule(contractAddress, moduleData, options = {}) {
+    options.assertCurrent?.();
     requireAddress(contractAddress, 'EducationHub contract address');
     requireString(moduleData.name, 'Module name');
-    requireNonNegativeNumber(moduleData.payout, 'Payout');
-
-    const {
-      name,
-      description = '',
-      link = '',
-      quiz = [],
-      answers = [],
-      correctAnswers = [],
-      payout,
-    } = moduleData;
-
-    // Upload module content to IPFS if service available
+    moduleRewardRaw(moduleData.payout);
+    const input = { educationHubAddress: contractAddress, name: moduleData.name,
+      contentHash: ethers.constants.HashZero, payout: moduleData.payout,
+      correctAnswer: Number(moduleData.correctAnswers?.[0]),
+    };
+    buildCreateModule(input); // Validate before storage I/O.
     let contentHash = ethers.constants.HashZero;
     if (this.ipfs) {
-      const ipfsData = {
-        name,
-        description,
-        link,
-        quiz,
-        answers,
-      };
-      const ipfsResult = await this.ipfs.addToIpfs(JSON.stringify(ipfsData));
-      contentHash = ipfsCidToBytes32(ipfsResult.path);
+      const metadata = buildEducationModuleMetadata(moduleData);
+      const result = await this.ipfs.addToIpfs(serializeEducationModuleMetadata(metadata));
+      contentHash = metadataPointerToBytes32(result.path);
     }
-
-    const contract = this.factory.createWritable(contractAddress, EducationHubABI);
-
-    const titleBytes = stringToBytes(name);
-
-    // Convert payout to wei (18 decimals for participation token)
-    const payoutWei = ethers.utils.parseUnits(payout.toString(), 18);
-
-    // Contract expects: createModule(bytes title, bytes32 contentHash, uint256 payout, uint8 correctAnswer)
-    const correctAnswer = Number(correctAnswers[0]);
-
-    return this.txManager.execute(
-      contract,
-      'createModule',
-      [titleBytes, contentHash, payoutWei, correctAnswer],
-      options
-    );
+    options.assertCurrent?.();
+    return executeCoreIntent(this.factory, this.txManager, buildCreateModule({ ...input, contentHash }), options);
   }
 
-  /**
-   * Complete a module (submit quiz answer)
-   * @param {string} contractAddress - EducationHub contract address
-   * @param {string|number} moduleId - Module ID
-   * @param {number[]} answers - User's answer indices (first element used)
-   * @param {Object} [options={}] - Transaction options
-   * @returns {Promise<TransactionResult>}
-   */
   async completeModule(contractAddress, moduleId, answers, options = {}) {
+    options.assertCurrent?.();
     requireAddress(contractAddress, 'EducationHub contract address');
+    return executeCoreIntent(this.factory, this.txManager, buildCompleteModule({
+      educationHubAddress: contractAddress, moduleId: scopedModuleId(contractAddress, moduleId),
+      answer: Number(answers?.[0]),
+    }), options);
+  }
 
-    const contract = this.factory.createWritable(contractAddress, EducationHubABI);
-    const parsedModuleId = parseModuleId(moduleId);
-
-    // Contract expects: completeModule(uint256 id, uint8 answer) — single uint8, not an array
-    const answer = Number(answers[0]);
-
-    return this.txManager.execute(
-      contract,
-      'completeModule',
-      [parsedModuleId, answer],
-      options
-    );
+  /** Prepared full replacement: payoutWei is raw, contentHash is the verified current/new pointer.
+   * Answer identity remains immutable. Read/merge orchestration belongs to the library host.
+   */
+  async updateModule(contractAddress, moduleId, moduleData, options = {}) {
+    requireAddress(contractAddress, 'EducationHub contract address');
+    requireString(moduleData.name, 'Module name');
+    const payout = ethers.BigNumber.isBigNumber(moduleData.payoutWei)
+      ? moduleData.payoutWei.toString() : moduleData.payoutWei;
+    return executeCoreIntent(this.factory, this.txManager, buildUpdateModule({
+      educationHubAddress: contractAddress, moduleId: scopedModuleId(contractAddress, moduleId),
+      name: moduleData.name, contentHash: metadataPointerToBytes32(moduleData.contentHash),
+      payoutWei: requireRawUint(payout),
+    }), options);
   }
 }
 
-/**
- * Create an EducationService instance
- * @param {ContractFactory} factory - Contract factory
- * @param {TransactionManager} txManager - Transaction manager
- * @param {Object} [ipfsService] - IPFS service
- * @returns {EducationService}
- */
 export function createEducationService(factory, txManager, ipfsService = null) {
   return new EducationService(factory, txManager, ipfsService);
 }

@@ -38,7 +38,7 @@ export default function Where() {
               {counts.members > 0 ? (
                 <>
                   {' and '}
-                  <span className="pa-where-count-num">{counts.members}</span> member
+                  <span className="pa-where-count-num">{counts.members}</span> membership
                   {counts.members === 1 ? '' : 's'}
                 </>
               ) : (

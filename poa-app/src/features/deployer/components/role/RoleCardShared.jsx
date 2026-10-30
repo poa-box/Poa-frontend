@@ -11,7 +11,6 @@ import {
   IconButton,
   Icon,
   Tooltip,
-  Select,
 } from '@chakra-ui/react';
 import {
   PiUser,
@@ -19,9 +18,6 @@ import {
   PiShieldCheck,
   PiUsers,
   PiPencilSimple,
-  PiArrowBendUpLeft,
-  PiCrown,
-  PiInfo,
 } from 'react-icons/pi';
 import { roleHasBundle } from '../../utils/powerBundles';
 
@@ -88,105 +84,6 @@ function AssignToMeToggle({ isChecked, onChange, roleName }) {
   );
 }
 
-function getDescendantRoleIndices(roles, roleIndex, visited = new Set()) {
-  if (visited.has(roleIndex)) return visited;
-  visited.add(roleIndex);
-
-  roles.forEach((role, index) => {
-    if (role.hierarchy?.adminRoleIndex === roleIndex) {
-      getDescendantRoleIndices(roles, index, visited);
-    }
-  });
-
-  return visited;
-}
-
-function HierarchySelector({ role, roleIndex, roles, onChange }) {
-  const currentParent = role.hierarchy?.adminRoleIndex;
-  const isTopLevel = currentParent === null || currentParent === undefined;
-  const invalidParents = getDescendantRoleIndices(roles, roleIndex);
-  const validParents = roles
-    .map((candidate, index) => ({ role: candidate, index }))
-    .filter(({ index }) => !invalidParents.has(index));
-  const parentRole = currentParent !== null && currentParent !== undefined
-    ? roles[currentParent]
-    : null;
-
-  const handleChange = (event) => {
-    const value = event.target.value;
-    onChange({
-      ...role,
-      hierarchy: {
-        ...role.hierarchy,
-        adminRoleIndex: value === '' ? null : parseInt(value),
-      },
-    });
-  };
-
-  const hierarchyTooltip = 'Defines the org structure. Parent roles can create sub-roles — but joining happens through Open (anyone) or Vouching (peer approval), not hierarchy.';
-
-  return (
-    <Box>
-      <HStack spacing={1} mb={2}>
-        <Text fontSize="xs" color="warmGray.500" fontWeight="600">
-          Reports to
-        </Text>
-        <Tooltip
-          label={hierarchyTooltip}
-          hasArrow
-          placement="top"
-          maxW="320px"
-          fontSize="xs"
-          bg="warmGray.800"
-          color="white"
-          p={3}
-          borderRadius="md"
-        >
-          <Box as="span" cursor="help">
-            <Icon as={PiInfo} boxSize={3.5} color="warmGray.400" />
-          </Box>
-        </Tooltip>
-      </HStack>
-      <HStack spacing={2}>
-        <Icon
-          as={isTopLevel ? PiCrown : PiArrowBendUpLeft}
-          boxSize={4}
-          color={isTopLevel ? 'amethyst.500' : 'warmGray.400'}
-        />
-        <Select
-          value={currentParent ?? ''}
-          onChange={handleChange}
-          size="sm"
-          flex={1}
-          bg={isTopLevel ? 'amethyst.50' : 'warmGray.50'}
-          borderColor={isTopLevel ? 'amethyst.200' : 'warmGray.200'}
-          _focus={{
-            borderColor: 'amethyst.400',
-            boxShadow: '0 0 0 1px var(--chakra-colors-amethyst-400)',
-          }}
-        >
-          <option value="">No one — top of the structure</option>
-          {validParents.map(({ role: candidate, index }) => (
-            <option key={candidate.id || index} value={index}>
-              {candidate.name}
-            </option>
-          ))}
-        </Select>
-      </HStack>
-      {isTopLevel && (
-        <Text fontSize="xs" color="amethyst.600" mt={1.5} ml={6}>
-          Root of the org structure — can create and configure roles below
-        </Text>
-      )}
-      {parentRole && (
-        <Text fontSize="xs" color="warmGray.500" mt={1.5} ml={6}>
-          Part of the structure under {parentRole.name}
-        </Text>
-      )}
-    </Box>
-  );
-}
-
 function PowerBadges({ roleIndex, permissions, onToggle }) {
   return (
     <Box>
@@ -249,7 +146,6 @@ export function RoleCardFields({
   joinMethod,
   children,
 }) {
-  const isTopLevel = role.hierarchy?.adminRoleIndex === null;
 
   const handleNameChange = (event) => {
     onUpdate(roleIndex, { ...role, name: event.target.value });
@@ -274,9 +170,9 @@ export function RoleCardFields({
       <HStack justify="space-between" align="start">
         <HStack spacing={2} flex={1}>
           <Icon
-            as={isTopLevel ? PiCrown : PiUser}
+            as={PiUser}
             boxSize={5}
-            color={isTopLevel ? 'amethyst.500' : 'warmGray.400'}
+            color="amethyst.500"
           />
           <Input
             value={role.name}
@@ -329,12 +225,9 @@ export function RoleCardFields({
         </HStack>
       </Box>
 
-      <HierarchySelector
-        role={role}
-        roleIndex={roleIndex}
-        roles={roles}
-        onChange={(updatedRole) => onUpdate(roleIndex, updatedRole)}
-      />
+      <Text fontSize="xs" color="warmGray.500">
+        Roles are flat. Membership grants and removals are decided through governance.
+      </Text>
 
       <AssignToMeToggle
         isChecked={role.distribution?.mintToDeployer || false}

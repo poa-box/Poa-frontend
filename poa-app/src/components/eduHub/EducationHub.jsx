@@ -18,6 +18,7 @@ import { useEducationCreateGate } from '@/hooks/useEducationCreateGate';
 import { useTour } from '@/features/tour';
 import CreateModuleModal from '@/components/eduHub/CreateModuleModal';
 import QuizModal from '@/components/eduHub/QuizModal';
+import { moduleRewardLabel } from '@/lib/tasks/educationForm';
 
 const eyebrow = {
   fontSize: 'xs',
@@ -50,7 +51,7 @@ function ModuleCard({ module, number, isCompleted, tokenLabel }) {
         <Flex align="baseline" justify="space-between" gap={3} pb={4} mb={4} borderBottom="1px solid" borderColor="whiteAlpha.200">
           <Text fontSize="xs" color="whiteAlpha.700">Module reward</Text>
           <Text fontSize="lg" fontWeight="medium" textAlign="right" overflowWrap="anywhere">
-            {module.payout}{' '}
+            {moduleRewardLabel(module)}{' '}
             <Text as="span" fontSize="xs" color="whiteAlpha.800" fontWeight="normal">{tokenLabel}</Text>
           </Text>
         </Flex>
@@ -71,7 +72,9 @@ function ModuleCard({ module, number, isCompleted, tokenLabel }) {
             >
               {isCompleted ? 'Read again' : 'Start reading'}
             </Button>
-            <QuizModal module={module} isCompleted={isCompleted} />
+            {module.contentUnavailable || module.contentLoading ? (
+              <Button size="sm" variant="outline" isDisabled>{module.contentUnavailable ? 'Quiz unavailable' : 'Preparing quiz'}</Button>
+            ) : <QuizModal module={module} isCompleted={isCompleted} />}
           </Flex>
         )}
       </Box>
@@ -80,9 +83,13 @@ function ModuleCard({ module, number, isCompleted, tokenLabel }) {
 }
 
 export default function EducationHub() {
-  const { poContextLoading, orgStatus, educationModules, educationHubEnabled, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
-  const { completedModules, isAccountReady, userDataLoading } = useUserContext();
-  const accountPending = isAccountReady === false || userDataLoading;
+  const { poContextLoading, orgStatus, educationModules, educationModulesRead, educationHubEnabled, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
+  const { completedModules, completedModulesRead, isAccountReady, userDataLoading, address } = useUserContext();
+  const signedOut = address === null && isAccountReady !== false && !userDataLoading;
+  const libraryPending = educationModulesRead && !educationModulesRead.complete;
+  const accountPending = isAccountReady === false || userDataLoading || libraryPending || (completedModulesRead && !completedModulesRead.complete);
+  const readError = educationModulesRead?.error || completedModulesRead?.error;
+  const retrying = educationModulesRead?.loading || completedModulesRead?.loading;
   const { pageBackground, onBackground, onBackgroundMuted } = useOrgTheme();
   const { canCreateModule } = useEducationCreateGate();
   const { isOpen, onOpen, onClose } = useDisclosure();
@@ -141,8 +148,8 @@ export default function EducationHub() {
             <Box w={{ base: 'full', md: '260px' }} flexShrink={0} borderLeftWidth={{ base: 0, md: '1px' }} borderTopWidth={{ base: '1px', md: 0 }} borderColor="whiteAlpha.300" pl={{ md: 8 }} pt={{ base: 6, md: 0 }}>
               <Text {...eyebrow} color="whiteAlpha.700" mb={4}>Your progress</Text>
               <Flex align="baseline" gap={2}>
-                <Text fontSize="4xl" fontWeight="medium" lineHeight="1" letterSpacing="-0.04em" fontVariantNumeric="tabular-nums">{accountPending ? '—' : completedCount}</Text>
-                <Text fontSize="sm" color="whiteAlpha.800">{accountPending ? 'Progress pending' : `of ${totalCount} completed`}</Text>
+                <Text fontSize="4xl" fontWeight="medium" lineHeight="1" letterSpacing="-0.04em" sx={{ fontVariantNumeric: 'tabular-nums' }}>{accountPending ? '—' : completedCount}</Text>
+                <Text fontSize="sm" color="whiteAlpha.800">{signedOut ? 'Sign in to see progress' : accountPending ? 'Progress pending' : `of ${totalCount} completed`}</Text>
               </Flex>
               {!accountPending && <Progress
                 aria-label="Learning modules completed"
@@ -151,7 +158,7 @@ export default function EducationHub() {
                 sx={{ '& > div': { bg: 'purple.300' } }}
               />}
               <Text fontSize="xs" color="whiteAlpha.700" mt={3} lineHeight="1.6">
-                {accountPending ? 'Getting your learning progress ready…' : totalCount === 0 ? 'Your next chapter starts here.' : completedCount === totalCount ? 'You’re all caught up. Nicely done.' : 'A little more understanding with every module.'}
+                {signedOut ? 'Keep track of what you learn with your account.' : accountPending ? 'Getting your learning progress ready…' : totalCount === 0 ? 'Your next chapter starts here.' : completedCount === totalCount ? 'You’re all caught up. Nicely done.' : 'A little more understanding with every module.'}
               </Text>
             </Box>
           </Flex>
@@ -164,7 +171,18 @@ export default function EducationHub() {
               <Button leftIcon={<FiPlus />} onClick={onOpen} colorScheme="purple" size="sm" flexShrink={0} h="40px" px={{ base: 3, md: 4 }}>Add module</Button>
             )}
           </Flex>
-          {totalCount === 0 ? (
+          {(readError || educationModulesRead?.contentUnavailable) && (
+            <Flex role="status" align="center" justify="space-between" gap={4} mb={5}>
+              <Text color={onBackgroundMuted} fontSize="sm">{readError ? 'Some learning data is unavailable. Your progress will appear when loading finishes.' : 'Some learning material is unavailable. Please try again.'}</Text>
+              <Button size="sm" isLoading={retrying} isDisabled={retrying} loadingText="Trying again" onClick={() => {
+                void educationModulesRead?.refetch();
+                void completedModulesRead?.refetch();
+              }}>Try again</Button>
+            </Flex>
+          )}
+          {totalCount === 0 && libraryPending ? (
+            <Center py={12}><Text color={onBackgroundMuted}>{educationModulesRead.loading ? 'Loading the learning library…' : 'The learning library is unavailable. Please try again.'}</Text></Center>
+          ) : totalCount === 0 ? (
             <Box {...educationCardStyle} textAlign="center" px={6} py={{ base: 12, md: 16 }}>
               <Center w={12} h={12} mx="auto" mb={5} border="1px solid" borderColor="whiteAlpha.300" borderRadius="xl" color="purple.200"><Icon as={FiBookOpen} boxSize={5} /></Center>
               <Heading as="h3" fontSize="xl" fontWeight="medium" mb={3}>Room for something worth sharing</Heading>
@@ -180,7 +198,7 @@ export default function EducationHub() {
               <TabList gap={{ base: 1, md: 2 }} mb={5} aria-label="Filter learning modules" flexWrap="wrap">
                 {filters.map((filter) => (
                   <Tab key={filter.label} isDisabled={accountPending && filter.label !== 'All modules'} fontSize="sm" px={{ base: 3, md: 4 }} py={2} borderRadius="full" color={onBackgroundMuted} border="1px solid transparent" _selected={{ bg: 'rgba(0,0,0,0.82)', color: 'white', borderColor: 'whiteAlpha.300' }} _hover={{ textDecoration: 'underline', textUnderlineOffset: '4px' }}>
-                    {filter.label}<Text as="span" ml={2} fontSize="xs" opacity={0.8}>{accountPending && filter.label !== 'All modules' ? '—' : filter.items.length}</Text>
+                    {filter.label}<Text as="span" ml={2} fontSize="xs" opacity={0.8}>{libraryPending || (accountPending && filter.label !== 'All modules') ? '—' : filter.items.length}</Text>
                   </Tab>
                 ))}
               </TabList>

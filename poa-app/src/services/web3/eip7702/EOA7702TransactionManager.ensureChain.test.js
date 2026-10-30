@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { ethers } from 'ethers';
+import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 
 // Control the wallet-facing collaborators so we can assert WHICH walletClient the
 // 7702 authorization + UserOp signature are produced against. Everything else
@@ -11,8 +13,8 @@ vi.mock('./walletSigner', () => ({
   signUserOpWithWallet: vi.fn(async () => '0xsignature'),
 }));
 vi.mock('../passkey/userOpBuilder', () => ({
-  buildUserOpWithFallback: vi.fn(async () => ({ sender: '0xEOA' })), // no paymaster → single send
-  getUserOpHash: vi.fn(() => '0xuserophash'),
+  buildUserOpWithFallback: vi.fn(async () => ({ sender: '0xa6f4d9f44dd980b7168d829d5f74c2b00a46b2c9', nonce: 0n })), // no paymaster → single send
+  getUserOpHash: vi.fn(() => `0x${'1'.repeat(64)}`),
 }));
 
 import { createEOA7702TransactionManager } from './EOA7702TransactionManager';
@@ -33,10 +35,14 @@ function makeContract() {
 
 function makeBundler() {
   return {
-    sendUserOperation: vi.fn(async () => '0xsubmittedhash'),
+    sendUserOperation: vi.fn(async () => `0x${'1'.repeat(64)}`),
     waitForUserOperationReceipt: vi.fn(async () => ({
       success: true,
-      receipt: { transactionHash: '0xtx', blockNumber: 1 },
+      receipt: { transactionHash: `0x${'2'.repeat(64)}`, blockNumber: 1, status: 1,
+        logs: [{ address: ENTRY_POINT_ADDRESS, ...new ethers.utils.Interface([
+          'event UserOperationEvent(bytes32 indexed userOpHash, address indexed sender, address indexed paymaster, uint256 nonce, bool success, uint256 actualGasCost, uint256 actualGasUsed)',
+        ]).encodeEventLog('UserOperationEvent', [`0x${'1'.repeat(64)}`, EOA, ethers.constants.AddressZero, 0, true, 10, 20]) }],
+      },
     })),
   };
 }
@@ -79,7 +85,7 @@ describe('EOA7702TransactionManager — org-chain guard wiring', () => {
     // Authorization (whose chainId comes from the signing client's chain) and the
     // UserOp signature are produced with the REACQUIRED org-chain wallet...
     expect(buildEOAAuthorization).toHaveBeenCalledWith(orgWallet, '0xdelegation');
-    expect(signUserOpWithWallet).toHaveBeenCalledWith('0xuserophash', orgWallet);
+    expect(signUserOpWithWallet).toHaveBeenCalledWith(`0x${'1'.repeat(64)}`, orgWallet);
     // ...never the stale ambient wallet.
     expect(buildEOAAuthorization).not.toHaveBeenCalledWith(ambientWallet, expect.anything());
     expect(signUserOpWithWallet).not.toHaveBeenCalledWith(expect.anything(), ambientWallet);

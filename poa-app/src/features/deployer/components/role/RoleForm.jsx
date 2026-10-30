@@ -35,7 +35,7 @@ import {
 } from '@chakra-ui/react';
 import { InfoIcon, ChevronDownIcon, ChevronUpIcon, AddIcon, CloseIcon } from '@chakra-ui/icons';
 import { useDeployer } from '../../context/DeployerContext';
-import { wouldCreateCycle, getValidParentOptions } from '../../utils/hierarchyUtils';
+import NativeMembershipFields from '@/features/deployer/components/role/NativeMembershipFields';
 
 export function RoleForm({
   role,
@@ -49,21 +49,9 @@ export function RoleForm({
   const [errors, setErrors] = useState({});
 
   // Collapsible sections
-  const vouchingDisclosure = useDisclosure({ defaultIsOpen: role?.vouching?.enabled });
   const advancedDisclosure = useDisclosure();
 
-  // Get valid parent options (excludes self and descendants)
-  const validParents = getValidParentOptions(roleIndex, state.roles);
-  const parentOptions = validParents.map(idx => ({
-    value: idx,
-    label: state.roles[idx]?.name || `Role ${idx}`,
-  }));
 
-  // Get roles that can vouch (for vouching config)
-  const voucherRoleOptions = state.roles.map((r, idx) => ({
-    value: idx,
-    label: r.name || `Role ${idx}`,
-  }));
 
   // Update form field
   const updateField = (path, value) => {
@@ -86,7 +74,7 @@ export function RoleForm({
       // eligibility switch where it is; "closed, admin-granted only" is a valid
       // role and this control shouldn't silently reopen it.
       if (path === 'vouching.enabled' && value) {
-        newData.defaults = { ...newData.defaults, eligible: false };
+        newData.open = false;
       }
 
       return newData;
@@ -116,13 +104,6 @@ export function RoleForm({
       newErrors.name = 'Role name must be unique';
     }
 
-    // Check hierarchy for cycles
-    if (formData.hierarchy.adminRoleIndex !== null) {
-      if (wouldCreateCycle(roleIndex, formData.hierarchy.adminRoleIndex, state.roles)) {
-        newErrors['hierarchy.adminRoleIndex'] = 'This would create a circular dependency';
-      }
-    }
-
     // Validate vouching
     if (formData.vouching.enabled) {
       if (formData.vouching.quorum <= 0) {
@@ -134,8 +115,8 @@ export function RoleForm({
     }
 
     // Validate hat config
-    if (formData.hatConfig.maxSupply <= 0) {
-      newErrors['hatConfig.maxSupply'] = 'Max supply must be at least 1';
+    if (formData.maxMembers < 0) {
+      newErrors.maxMembers = 'Maximum members must be zero or greater';
     }
 
     setErrors(newErrors);
@@ -204,114 +185,7 @@ export function RoleForm({
 
         <Divider />
 
-        {/* Hierarchy */}
-        <Box>
-          <Heading size="sm" mb={3}>Hierarchy</Heading>
-
-          <FormControl isInvalid={!!errors['hierarchy.adminRoleIndex']}>
-            <FormLabel>Parent Role (Admin)</FormLabel>
-            <Select
-              value={formData.hierarchy.adminRoleIndex ?? ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                updateField('hierarchy.adminRoleIndex', val === '' ? null : parseInt(val, 10));
-              }}
-            >
-              <option value="">None (Top-Level Role)</option>
-              {parentOptions.map(opt => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </Select>
-            <FormHelperText>
-              The parent role can manage members of this role
-            </FormHelperText>
-            <FormErrorMessage>{errors['hierarchy.adminRoleIndex']}</FormErrorMessage>
-          </FormControl>
-        </Box>
-
-        <Divider />
-
-        {/* Vouching Section */}
-        <Box>
-          <HStack justify="space-between" mb={3} cursor="pointer" onClick={vouchingDisclosure.onToggle}>
-            <HStack>
-              <Heading size="sm">Vouching</Heading>
-              {formData.vouching.enabled && (
-                <Text fontSize="sm" color="orange.500">(Enabled)</Text>
-              )}
-            </HStack>
-            <Icon as={vouchingDisclosure.isOpen ? ChevronUpIcon : ChevronDownIcon} />
-          </HStack>
-
-          <Collapse in={vouchingDisclosure.isOpen}>
-            <VStack spacing={4} align="stretch" pl={4} borderLeft="2px solid" borderColor="warmGray.200">
-              <FormControl display="flex" alignItems="center">
-                <FormLabel mb={0}>Enable Vouching</FormLabel>
-                <Switch
-                  isChecked={formData.vouching.enabled}
-                  onChange={(e) => updateField('vouching.enabled', e.target.checked)}
-                  colorScheme="orange"
-                />
-              </FormControl>
-
-              {formData.vouching.enabled && (
-                <>
-                  <FormControl isInvalid={!!errors['vouching.voucherRoleIndex']}>
-                    <FormLabel>Voucher Role</FormLabel>
-                    <Select
-                      value={formData.vouching.voucherRoleIndex}
-                      onChange={(e) => updateField('vouching.voucherRoleIndex', parseInt(e.target.value, 10))}
-                    >
-                      {voucherRoleOptions.map(opt => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
-                    </Select>
-                    <FormHelperText>
-                      Members of this role can vouch for new members
-                    </FormHelperText>
-                    <FormErrorMessage>{errors['vouching.voucherRoleIndex']}</FormErrorMessage>
-                  </FormControl>
-
-                  <FormControl isInvalid={!!errors['vouching.quorum']}>
-                    <FormLabel>Required Vouches</FormLabel>
-                    <NumberInput
-                      value={formData.vouching.quorum}
-                      onChange={(_, val) => updateField('vouching.quorum', val)}
-                      min={1}
-                      max={100}
-                    >
-                      <NumberInputField />
-                      <NumberInputStepper>
-                        <NumberIncrementStepper />
-                        <NumberDecrementStepper />
-                      </NumberInputStepper>
-                    </NumberInput>
-                    <FormHelperText>
-                      Number of vouches required for membership
-                    </FormHelperText>
-                    <FormErrorMessage>{errors['vouching.quorum']}</FormErrorMessage>
-                  </FormControl>
-
-                  <FormControl display="flex" alignItems="center">
-                    <FormLabel mb={0}>Combine with Hierarchy</FormLabel>
-                    <Switch
-                      isChecked={formData.vouching.combineWithHierarchy}
-                      onChange={(e) => updateField('vouching.combineWithHierarchy', e.target.checked)}
-                    />
-                    <Tooltip label="If enabled, parent admins can also vouch">
-                      <Icon as={InfoIcon} ml={2} color="warmGray.400" />
-                    </Tooltip>
-                  </FormControl>
-                </>
-              )}
-            </VStack>
-          </Collapse>
-        </Box>
-
+        <NativeMembershipFields role={formData} roles={state.roles} onChange={setFormData} />
         <Divider />
 
         {/* Advanced Settings */}
@@ -323,72 +197,13 @@ export function RoleForm({
 
           <Collapse in={advancedDisclosure.isOpen}>
             <VStack spacing={4} align="stretch" pl={4} borderLeft="2px solid" borderColor="warmGray.200">
-              {/* Defaults */}
-              <Heading size="xs" color="warmGray.600">Member Defaults</Heading>
-
-              <HStack spacing={8}>
-                {/* A vouched role must not be eligible by default — that makes the
-                    vouch quorum a no-op and the contracts reject the combination
-                    (EligibilityModule M-03 at deploy, QuickJoin H-03 at claim). */}
-                <FormControl display="flex" alignItems="center">
-                  <FormLabel mb={0} fontSize="sm">Eligible by Default</FormLabel>
-                  <Switch
-                    isChecked={formData.vouching.enabled ? false : formData.defaults.eligible}
-                    isDisabled={formData.vouching.enabled}
-                    onChange={(e) => updateField('defaults.eligible', e.target.checked)}
-                    size="sm"
-                  />
-                  {formData.vouching.enabled && (
-                    <Tooltip label="Off because this role requires vouches — an open role can't also be gated.">
-                      <Icon as={InfoIcon} ml={2} color="warmGray.400" />
-                    </Tooltip>
-                  )}
-                </FormControl>
-
-                <FormControl display="flex" alignItems="center">
-                  <FormLabel mb={0} fontSize="sm">Good Standing by Default</FormLabel>
-                  <Switch
-                    isChecked={formData.defaults.standing}
-                    onChange={(e) => updateField('defaults.standing', e.target.checked)}
-                    size="sm"
-                  />
-                </FormControl>
-              </HStack>
-
-              {/* Hat Config */}
-              <Heading size="xs" color="warmGray.600" mt={2}>Hat Configuration</Heading>
-
-              <FormControl isInvalid={!!errors['hatConfig.maxSupply']}>
-                <FormLabel fontSize="sm">Max Supply</FormLabel>
-                <NumberInput
-                  value={formData.hatConfig.maxSupply}
-                  onChange={(_, val) => updateField('hatConfig.maxSupply', val)}
-                  min={1}
-                  max={10000}
-                  size="sm"
-                >
+              <FormControl isInvalid={!!errors.maxMembers}>
+                <FormLabel>Maximum members (0 means unlimited)</FormLabel>
+                <NumberInput value={formData.maxMembers} min={0} max={4294967295}
+                  onChange={(_, value) => updateField('maxMembers', value)}>
                   <NumberInputField />
-                  <NumberInputStepper>
-                    <NumberIncrementStepper />
-                    <NumberDecrementStepper />
-                  </NumberInputStepper>
                 </NumberInput>
-                <FormHelperText fontSize="xs">
-                  Maximum number of members who can hold this role
-                </FormHelperText>
-                <FormErrorMessage>{errors['hatConfig.maxSupply']}</FormErrorMessage>
-              </FormControl>
-
-              <FormControl display="flex" alignItems="center">
-                <FormLabel mb={0} fontSize="sm">Mutable Hat</FormLabel>
-                <Switch
-                  isChecked={formData.hatConfig.mutableHat}
-                  onChange={(e) => updateField('hatConfig.mutableHat', e.target.checked)}
-                  size="sm"
-                />
-                <Tooltip label="If enabled, role settings can be modified after creation">
-                  <Icon as={InfoIcon} ml={2} color="warmGray.400" />
-                </Tooltip>
+                <FormErrorMessage>{errors.maxMembers}</FormErrorMessage>
               </FormControl>
 
               {/* Distribution */}

@@ -3,79 +3,14 @@
  * Shared across web3Context, TaskBoardContext, and TaskColumn components
  */
 
-/**
- * Parse a task ID from the POP subgraph format.
- * Subgraph format: "taskManagerAddress-taskId"
- * @param {string|number} taskId - The task ID from the subgraph or direct input
- * @returns {string} - The numeric task ID portion for contract calls
- */
-export function parseTaskId(taskId) {
-    const taskIdStr = taskId.toString();
-    return taskIdStr.includes("-") ? taskIdStr.split("-")[1] : taskIdStr;
-}
+import { MINUTES_STEP } from '@poa-box/core/payout';
+export { parseTaskId, parseModuleId } from '@/services/web3/utils/encoding';
 
-/**
- * Parse a module ID from the POP subgraph format.
- * @param {string|number} moduleId - The module ID from the subgraph
- * @returns {string} - The numeric module ID for contract calls
- */
-export function parseModuleId(moduleId) {
-    const moduleIdStr = moduleId.toString();
-    return moduleIdStr.includes('-') ? moduleIdStr.split('-')[1] : moduleIdStr;
-}
-
-/**
- * Difficulty configuration for payout calculation
- * Base payout + (multiplier * estimated hours) = total payout
- */
-export const DIFFICULTY_CONFIG = {
-    easy: { base: 1, multiplier: 16.5 },
-    medium: { base: 4, multiplier: 24 },
-    hard: { base: 10, multiplier: 30 },
-    veryHard: { base: 25, multiplier: 37.5 },
-};
-
-/**
- * Default tokens-per-hour rate for orgs that opt into hours-only payouts
- * (the "Pay by hours only" org setting). Used when no rate is configured.
- */
-export const DEFAULT_HOURLY_RATE = 10;
-
-/**
- * Normalize a configured hourly rate to a positive finite number, falling
- * back to DEFAULT_HOURLY_RATE for missing/invalid values.
- * @param {*} value - Raw rate (from org metadata / settings input)
- * @returns {number}
- */
-export function normalizeHourlyRate(value) {
-    const rate = Number(value);
-    return Number.isFinite(rate) && rate > 0 ? rate : DEFAULT_HOURLY_RATE;
-}
-
-/**
- * Calculate task payout.
- *
- * Default mode: difficulty-weighted — base + (multiplier * estimated hours).
- * Hours-only mode: when `payoutConfig.hoursOnly` is set (the org-level "Pay by
- * hours only" setting), difficulty is ignored and payout is simply
- * rate * estimated hours, where rate defaults to DEFAULT_HOURLY_RATE.
- *
- * @param {string} difficulty - The difficulty level (easy, medium, hard, veryHard)
- * @param {number} estimatedHours - The estimated hours to complete the task
- * @param {{hoursOnly?: boolean, hourlyRate?: number}} [payoutConfig] - Optional org payout config
- * @returns {number} - The calculated payout amount
- */
-export function calculatePayout(difficulty, estimatedHours, payoutConfig) {
-    if (payoutConfig?.hoursOnly) {
-        return Math.round(normalizeHourlyRate(payoutConfig.hourlyRate) * estimatedHours);
-    }
-    const config = DIFFICULTY_CONFIG[difficulty];
-    if (!config) {
-        console.warn(`Unknown difficulty: ${difficulty}, defaulting to medium`);
-        return calculatePayout('medium', estimatedHours);
-    }
-    return Math.round(config.base + config.multiplier * estimatedHours);
-}
+// Pure pricing conventions stay outside the lazy wallet/service runtime.
+export {
+    DIFFICULTY_CONFIG, DEFAULT_HOURLY_RATE, normalizeHourlyRate,
+    calculatePayout, formatEstTime,
+} from '@poa-box/core/payout';
 
 /**
  * Task durations are stored as decimal hours (e.g. 0.25 = 15 min) in IPFS and
@@ -83,7 +18,7 @@ export function calculatePayout(difficulty, estimatedHours, payoutConfig) {
  * members in 15-minute steps. These helpers convert between the stored decimal
  * hours and the hours + minutes the UI works with.
  */
-export const MINUTES_STEP = 15;
+export { MINUTES_STEP };
 export const HOURS_STEP = MINUTES_STEP / 60; // 0.25
 
 /**
@@ -111,24 +46,6 @@ export function combineHoursMinutes(hours, minutes) {
     const h = Math.max(0, Math.floor(Number(hours) || 0));
     const m = Math.max(0, Math.round(Number(minutes) || 0));
     return h + m / 60;
-}
-
-/**
- * Format a decimal-hours duration as a compact "1h 30m" / "45m" / "2h" label.
- * Rounds to the nearest minute so stored values like 0.25 render as "15m"
- * rather than "0.25 hrs". Used everywhere a task's estimated time is shown
- * while an org pays by hours only.
- * @param {number|string} hours
- * @returns {string}
- */
-export function formatEstTime(hours) {
-    const totalMin = Math.round(Number(hours) * 60);
-    if (!Number.isFinite(totalMin) || totalMin <= 0) return '0m';
-    const h = Math.floor(totalMin / 60);
-    const m = totalMin % 60;
-    if (h && m) return `${h}h ${m}m`;
-    if (h) return `${h}h`;
-    return `${m}m`;
 }
 
 /**

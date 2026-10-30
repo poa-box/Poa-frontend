@@ -12,11 +12,14 @@ import { calculatePayout, formatEstTime } from '@/util/taskUtils';
 import { formatDeadlineDate, formatWindow } from '@/util/deadlineUtils';
 import { getTokenByAddress, hasBounty } from '@/util/tokens';
 import { usePOContext } from '@/context/POContext';
+import { parseTokenAmount } from '@/util/formatToken';
 
 const DraftRow = ({ draft, onEdit, onDelete, compact = false, isActive = false }) => {
   const { taskPayoutConfig } = usePOContext() || {};
   const payout = calculatePayout(draft.difficulty, draft.estHours, taskPayoutConfig);
-  const showBounty = hasBounty(draft.bountyToken, draft.bountyAmount);
+  let rawBounty;
+  try { rawBounty = parseTokenAmount(draft.bountyAmount, getTokenByAddress(draft.bountyToken).decimals); } catch { /* Invalid drafts do not show an amount. */ }
+  const showBounty = hasBounty(draft.bountyToken, rawBounty);
   const bountyToken = showBounty ? getTokenByAddress(draft.bountyToken) : null;
 
   const clickable = !!onEdit;

@@ -21,7 +21,7 @@ import {
   FETCH_PROJECT_MANAGERS,
   FETCH_TREASURY_DATA,
   FETCH_USER_DATA_NEW,
-} from './queries';
+} from '@/util/queries';
 
 /** Print the selection set of the first field named `name` (by field name, not alias). */
 function selectionOf(doc, name) {
@@ -206,16 +206,17 @@ describe('hatPermissions pagination', () => {
 
   it.each([
     ['FETCH_ORG_FULL_DATA', FETCH_ORG_FULL_DATA],
-    ['FETCH_ORG_STRUCTURE_DATA', FETCH_ORG_STRUCTURE_DATA],
   ])('%s raises hatPermissions past the default 100', (_label, doc) => {
     expect(argsOf(doc, 'hatPermissions')).toBe('first: 1000');
   });
 
-  it('uses identical args in both, so Apollo shares one cached field', () => {
-    // InMemoryCache keys a field by name + args. Differing args would store two
-    // Organization.hatPermissions entries and refetch the same rows per page.
-    expect(argsOf(FETCH_ORG_FULL_DATA, 'hatPermissions'))
-      .toBe(argsOf(FETCH_ORG_STRUCTURE_DATA, 'hatPermissions'));
+  it('retires historical permission selectors from organization structure while retaining joining and display data', () => {
+    const text = print(FETCH_ORG_STRUCTURE_DATA);
+    expect(argsOf(FETCH_ORG_STRUCTURE_DATA, 'hatPermissions')).toBeNull();
+    expect(text).not.toMatch(/globalRolePermissions|creatorHatIds|permissionRole|contractType|defaultEligible|vouchConfig|canVote/);
+    expect(text).toContain('memberHatIds');
+    expect(text).toContain('metadataHash');
+    expect(text).toContain('wearerUsername');
   });
 });
 
@@ -252,7 +253,27 @@ describe('treasury project scopes', () => {
     // keeps completed task mints available to the Share Activity modal.
     expect(printed).toContain('activityProjects: projects(first: 100)');
     expect(printed).toMatch(
-      /activityProjects: projects\(first: 100\) \{ tasks\( where: \{status: "Completed"\}/
+      /activityProjects: projects\(first: 100\) \{ tasks\( where: \{status: Completed\}/
     );
+  });
+});
+
+// Serving introspection uses ID for singleton selectors even when the entity's
+// output ID and relation filters use Bytes. Names and supplied values are unchanged.
+describe('serving singleton ID scalar adaptation', () => {
+  it('validates the public account reader against the serving argument types', async () => {
+    const { buildSchema, validate, parse } = await import('graphql');
+    const { ACCOUNT_QUERY } = await import('@/util/accountQueries');
+    const { FETCH_USERNAME } = await import('@poa-box/core/graph/documents/user');
+    const schema = buildSchema(`
+      scalar Bytes
+      type Metadata { id: String, bio: String, avatar: String, github: String, twitter: String, website: String }
+      type Account { id: Bytes!, username: String, profileMetadataHash: Bytes, metadata: Metadata }
+      type Query { account(id: ID!): Account }
+    `);
+    expect(validate(schema, ACCOUNT_QUERY)).toEqual([]);
+    expect(validate(schema, parse(FETCH_USERNAME)).map((error) => error.message)).toEqual([
+      'Variable "$id" of type "Bytes!" used in position expecting type "ID!".',
+    ]);
   });
 });

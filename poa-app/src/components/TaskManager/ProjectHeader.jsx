@@ -18,8 +18,7 @@ import { InfoIcon } from '@chakra-ui/icons';
 import { FaProjectDiagram } from 'react-icons/fa';
 import { useDataBaseContext } from '@/context/dataBaseContext';
 import { usePOContext } from '@/context/POContext';
-import { useUserContext } from '@/context/UserContext';
-import { userCanBudgetProject } from '@/util/permissions';
+import { useProjectContext } from '@/context/ProjectContext';
 import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 const EditBudgetModal = dynamic(() => import('@/components/TaskManager/EditBudgetModal'), { loading: ProjectDialogLoading });
 const ProjectInfoModal = dynamic(() => import('@/components/TaskManager/ProjectInfoModal'), { loading: ProjectDialogLoading });
@@ -32,16 +31,8 @@ const ProjectHeader = ({ projectName, sidebarVisible, toggleSidebar }) => {
   useEffect(() => { if (isBudgetOpen) setBudgetMounted(true); }, [isBudgetOpen]);
   const { selectedProject } = useDataBaseContext();
   const { tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext() || {};
-  const { userData } = useUserContext() || {};
-
-  const userHatIds = userData?.hatIds || [];
-  // Pass global grants too so hats granted BUDGET only org-wide (via setConfig ROLE_PERM)
-  // still unlock the edit affordance, matching the contract's _permMask fallback.
-  const canEditBudget = userCanBudgetProject(
-    userHatIds,
-    selectedProject?.rolePermissions,
-    selectedProject?.globalRolePermissions,
-  );
+  const { getTaskActions } = useProjectContext();
+  const canEditBudget = getTaskActions(null, selectedProject).budget.state === 'allowed';
 
   return (
     <>

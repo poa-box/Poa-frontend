@@ -60,7 +60,8 @@ const OrgStructurePage = () => {
   // not the retired hat entities — those stop updating at cutover and render raw subject ids,
   // ghost roles, and an empty permissions matrix. `enabled` is router-bound, i.e. post-cutover.
   const v2 = useAuthoritySubjects();
-  const { membersOf, groupMembers } = useAuthorityMemberships();
+  const roster = useAuthorityMemberships();
+  const { membersOf, groupMembers } = roster;
   const v2Live = v2.enabled;
 
   const v2Sections = useMemo(() => {
@@ -73,17 +74,20 @@ const OrgStructurePage = () => {
         groups: view.rows.filter((s) => s.isGroup),
         membersOf,
         groupMembers,
+        complete: roster.complete && !roster.error && Array.isArray(roster.memberships)
+          && roster.memberships.every(row => row.lifecycleFacts?.isMember?.state === 'known'),
       }),
       permissionColumns: view.columns,
       permissionsMatrix: view.matrix,
       hidden: view.hidden,
     };
-  }, [v2Live, v2.roles, v2.groups, membersOf, groupMembers]);
+  }, [v2Live, v2.roles, v2.groups, membersOf, groupMembers, roster.complete, roster.error, roster.memberships]);
 
   // The matrix only lists rows with DISTINCT permissions; everyone left out gets a sentence.
   const matrixNotes = useMemo(() => {
     if (!v2Sections) return [];
     const notes = [];
+    if (v2.error || !v2.complete) return ['Current permissions are unavailable. Please try again.'];
     const { inheritOnly, silent } = v2Sections.hidden;
     if (inheritOnly.length) {
       const groups = [...new Set(inheritOnly.flatMap((r) => r.groupNames))].join(', ');
@@ -101,7 +105,7 @@ const OrgStructurePage = () => {
       );
     }
     return notes;
-  }, [v2Sections]);
+  }, [v2Sections, v2.error, v2.complete]);
 
   // No org to render: a dead end, not a pending state. After every hook.
   if (orgGate) return orgGate;

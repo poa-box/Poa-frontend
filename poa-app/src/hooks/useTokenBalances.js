@@ -8,7 +8,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { NETWORKS } from '@/config/networks';
 import { getBountyTokenOptions } from '@/util/tokens';
 import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
-import ERC20ABI from '../../abi/ERC20.json';
+import { ERC20Abi as ERC20ABI } from '@poa-box/core/abis/ERC20';
+import { requireRawUint } from '@poa-box/core/amounts';
 
 const mainnetChains = Object.entries(NETWORKS).filter(([_, n]) => !n.isTestnet);
 
@@ -17,6 +18,11 @@ export function useTokenBalances(address) {
   const [nativeBalances, setNativeBalances] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const clientsRef = useRef(null);
+  const generation = useRef(0);
+  const accountRef = useRef(address);
+  accountRef.current = address;
+  const [errors, setErrors] = useState([]);
+  const [resolvedAccount, setResolvedAccount] = useState(null);
 
   // Create chain clients once
   if (!clientsRef.current) {
@@ -29,10 +35,15 @@ export function useTokenBalances(address) {
   }
 
   const fetchBalances = useCallback(async (signal) => {
+    const request = ++generation.current;
+    const failures = [];
+    const current = () => !signal?.aborted && generation.current === request && accountRef.current === address;
     if (!address) {
       setBalances([]);
       setNativeBalances({});
       setIsLoading(false);
+      setResolvedAccount(address);
+      setErrors([]);
       return;
     }
 
@@ -40,6 +51,9 @@ export function useTokenBalances(address) {
     const clients = clientsRef.current;
     const allBalances = [];
     const natives = {};
+    setBalances([]);
+    setNativeBalances({});
+    setErrors([]);
 
     const promises = [];
 
@@ -50,15 +64,15 @@ export function useTokenBalances(address) {
       // Fetch native balance for gas check
       promises.push(
         client.publicClient.getBalance({ address })
-          .then(b => { natives[chainId] = b.toString(); })
-          .catch(() => { natives[chainId] = '0'; })
+          .then(b => { natives[chainId] = requireRawUint(b.toString()); })
+          .catch(() => { natives[chainId] = null; failures.push({ chainId, token: null, code: 'NATIVE_BALANCE_UNAVAILABLE' }); })
       );
 
       // Fetch each ERC20 balance
       for (const token of tokens) {
         promises.push(
           client.publicClient.readContract({
-            address: token.address,
+            address: token.address.toLowerCase(),
             abi: ERC20ABI,
             functionName: 'balanceOf',
             args: [address],
@@ -67,32 +81,38 @@ export function useTokenBalances(address) {
               if (balance > 0n) {
                 allBalances.push({
                   ...token,
-                  balance: balance.toString(),
+                  balance: requireRawUint(balance.toString()),
                   chainId,
                   chainName: client.name,
                   nativeCurrency: client.nativeCurrency,
                 });
               }
             })
-            .catch(() => { /* skip failed token reads */ })
+            .catch(() => { failures.push({ chainId, token: token.address, code: 'TOKEN_BALANCE_UNAVAILABLE' }); })
         );
       }
     }
 
     await Promise.allSettled(promises);
-    if (signal?.aborted) return;
+    if (!current()) return;
+    setResolvedAccount(address);
+    setErrors(failures);
     setBalances(allBalances);
     setNativeBalances(natives);
     setIsLoading(false);
   }, [address]);
 
   useEffect(() => {
+    const sequence = generation;
     const controller = new AbortController();
     fetchBalances(controller.signal);
-    return () => controller.abort();
+    return () => { controller.abort(); sequence.current++; };
   }, [fetchBalances]);
 
-  return { balances, nativeBalances, isLoading, refetch: fetchBalances };
+  const currentAccount = resolvedAccount === address;
+  return { balances: currentAccount ? balances : [], nativeBalances: currentAccount ? nativeBalances : {},
+    isLoading: isLoading || !currentAccount, errors: currentAccount ? errors : [],
+    coverage: !currentAccount || isLoading ? 'loading' : errors.length ? 'incomplete' : 'complete', refetch: fetchBalances };
 }
 
 export default useTokenBalances;

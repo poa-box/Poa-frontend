@@ -1,3 +1,4 @@
+import { getTemplateDefaults } from '@/features/deployer/templates/templateDefinitions';
 /**
  * Custom Template
  *
@@ -429,36 +430,7 @@ it—this gives you a proven foundation to build on.`,
   },
 
   // Default configuration - minimal starting point
-  defaults: {
-    roles: [
-      {
-        name: 'Member',
-        hierarchy: { adminRoleIndex: null },
-        vouching: { enabled: false, quorum: 0, voucherRoleIndex: 0 },
-        hatConfig: { maxSupply: 1000 },
-      },
-    ],
-    permissions: {
-      taskManagers: [0],
-      projectCreators: [0],
-      taskCreators: [0],
-      taskReviewers: [0],
-      taskClaimers: [0],
-      nftCreators: [0],
-      quickJoinRoles: [],
-      memberManagers: [0],
-      ddVoters: [0],
-    },
-    voting: {
-      mode: 'HYBRID',
-      democracyWeight: 50,
-      participationWeight: 50,
-    },
-    features: {
-      educationHubEnabled: false,
-      electionHubEnabled: false,
-    },
-  },
+  defaults: getTemplateDefaults('custom'),
 
   // UI guidance
   ui: {

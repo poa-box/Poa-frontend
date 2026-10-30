@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   Button,
   FormControl,
@@ -81,8 +82,9 @@ const EditTaskModal = ({
   allowDelete = true,
   metadataOnly = false,
 }) => {
-  const { orgChainId, tokenLabel, taskPayoutHoursOnly } = usePOContext();
+  const { orgChainId, tokenLabel = DEFAULT_TOKEN_LABEL, taskPayoutHoursOnly } = usePOContext();
   const tokenOptions = useMemo(() => getBountyTokenOptions(orgChainId), [orgChainId]);
+  const openedTask = useRef(task);
 
   const [name, setName] = useState(task.name);
   const [description, setDescription] = useState(task.description);
@@ -90,13 +92,13 @@ const EditTaskModal = ({
   const [estHours, setEstimatedHours] = useState(task.estHours);
 
   // Bounty state - initialize from task if bounty exists
-  const taskHasBounty = checkHasBounty(task.bountyToken, task.bountyPayout);
+  const taskHasBounty = checkHasBounty(task.bountyToken, task.bountyPayoutRaw);
   const [hasBounty, setHasBounty] = useState(taskHasBounty);
   const [bountyToken, setBountyToken] = useState(
     taskHasBounty ? task.bountyToken : (tokenOptions[0]?.address || '')
   );
   const [bountyAmount, setBountyAmount] = useState(
-    taskHasBounty ? task.bountyPayout : ''
+    taskHasBounty ? (task.bountyPayoutExact ?? task.bountyPayout) : ''
   );
 
   // Deadlines (v6) — initialize from the task's current values.
@@ -104,9 +106,8 @@ const EditTaskModal = ({
   const taskAbsSec = toSec(task.absoluteDeadline);
   const taskDueSec = toSec(task.dueDate);
   const [hasDeadlines, setHasDeadlines] = useState(!!(taskDueSec || taskAbsSec || taskWindowSec));
-  const [dueDateStr, setDueDateStr] = useState(
-    taskDueSec ? secToLocalDateStr(taskDueSec) : taskAbsSec ? secToLocalDateStr(taskAbsSec) : ''
-  );
+  const initialDueDateStr = taskDueSec ? secToLocalDateStr(taskDueSec) : taskAbsSec ? secToLocalDateStr(taskAbsSec) : '';
+  const [dueDateStr, setDueDateStr] = useState(initialDueDateStr);
   const [enforceOnChain, setEnforceOnChain] = useState(taskAbsSec !== null);
   const [completionWindowSec, setCompletionWindowSec] = useState(taskWindowSec);
 
@@ -114,6 +115,8 @@ const EditTaskModal = ({
     const dueSec = hasDeadlines && dueDateStr ? localDateStrToEndOfDaySec(dueDateStr) : null;
     onEditTask({
       ...task,
+      metadataHash: openedTask.current.metadataHash,
+      submissionHash: openedTask.current.submissionHash,
       name,
       description,
       difficulty,
@@ -123,7 +126,8 @@ const EditTaskModal = ({
       dueDate: dueSec,
       // metadataOnly callers route to updateTaskMetadata — on-chain knobs stay
       // whatever they were (the service never sees these fields on that path).
-      absoluteDeadline: hasDeadlines && enforceOnChain && dueSec ? dueSec : 0,
+      absoluteDeadline: hasDeadlines && enforceOnChain && dueSec
+        ? (dueDateStr === initialDueDateStr && taskAbsSec !== null ? taskAbsSec : dueSec) : 0,
       completionWindow: hasDeadlines ? completionWindowSec : 0,
     });
     onClose();
@@ -354,7 +358,7 @@ const EditTaskModal = ({
                     </FormControl>
                   </SimpleGrid>
                   <Text fontSize="xs" color="gray.500" mt={3}>
-                    This bounty will be paid in addition to {tokenLabel.toLowerCase()}
+                    This bounty will be paid in addition to {tokenLabel}
                   </Text>
                 </Box>
               )}

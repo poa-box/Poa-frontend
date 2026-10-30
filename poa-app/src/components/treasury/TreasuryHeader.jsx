@@ -22,6 +22,7 @@ import {
   FiEye,
   FiCheckSquare,
 } from 'react-icons/fi';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import { usePOContext } from '@/context/POContext';
 import { useOrgName } from '@/hooks/useOrgName';
 import { useTreasuryShare } from '@/hooks/useTreasuryShare';
@@ -69,7 +70,7 @@ const TreasuryHeader = ({
   onClaimScroll,
   otherHoldings = [], // non-stable tokens held, [{ symbol, amount }] — shown but not $-counted
 }) => {
-  const { orgChainId, paymentManagerAddress, tokenLabel = 'Shares' } = usePOContext();
+  const { orgChainId, paymentManagerAddress, tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
   const userDAO = useOrgName();
   const { isAccountReady, userDataLoading } = useUserContext();
   const accountPending = isAccountReady === false || userDataLoading;
@@ -80,6 +81,7 @@ const TreasuryHeader = ({
     userPtBalance,
     totalPtSupply,
     isLoading,
+    error: shareError,
   } = useTreasuryShare();
 
   const explorer = getNetworkByChainId(orgChainId)?.blockExplorer;
@@ -186,7 +188,9 @@ const TreasuryHeader = ({
             <Box flex={1} borderTop={HAIRLINE} />
           </HStack>
 
-          {isLoading ? (
+          {shareError || (!isLoading && stableTotal === null) ? (
+            <Text color={INK.secondary}>Treasury balance unavailable</Text>
+          ) : isLoading ? (
             <Skeleton height="72px" width="280px" />
           ) : (
             <MoneyFigure value={isZero ? 0 : stableTotal} size="hero" />
@@ -241,6 +245,8 @@ const TreasuryHeader = ({
             <Text fontSize="sm" color={INK.secondary} role="status">Getting your account details ready…</Text>
           ) : isLoading ? (
             <Skeleton height="40px" width="150px" />
+          ) : shareError || treasuryShare === null ? (
+            <Text fontSize="sm" color={INK.secondary}>Your estimated share is unavailable.</Text>
           ) : hasShare ? (
             <>
               <MoneyFigure value={treasuryShare} size="panel" />
@@ -248,7 +254,7 @@ const TreasuryHeader = ({
                 {formatPct(userSharePct)} of participation (your {userPtBalance} of {totalPtSupply} {tokenLabel})
               </Text>
               <Text fontSize="xs" color={INK.muted} mt={0.5}>
-                {memberCount} members share this treasury
+                {memberCount == null ? 'Current member count unavailable' : `${memberCount} members share this treasury`}
               </Text>
               {/* The loop closer: how the estimate becomes money, always stated */}
               <Text fontSize="xs" color={INK.secondary} mt={3}>
@@ -275,7 +281,7 @@ const TreasuryHeader = ({
               </Text>
               <Text fontSize="xs" color={INK.muted} mt={2}>
                 Complete tasks to start earning one.
-                {memberCount > 0 && ` ${memberCount} members share this treasury.`}
+                {memberCount > 0 && ` ${memberCount == null ? 'Current member count unavailable' : `${memberCount} members share this treasury`}.`}
               </Text>
               <Button
                 as={NextLink}

@@ -14,7 +14,7 @@ const StatCard = ({ label, value, subtext, color = 'warmGray.800' }) => (
 
 const ChainGasCard = ({ chain }) => {
   const gas = chain.gasUsage;
-  if (!gas || gas.totalUserOps === 0) return null;
+  if (!gas || (gas.totalUserOps === '0' || gas.totalUserOps === 0)) return null;
 
   return (
     <Box bg="white" border="1px solid" borderColor="warmGray.100" borderRadius="xl" p={5}>
@@ -26,32 +26,32 @@ const ChainGasCard = ({ chain }) => {
       <SimpleGrid columns={{ base: 2, md: 3 }} spacing={3}>
         <StatCard
           label="Gas Sponsored"
-          value={`${parseFloat(gas.totalGasSponsored).toFixed(4)} ${chain.nativeCurrency}`}
+          value={`${gas.totalGasSponsored ?? '—'} ${chain.nativeCurrency}`}
           color="amethyst.600"
         />
         <StatCard
           label="Transactions Sponsored"
-          value={gas.totalUserOps.toLocaleString()}
+          value={gas.totalUserOps != null ? BigInt(gas.totalUserOps).toLocaleString() : '—'}
           subtext="Paymaster user operations"
         />
         <StatCard
-          label="Current Pool Balance"
-          value={`${parseFloat(gas.currentBalance).toFixed(4)} ${chain.nativeCurrency}`}
-          subtext="Available across all orgs"
+          label="Pool Balance"
+          value={`${gas.currentBalance ?? '—'} ${chain.nativeCurrency}`}
+          subtext="Indexed pool balances"
         />
         <StatCard
           label="Total Deposited"
-          value={`${parseFloat(gas.totalDeposited).toFixed(4)} ${chain.nativeCurrency}`}
+          value={`${gas.totalDeposited ?? '—'} ${chain.nativeCurrency}`}
           subtext="Lifetime gas pool deposits"
         />
         <StatCard
           label="Spent from Deposits"
-          value={`${parseFloat(gas.totalSpent).toFixed(4)} ${chain.nativeCurrency}`}
+          value={`${gas.totalSpent ?? '—'} ${chain.nativeCurrency}`}
           subtext="Org-funded gas"
         />
         <StatCard
           label="Orgs with Gas Pools"
-          value={gas.orgCount}
+          value={gas.orgCount ?? '—'}
           subtext="Registered paymasters"
         />
       </SimpleGrid>
@@ -60,7 +60,7 @@ const ChainGasCard = ({ chain }) => {
 };
 
 const GasUsageSection = ({ chains }) => {
-  const chainsWithGas = Object.values(chains).filter(c => c.gasUsage?.totalUserOps > 0);
+  const chainsWithGas = Object.values(chains).filter(c => c.gasUsage && c.gasUsage.totalUserOps !== '0' && c.gasUsage.totalUserOps !== 0);
   if (chainsWithGas.length === 0) return null;
 
   return (
@@ -74,7 +74,7 @@ const GasUsageSection = ({ chains }) => {
             Sponsored Gas
           </Heading>
           <Text fontSize="sm" color="warmGray.500" mb={6}>
-            Gas covered by organization paymasters on behalf of their members. Does not include gas paid directly by wallet users.
+            Indexed sponsorship totals for organization members. Pool balances can lag current funds; unavailable totals appear as a dash.
           </Text>
 
           <SimpleGrid columns={{ base: 1, md: 2 }} spacing={6}>

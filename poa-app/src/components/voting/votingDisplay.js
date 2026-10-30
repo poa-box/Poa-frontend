@@ -6,6 +6,8 @@
  * of each re-deriving them slightly differently.
  */
 
+import { classPowerFact, proposalEligibilityFact } from '@/lib/voting/powerAdapter';
+import { ddEligibilityFact } from '@/lib/voting/ddEligibility';
 import { nowMs } from '@/util/deadlineUtils';
 
 /**
@@ -69,6 +71,7 @@ export function distinctVoters(p) {
  * @returns {{ option, index, percentage }|null}
  */
 export function leadingOption(p) {
+  if (p?.tallyKnown === false) return null;
   const opts = p?.options || [];
   if (opts.length === 0) return null;
   let best = 0;
@@ -188,45 +191,11 @@ export function isEligibleToVote(p, userHatIds = []) {
   return restricted.map(normalizeHatId).some((h) => userSet.has(h));
 }
 
-/** Parse a raw wei string to BigInt, 0n on anything unparsable. */
-function parseWei(value) {
-  try {
-    return BigInt(String(value ?? '0'));
-  } catch {
-    return 0n;
-  }
-}
-
-/**
- * Is the viewer eligible in AT LEAST ONE of these voting classes? Mirrors
- * HybridVotingCore._calculateClassPower exactly: the class hat gate applies
- * BEFORE the strategy switch (`if (!hasClassHat) return 0`), so a hat-gated
- * ERC20_BAL class requires the hat AND the balance — shares alone are not
- * enough. Then DIRECT → eligible; ERC20_BAL → raw-wei balance > 0 and
- * ≥ minBalance. Wei precision matters — the ballot gate must not misjudge
- * sub-token balances the way the rounded display value would.
- *
- * @param {Array} classes - normalized subgraph class rows ({ strategy, hatIds, minBalance(wei) })
- * @param {string[]} userHatIds - viewer's current hat ids
- * @param {string} userBalanceWei - participation balance in RAW WEI
- *   (UserContext's participationTokenBalanceWei — never the formatted value)
- * @returns {boolean}
- */
-export function userEligibleInClasses(classes, userHatIds = [], userBalanceWei = '0') {
-  const userSet = new Set((userHatIds || []).map(normalizeHatId));
-  return (classes || []).some((cls) => {
-    // Hat gate first, regardless of strategy (empty gate = everyone).
-    const gate = cls.hatIds || [];
-    const wearsGate = gate.length === 0
-      || gate.map(normalizeHatId).some((h) => userSet.has(h));
-    if (!wearsGate) return false;
-    if (cls.strategy === 'DIRECT') return true;
-    if (cls.strategy === 'ERC20_BAL') {
-      const balance = parseWei(userBalanceWei);
-      if (balance <= 0n) return false;
-      return balance >= parseWei(cls.minBalance);
-    }
-    return false;
+/** Post-gate power preview; full immutable proposal eligibility needs scoped authority facts. */
+export function userEligibleInClasses(classes, userHatIds = [], userBalanceWei = '0', balanceAsset) {
+  return (classes || []).some(cls => {
+    const power = classPowerFact(cls, userHatIds, userBalanceWei, balanceAsset ?? cls.asset);
+    return power.state === 'known' && power.value !== '0';
   });
 }
 
@@ -257,12 +226,27 @@ export function voterEligibility(p, userHatIds = [], {
   ddVotingHats = null,
   classBreakdown = null,
   proposalClasses = null,
-  userBalance = '0',
+  userBalance,
   userDataReady = true,
+  balanceAsset,
+  powerEvidence,
 } = {}) {
   if (!userDataReady) {
     return { eligible: true, reason: null, indeterminate: true };
   }
+  if (p?.type === 'Direct Democracy' && powerEvidence) {
+    const eligible = ddEligibilityFact(powerEvidence);
+    return eligible.state === 'known'
+      ? { eligible: eligible.value, reason: eligible.value ? null : 'no_voting_hat', indeterminate: false }
+      : { eligible: true, reason: null, indeterminate: true };
+  }
+  if (p?.type !== 'Direct Democracy' && powerEvidence) {
+    const eligible = proposalEligibilityFact(powerEvidence);
+    return eligible.state === 'known'
+      ? { eligible: eligible.value, reason: eligible.value ? null : 'no_class_power', indeterminate: false }
+      : { eligible: true, reason: null, indeterminate: true };
+  }
+
   if (!isEligibleToVote(p, userHatIds)) {
     return { eligible: false, reason: 'poll_restricted', indeterminate: false };
   }
@@ -278,11 +262,15 @@ export function voterEligibility(p, userHatIds = [], {
   // Hybrid: any eligible class carries the vote; all-ineligible = weightless vote.
   // Prefer the proposal's snapshot classes (exact on-chain gate) when available.
   if (Array.isArray(proposalClasses) && proposalClasses.length > 0) {
-    return userEligibleInClasses(proposalClasses, userHatIds, userBalance)
+    const powers = proposalClasses.map(cls => classPowerFact(cls, userHatIds, userBalance, balanceAsset ?? cls.asset));
+    if (!powers.some(power => power.state === 'known' && power.value !== '0')
+        && powers.some(power => power.state === 'unknown')) return { eligible: true, reason: null, indeterminate: true };
+    return powers.some(power => power.state === 'known' && power.value !== '0')
       ? { eligible: true, reason: null, indeterminate: false }
       : { eligible: false, reason: 'no_class_power', indeterminate: false };
   }
   if (!Array.isArray(classBreakdown)) return { eligible: true, reason: null, indeterminate: true };
+  if (classBreakdown.some(c => c.indeterminate)) return { eligible: true, reason: null, indeterminate: true };
   const any = classBreakdown.some((c) => c.eligible);
   return any
     ? { eligible: true, reason: null, indeterminate: false }

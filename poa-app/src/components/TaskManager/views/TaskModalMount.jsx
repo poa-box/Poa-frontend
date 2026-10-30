@@ -1,6 +1,5 @@
 import { useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { useToast } from '@chakra-ui/react';
 import { useRouter } from 'next/router';
 import { useTaskBoard } from '@/context/TaskBoardContext';
 import { useDataBaseContext } from '@/context/dataBaseContext';
@@ -14,7 +13,6 @@ const TaskModalMount = () => {
   const router = useRouter();
   const { taskColumns, editTask, editTaskMetadata } = useTaskBoard();
   const { selectedProject } = useDataBaseContext();
-  const toast = useToast();
   const taskParam = router.query.task;
   const requestedProjectId = router.query.projectId;
   const selectedProjectId = selectedProject?.id;
@@ -34,29 +32,15 @@ const TaskModalMount = () => {
       difficulty: updatedTask.difficulty,
       estHours: updatedTask.estHours,
     };
-    await editTask(enriched, match.columnId, match.index);
-    toast({
-      title: 'Task edited.',
-      description: 'Your task was successfully edited.',
-      status: 'success',
-      duration: 3000,
-      isClosable: true,
-    });
+    return editTask(enriched, match.columnId, match.index);
   };
 
   const handleEditTaskMetadata = async (updatedTask) => {
-    await editTaskMetadata(
+    return editTaskMetadata(
       { ...updatedTask, difficulty: updatedTask.difficulty, estHours: updatedTask.estHours },
       match.columnId,
       match.index,
     );
-    toast({
-      title: 'Task metadata updated.',
-      description: 'Title and description were updated; payout and bounty are unchanged.',
-      status: 'success',
-      duration: 3000,
-      isClosable: true,
-    });
   };
 
   return (

@@ -8,16 +8,20 @@
  */
 
 import { encodeFunctionData } from 'viem';
-import { TransactionResult, TransactionState } from './TransactionManager';
-import PasskeyAccountABI from '../../../../abi/PasskeyAccount.json';
-import { buildUserOpWithFallback, getUserOpHash } from '../passkey/userOpBuilder';
-import { initCodeOf, isPaymasterRejection } from '../passkey/sponsorshipBudget';
-import { describeReceiptFailure } from '../passkey/receiptFailure';
-import { decodeContractRevert, decodeRevertData } from '../../../lib/errors/contractErrors';
-import { signUserOpWithPasskey } from '../passkey/passkeySign';
-import { encodeHatPaymasterData, encodeClaimPaymasterData } from '../passkey/paymasterData';
-import { ENTRY_POINT_ADDRESS } from '../../../config/passkey';
-import { NETWORKS, DEFAULT_NETWORK } from '../../../config/networks';
+import { installManagerLifecycle } from '@/services/web3/core/managerLifecycle';
+import { assertBeforeSend } from '@/services/web3/core/managerSubmissionScope';
+import { TransactionResult, TransactionState, clearRecoveredSubmission } from '@/services/web3/core/TransactionManager';
+import { PasskeyAccountAbi as PasskeyAccountABI } from '@poa-box/core/abis/PasskeyAccount';
+import { intentToExecutionRequest } from '@poa-box/core/tx/intent';
+import { submitUserOperation, confirmUserOperation, reconcileUserOperationSubmission, unknownSubmissionError, paymasterSubmissionRefusal } from '@/services/web3/core/userOperationSubmission';
+import { buildUserOpWithFallback, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
+import { initCodeOf } from '@/services/web3/passkey/sponsorshipBudget';
+import { describeReceiptFailure } from '@/services/web3/passkey/receiptFailure';
+import { decodeContractRevert, decodeRevertData } from '@/lib/errors/contractErrors';
+import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';
+import { encodeHatPaymasterData, encodeClaimPaymasterData } from '@/services/web3/passkey/paymasterData';
+import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
+import { NETWORKS, DEFAULT_NETWORK } from '@/config/networks';
 
 /**
  * ERC-4337 error code mappings.
@@ -73,16 +77,18 @@ export class SmartAccountTransactionManager {
    * @param {number} [params.chainId] - Chain ID for UserOp hash (defaults to home chain)
    * @param {string} [params.initCode='0x'] - initCode for cross-chain account deployment
    */
-  constructor({ accountAddress, rawCredentialId, publicClient, bundlerClient, paymasterAddress, orgId = null, hatIds = null, chainId = null, initCode = '0x' }) {
+  constructor({ accountAddress, rawCredentialId, publicClient, bundlerClient, paymasterAddress, orgId = null, hatIds = null, chainId = null, initCode = '0x', scopeGuard, submissionContext, submissionJournal, paymasterDataEntries }) {
     this.accountAddress = accountAddress;
     this.rawCredentialId = rawCredentialId;
     this.publicClient = publicClient;
     this.bundlerClient = bundlerClient;
     this.paymasterAddress = paymasterAddress;
+    this.paymasterDataEntries = paymasterDataEntries;
     this.orgId = orgId;
     this.hatIds = hatIds;
     this.chainId = chainId || NETWORKS[DEFAULT_NETWORK].chainId;
     this.initCode = initCode;
+    installManagerLifecycle(this, { scopeGuard, submissionContext, submissionJournal });
   }
 
   /**
@@ -101,12 +107,15 @@ export class SmartAccountTransactionManager {
       paymasterHatIds: overrideHatIds,
       paymasterClaimTarget,
       value,
+      onSubmitted,
+      beforeSend,
       callGasLimit,
       callGasLimitMultiplier,
       callGasLimitFloor,
     } = options;
 
     try {
+      if (this._uncertainSubmission) throw this._uncertainSubmission;
       // State: Estimating
       this._notifyState(onStateChange, TransactionState.ESTIMATING);
 
@@ -118,7 +127,7 @@ export class SmartAccountTransactionManager {
       const callData = encodeFunctionData({
         abi: PasskeyAccountABI,
         functionName: 'execute',
-        args: [targetAddress, value ? BigInt(value) : 0n, targetCallData],
+        args: [targetAddress, BigInt(intentToExecutionRequest({ value }).value), targetCallData],
       });
 
       // 3. Build UserOp — try with paymaster first, fall back to self-funded
@@ -129,42 +138,43 @@ export class SmartAccountTransactionManager {
       });
 
       // State: Awaiting signature (biometric prompt)
+      await assertBeforeSend(this, beforeSend);
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
+      this.assertCurrent();
 
       // 5. Compute UserOp hash and sign with passkey
       const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, this.chainId);
+      this.submissionJournal.prepare({ computedHash: userOpHash, entryPoint: ENTRY_POINT_ADDRESS, chainId: this.chainId, sender: userOp.sender, nonce: String(userOp.nonce) });
       const signature = await signUserOpWithPasskey(userOpHash, this.rawCredentialId);
+      this.assertCurrent();
       userOp.signature = signature;
 
       // State: Pending (submitting to bundler)
       this._notifyState(onStateChange, TransactionState.PENDING);
 
       // 6. Submit to bundler (self-funded retry if the paymaster refuses at submission)
-      const userOpHashFromBundler = await this._sendWithSelfFundedRetry(userOp, {
+      const submitted = await this._sendWithSelfFundedRetry(userOp, {
         callData,
         onStateChange,
+        onSubmitted,
+        beforeSend,
         gasOverrides: { callGasLimit, callGasLimitMultiplier, callGasLimitFloor },
       });
 
-      console.log(`UserOp submitted: ${userOpHashFromBundler}`);
 
       // State: Confirming
       this._notifyState(onStateChange, TransactionState.CONFIRMING);
 
       // 7. Wait for receipt
-      const receipt = await this.bundlerClient.waitForUserOperationReceipt({
-        hash: userOpHashFromBundler,
-        timeout: 120_000,
-      });
-
-      if (!receipt.success) {
-        const error = this._parseAAError(describeReceiptFailure(receipt.reason, 'UserOp execution failed'), null, contract?.interface);
+      const { receipt: txReceipt, outcome } = await confirmUserOperation(submitted, this.bundlerClient);
+      this.settleSubmission(submitted.submission);
+      // Keep the canonical original outcome; _notifyState suppresses stale page callbacks.
+      if (outcome.status === 'failed') {
+        const error = this._parseAAError(describeReceiptFailure(outcome.revertReason, 'Transaction was mined but its action failed'), null, contract?.interface);
         this._notifyState(onStateChange, TransactionState.ERROR, { error });
         return TransactionResult.failure(error);
       }
 
-      // State: Success
-      const txReceipt = receipt.receipt;
       this._notifyState(onStateChange, TransactionState.SUCCESS, {
         receipt: txReceipt,
         txHash: txReceipt.transactionHash,
@@ -175,12 +185,6 @@ export class SmartAccountTransactionManager {
       return TransactionResult.success(txReceipt);
 
     } catch (error) {
-      console.error('=== SMART ACCOUNT TX ERROR ===');
-      console.error('Method:', method);
-      console.error('Args:', args);
-      console.error('Error:', error.message);
-      console.error('=== END SMART ACCOUNT TX ERROR ===');
-
       // Pass the target contract's interface so a contract revert (custom error
       // or require string) bubbled up from gas estimation decodes to its real reason.
       const parsedError = this._parseAAError(error.message || 'Unknown error', error, contract?.interface);
@@ -198,9 +202,13 @@ export class SmartAccountTransactionManager {
    * @returns {Promise<TransactionResult>}
    */
   async executeBatch(transactions, batchOptions = {}) {
-    const { onStateChange, callGasLimit, callGasLimitMultiplier, callGasLimitFloor } = batchOptions;
+    const { onStateChange, onSubmitted, beforeSend, callGasLimit, callGasLimitMultiplier, callGasLimitFloor } = batchOptions;
 
     try {
+      if (this._uncertainSubmission) throw this._uncertainSubmission;
+      if (intentToExecutionRequest({ value: batchOptions.value }).value !== '0') {
+        throw new Error('Set the native amount on each action in the batch.');
+      }
       this._notifyState(onStateChange, TransactionState.ESTIMATING);
 
       // Encode all target calls
@@ -210,7 +218,7 @@ export class SmartAccountTransactionManager {
 
       for (const tx of transactions) {
         targets.push(tx.contract.address);
-        values.push(0n);
+        values.push(BigInt(intentToExecutionRequest({ value: tx.options?.value ?? tx.value }).value));
         datas.push(tx.contract.interface.encodeFunctionData(tx.method, tx.args || []));
       }
 
@@ -228,34 +236,37 @@ export class SmartAccountTransactionManager {
         callGasLimitFloor,
       });
 
+      await assertBeforeSend(this, beforeSend);
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
+      this.assertCurrent();
 
       const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, this.chainId);
+      this.submissionJournal.prepare({ computedHash: userOpHash, entryPoint: ENTRY_POINT_ADDRESS, chainId: this.chainId, sender: userOp.sender, nonce: String(userOp.nonce) });
       const signature = await signUserOpWithPasskey(userOpHash, this.rawCredentialId);
+      this.assertCurrent();
       userOp.signature = signature;
 
       this._notifyState(onStateChange, TransactionState.PENDING);
 
-      const userOpHashFromBundler = await this._sendWithSelfFundedRetry(userOp, {
+      const submitted = await this._sendWithSelfFundedRetry(userOp, {
         callData,
         onStateChange,
+        onSubmitted,
+        beforeSend,
         gasOverrides: { callGasLimit, callGasLimitMultiplier, callGasLimitFloor },
       });
 
       this._notifyState(onStateChange, TransactionState.CONFIRMING);
 
-      const receipt = await this.bundlerClient.waitForUserOperationReceipt({
-        hash: userOpHashFromBundler,
-        timeout: 120_000,
-      });
-
-      if (!receipt.success) {
-        const error = this._parseAAError(describeReceiptFailure(receipt.reason, 'Batch UserOp execution failed'));
+      const { receipt: txReceipt, outcome } = await confirmUserOperation(submitted, this.bundlerClient);
+      this.settleSubmission(submitted.submission);
+      // Keep the canonical original outcome; _notifyState suppresses stale page callbacks.
+      if (outcome.status === 'failed') {
+        const error = this._parseAAError(describeReceiptFailure(outcome.revertReason, 'Transaction was mined but its action failed'));
         this._notifyState(onStateChange, TransactionState.ERROR, { error });
         return TransactionResult.failure(error);
       }
 
-      const txReceipt = receipt.receipt;
       this._notifyState(onStateChange, TransactionState.SUCCESS, {
         receipt: txReceipt,
         txHash: txReceipt.transactionHash,
@@ -264,10 +275,6 @@ export class SmartAccountTransactionManager {
       return TransactionResult.success(txReceipt);
 
     } catch (error) {
-      console.error('=== SMART ACCOUNT BATCH TX ERROR ===');
-      console.error('Error:', error.message);
-      console.error('=== END SMART ACCOUNT BATCH TX ERROR ===');
-
       const parsedError = this._parseAAError(error.message || 'Unknown error', error);
       this._notifyState(onStateChange, TransactionState.ERROR, { error: parsedError });
 
@@ -287,17 +294,18 @@ export class SmartAccountTransactionManager {
    * The refusal is threaded through as `paymasterRejection`, so if the self-funded attempt
    * cannot pay either (AA21) the message says WHY sponsorship fell through, not a bare "no funds".
    */
-  async _sendWithSelfFundedRetry(userOp, { callData, onStateChange, gasOverrides = {} }) {
+  async _sendWithSelfFundedRetry(userOp, { callData, onStateChange, onSubmitted, beforeSend, gasOverrides = {} }) {
     try {
-      const hash = await this.bundlerClient.sendUserOperation({ ...userOp, entryPointAddress: ENTRY_POINT_ADDRESS });
+      const submitted = await this._submitUserOperation(userOp, onSubmitted, beforeSend);
       // Accepted: whatever happens on chain from here is the CALL's story, not sponsorship's —
       // a mined-but-reverted op must not be reported as "no gas allowance / no funds".
       this._paymasterFellBack = false;
       this._paymasterRejection = null;
-      return hash;
-    } catch (e) {
-      if (!userOp.paymaster || !isPaymasterRejection(e)) throw e;
-      console.warn('[SmartAccountTxMgr] Paymaster refused at submission; retrying self-funded:', e.shortMessage || e.message);
+      return submitted;
+    } catch (submissionError) {
+      const e = paymasterSubmissionRefusal(submissionError);
+      if (!userOp.paymaster || !e) throw submissionError;
+      console.warn('[SmartAccountTxMgr] Paymaster refused at submission; retrying self-funded.');
       this._paymasterFellBack = true;
       this._paymasterRejection = e;
 
@@ -319,13 +327,15 @@ export class SmartAccountTransactionManager {
       }
       Object.defineProperty(retry, 'paymasterRejection', { value: e, enumerable: false });
 
+      await assertBeforeSend(this, beforeSend);
       this._notifyState(onStateChange, TransactionState.AWAITING_SIGNATURE);
+      this.assertCurrent();
       retry.signature = await signUserOpWithPasskey(getUserOpHash(retry, ENTRY_POINT_ADDRESS, this.chainId), this.rawCredentialId);
       this._notifyState(onStateChange, TransactionState.PENDING);
-      const hash = await this.bundlerClient.sendUserOperation({ ...retry, entryPointAddress: ENTRY_POINT_ADDRESS });
+      const submitted = await this._submitUserOperation(retry, onSubmitted, beforeSend);
       this._paymasterFellBack = false;
       this._paymasterRejection = null;
-      return hash;
+      return submitted;
     }
   }
 
@@ -348,7 +358,7 @@ export class SmartAccountTransactionManager {
     // Use override hat IDs if provided (e.g., target hat for first role claim),
     // otherwise fall back to the user's current hats.
     const effectiveHatIds = overrideHatIds?.length > 0 ? overrideHatIds : this.hatIds;
-    const hasPaymaster = this.paymasterAddress && this.orgId && (claimTarget || effectiveHatIds?.length > 0);
+    const hasPaymaster = this.paymasterAddress && (this.paymasterDataEntries?.length || (this.orgId && (claimTarget || effectiveHatIds?.length > 0)));
 
     console.log('[SmartAccountTxMgr] Paymaster check:', {
       hasPaymaster,
@@ -382,12 +392,12 @@ export class SmartAccountTransactionManager {
     // CLAIM subject first (no eligibility pre-check; required for a first-role claim by a
     // not-yet-eligible account), then the hat-subject entries as fallbacks for orgs that predate
     // the CLAIM budget config.
-    const paymasterDataEntries = hasPaymaster
+    const paymasterDataEntries = this.paymasterDataEntries || (hasPaymaster
       ? [
           ...(claimTarget ? [encodeClaimPaymasterData({ claimTarget, orgId: this.orgId })] : []),
           ...(effectiveHatIds || []).map((hatId) => encodeHatPaymasterData({ hatId, orgId: this.orgId })),
         ]
-      : [];
+      : []);
 
     const userOp = await buildUserOpWithFallback({
       sender: this.accountAddress,
@@ -430,7 +440,49 @@ export class SmartAccountTransactionManager {
    * @param {Object} [iface] - Target contract's ethers Interface for ABI decoding
    * @returns {Object} Parsed error with userMessage and technicalMessage
    */
+  async _submitUserOperation(userOp, onSubmitted, beforeSend) {
+    this.assertCurrent();
+    try { return await submitUserOperation({
+      bundlerClient: this.bundlerClient,
+      userOp,
+      computedHash: getUserOpHash(userOp, ENTRY_POINT_ADDRESS, this.chainId),
+      entryPoint: ENTRY_POINT_ADDRESS,
+      chainId: this.chainId,
+      beforeSend: () => assertBeforeSend(this, beforeSend),
+      onSubmission: async submission => {
+        this.assertCurrent();
+        const saved = this.recordSubmission(submission);
+        this._submissionOwnerRecord = saved.recovery;
+        this.lastSubmission = saved;
+        await onSubmitted?.(submission);
+        this.assertCurrent();
+      },
+    }); } catch (error) {
+      if (error.submission?.phase === 'pre-submit') this.settleSubmission(error.submission);
+      throw error;
+    }
+  }
+
+  async reconcileSubmission(submission = this.getPendingSubmission() || this.lastSubmission) {
+    this.assertCurrent();
+    if (submission?.accountAddress && submission.accountAddress.toLowerCase() !== this.accountAddress.toLowerCase()) throw new Error('This transaction belongs to another account.');
+    if (submission?.chainId !== this.chainId || (submission.kind !== 'transaction' && submission?.entryPoint?.toLowerCase() !== ENTRY_POINT_ADDRESS.toLowerCase())) {
+      throw new Error('Check this transaction on the network where it was submitted.');
+    }
+    const result = await reconcileUserOperationSubmission(submission, this.bundlerClient, this.publicClient);
+    this.assertCurrent();
+    if (result.outcome.status !== 'unknown') await clearRecoveredSubmission(this.submissionJournal, submission, this.assertCurrent);
+    this.assertCurrent();
+    return result;
+  }
+
   _parseAAError(message, originalError = null, iface = null) {
+    const unknown = unknownSubmissionError(originalError);
+    if (unknown) {
+      this._uncertainSubmission = originalError;
+      this.lastSubmission = originalError.submission;
+      return unknown;
+    }
     const text = message || '';
 
     // 1. WebAuthn cancellation — highest priority (user intent, not a failure).
@@ -589,8 +641,10 @@ export class SmartAccountTransactionManager {
    * Notify state change callback.
    */
   _notifyState(callback, state, data = {}) {
+    if (state === TransactionState.AWAITING_SIGNATURE) this.submissionJournal.signing();
     if (typeof callback === 'function') {
-      callback(state, data);
+      try { this.assertCurrent(); } catch { return; }
+      try { callback(state, data); } catch { /* Observers cannot change a known transaction outcome. */ }
     }
   }
 }

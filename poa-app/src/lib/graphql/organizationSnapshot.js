@@ -1,4 +1,4 @@
-import { ORGANIZATION_SUPPORT_FIELDS } from '@/lib/supportedOrganizations';
+import { GET_ORG_BY_NAME } from '@poa-box/core/graph/documents/org';
 import { Kind, parse, print, visit } from 'graphql';
 import { addTypenameToDocument } from '@apollo/client/utilities';
 
@@ -44,7 +44,8 @@ function projectResult(value, projection) {
 
 /** Compose the existing domain documents; no second, drifting list of fields. */
 export function createOrganizationSnapshot(sections) {
-  const document = parse(`query FindOrgSnapshot($name: String!) { organizations(where: { name: $name }, first: 100) { id name ${ORGANIZATION_SUPPORT_FIELDS} } }`);
+  const document = parse(GET_ORG_BY_NAME);
+  document.definitions[0].name.value = 'FindOrgSnapshot';
   const operation = document.definitions[0];
   const root = operation.selectionSet.selections[0];
   const variables = {};

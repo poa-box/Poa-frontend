@@ -107,24 +107,14 @@ function getJoiningMethod(role, allRoles, quickJoinRoles, roleIndex) {
     const voucherName = voucherRole?.name || 'an existing member';
     return `Needs ${role.vouching.quorum} vouch${role.vouching.quorum > 1 ? 'es' : ''} from ${voucherName}`;
   }
-  // Top-level roles are elected — governance can control all aspects of the org
-  const isTopLevel = role.hierarchy?.adminRoleIndex === null || role.hierarchy?.adminRoleIndex === undefined;
-  if (isTopLevel) {
-    return 'Elected';
-  }
-  return 'Invite only';
+  if (role.open) return 'Anyone can claim';
+  return 'Granted through governance';
 }
 
 /**
  * Get hierarchy label for a role
  */
-function getRoleHierarchyLabel(role, allRoles) {
-  if (role.hierarchy?.adminRoleIndex === null || role.hierarchy?.adminRoleIndex === undefined) {
-    return 'Top-level';
-  }
-  const parent = allRoles[role.hierarchy.adminRoleIndex];
-  return parent ? `Under ${parent.name}` : 'Top-level';
-}
+function getRoleHierarchyLabel() { return 'Membership decided by governance'; }
 
 /**
  * Voting balance bar (compact version for recommendation)
@@ -345,9 +335,9 @@ export function RecommendationView({
                   borderRadius="lg"
                 >
                   <Icon
-                    as={isTopLevel ? PiCrown : PiUser}
+                    as={PiUser}
                     boxSize={4}
-                    color={isTopLevel ? 'amethyst.500' : 'warmGray.400'}
+                    color="amethyst.500"
                   />
                   <VStack align="start" spacing={0} flex={1}>
                     <Text fontWeight="600" fontSize="sm" color={headingColor}>

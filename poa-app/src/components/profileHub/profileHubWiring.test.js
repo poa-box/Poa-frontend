@@ -232,7 +232,7 @@ describe('Profile Hub uses one authenticated account control', () => {
     // Settle is latched: any path may call it, a double-call is a no-op, and no
     // path relies on the fragile "I am the only async path" assumption.
     expect(effect, 'settle() is not an idempotent latch')
-      .toMatch(/const settle = \(\) => \{[\s\S]*?if \(settled\) return;[\s\S]*?setPasskeyRestoreSettled\(true\);[\s\S]*?\};/);
+      .toMatch(/const settle = \(\) => \{[\s\S]*?if \(settled \|\| cancelled\) return;[\s\S]*?setPasskeyRestoreSettled\(true\);[\s\S]*?\};/);
     expect(effect, 'explicit sign-out / already-connected path never settles')
       .toMatch(/if \(explicitSignOutRef\.current \|\| eoaConnected\) \{\s*\n\s*settle\(\);/);
     // The synchronous fall-through only settles when no async restore owns it,
@@ -268,7 +268,6 @@ describe('UserContext drops stale identity state on disconnect', () => {
       "setGraphUsername('')",
       'setClaimedTasks([])',
       'setUserProposals([])',
-      'setCompletedModules([])',
       'setOptimisticRoles(null)',
       'optimisticLockRef.current = null',
     ]) {

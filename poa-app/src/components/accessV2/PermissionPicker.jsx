@@ -22,8 +22,10 @@ import {
   WrapItem,
   Divider,
 } from '@chakra-ui/react';
-import { PERM_CATALOGUE, TASK_PERM_BITS } from '@/lib/accessV2/permKeys';
+import { permissionCatalogue, TASK_PERM_BITS } from '@/lib/accessV2/permKeys';
 import { tokensFor } from '@/components/accessV2/roleForm/formTokens';
+import { usePOContext } from '@/context/POContext';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 const groupsOf = (catalogue) => {
   const out = [];
@@ -63,7 +65,8 @@ function TaskMaskPicker({ mask, onChange, t }) {
 
 export default function PermissionPicker({ value = {}, onChange, exclude = [], variant = 'light', groupExtras = {} }) {
   const t = tokensFor(variant);
-  const catalogue = PERM_CATALOGUE.filter((e) => !exclude.includes(e.id));
+  const { tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext() || {};
+  const catalogue = permissionCatalogue(tokenLabel).filter((e) => !exclude.includes(e.id));
 
   const set = (id, next) => onChange?.({ ...value, [id]: next });
 
@@ -72,7 +75,7 @@ export default function PermissionPicker({ value = {}, onChange, exclude = [], v
       {groupsOf(catalogue).map((group, i) => (
         <Box key={group.name}>
           {i > 0 && <Divider mb={4} borderColor={t.panelBorder} />}
-          <Text fontSize="xs" fontWeight="bold" color={t.help} textTransform="uppercase" mb={2}>
+          <Text fontSize="xs" fontWeight="bold" color={t.help} mb={2}>
             {group.name}
           </Text>
           <VStack align="stretch" spacing={3}>

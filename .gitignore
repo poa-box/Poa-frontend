@@ -13,6 +13,10 @@ subgraph-pop/
 # Verification artifacts (screenshots, gifs, logs, ids, fingerprints)
 .context/
 
+# Ignore historical local candidates; explicitly tracked core candidates are
+# retained for reproducible CI until the candidate version is published.
+/poa-app/vendor/*.tgz
+
 # Smithers CLI can drop a SQLite db at the repo root — never commit it
 /smithers.db
 /smithers.db-shm

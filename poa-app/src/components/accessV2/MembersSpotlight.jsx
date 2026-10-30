@@ -28,7 +28,7 @@ function shuffled(list) {
 
 export default function MembersSpotlight({ legacyMembersByRole = {}, loading = false }) {
   const { roles, loading: subjectsLoading } = useAuthoritySubjects();
-  const { memberships, loading: membershipsLoading } = useAuthorityMemberships();
+  const { memberships, loading: membershipsLoading, complete, error, refetch } = useAuthorityMemberships();
   const [showAll, setShowAll] = useState(false);
 
   // address -> rich legacy stat record (tokens, tasks, votes, joined)
@@ -94,6 +94,12 @@ export default function MembersSpotlight({ legacyMembersByRole = {}, loading = f
     );
   }
 
+  const rosterUnavailable = error || !complete || !Array.isArray(memberships)
+    || memberships.some(row => row.lifecycleFacts?.isMember?.state !== 'known');
+  if (rosterUnavailable && members.length === 0) {
+    return <Box><Text>Current member information is unavailable.</Text><Button size="sm" onClick={refetch}>Try again</Button></Box>;
+  }
+
   if (members.length === 0) {
     return (
       <Box bg="white" border="1px solid" borderColor="warmGray.100" borderRadius="xl" p={6}>
@@ -106,6 +112,7 @@ export default function MembersSpotlight({ legacyMembersByRole = {}, loading = f
 
   return (
     <VStack align="stretch" spacing={4}>
+      {rosterUnavailable && <Text>Some current memberships are unavailable. Showing verified observations.</Text>}
       <SimpleGrid columns={{ base: 1, sm: 2, lg: 3 }} spacing={3}>
         {shown.map(({ record, badges }) => (
           <MemberCard key={record.address} member={record} roleBadges={badges} />
@@ -120,7 +127,7 @@ export default function MembersSpotlight({ legacyMembersByRole = {}, loading = f
             rightIcon={showAll ? <FiChevronUp /> : <FiChevronDown />}
             onClick={() => setShowAll((v) => !v)}
           >
-            {showAll ? 'Show fewer' : `Show all ${members.length} members`}
+            {showAll ? 'Show fewer' : `Show ${members.length} observed members`}
           </Button>
         </Center>
       )}

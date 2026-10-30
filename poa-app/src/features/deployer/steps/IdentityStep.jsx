@@ -36,7 +36,7 @@ import { useDropzone } from 'react-dropzone';
 import { useDeployer, UI_MODES } from '../context/DeployerContext';
 import { StepHeader, NavigationButtons, ValidationSummary } from '../components/common';
 import { validateOrganizationStep } from '../validation/schemas';
-import { buildOrgMetadata } from '../utils/orgMetadata';
+import { buildOrgMetadata, serializeOrgMetadata } from '@/features/deployer/utils/orgMetadata';
 import { useIPFScontext } from '@/context/ipfsContext';
 import {
   validateImageFile,
@@ -510,7 +510,7 @@ export function IdentityStep() {
     const jsonData = buildOrgMetadata(state);
 
     try {
-      const result = await addToIpfs(JSON.stringify(jsonData));
+      const result = await addToIpfs(serializeOrgMetadata(jsonData));
       actions.setIPFSHash(result.path);
       return true;
     } catch (error) {
@@ -740,11 +740,7 @@ export function IdentityStep() {
                     </FormControl>
                   </Box>
 
-                  {/* Names the participation token. The rest of the app calls it
-                      "Shares" (util/tokenLabel) unless an org opts into its ticker,
-                      so keep that vocabulary here — the deploy sets `useTokenSymbol`
-                      when a ticker is given. Blank = the contract defaults,
-                      "<orgName> Token" / "PT". */}
+                  {/* Asset identity and the member-facing label are separate choices. */}
                   <Box>
                     <Text fontSize="sm" fontWeight="600" color="warmGray.700" mb={1}>
                       Name your shares
@@ -769,12 +765,19 @@ export function IdentityStep() {
                         <Input
                           size="sm"
                           value={organization.tokenSymbol || ''}
-                          onChange={(e) => handleInputChange('tokenSymbol', e.target.value.toUpperCase())}
+                          onChange={(e) => handleInputChange('tokenSymbol', e.target.value)}
                           placeholder="SHARES"
                           maxLength={16}
                         />
                       </FormControl>
                     </HStack>
+                    <Checkbox
+                      mt={3}
+                      isChecked={organization.useTokenSymbol === true}
+                      onChange={(e) => handleInputChange('useTokenSymbol', e.target.checked)}
+                    >
+                      <Text fontSize="xs">Use the short name for rewards and balances</Text>
+                    </Checkbox>
                   </Box>
                 </VStack>
               </Box>

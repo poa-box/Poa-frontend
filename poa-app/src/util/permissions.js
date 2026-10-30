@@ -7,15 +7,20 @@
  * Task permission bitmask values
  * These match the TaskPerm.sol contract constants
  */
+import { PERM_BITS } from '@poa-box/core/perms';
+import { normalizeSubjectId } from '@poa-box/core/authority/ids';
+import { resolvePermCtx, decodePermWord, encodePermWord, PERM_KEYS } from '@/lib/accessV2/permKeys';
+import { TASK_PERMISSION_BITS } from '@/lib/accessV2/taskPermissions';
+
 export const TaskPermission = {
-    CREATE: 1,        // 1 << 0 - Can create tasks
-    CLAIM: 2,         // 1 << 1 - Can claim tasks / apply for tasks
-    REVIEW: 4,        // 1 << 2 - Can complete/review tasks
-    ASSIGN: 8,        // 1 << 3 - Can assign tasks / approve applications
-    SELF_REVIEW: 16,  // 1 << 4 - Claimer may complete their own task
-    BUDGET: 32,       // 1 << 5 - Edit project PT cap and bounty caps
-    EDIT_META: 64,    // 1 << 6 - Edit title/metadataHash on CLAIMED/SUBMITTED tasks
-    EDIT_FULL: 128,   // 1 << 7 - Edit everything (payout + bounty + meta) on CLAIMED/SUBMITTED tasks; strict superset of EDIT_META
+    CREATE: PERM_BITS['create'],        // 1 << 0 - Can create tasks
+    CLAIM: PERM_BITS['claim'],         // 1 << 1 - Can claim tasks / apply for tasks
+    REVIEW: PERM_BITS['review'],        // 1 << 2 - Can complete/review tasks
+    ASSIGN: PERM_BITS['assign'],        // 1 << 3 - Can assign tasks / approve applications
+    SELF_REVIEW: PERM_BITS['self-review'],  // 1 << 4 - Claimer may complete their own task
+    BUDGET: PERM_BITS['budget'],       // 1 << 5 - Edit project PT cap and bounty caps
+    EDIT_META: PERM_BITS['edit-meta'],    // 1 << 6 - Edit title/metadataHash on CLAIMED/SUBMITTED tasks
+    EDIT_FULL: PERM_BITS['edit-full'],   // 1 << 7 - Edit everything (payout + bounty + meta) on CLAIMED/SUBMITTED tasks; strict superset of EDIT_META
 };
 
 /**
@@ -48,30 +53,9 @@ export const PERMISSION_MESSAGES = {
     TASK_SUBMIT_MEMBER: 'You must be a member to submit tasks. Go to user page to join.',
 };
 
-/**
- * Normalize a hat ID to a string for comparison.
- * Handles BigInt strings from subgraph which may have different formats.
- * @param {string|number|BigInt} hatId - Hat ID in any format
- * @returns {string} - Normalized string representation
- */
-function normalizeHatId(hatId) {
-    if (hatId === null || hatId === undefined) return '';
-    // Convert to string and trim whitespace
-    return String(hatId).trim();
-}
-
-/**
- * Canonicalize a hat id to a decimal string so hex, decimal, and BigInt
- * representations compare cleanly (subgraph vs on-chain reads).
- */
+/** Canonical authority subject IDs retain adopted Hats IDs verbatim. */
 function canonicalHatId(hatId) {
-    const str = normalizeHatId(hatId);
-    if (!str) return '';
-    try {
-        return BigInt(str).toString();
-    } catch {
-        return str.toLowerCase();
-    }
+    try { return normalizeSubjectId(hatId); } catch { return ''; }
 }
 
 /**
@@ -86,26 +70,9 @@ export function userWearsAnyHat(userHatIds, hatIds) {
     return hatIds.some((h) => normalized.has(canonicalHatId(h)));
 }
 
-/**
- * Compute whether the user has a permission considering BOTH per-project and global grants.
- * Mirrors the contract's `_permMask` semantics in TaskManager.sol:
- *
- *   for each hat the user wears:
- *     mask = rolePermProj[pid][hat]              // try the per-project override
- *     if mask == 0: mask = rolePermGlobal[hat]   // fall back to global
- *     accumulate mask
- *
- * The frontend version: for each hat the user wears, look up the matching per-project
- * entry. If one exists AND has a non-zero mask, the bit is read from there (project
- * mask shadows global, per contract). Otherwise the global entry's bit is read.
- *
- * Returns true if ANY of the user's hats grants the requested permission via this
- * effective-mask resolution.
- *
- * @param {string[]} userHatIds - Hat IDs the user currently holds
- * @param {Array} projectRolePermissions - ProjectRolePermission entries for the project
- * @param {Array} globalRolePermissions - GlobalRolePermission entries from the org's TaskManager
- * @param {string} permissionType - 'canCreate' | 'canClaim' | 'canReview' | 'canAssign' | 'canSelfReview' | 'canBudget' | 'canEditMeta' | 'canEditFull'
+/** Resolve current authority-derived project/global masks through core's context fold.
+ * A present zero project row overrides global unless it explicitly inherits global.
+ * IDs may be adopted hat IDs; these rows are never retired grant-table readers.
  */
 export function userHasEffectiveTaskPermission(
     userHatIds,
@@ -113,36 +80,18 @@ export function userHasEffectiveTaskPermission(
     globalRolePermissions,
     permissionType,
 ) {
-    if (!userHatIds || !userHatIds.length) return false;
-
-    const normalizedUserHats = userHatIds.map(normalizeHatId);
-
-    // Index project entries by hat for O(1) lookup. mask=0 entries are treated as "absent"
-    // here because the contract's _permMask falls back to global when the project mask is 0.
-    const projectByHat = new Map();
-    (projectRolePermissions || []).forEach((p) => {
-        if (p && Number(p.mask || 0) > 0) {
-            projectByHat.set(normalizeHatId(p.hatId), p);
-        }
+    const bit = TASK_PERMISSION_BITS[permissionType];
+    if (!bit || !userHatIds?.length) return false;
+    const projectById = new Map((projectRolePermissions || []).filter(Boolean).map(row => [canonicalHatId(row.hatId), row]));
+    const globalById = new Map((globalRolePermissions || []).filter(Boolean).map(row => [canonicalHatId(row.hatId), row]));
+    return userHatIds.some(id => {
+        const subject = canonicalHatId(id);
+        if (!subject) return false;
+        try {
+            const mask = effectiveTaskPermissionMask(globalById.get(subject), projectById.get(subject));
+            return (BigInt(mask) & BigInt(bit)) !== 0n;
+        } catch { return false; }
     });
-
-    const globalByHat = new Map();
-    (globalRolePermissions || []).forEach((p) => {
-        if (p) globalByHat.set(normalizeHatId(p.hatId), p);
-    });
-
-    for (const userHat of normalizedUserHats) {
-        const projectEntry = projectByHat.get(userHat);
-        if (projectEntry) {
-            // Project mask exists and is non-zero — it REPLACES the global mask per
-            // _permMask semantics. Do NOT fall back to global even if this bit is unset.
-            if (projectEntry[permissionType]) return true;
-            continue;
-        }
-        const globalEntry = globalByHat.get(userHat);
-        if (globalEntry && globalEntry[permissionType]) return true;
-    }
-    return false;
 }
 
 /**
@@ -246,7 +195,7 @@ export function userIsProjectManager(project, address) {
  *     _checkPerm(pid, FLAG) => TaskPerm.has(_permMask(sender, pid), FLAG) || _isPM(pid, sender)
  *
  * The mask half is `userHasEffectiveTaskPermission` (already a faithful `_permMask`
- * mirror, including the per-hat global fallback); this adds the `|| _isPM` half.
+ * mirror, including explicit context overrides); this adds the `|| _isPM` half.
  *
  * `canBudget` is deliberately the ONE field with no manager term: budget changes go
  * through `_requireBudgetEditor`, which is "executor OR the BUDGET bit" and has no
@@ -314,4 +263,14 @@ export function taskEditRights(perms, columnId) {
     const isUnclaimed = columnId === 'open';
     const canEditFull = perms.canEditFull || (isUnclaimed && perms.canCreate);
     return { canEditFull, canEditMeta: canEditFull || perms.canEditMeta };
+}
+
+/** Project rows are current authority projections. A present zero row is an override. */
+export function effectiveTaskPermissionMask(globalRow, projectRow) {
+    const decode = row => {
+        if (!row) return null;
+        const mask = row.mask ?? Object.entries(TASK_PERMISSION_BITS).reduce((value, [flag, bit]) => row[flag] === true ? value | bit : value, 0);
+        return decodePermWord(encodePermWord({ value: mask, inheritGlobal: row.inheritGlobal === true }));
+    };
+    return resolvePermCtx(PERM_KEYS.TM_PERMS, decode(globalRow), decode(projectRow)).value;
 }

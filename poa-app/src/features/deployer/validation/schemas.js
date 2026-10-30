@@ -6,7 +6,11 @@
  */
 
 import { z } from 'zod';
-import { utf8Length } from '../utils/deploymentMapper';
+import { legacyDraftIssues, LEGACY_DRAFT_MESSAGE } from '@/lib/deployment/nativeDraft';
+import { stringToBytes } from '@poa-box/core/encoding';
+import { parseDecimalAmountToRaw } from '@poa-box/core/amounts';
+
+const utf8Length = value => stringToBytes(String(value ?? '')).length;
 
 // ============================================
 // Basic Schemas
@@ -78,7 +82,7 @@ export const vouchingSchema = z.object({
   enabled: z.boolean(),
   quorum: z.number().int().min(0).max(100),
   voucherRoleIndex: z.number().int().min(0),
-  combineWithHierarchy: z.boolean(),
+  combineWithHierarchy: z.literal(false).optional(),
 });
 
 /**
@@ -124,10 +128,12 @@ export const roleSchema = z.object({
   image: z.string().optional(),
   canVote: z.boolean(),
   vouching: vouchingSchema,
-  defaults: eligibilityDefaultsSchema,
-  hierarchy: hierarchySchema,
+  open: z.boolean(),
+  maxMembers: z.number().int().min(0).max(4294967295),
+  defaults: eligibilityDefaultsSchema.optional(),
+  hierarchy: hierarchySchema.optional(),
   distribution: distributionSchema,
-  hatConfig: hatConfigSchema,
+  hatConfig: hatConfigSchema.optional(),
 });
 
 /**
@@ -136,7 +142,7 @@ export const roleSchema = z.object({
 export const rolesArraySchema = z
   .array(roleSchema)
   .min(1, 'At least one role is required')
-  .max(32, 'Maximum 32 roles allowed')
+  .max(16, 'Maximum 16 roles allowed')
   .superRefine((roles, ctx) => {
     // Check for unique names
     const names = roles.map((r) => r.name.toLowerCase());
@@ -148,36 +154,13 @@ export const rolesArraySchema = z
       });
     }
 
-    // Check for at least one top-level role
-    const hasTopLevel = roles.some((r) => r.hierarchy.adminRoleIndex === null);
-    if (!hasTopLevel && roles.length > 0) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'At least one role must be a top-level admin (no parent)',
-      });
-    }
-
-    // Check for self-referential admin
     roles.forEach((role, idx) => {
-      if (role.hierarchy.adminRoleIndex === idx) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Role "${role.name}" cannot be its own admin`,
-          path: [idx, 'hierarchy', 'adminRoleIndex'],
-        });
+      if (legacyDraftIssues({ roles: [role] }).length) {
+        ctx.addIssue({ code: z.ZodIssueCode.custom, path: [idx],
+          message: LEGACY_DRAFT_MESSAGE });
       }
-    });
-
-    // Check for invalid parent references
-    roles.forEach((role, idx) => {
-      const parentIdx = role.hierarchy.adminRoleIndex;
-      if (parentIdx !== null && (parentIdx < 0 || parentIdx >= roles.length)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `Role "${role.name}" has invalid parent reference`,
-          path: [idx, 'hierarchy', 'adminRoleIndex'],
-        });
-      }
+      if (role.open && role.vouching.enabled) ctx.addIssue({ code: z.ZodIssueCode.custom,
+        path: [idx, 'open'], message: 'A role requiring vouches cannot be open to everyone.' });
     });
 
     // Check vouching references
@@ -200,36 +183,7 @@ export const rolesArraySchema = z
       }
     });
 
-    // Check for cycles in hierarchy
-    const detectCycle = () => {
-      for (let startIdx = 0; startIdx < roles.length; startIdx++) {
-        const visited = new Set();
-        let currentIdx = startIdx;
 
-        while (currentIdx !== null && currentIdx !== undefined) {
-          if (visited.has(currentIdx)) {
-            return { hasCycle: true, startRole: roles[startIdx]?.name };
-          }
-          visited.add(currentIdx);
-
-          const role = roles[currentIdx];
-          currentIdx = role?.hierarchy?.adminRoleIndex;
-
-          if (currentIdx !== null && (currentIdx < 0 || currentIdx >= roles.length)) {
-            break;
-          }
-        }
-      }
-      return { hasCycle: false };
-    };
-
-    const cycleResult = detectCycle();
-    if (cycleResult.hasCycle) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `Circular hierarchy detected involving role "${cycleResult.startRole}"`,
-      });
-    }
   });
 
 // ============================================
@@ -268,7 +222,13 @@ export const votingClassSchema = z.object({
   strategy: z.number().int().min(0).max(1), // 0 = DIRECT, 1 = ERC20_BAL
   slicePct: z.number().int().min(0).max(100),
   quadratic: z.boolean(),
-  minBalance: z.number().min(0),
+  minBalance: z.union([
+    z.number().min(0).max(Number.MAX_SAFE_INTEGER),
+    z.string().refine(value => {
+      try { parseDecimalAmountToRaw(value || '0', 18); return true; }
+      catch { return false; }
+    }, 'Enter a non-negative amount with at most 18 decimal places'),
+  ]),
   asset: z.string().nullable(),
   hatIds: z.array(z.number().int()),
 });
@@ -311,7 +271,6 @@ export const votingSchema = z.object({
 
 export const featuresSchema = z.object({
   educationHubEnabled: z.boolean(),
-  electionHubEnabled: z.boolean(),
 });
 
 // ============================================

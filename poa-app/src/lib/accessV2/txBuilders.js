@@ -16,7 +16,9 @@
  */
 
 import { utils, constants } from 'ethers';
-import MembershipAuthorityABI from '../../../abi/MembershipAuthority.json';
+import { MembershipAuthorityAbi as MembershipAuthorityABI } from '@poa-box/core/abis/MembershipAuthority';
+import { buildAuthorityAction } from '@poa-box/core/tx/authority';
+import { encodeIntent } from '@poa-box/core/tx/intent';
 import { RULE_KIND_ENUM } from './rules';
 import { encodeCaps } from './pendingActions';
 
@@ -25,11 +27,8 @@ export const authorityInterface = new utils.Interface(MembershipAuthorityABI);
 /** Build one `{target, value, data}` call against the authority. */
 function call(authority, fn, args) {
   if (!authority) throw new Error(`accessV2: ${fn} needs the authority address`);
-  return {
-    target: authority,
-    value: '0',
-    data: authorityInterface.encodeFunctionData(fn, args),
-  };
+  const encoded = encodeIntent(buildAuthorityAction({ authorityAddress: authority, method: fn, args }));
+  return { target: encoded.to, value: encoded.value, data: encoded.data };
 }
 
 const requireSubject = (subjectId, fn) => {
@@ -325,13 +324,8 @@ export function buildSetPaused(authority, paused) {
 /** Permissionless repair of an accepted-but-ineligible member. Anyone may call it. */
 export function buildReconcile(authority, subjectId, users) {
   const list = Array.isArray(users) ? users : [users];
-  return {
-    target: authority,
-    value: '0',
-    // Two `reconcile` overloads exist; name the signature explicitly so ethers picks the right one.
-    data: authorityInterface.encodeFunctionData('reconcile(uint256,address[])', [
-      requireSubject(subjectId, 'reconcile'),
-      list.map((u) => requireUser(u, 'reconcile')),
-    ]),
-  };
+  return call(authority, 'reconcile(uint256,address[])', [
+    requireSubject(subjectId, 'reconcile'),
+    list.map((u) => requireUser(u, 'reconcile')),
+  ]);
 }

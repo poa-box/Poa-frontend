@@ -4,10 +4,19 @@
  */
 
 import { ethers } from 'ethers';
-import PaymentManagerABI from '../../../../abi/PaymentManager.json';
-import PaymasterHubABI from '../../../../abi/PaymasterHub.json';
-import ERC20ABI from '../../../../abi/ERC20.json';
-import { requireAddress, requirePositiveNumber } from '../utils/validation';
+import { PaymentManagerAbi as PaymentManagerABI } from '@poa-box/core/abis/PaymentManager';
+import { ERC20Abi as ERC20ABI } from '@poa-box/core/abis/ERC20';
+import { requireAddress } from '@/services/web3/utils/validation';
+import { requireRawUint } from '@poa-box/core/amounts';
+import { buildApproveErc20, buildPayErc20, buildClaimDistribution, buildOptOut, parseProof } from '@poa-box/core/tx/treasury';
+import { buildDepositForOrg } from '@poa-box/core/tx/paymaster';
+import { executeCoreIntent } from '@/services/web3/core/coreIntent';
+
+const positiveRaw = (amount, label) => {
+  const raw = requireRawUint(amount && typeof amount === 'object' ? amount.toString() : amount);
+  if (raw === '0') throw new Error(`${label} must be greater than 0`);
+  return raw;
+};
 
 /**
  * TreasuryService - Distribution and payment management
@@ -20,6 +29,15 @@ export class TreasuryService {
   constructor(contractFactory, transactionManager) {
     this.factory = contractFactory;
     this.txManager = transactionManager;
+  }
+
+  execute(intent, options) {
+    return executeCoreIntent(this.factory, this.txManager, intent, options);
+  }
+
+  // Core's canonical ABI owns the remaining simple calls without named builders.
+  call(to, abi, method, args, options) {
+    return this.execute({ to, abi, method, args, meta: { domain: 'treasury', action: method } }, options);
   }
 
   // ============================================
@@ -37,10 +55,8 @@ export class TreasuryService {
   async approveToken(tokenAddress, spenderAddress, amount, options = {}) {
     requireAddress(tokenAddress, 'Token address');
     requireAddress(spenderAddress, 'Spender address');
-    requirePositiveNumber(amount, 'Approval amount');
 
-    const contract = this.factory.createWritable(tokenAddress, ERC20ABI);
-    return this.txManager.execute(contract, 'approve', [spenderAddress, amount], options);
+    return this.execute(buildApproveErc20({ tokenAddress, spender: spenderAddress, amountWei: positiveRaw(amount, 'Approval amount') }), options);
   }
 
   /**
@@ -54,10 +70,8 @@ export class TreasuryService {
   async depositERC20(contractAddress, tokenAddress, amount, options = {}) {
     requireAddress(contractAddress, 'PaymentManager contract address');
     requireAddress(tokenAddress, 'Token address');
-    requirePositiveNumber(amount, 'Deposit amount');
 
-    const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
-    return this.txManager.execute(contract, 'payERC20', [tokenAddress, amount], options);
+    return this.execute(buildPayErc20({ paymentManagerAddress: contractAddress, tokenAddress, amountWei: positiveRaw(amount, 'Deposit amount') }), options);
   }
 
   /**
@@ -72,10 +86,8 @@ export class TreasuryService {
   async transferERC20(tokenAddress, recipientAddress, amount, options = {}) {
     requireAddress(tokenAddress, 'Token address');
     requireAddress(recipientAddress, 'Recipient address');
-    requirePositiveNumber(amount, 'Transfer amount');
 
-    const contract = this.factory.createWritable(tokenAddress, ERC20ABI);
-    return this.txManager.execute(contract, 'transfer', [recipientAddress, amount], options);
+    return this.call(tokenAddress, ERC20ABI, 'transfer', [recipientAddress, positiveRaw(amount, 'Transfer amount')], options);
   }
 
   /**
@@ -124,10 +136,8 @@ export class TreasuryService {
    */
   async depositToGasPool(paymasterHubAddress, orgId, amount, options = {}) {
     requireAddress(paymasterHubAddress, 'PaymasterHub address');
-    requirePositiveNumber(amount, 'Deposit amount');
 
-    const contract = this.factory.createWritable(paymasterHubAddress, PaymasterHubABI);
-    return this.txManager.execute(contract, 'depositForOrg', [orgId], { ...options, value: amount });
+    return this.execute(buildDepositForOrg({ paymasterHubAddress, orgId, amountWei: positiveRaw(amount, 'Deposit amount') }), options);
   }
 
   // ============================================
@@ -147,16 +157,9 @@ export class TreasuryService {
   async createDistribution(contractAddress, payoutToken, amount, merkleRoot, checkpointBlock, options = {}) {
     requireAddress(contractAddress, 'PaymentManager contract address');
     requireAddress(payoutToken, 'Payout token address');
-    requirePositiveNumber(amount, 'Distribution amount');
 
-    const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
-
-    return this.txManager.execute(
-      contract,
-      'createDistribution',
-      [payoutToken, amount, merkleRoot, checkpointBlock],
-      options
-    );
+    return this.call(contractAddress, PaymentManagerABI, 'createDistribution',
+      [payoutToken, positiveRaw(amount, 'Distribution amount'), merkleRoot, requireRawUint(checkpointBlock)], options);
   }
 
   /**
@@ -170,17 +173,9 @@ export class TreasuryService {
    */
   async claimDistribution(contractAddress, distributionId, claimAmount, merkleProof, options = {}) {
     requireAddress(contractAddress, 'PaymentManager contract address');
-    requirePositiveNumber(claimAmount, 'Claim amount');
 
-    const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
-    const id = ethers.BigNumber.from(distributionId);
-
-    return this.txManager.execute(
-      contract,
-      'claimDistribution',
-      [id, claimAmount, merkleProof],
-      options
-    );
+    return this.execute(buildClaimDistribution({ paymentManagerAddress: contractAddress,
+      distributionId: requireRawUint(distributionId), amountWei: positiveRaw(claimAmount, 'Claim amount'), proof: parseProof(merkleProof) }), options);
   }
 
   /**
@@ -197,18 +192,11 @@ export class TreasuryService {
       throw new Error('At least one claim is required');
     }
 
-    const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
-
-    const distributionIds = claims.map(c => ethers.BigNumber.from(c.distributionId));
-    const amounts = claims.map(c => c.amount);
-    const proofs = claims.map(c => c.proof);
-
-    return this.txManager.execute(
-      contract,
-      'claimMultiple',
-      [distributionIds, amounts, proofs],
-      options
-    );
+    return this.call(contractAddress, PaymentManagerABI, 'claimMultiple', [
+      claims.map(c => requireRawUint(c.distributionId)),
+      claims.map(c => positiveRaw(c.amount, 'Claim amount')),
+      claims.map(c => parseProof(c.proof)),
+    ], options);
   }
 
   /**
@@ -221,18 +209,8 @@ export class TreasuryService {
   async finalizeDistribution(contractAddress, distributionId, minClaimPeriodBlocks = 0, options = {}) {
     requireAddress(contractAddress, 'PaymentManager contract address');
 
-    const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
-    const id = ethers.BigNumber.from(distributionId);
-
-    // The ABI takes two arguments — `finalizeDistribution(uint256 distributionId,
-    // uint256 minClaimPeriodBlocks)`. Passing one made ethers throw "missing
-    // argument" before any RPC was made (this method had no caller until now).
-    return this.txManager.execute(
-      contract,
-      'finalizeDistribution',
-      [id, ethers.BigNumber.from(minClaimPeriodBlocks || 0)],
-      options
-    );
+    return this.call(contractAddress, PaymentManagerABI, 'finalizeDistribution',
+      [requireRawUint(distributionId), requireRawUint(minClaimPeriodBlocks || 0)], options);
   }
 
   // ============================================
@@ -319,7 +297,7 @@ export class TreasuryService {
     requireAddress(userAddress, 'User address');
 
     const contract = this.factory.createReadOnly(contractAddress, PaymentManagerABI);
-    const optedOut = await contract.optedOut(userAddress);
+    const optedOut = await contract.isOptedOut(userAddress);
 
     return optedOut;
   }
@@ -334,14 +312,7 @@ export class TreasuryService {
   async toggleOptOut(contractAddress, optOut, options = {}) {
     requireAddress(contractAddress, 'PaymentManager contract address');
 
-    const contract = this.factory.createWritable(contractAddress, PaymentManagerABI);
-
-    return this.txManager.execute(
-      contract,
-      'optOut',
-      [optOut],
-      options
-    );
+    return this.execute(buildOptOut({ paymentManagerAddress: contractAddress, optOut }), options);
   }
 }
 
@@ -353,4 +324,29 @@ export class TreasuryService {
  */
 export function createTreasuryService(factory, txManager) {
   return new TreasuryService(factory, txManager);
+}
+
+/** Public fee-fund reads use the core ABI, without loading a wallet or signing manager. */
+export async function readOrgFeeFund(client, { orgId, chainId, hubAddress, endpoint }) {
+  const { PaymasterHubAbi } = await import('@poa-box/core/abis/PaymasterHub');
+  requireAddress(hubAddress, 'Fee fund address');
+  if (!ethers.utils.isHexString(orgId, 32)) throw new Error('Fee fund organization unavailable');
+  if (BigInt(await client.request({ method: 'eth_chainId' })) !== BigInt(chainId)) throw new Error('Fee fund chain mismatch');
+  const observed = await client.request({ method: 'eth_getBlockByNumber', params: ['latest', false] });
+  const number = requireRawUint(BigInt(observed.number));
+  if (!/^0x[\da-fA-F]{64}$/.test(observed.hash)) throw new Error('Fee fund block unavailable');
+  const address = ethers.utils.getAddress(hubAddress.toLowerCase());
+  const [financials, config] = await Promise.all(['getOrgFinancials', 'getOrgConfig'].map(functionName =>
+    client.readContract({ address, abi: PaymasterHubAbi, functionName, args: [orgId], blockNumber: BigInt(number) })));
+  const fields = (method, raw) => Object.fromEntries(PaymasterHubAbi.find(entry => entry.name === method).outputs[0].components
+    .map((entry, index) => [entry.name, raw[entry.name] ?? raw[index]]));
+  const money = fields('getOrgFinancials', financials), settings = fields('getOrgConfig', config);
+  const deposited = requireRawUint(String(money.deposited)), spent = requireRawUint(String(money.spent));
+  const again = await client.request({ method: 'eth_getBlockByNumber', params: [`0x${BigInt(number).toString(16)}`, false] });
+  if (again?.hash?.toLowerCase() !== observed.hash.toLowerCase()) throw new Error('Fee fund block changed');
+  // The current getter's spent includes the fee debit; do not add an indexed subsidy twice.
+  const available = BigInt(deposited) > BigInt(spent) ? (BigInt(deposited) - BigInt(spent)).toString() : '0';
+  return { deposited, spent, available, registered: requireRawUint(String(settings.registeredAt)) !== '0',
+    source: { chainId, orgId, contract: address, endpoint, method: 'eth_call', indexed: false,
+      snapshot: 'pinned', block: { number, hash: observed.hash } } };
 }

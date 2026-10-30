@@ -1,339 +1,86 @@
-import { useEthersSigner, clientToSigner, useSwitchChain, useConfig, getConnectorClient, useWalletClient } from '@/context/WalletContext';
-/**
- * useProfileUpdate
- * Hook for updating user profile metadata on the UniversalAccountRegistry.
- * Handles both EOA (direct contract call) and passkey (ERC-4337 UserOp) flows.
- *
- * Passkey profile updates are sponsored via solidarity onboarding on GNOSIS chain
- * (Arbitrum does not have onboarding enabled).
- */
-
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { encodeFunctionData } from 'viem';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useConfig, useSwitchChain, getConnectorClient, clientToSigner } from '@/context/WalletContext';
 import { useAuth } from '@/context/authState';
 import { useIPFScontext } from '@/context/ipfsContext';
-import { ipfsCidToBytes32 } from '@/services/web3/utils/encoding';
-import { buildUserOp, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
-import { signUserOpWithPasskey } from '@/services/web3/passkey/passkeySign';
-import { encodeSolidarityOnboardingPaymasterData } from '@/services/web3/passkey/paymasterData';
-import { createChainClients } from '@/services/web3/utils/chainClients';
-import { signUserOpWithWallet } from '@/services/web3/eip7702/walletSigner';
-import { buildEOAAuthorization, checkWallet7702Support } from '@/services/web3/eip7702/authorizationBuilder';
-import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
-import { DEFAULT_DEPLOY_CHAIN_ID, getSubgraphUrl } from '@/config/networks';
+import { usePOContext } from '@/context/POContext';
 import { useRefreshEmit, RefreshEvent } from '@/context/RefreshContext';
-import UniversalAccountRegistryABI from '../../abi/UniversalAccountRegistry.json';
-import PasskeyAccountABI from '../../abi/PasskeyAccount.json';
-import PasskeyAccountFactoryABI from '../../abi/PasskeyAccountFactory.json';
-import { ethers } from 'ethers';
+import { createScopeGuard, serviceScope } from '@/lib/services/runtimeScope';
+import { refreshAfterIndexing } from '@/hooks/transactionNotificationLifecycle';
 
-// Solidarity-funded operations target Gnosis (onboarding enabled there, not Arbitrum)
-const SOLIDARITY_CHAIN_ID = DEFAULT_DEPLOY_CHAIN_ID;
-
+/** Full-form profile writes use the selected indexed registration through host managers. */
 export function useProfileUpdate() {
-  const { isPasskeyUser, accountAddress, passkeyState } = useAuth();
+  const auth = useAuth();
+  const isSessionCurrent = auth.isSessionCurrent;
+  const po = usePOContext();
   const { addToIpfs } = useIPFScontext();
-  const signer = useEthersSigner();
   const { switchChainAsync } = useSwitchChain();
   const wagmiConfig = useConfig();
-  const { data: walletClient } = useWalletClient();
   const { emit } = useRefreshEmit();
-
   const [isUpdating, setIsUpdating] = useState(false);
   const [error, setError] = useState(null);
   const [step, setStep] = useState('idle');
+  const active = useRef(true);
+  const identity = JSON.stringify([serviceScope({ ...po, ...auth }), auth.isAuthHydrated, auth.sessionGeneration]);
+  const scope = useMemo(() => ({ identity }), [identity]);
+  const current = useRef(scope);
+  current.current = scope;
+  const guard = useMemo(() => {
+    const scoped = createScopeGuard(scope, () => active.current ? current.current : null);
+    return () => {
+      scoped();
+      if (isSessionCurrent && !isSessionCurrent()) throw new Error('Your account changed. Please try again.');
+    };
+  }, [scope, isSessionCurrent]);
+  useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
+  useEffect(() => { setIsUpdating(false); setError(null); setStep('idle'); }, [scope]);
 
-  // Gnosis-specific clients for passkey UserOps
-  const gnosisClients = useMemo(() => createChainClients(SOLIDARITY_CHAIN_ID), []);
-  const publicClient = gnosisClients?.publicClient;
-  const bundlerClient = gnosisClients?.bundlerClient;
-
-  // Infrastructure state (fetched from Gnosis subgraph)
-  const [paymasterAddress, setPaymasterAddress] = useState(null);
-  const [registryAddress, setRegistryAddress] = useState(null);
-  const [factoryAddress, setFactoryAddress] = useState(null);
-
-  useEffect(() => {
-    const subgraphUrl = getSubgraphUrl(SOLIDARITY_CHAIN_ID);
-    if (!subgraphUrl) return;
-
-    async function fetchInfra() {
-      try {
-        const query = `{
-          poaManagerContracts(first: 1) { paymasterHubProxy }
-          universalAccountRegistries(first: 1) { id }
-          passkeyAccountFactories(first: 1) { id }
-        }`;
-        const res = await fetch(subgraphUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query }),
-        });
-        const json = await res.json();
-        const data = json?.data;
-        setPaymasterAddress(data?.poaManagerContracts?.[0]?.paymasterHubProxy || null);
-        setRegistryAddress(data?.universalAccountRegistries?.[0]?.id || null);
-        setFactoryAddress(data?.passkeyAccountFactories?.[0]?.id || null);
-      } catch (err) {
-        console.error('[ProfileUpdate] Failed to fetch Gnosis infrastructure:', err);
-      }
-    }
-
-    fetchInfra();
-  }, []);
-
-  /**
-   * Update profile metadata.
-   * @param {Object} profileData - { bio, avatar, github, twitter, website }
-   * @returns {Promise<string>} Transaction hash
-   */
-  const updateProfile = useCallback(async (profileData) => {
-    if (!accountAddress || !registryAddress) {
-      throw new Error('Account or registry not available');
-    }
-
+  const updateProfile = useCallback(async profileData => {
+    guard();
+    if (!auth.accountAddress || auth.isAuthHydrated === false) throw new Error('Your account is still loading. Please try again.');
     setIsUpdating(true);
     setError(null);
-
+    const onStep = next => { guard(); setStep(next); };
     try {
-      // Step 1: Upload metadata JSON to IPFS
-      setStep('uploading');
-      const jsonContent = JSON.stringify(profileData);
-      const ipfsResult = await addToIpfs(jsonContent);
-      const cid = ipfsResult.path;
-
-      // Step 2: Convert CID to bytes32
-      const metadataHash = ipfsCidToBytes32(cid);
-
-      let txHash;
-
-      if (isPasskeyUser) {
-        // Passkey flow: build UserOp with solidarity onboarding sponsorship
-        txHash = await _updateViaPasskey(metadataHash);
-      } else {
-        // EOA flow: direct contract call
-        txHash = await _updateViaEOA(metadataHash);
-      }
-
+      // Keep account codecs, signing and optional executors off public reading routes.
+      const [{ executeProfileUpdate }, { resolveAccountWriteSource }, { createAccountHost }] = await Promise.all([
+        import('@/services/web3/core/accountActions'), import('@/services/web3/core/accountWriteSource'),
+        import('@/services/web3/core/accountHost'),
+      ]);
+      guard();
+      const { result, cid, source } = await executeProfileUpdate({ profileData, guard, onStep,
+        resolveSource: purpose => resolveAccountWriteSource(auth.accountAddress, { purpose, guard }),
+        upload: async serialized => (await addToIpfs(serialized)).path,
+        createHost: source => createAccountHost({ source, ...auth, guard,
+          onStateChange: state => onStep(({ estimating: 'building', awaiting_signature: 'signing', pending: 'submitting' })[state] || state),
+          ensureWallet: async chainId => {
+            guard();
+            await switchChainAsync({ chainId });
+            guard();
+            const walletClient = await getConnectorClient(wagmiConfig, { chainId });
+            guard();
+            return { walletClient, signer: clientToSigner(walletClient) };
+          },
+        }),
+      });
+      guard();
       setStep('success');
-      emit(RefreshEvent.PROFILE_UPDATED, { address: accountAddress, cid });
-      return txHash;
-    } catch (err) {
-      console.error('[ProfileUpdate] Error:', err);
-      setError(err);
+      void refreshAfterIndexing({ endpoint: source.endpoint, blockNumber: result.blockNumber,
+        isCurrent: () => { try { guard(); return true; } catch { return false; } }, emit, event: RefreshEvent.PROFILE_UPDATED,
+        data: { address: auth.accountAddress, cid, chainId: source.chainId, subgraphUrl: source.endpoint, transactionHash: result.txHash } });
+      return result.txHash;
+    } catch (cause) {
+      try { guard(); } catch (stale) { throw stale; }
+      const message = cause?.result?.error?.userMessage || (/Bio too long/.test(cause?.message || '') ? 'Keep your bio within 280 characters.' : 'Your profile could not be saved. Please check your account and try again.');
+      const friendly = Object.assign(new Error(message), { result: cause?.result });
+      setError(friendly);
       setStep('error');
-      throw err;
+      throw friendly;
     } finally {
-      setIsUpdating(false);
+      try { guard(); setIsUpdating(false); } catch { /* A new account owns the form. */ }
     }
-  }, [accountAddress, registryAddress, isPasskeyUser, addToIpfs, signer, publicClient, bundlerClient, paymasterAddress, passkeyState, emit, walletClient, switchChainAsync, wagmiConfig]);
+  }, [auth, guard, addToIpfs, switchChainAsync, wagmiConfig, emit]);
 
-  /**
-   * EOA flow: try 7702 gas-sponsored via solidarity fund, fallback to direct tx.
-   * Profile metadata lives on Gnosis, so we target the Gnosis chain.
-   */
-  async function _updateViaEOA(metadataHash) {
-    if (!signer) throw new Error('Wallet not connected');
-
-    // Try 7702 sponsored path first (same solidarity fund as passkey users)
-    if (walletClient && bundlerClient && publicClient && paymasterAddress) {
-      const has7702 = await checkWallet7702Support(walletClient).catch(() => false);
-      if (has7702) {
-        try {
-          return await _updateVia7702(metadataHash);
-        } catch (err) {
-          console.warn('[ProfileUpdate] 7702 sponsored path failed, falling back to direct tx:', err.message);
-        }
-      }
-    }
-
-    // Fallback: direct contract call (EOA pays gas on Gnosis)
-    setStep('signing');
-    await switchChainAsync({ chainId: SOLIDARITY_CHAIN_ID });
-    const freshClient = await getConnectorClient(wagmiConfig, { chainId: SOLIDARITY_CHAIN_ID });
-    const gnosisSigner = clientToSigner(freshClient);
-
-    const contract = new ethers.Contract(registryAddress, UniversalAccountRegistryABI, gnosisSigner);
-    const tx = await contract.setProfileMetadata(metadataHash);
-
-    setStep('confirming');
-    const receipt = await tx.wait();
-    return receipt.transactionHash;
-  }
-
-  /**
-   * EOA 7702 path: build UserOp with solidarity onboarding sponsorship.
-   * Same flow as passkey but signs with wallet ECDSA instead of WebAuthn.
-   */
-  async function _updateVia7702(metadataHash) {
-    setStep('building');
-
-    const authorization = await buildEOAAuthorization(walletClient);
-
-    const innerCallData = encodeFunctionData({
-      abi: UniversalAccountRegistryABI,
-      functionName: 'setProfileMetadata',
-      args: [metadataHash],
-    });
-
-    const callData = encodeFunctionData({
-      abi: PasskeyAccountABI,
-      functionName: 'execute',
-      args: [registryAddress, 0n, innerCallData],
-    });
-
-    const paymasterData = encodeSolidarityOnboardingPaymasterData();
-
-    const userOp = await buildUserOp({
-      sender: accountAddress,
-      callData,
-      bundlerClient,
-      publicClient,
-      paymasterAddress,
-      paymasterData,
-      authorization,
-      dummySignatureLength: 65,
-    });
-
-    setStep('signing');
-    const userOpHash = getUserOpHash(userOp, ENTRY_POINT_ADDRESS, SOLIDARITY_CHAIN_ID);
-    const signature = await signUserOpWithWallet(userOpHash, walletClient);
-    userOp.signature = signature;
-
-    setStep('submitting');
-    const submittedHash = await bundlerClient.sendUserOperation({
-      ...userOp,
-      entryPointAddress: ENTRY_POINT_ADDRESS,
-    });
-
-    setStep('confirming');
-    const receipt = await bundlerClient.waitForUserOperationReceipt({
-      hash: submittedHash,
-      timeout: 120_000,
-    });
-
-    if (!receipt.success) {
-      throw new Error(receipt.reason || 'Profile update UserOp failed on-chain');
-    }
-
-    return receipt.receipt.transactionHash;
-  }
-
-  /**
-   * Build initCode if account is not yet deployed on Gnosis (cross-chain passkey).
-   * Enables atomic deploy + execute in one UserOp.
-   */
-  async function _buildInitCodeIfNeeded() {
-    if (!passkeyState || !factoryAddress || !publicClient) return '0x';
-
-    const bytecode = await publicClient.getBytecode({ address: accountAddress });
-    if (bytecode && bytecode !== '0x') return '0x'; // Already deployed
-
-    // Verify CREATE2 produces the same address on Gnosis
-    const targetAddr = await publicClient.readContract({
-      address: factoryAddress,
-      abi: PasskeyAccountFactoryABI,
-      functionName: 'getAddress',
-      args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
-    });
-    if (targetAddr.toLowerCase() !== accountAddress.toLowerCase()) {
-      throw new Error('Cross-chain account deployment unavailable: factory address mismatch');
-    }
-
-    const factoryCallData = encodeFunctionData({
-      abi: PasskeyAccountFactoryABI,
-      functionName: 'createAccount',
-      args: [passkeyState.credentialId, passkeyState.publicKeyX, passkeyState.publicKeyY, BigInt(passkeyState.salt)],
-    });
-    console.log('[ProfileUpdate] Account not on Gnosis — including initCode for cross-chain deploy');
-    return factoryAddress + factoryCallData.slice(2);
-  }
-
-  /**
-   * Passkey flow: build UserOp with execute(registry, 0, setProfileMetadata(hash))
-   * sponsored via solidarity onboarding path. Atomically deploys account on Gnosis if needed.
-   */
-  async function _updateViaPasskey(metadataHash) {
-    if (!bundlerClient || !publicClient || !paymasterAddress) {
-      throw new Error('Passkey infrastructure not available');
-    }
-
-    setStep('building');
-
-    // Check if account needs deployment on Gnosis (created on Arbitrum)
-    const initCode = await _buildInitCodeIfNeeded();
-
-    // Encode setProfileMetadata(bytes32) call
-    const innerCallData = encodeFunctionData({
-      abi: UniversalAccountRegistryABI,
-      functionName: 'setProfileMetadata',
-      args: [metadataHash],
-    });
-
-    // Wrap in execute(registryAddress, 0, innerCallData)
-    const callData = encodeFunctionData({
-      abi: PasskeyAccountABI,
-      functionName: 'execute',
-      args: [registryAddress, 0n, innerCallData],
-    });
-
-    // Use solidarity onboarding paymaster data (profile updates go through onboarding path)
-    const paymasterData = encodeSolidarityOnboardingPaymasterData();
-
-    const userOp = await buildUserOp({
-      sender: accountAddress,
-      callData,
-      bundlerClient,
-      publicClient,
-      paymasterAddress,
-      paymasterData,
-      initCode,
-    });
-
-    // Sign UserOp with passkey
-    setStep('signing');
-    const userOpHash = getUserOpHash(
-      userOp,
-      ENTRY_POINT_ADDRESS,
-      SOLIDARITY_CHAIN_ID,
-    );
-    const signature = await signUserOpWithPasskey(userOpHash, passkeyState.rawCredentialId);
-    userOp.signature = signature;
-
-    // Submit to bundler
-    setStep('submitting');
-    const submittedHash = await bundlerClient.sendUserOperation({
-      ...userOp,
-      entryPointAddress: ENTRY_POINT_ADDRESS,
-    });
-
-    // Wait for receipt
-    setStep('confirming');
-    const receipt = await bundlerClient.waitForUserOperationReceipt({
-      hash: submittedHash,
-      timeout: 120_000,
-    });
-
-    if (!receipt.success) {
-      throw new Error(receipt.reason || 'Profile update UserOp failed on-chain');
-    }
-
-    return receipt.receipt.transactionHash;
-  }
-
-  const reset = useCallback(() => {
-    setStep('idle');
-    setError(null);
-    setIsUpdating(false);
-  }, []);
-
-  return {
-    updateProfile,
-    isUpdating,
-    error,
-    step,
-    reset,
-  };
+  const reset = useCallback(() => { guard(); setStep('idle'); setError(null); setIsUpdating(false); }, [guard]);
+  return { updateProfile, isUpdating, error, step, reset };
 }
-
 export default useProfileUpdate;

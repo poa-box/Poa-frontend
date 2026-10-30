@@ -230,9 +230,9 @@ const Home = () => {
             <Box {...darkCardStyle} p={{ base: 4, md: 6 }}>
               <SimpleGrid columns={3} spacing={{ base: 2, md: 4 }}>
                 {[
-                  { icon: FiUsers, value: poMembers || "0", label: "Members", color: "purple.300" },
-                  { icon: FiActivity, value: activeTaskAmount || "0", label: "Active Tasks", color: "blue.300" },
-                  { icon: FiCheckCircle, value: completedTaskAmount || "0", label: "Completed", color: "green.300" },
+                  { icon: FiUsers, value: poMembers ?? "—", label: "Members", color: "purple.300" },
+                  { icon: FiActivity, value: activeTaskAmount ?? "—", label: "Active Tasks", color: "blue.300" },
+                  { icon: FiCheckCircle, value: completedTaskAmount ?? "—", label: "Completed", color: "green.300" },
                 ].map((stat) => (
                   <VStack key={stat.label} spacing={1}>
                     <Icon as={stat.icon} color={stat.color} boxSize={{ base: 4, md: 5 }} />

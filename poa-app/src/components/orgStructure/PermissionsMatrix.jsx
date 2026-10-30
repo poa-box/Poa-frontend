@@ -3,6 +3,8 @@
  */
 
 import React, { useState } from 'react';
+import { usePOContext } from '@/context/POContext';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 import {
   Box,
   Table,
@@ -22,6 +24,7 @@ import {
 } from '@chakra-ui/react';
 import {
   FiCheck,
+  FiHelpCircle,
   FiMinus,
   FiUserPlus,
   FiDollarSign,
@@ -75,7 +78,6 @@ const PERMISSION_ICONS = {
  */
 const SHORT_LABELS = {
   QuickJoin_Member: 'Join',
-  ParticipationToken_Member: 'Shares',
   ParticipationToken_Approver: 'Approve',
   EducationHub_Creator: 'Edu Create',
   EducationHub_Member: 'Edu Access',
@@ -99,65 +101,58 @@ const SHORT_LABELS = {
  * Full descriptions for tooltips
  */
 const FULL_DESCRIPTIONS = {
-  QuickJoin_Member: 'Join the organization instantly with this role — no vouching required.',
-  ParticipationToken_Member: 'Request and hold the org shares (its on-chain token) for tasks and contributions.',
-  ParticipationToken_Approver: 'Review and approve member share requests — controls who earns the org token.',
-  EducationHub_Creator: 'Publish education modules — lessons and quizzes — with a configured share payout for completion.',
-  EducationHub_Member: 'Complete education modules to onboard and earn the share payout set by the creator.',
+  QuickJoin_Member: 'Receive this role when joining the organization, subject to its joining requirements.',
   HybridVoting_Creator: 'Submit binding governance proposals: change org rules, transfer treasury, assign roles, etc.',
-  HybridVoting_Voter: 'Vote on binding governance — change rules, elect officials, transfer treasury. Voting power blends democracy with participation shares.',
   DirectDemocracyVoting_Creator: 'Start a non-binding community poll — one member, one vote — for sentiment decisions.',
-  DirectDemocracyVoting_Voter: 'Vote in non-binding community polls. One member, one vote, regardless of shares held.',
-  Executor_Voter: 'Trigger on-chain execution of proposals that have passed voting (treasury transfers, role changes, etc.).',
+  Executor_Voter: 'Carry out proposals that have passed voting, such as payments or role changes.',
   TaskManager_CreateProject: 'Create new projects in the task manager. Project creators automatically become a manager of the projects they create, which lets them run tasks inside those projects regardless of the per-task grants below.',
-  TaskManager_Create: 'Create new tasks under any project (org-wide). Per-project grants set via project setup override this global grant.',
+  TaskManager_Create: 'Create new tasks. Individual projects may have different permissions.',
   TaskManager_Claim: 'Claim or apply for tasks (org-wide).',
-  TaskManager_Review: 'Approve or reject submitted tasks; required to call completeTask / rejectTask.',
-  TaskManager_Assign: 'Force-assign tasks to a member or approve task applications.',
+  TaskManager_Review: 'Approve or reject submitted tasks.',
+  TaskManager_Assign: 'Assign tasks to a member or approve task applications.',
   TaskManager_SelfReview: 'Allow the claimer to complete their own task (bypasses the standard "no self-review" rule).',
-  TaskManager_Budget: 'Edit a project\'s PT cap and bounty token caps via setConfig — granted via TaskManager v4.',
-  TaskManager_EditMeta: 'Edit a task\'s title and metadata after it has been claimed or submitted (v5). Cannot change payout or bounty.',
-  TaskManager_EditFull: 'Edit everything on a task — payout, bounty, metadata — even after it has been claimed or submitted (v5). Strict superset of Edit Meta.',
+  TaskManager_Budget: 'Edit a project’s rewards and payment budgets.',
+  TaskManager_EditMeta: 'Edit a task’s title and details after it has been claimed or submitted.',
+  TaskManager_EditFull: 'Edit a task’s details and rewards, including after it has been claimed or submitted.',
 };
 
-function PermissionCell({ allowed }) {
-  // 'inherited' (access-v2 bridge): held through a group, not the row's own grant — muted so a
-  // role's ADDITIONS stand out against what its group already gives everyone.
-  if (allowed === 'inherited') {
-    return (
-      <Td textAlign="center" py={3}>
-        <Tooltip label="Inherited from a group">
-          <Icon as={FiCheck} color="purple.300" boxSize={5} bg="purple.50" p={1} borderRadius="md" />
-        </Tooltip>
-      </Td>
-    );
-  }
+const permissionState = allowed => allowed === 'inherited' ? 'Inherited from a group'
+  : allowed === true ? 'Allowed' : allowed === false ? 'Not allowed' : 'Permission unavailable';
+
+function columnLabel(col, tokenLabel) {
+  return col.key === 'ParticipationToken_Member' ? tokenLabel : SHORT_LABELS[col.key] || col.permissionRole;
+}
+
+function columnDescription(col, tokenLabel) {
+  if (col.key === 'ParticipationToken_Member') return `Request and hold ${tokenLabel} for tasks and contributions.`;
+  if (col.key === 'ParticipationToken_Approver') return `Review and approve member requests for ${tokenLabel}.`;
+  if (col.key === 'EducationHub_Creator') return `Publish learning modules with rewards in ${tokenLabel}.`;
+  if (col.key === 'EducationHub_Member') return `Complete learning modules and earn rewards in ${tokenLabel}.`;
+  if (col.key === 'HybridVoting_Voter') return `Vote on binding decisions. Voting power combines member voice with ${tokenLabel}.`;
+  if (col.key === 'DirectDemocracyVoting_Voter') return `Vote in community polls. Each member has one vote, regardless of ${tokenLabel} held.`;
+  return FULL_DESCRIPTIONS[col.key] || col.label;
+}
+
+function PermissionIndicator({ allowed }) {
+  const label = permissionState(allowed);
+  const unknown = allowed !== true && allowed !== false && allowed !== 'inherited';
   return (
-    <Td textAlign="center" py={3}>
-      {allowed ? (
-        <Icon
-          as={FiCheck}
-          color="green.500"
-          boxSize={5}
-          bg="green.50"
-          p={1}
-          borderRadius="md"
-        />
-      ) : (
-        <Icon
-          as={FiMinus}
-          color="warmGray.300"
-          boxSize={5}
-        />
-      )}
-    </Td>
+    <Tooltip label={label} shouldWrapChildren>
+      <Icon as={unknown ? FiHelpCircle : allowed === false ? FiMinus : FiCheck}
+        aria-label={label} color={unknown ? 'warmGray.500' : allowed === 'inherited' ? 'purple.300' : allowed ? 'green.500' : 'warmGray.300'}
+        boxSize={5} />
+    </Tooltip>
   );
 }
 
-function MobilePermissionRow({ col, allowed, isOpen, onToggle }) {
+function PermissionCell({ allowed }) {
+  return <Td textAlign="center" py={3}><PermissionIndicator allowed={allowed} /></Td>;
+}
+
+function MobilePermissionRow({ col, allowed, isOpen, onToggle, tokenLabel }) {
   const IconComponent = PERMISSION_ICONS[col.key] || FiCheck;
-  const shortLabel = SHORT_LABELS[col.key] || col.permissionRole;
-  const description = FULL_DESCRIPTIONS[col.key] || col.label;
+  const shortLabel = columnLabel(col, tokenLabel);
+  const description = columnDescription(col, tokenLabel);
 
   return (
     <Box>
@@ -173,7 +168,7 @@ function MobilePermissionRow({ col, allowed, isOpen, onToggle }) {
         transition="background-color 0.15s"
         onClick={onToggle}
         aria-expanded={isOpen}
-        aria-label={`${shortLabel}: ${allowed === 'inherited' ? 'inherited from a group' : allowed ? 'allowed' : 'not allowed'}`}
+        aria-label={`${shortLabel}: ${permissionState(allowed)}`}
       >
         <HStack justify="space-between" spacing={3}>
           <HStack spacing={3} minW={0}>
@@ -183,20 +178,7 @@ function MobilePermissionRow({ col, allowed, isOpen, onToggle }) {
             </Text>
           </HStack>
           <HStack spacing={2} flexShrink={0}>
-            {allowed === 'inherited' ? (
-              <Icon as={FiCheck} color="purple.300" boxSize={5} bg="purple.50" p={1} borderRadius="md" />
-            ) : allowed ? (
-              <Icon
-                as={FiCheck}
-                color="green.500"
-                boxSize={5}
-                bg="green.50"
-                p={1}
-                borderRadius="md"
-              />
-            ) : (
-              <Icon as={FiMinus} color="warmGray.300" boxSize={5} />
-            )}
+            <PermissionIndicator allowed={allowed} />
             <Icon
               as={FiChevronDown}
               boxSize={4}
@@ -218,7 +200,7 @@ function MobilePermissionRow({ col, allowed, isOpen, onToggle }) {
   );
 }
 
-function MobileRoleCard({ role, permissionColumns, rolePermissions }) {
+function MobileRoleCard({ role, permissionColumns, rolePermissions, tokenLabel }) {
   const [openKey, setOpenKey] = useState(null);
 
   return (
@@ -242,7 +224,7 @@ function MobileRoleCard({ role, permissionColumns, rolePermissions }) {
           {role.name}
         </Text>
         <Text color="warmGray.400" fontSize="xs">
-          ({role.memberCount})
+          ({role.memberCount ?? '—'})
         </Text>
       </HStack>
       <VStack
@@ -256,6 +238,7 @@ function MobileRoleCard({ role, permissionColumns, rolePermissions }) {
           <MobilePermissionRow
             key={col.key}
             col={col}
+            tokenLabel={tokenLabel}
             allowed={rolePermissions[col.key]}
             isOpen={openKey === col.key}
             onToggle={() =>
@@ -274,6 +257,7 @@ export function PermissionsMatrix({
   permissionColumns = [],
   loading = false,
 }) {
+  const { tokenLabel = DEFAULT_TOKEN_LABEL } = usePOContext();
   if (loading) {
     return (
       <Box
@@ -300,7 +284,7 @@ export function PermissionsMatrix({
         boxShadow="0 4px 24px rgba(0, 0, 0, 0.06)"
         textAlign="center"
       >
-        <Text color="warmGray.500">No permissions configured</Text>
+        <Text color="warmGray.500">No permission details to show</Text>
       </Box>
     );
   }
@@ -320,6 +304,7 @@ export function PermissionsMatrix({
             <MobileRoleCard
               key={role.id || role.hatId}
               role={role}
+              tokenLabel={tokenLabel}
               permissionColumns={permissionColumns}
               rolePermissions={permissionsMatrix[role.hatId] || {}}
             />
@@ -364,8 +349,8 @@ export function PermissionsMatrix({
               </Th>
               {permissionColumns.map((col) => {
                 const IconComponent = PERMISSION_ICONS[col.key] || FiCheck;
-                const shortLabel = SHORT_LABELS[col.key] || col.permissionRole;
-                const description = FULL_DESCRIPTIONS[col.key] || col.label;
+                const shortLabel = columnLabel(col, tokenLabel);
+                const description = columnDescription(col, tokenLabel);
 
                 return (
                   <Th
@@ -412,7 +397,7 @@ export function PermissionsMatrix({
                     <HStack spacing={2}>
                       <Text>{role.name}</Text>
                       <Text color="warmGray.400" fontSize="xs">
-                        ({role.memberCount})
+                        ({role.memberCount ?? '—'})
                       </Text>
                     </HStack>
                   </Td>

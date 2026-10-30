@@ -18,6 +18,9 @@
  */
 
 import { useMemo } from 'react';
+import { useAuth } from '@/context/authState';
+import { bindPowerEvidence } from '@/lib/voting/powerAdapter';
+import { usePOContext } from '@/context/POContext';
 import { useVotingContext } from '@/context/VotingContext';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingPower } from '@/hooks/useVotingPower';
@@ -36,9 +39,12 @@ export function useVoteLanes() {
     democracyVotingCompleted = [],
     ddVotingHats = null,
     votingClassesByVersion = {},
+    proposalPowerEvidenceById,
     loading,
     error,
   } = useVotingContext();
+  const { accountAddress } = useAuth();
+  const { participationTokenAddress, orgChainId, orgId, votingContractAddress, hybridVotingContractAddress } = usePOContext();
   const { userData, userDataLoading } = useUserContext();
   const { classBreakdown } = useVotingPower();
 
@@ -54,7 +60,7 @@ export function useVoteLanes() {
   // PollDetail's ballot gate so the "Needs your vote" lane never advertises a
   // vote the ballot would refuse.
   const all = useMemo(() => {
-    const userBalance = userData?.participationTokenBalanceWei || '0';
+    const userBalance = userData?.participationTokenBalanceWei;
     const tag = (arr, typeBadge) =>
       (arr || []).map((p) => ({
         ...p,
@@ -68,6 +74,10 @@ export function useVoteLanes() {
             ? votingClassesByVersion?.[p.classesVersion] || null
             : null,
           userBalance,
+          balanceAsset: participationTokenAddress,
+          powerEvidence: bindPowerEvidence(proposalPowerEvidenceById?.[p.id] || {}, {
+            chainId: orgChainId, orgId, account: accountAddress, contract: votingContractAddress || hybridVotingContractAddress,
+          }),
           userDataReady,
         }).eligible,
       }));
@@ -87,6 +97,8 @@ export function useVoteLanes() {
     ddVotingHats,
     classBreakdown,
     votingClassesByVersion,
+    proposalPowerEvidenceById, orgChainId, orgId, accountAddress, votingContractAddress, hybridVotingContractAddress,
+    participationTokenAddress,
     userDataReady,
   ]);
 

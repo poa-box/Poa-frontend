@@ -126,17 +126,6 @@ export function TeamStep() {
         status: 'info',
         duration: 3000,
       });
-    } else {
-      // Check for at least one top-level role
-      const hasTopLevel = roles.some((r) => r.hierarchy?.adminRoleIndex === null);
-      if (!hasTopLevel) {
-        toast({
-          title: 'Step incomplete',
-          description: 'At least one role should be top-level. You can fix this later.',
-          status: 'info',
-          duration: 3000,
-        });
-      }
     }
 
     // Always proceed to next step
@@ -243,7 +232,7 @@ export function TeamStep() {
                     borderRadius="full"
                     fontSize="sm"
                   >
-                    {roles.filter((r) => r.hierarchy?.adminRoleIndex === null).length} leader{roles.filter((r) => r.hierarchy?.adminRoleIndex === null).length !== 1 ? 's' : ''}
+                    Membership decided together
                   </Badge>
                 </HStack>
               </Box>

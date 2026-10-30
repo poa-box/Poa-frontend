@@ -1,3 +1,4 @@
+import { useMyMemberships } from '@/hooks/accessV2/useAuthorityMemberships';
 import { useAuthorityPermission } from '@/hooks/useAuthorityPermission';
 import { PERM_KEYS } from '@/lib/accessV2/permKeys';
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
@@ -17,6 +18,7 @@ import {
     isUserStateCurrent,
 } from '../lib/user/userScope';
 import { useUserActive } from '../hooks/useUserActive';
+import { useEducationRead } from '@/hooks/useEducationRead';
 
 const UserContext = createContext();
 
@@ -25,13 +27,12 @@ export const useUserContext = () => useContext(UserContext);
 export const UserProvider = ({ children }) => {
     const { accountAddress: authAddress, isAuthHydrated } = useAuth();
     const userDAO = useOrgName();
-    const { orgId, participationTokenAddress, subgraphUrl } = usePOContext();
+    const { orgId, participationTokenAddress, subgraphUrl, orgChainId, educationHubAddress, educationHubEnabled } = usePOContext();
 
     const [userData, setUserData] = useState({});
     const [graphUsername, setGraphUsername] = useState('');
     const [claimedTasks, setClaimedTasks] = useState([]);
     const [userProposals, setUserProposals] = useState([]);
-    const [completedModules, setCompletedModules] = useState([]);
     const [userDataLoading, setUserDataLoading] = useState(true);
     const [resolvedUserScope, setResolvedUserScope] = useState(null);
     // Optimistic overrides — set by optimisticJoin, cleared when subgraph catches up
@@ -49,7 +50,7 @@ export const UserProvider = ({ children }) => {
     // Use AuthContext's unified address (supports both EOA and passkey). Keep
     // this derived instead of copying it into state: the old one-way effect
     // never cleared `account` on disconnect and left the prior profile live.
-    const effectiveAddress = authAddress || null;
+    const effectiveAddress = isAuthHydrated === false ? null : authAddress || null;
     const account = useMemo(
         () => effectiveAddress?.toLowerCase() || null,
         [effectiveAddress]
@@ -58,6 +59,10 @@ export const UserProvider = ({ children }) => {
     // Construct the org-specific user ID
     const orgUserID = buildUserScope(orgId, account);
     const userScopeRef = useRef(orgUserID);
+    const liveScopeRef = useRef(orgUserID);
+    liveScopeRef.current = orgUserID;
+    const refreshTimers = useRef(new Set());
+    useEffect(() => () => { refreshTimers.current.forEach(clearTimeout); refreshTimers.current.clear(); }, []);
 
     // Auth changes (including disconnect and A -> B account switches) and org
     // changes invalidate every user-derived value. Apollo may retain the
@@ -72,20 +77,22 @@ export const UserProvider = ({ children }) => {
         setGraphUsername('');
         setClaimedTasks([]);
         setUserProposals([]);
-        setCompletedModules([]);
         setResolvedUserScope(null);
         setUserDataLoading(!!orgUserID);
     }, [orgUserID]);
 
     const client = useSubgraphClient(subgraphUrl);
     const isActive = useUserActive();
+    const completedModulesRead = useEducationRead({ client, chainId: orgChainId, endpoint: subgraphUrl,
+        orgId, hub: educationHubAddress, account, kind: 'completions', enabled: educationHubEnabled, isActive });
+    const refetchCompletedModules = completedModulesRead.refetch;
 
     const { data, error, loading, refetch } = useQuery(FETCH_USER_DATA_NEW, {
         variables: {
             orgUserID: orgUserID,
             userAddress: account,
         },
-        skip: !orgUserID || !account,
+        skip: isAuthHydrated === false || !subgraphUrl || !orgUserID || !account,
         fetchPolicy: 'cache-first',
         // Gentle poll: hat grants / assignments by OTHER members produce no local
         // RefreshEvent, so polling is the only way they appear without a reload.
@@ -134,17 +141,31 @@ export const UserProvider = ({ children }) => {
     // for TaskManager surfaces, `useVoteCreateGate` for proposals, `useEducationCreateGate`
     // for learning modules, `creatorHatIds` for projects, and `hasApproverRole` below for
     // participation-token approvals. Do not reintroduce a positional role index.
+    const currentMemberships = useMyMemberships();
+    const membershipIdsKnown = !!(isAuthHydrated && currentMemberships.enabled && currentMemberships.complete
+        && !currentMemberships.error && currentMemberships.membershipFacts?.coverage.status === 'complete'
+        && currentMemberships.membershipFacts.data.every(row => row.isMember?.state === 'known'));
+    const membershipIds = useMemo(() => membershipIdsKnown ? currentMemberships.membershipFacts.data
+        .filter(row => row.isMember.value).map(row => row.subjectId) : [], [membershipIdsKnown, currentMemberships.membershipFacts]);
+    // This selected field is an explicit scoped current-subject list. Optimistic
+    // join UI and absent fields cannot qualify an admin fallback.
+    const observedIds = isCurrentUserData && !error && Array.isArray(data?.user?.currentHatIds)
+        && data.user.currentHatIds.every(id => typeof id === 'string' && /^\d+$/.test(id))
+        ? data.user.currentHatIds : null;
+    const hatIdsKnown = observedIds !== null || membershipIdsKnown;
+    const currentHatIds = observedIds || membershipIds;
     const { allowed: authorityApprover } = useAuthorityPermission(PERM_KEYS.PT_APPROVE);
     const hasApproverRole = useMemo(() => {
         if (!account) return false;
         return authorityApprover;
     }, [account, authorityApprover]);
 
-    const refetchUserData = useCallback(() => {
-        if (orgUserID && account) {
+    const refetchUserData = useCallback((event) => {
+        if (orgUserID && account && liveScopeRef.current === orgUserID) {
             refetchRef.current();
+            if (!event?.event || event.event === RefreshEvent.MODULE_COMPLETED) void refetchCompletedModules();
         }
-    }, [orgUserID, account]);
+    }, [orgUserID, account, refetchCompletedModules]);
 
     // Refetch on any event that can change this user's row in FETCH_USER_DATA_NEW.
     // executeWithNotification-emitted events already waited for the subgraph to
@@ -241,11 +262,6 @@ export const UserProvider = ({ children }) => {
                     status: task.status,
                 })));
 
-                setCompletedModules((user.modulesCompleted || []).map(m => ({
-                    moduleId: m.moduleId,
-                    completedAt: m.completedAt,
-                })));
-
                 const proposals = user.hybridProposalsCreated || [];
                 setUserProposals(proposals.map(p => ({
                     id: p.id,
@@ -265,7 +281,6 @@ export const UserProvider = ({ children }) => {
             } else {
                 setUserData({});
                 setClaimedTasks([]);
-                setCompletedModules([]);
                 setUserProposals([]);
             }
 
@@ -276,17 +291,17 @@ export const UserProvider = ({ children }) => {
     // Cross-chain username fallback: if this chain's subgraph has no username
     // for the user, check all chains. The user may have registered on a different chain.
     useEffect(() => {
-        if (graphUsername || !account || !data) return;
+        if (graphUsername || !account || !isCurrentUserData) return;
         let cancelled = false;
         findUsernameAcrossChains(account).then(({ username }) => {
             if (!cancelled && username) {
                 setGraphUsername(username);
             }
         }).catch((err) => {
-            console.warn('[UserContext] Cross-chain username lookup failed:', err);
+            // Unavailable is not an anonymous account or an empty username.
         });
         return () => { cancelled = true; };
-    }, [graphUsername, account, data]);
+    }, [graphUsername, account, data, isCurrentUserData]);
 
     useEffect(() => {
         if (!orgId && userDAO) {
@@ -309,6 +324,7 @@ export const UserProvider = ({ children }) => {
      */
     const optimisticJoin = useCallback(({ address: userAddr, hatIds, username }) => {
         const lowerAddr = userAddr?.toLowerCase();
+        if (!orgUserID || liveScopeRef.current !== orgUserID || lowerAddr !== account) return;
         optimisticLockRef.current = Date.now();
         if (username) setGraphUsername(username);
         // Set optimistic role overrides so useMemo derivations return true immediately.
@@ -333,8 +349,12 @@ export const UserProvider = ({ children }) => {
         // This is called before the transaction completes (optimistic), so we use
         // a fixed delay. The actual transaction's refresh event (via executeWithNotification)
         // will also trigger a refetch with proper _meta waiting.
-        setTimeout(() => refetchUserData(), 8000);
-    }, [orgId, orgUserID, refetchUserData]);
+        const timer = setTimeout(() => {
+            refreshTimers.current.delete(timer);
+            if (liveScopeRef.current === orgUserID) refetchUserData();
+        }, 8000);
+        refreshTimers.current.add(timer);
+    }, [orgId, orgUserID, account, refetchUserData]);
 
     // A failed query must settle the loading flag. Without this the Profile Hub
     // sits on its spinner forever (`isFullyLoaded` waits on !userDataLoading),
@@ -381,13 +401,20 @@ export const UserProvider = ({ children }) => {
         isAccountReady: isAuthHydrated !== false,
         userDataLoading: exposedUserDataLoading,
         userProposals: userStateIsCurrent ? userProposals : [],
-        userData: userStateIsCurrent ? userData : {},
+        userData: userStateIsCurrent ? { ...userData,
+            // Keep optimistic display roles through the existing grace period;
+            // only matching observed current subjects can qualify the admin fallback.
+            hatIdsKnown: !optimisticRoles && hatIdsKnown && Array.isArray(userData.hatIds)
+                && userData.hatIds.length === currentHatIds.length
+                && currentHatIds.every(id => userData.hatIds.includes(id)),
+        } : { hatIdsKnown: false, hatIds: [] },
         graphUsername: userStateIsCurrent ? graphUsername : '',
         setGraphUsername,
         hasMemberRole,
         hasApproverRole,
         claimedTasks: userStateIsCurrent ? claimedTasks : [],
-        completedModules: userStateIsCurrent ? completedModules : [],
+        completedModules: completedModulesRead.data,
+        completedModulesRead,
         error: errorMessage ? { message: errorMessage } : null,
         refetchUserData,
         optimisticJoin,
@@ -397,13 +424,13 @@ export const UserProvider = ({ children }) => {
         exposedUserDataLoading,
         userStateIsCurrent,
         userProposals,
-        userData,
+        userData, currentHatIds, hatIdsKnown, optimisticRoles,
         graphUsername,
         setGraphUsername,
         hasMemberRole,
         hasApproverRole,
         claimedTasks,
-        completedModules,
+        completedModulesRead,
         errorMessage,
         refetchUserData,
         optimisticJoin,

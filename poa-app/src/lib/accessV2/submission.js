@@ -10,7 +10,7 @@
  * other proposal, so the cut is a size check, not a per-verb allow-list.
  */
 
-import { MAX_CALLS_PER_BATCH } from '@/config/contractLimits';
+import { GOVERNANCE_LIMITS, validateGovernanceBatches } from '@poa-box/core/governance/capabilities';
 
 /**
  * The ceiling IS the on-chain one — 20, from `config/contractLimits` — not a frontend policy
@@ -27,7 +27,7 @@ import { MAX_CALLS_PER_BATCH } from '@/config/contractLimits';
  * Kept as a named export because it is what the hooks and wizard import; the VALUE has exactly one
  * definition.
  */
-export const MAX_SPONSORED_CALLS = MAX_CALLS_PER_BATCH;
+export const MAX_SPONSORED_CALLS = GOVERNANCE_LIMITS.maxCallsPerBatch;
 
 /**
  * @param {Array} batch - `{target,value,data}[]`
@@ -65,5 +65,12 @@ export function checkBatchSubmittable(batch) {
     };
   }
 
+  try {
+    validateGovernanceBatches([calls.map(call => ({
+      target: call.target, value: call.value ?? '0', calldata: call.data,
+    }))]);
+  } catch {
+    return { ok: false, code: 'malformed', message: 'Something went wrong building this proposal — please start again.' };
+  }
   return { ok: true, code: null, message: null };
 }

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Box,
   VStack,
@@ -12,10 +12,12 @@ import {
 import { FiPlus, FiExternalLink, FiAlertTriangle } from 'react-icons/fi';
 import { formatTokenAmount } from '@/util/formatToken';
 import { getNetworkByChainId } from '@/config/networks';
+import { createPublicClientForChain } from '@/services/web3/utils/publicChainClient';
+import { RefreshEvent, useRefreshSubscription } from '@/context/RefreshContext';
+import { requireRawUint } from '@poa-box/core/amounts';
 import { usePOContext } from '@/context/POContext';
 import { ACCENT, INK, TABULAR, SectionHeader, UnitSpan, useMountedValue, FILL_TRANSITION } from './treasuryStyles';
 
-const bigMax0 = (v) => (v < 0n ? 0n : v);
 
 /**
  * GasPoolSection — the compact "Network fees" card.
@@ -26,7 +28,7 @@ const bigMax0 = (v) => (v < 0n ? 0n : v);
  * Per-event history lives in the activity feed under the Fees filter.
  */
 const GasPoolSection = ({ gasPoolData, isLoading, onDeposit, paymasterHubAddress }) => {
-  const { orgChainId } = usePOContext();
+  const { orgId, orgChainId } = usePOContext();
   const network = getNetworkByChainId(orgChainId);
   const nativeSymbol = network?.nativeCurrency?.symbol || 'ETH';
   // On chains whose native coin is a USD stablecoin (xDAI), lead with dollars —
@@ -37,28 +39,35 @@ const GasPoolSection = ({ gasPoolData, isLoading, onDeposit, paymasterHubAddress
   const config = gasPoolData?.paymasterOrgConfigs?.[0];
   const stats = config?.stats;
 
-  // Balance math up top: hooks (the meter's mount-fill) must run before any
-  // early return, and this is all null-safe when config is absent.
-  const depositBalance = config?.depositBalance || '0';
-  // Accurate balance: totalSpent includes solidarity subsidy, so add it back.
-  // Clamped at zero — a subgraph edge must never render a negative fund.
-  const accurateBalance = config?.totalSolidarityReceived && BigInt(config.totalSolidarityReceived) > 0n
-    ? bigMax0(
-        BigInt(config.totalDeposited || '0') - BigInt(config.totalSpent || '0') + BigInt(config.totalSolidarityReceived)
-      ).toString()
-    : depositBalance;
-  const totalUserOps = stats?.totalUserOps || '0';
-  // "Low" well before empty — 0.01 in native units still covers a few actions.
-  const isLow = BigInt(accurateBalance || '0') < 10n ** 16n;
-
-  // Meter: remaining share of everything that has ever funded the pool.
-  const lifetimePool = BigInt(config?.totalDeposited || '0') + BigInt(config?.totalSolidarityReceived || '0');
-  const remainingPct = lifetimePool > 0n
-    ? Math.min(Number((BigInt(accurateBalance) * 1000n) / lifetimePool) / 10, 100)
-    : 0;
+  const [financials, setFinancials] = useState({ scope: null, data: null, loading: false });
+  const scope = [orgId, orgChainId, paymasterHubAddress].join(':');
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const generation = useRef(0);
+  const refresh = useCallback(async () => {
+    const request = ++generation.current;
+    if (!orgId || !orgChainId || !paymasterHubAddress || !network?.rpcUrl) return;
+    const current = () => scopeRef.current === scope && generation.current === request;
+    setFinancials({ scope, data: null, loading: true });
+    try {
+      const { readOrgFeeFund } = await import('@/services/web3/domain/TreasuryService');
+      const data = await readOrgFeeFund(createPublicClientForChain(orgChainId), { orgId, chainId: orgChainId,
+        hubAddress: paymasterHubAddress, endpoint: network.rpcUrl });
+      if (current()) setFinancials({ scope, data, loading: false });
+    } catch { if (current()) setFinancials({ scope, data: null, loading: false }); }
+  }, [orgId, orgChainId, paymasterHubAddress, network?.rpcUrl, scope]);
+  useEffect(() => { const sequence = generation; refresh(); return () => { sequence.current++; }; }, [refresh]);
+  useRefreshSubscription(RefreshEvent.TREASURY_DEPOSITED, refresh, [refresh]);
+  const current = financials.scope === scope ? financials.data : null;
+  const accurateBalance = current?.available ?? null;
+  let totalUserOps = null;
+  try { totalUserOps = requireRawUint(stats?.totalUserOps); } catch { /* indexed count unknown */ }
+  const isLow = accurateBalance !== null && BigInt(accurateBalance) < 10n ** 16n;
+  const lifetimePool = current ? BigInt(current.deposited) : 0n;
+  const remainingPct = current && lifetimePool > 0n ? Math.min(Number(BigInt(current.available) * 1000n / lifetimePool) / 10, 100) : 0;
   const shownMeterPct = useMountedValue(remainingPct);
 
-  if (isLoading) {
+  if (isLoading || financials.loading) {
     return (
       <HStack py={4} spacing={3}>
         <Spinner size="sm" color="purple.400" />
@@ -67,7 +76,7 @@ const GasPoolSection = ({ gasPoolData, isLoading, onDeposit, paymasterHubAddress
     );
   }
 
-  if (!config) {
+  if (current && !current.registered) {
     return (
       <VStack py={2} spacing={3} align="stretch">
         <SectionHeader accent={ACCENT.gas} mb={0}>Network fees</SectionHeader>
@@ -95,10 +104,10 @@ const GasPoolSection = ({ gasPoolData, isLoading, onDeposit, paymasterHubAddress
             letterSpacing="-0.02em"
             color={INK.primary}
           >
-            {nativeIsUsd ? '≈ $' : ''}{formatTokenAmount(accurateBalance, 18, 2)}
-            {!nativeIsUsd && <UnitSpan>{nativeSymbol}</UnitSpan>}
+            {accurateBalance === null ? 'Unavailable' : <>{nativeIsUsd ? '≈ $' : ''}{formatTokenAmount(accurateBalance, 18, 2)}
+            {!nativeIsUsd && <UnitSpan>{nativeSymbol}</UnitSpan>}</>}
           </Text>
-          {nativeIsUsd && (
+          {nativeIsUsd && accurateBalance !== null && (
             <Text fontSize="xs" color={INK.muted} mt={1} sx={TABULAR}>
               {formatTokenAmount(accurateBalance, 18, 2)} {nativeSymbol} (≈ $1 each)
             </Text>
@@ -146,9 +155,9 @@ const GasPoolSection = ({ gasPoolData, isLoading, onDeposit, paymasterHubAddress
       )}
 
       <Text fontSize="sm" color={INK.secondary}>
-        Covers small network fees (gas) so members never pay to vote, claim, or post.{' '}
+        Covers small network fees so members never pay to vote, claim, or post.{' '}
         <Text as="span" color={INK.muted} sx={TABULAR}>
-          {totalUserOps} action{totalUserOps === '1' ? '' : 's'} covered so far.
+          {totalUserOps === null ? 'Activity count unavailable.' : `${totalUserOps} action${totalUserOps === '1' ? '' : 's'} covered so far.`}
         </Text>
       </Text>
 

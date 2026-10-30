@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   FOLDERS_SCHEMA_VERSION,
   makeEmptyFolderDoc,
-  validateFolderDoc,
+  validateFolderDoc, serializeFolderDoc,
 } from './schema';
 
 function folder(overrides = {}) {
@@ -45,7 +45,7 @@ describe('validateFolderDoc', () => {
   it('refuses forward-incompatible newer schemaVersions per spec', () => {
     const { valid, errors } = validateFolderDoc({ schemaVersion: 2, folders: [] });
     expect(valid).toBe(false);
-    expect(errors.some((e) => /newer/i.test(e))).toBe(true);
+    expect(errors.some((e) => /unsupported|newer/i.test(e))).toBe(true);
   });
 
   it('rejects non-array folders', () => {
@@ -67,13 +67,13 @@ describe('validateFolderDoc', () => {
     const doc = {
       schemaVersion: 1,
       folders: [
-        folder({ id: 'a', projectIds: ['p1'] }),
-        folder({ id: 'b', projectIds: ['p1'] }),
+        folder({ id: 'a', projectIds: [`0x${'01'.repeat(32)}`] }),
+        folder({ id: 'b', projectIds: [`0x${'01'.repeat(32)}`] }),
       ],
     };
     const { valid, errors } = validateFolderDoc(doc);
     expect(valid).toBe(false);
-    expect(errors.some((e) => /multiple folders/i.test(e))).toBe(true);
+    expect(errors.some((e) => /duplicate project|multiple folders/i.test(e))).toBe(true);
   });
 
   it('detects unknown parentId references', () => {
@@ -133,7 +133,7 @@ describe('validateFolderDoc', () => {
   it('flags wrong field types', () => {
     const doc = {
       schemaVersion: 1,
-      folders: [folder({ name: 123, sortOrder: 'zero', parentId: 5, projectIds: 'p1' })],
+      folders: [folder({ name: 123, sortOrder: 'zero', parentId: 5, projectIds: `0x${'01'.repeat(32)}` })],
     };
     expect(validateFolderDoc(doc).valid).toBe(false);
   });
@@ -144,10 +144,34 @@ describe('validateFolderDoc', () => {
       folders: [
         folder({ id: 'root', name: 'Root' }),
         folder({ id: 'a', name: 'A', parentId: 'root', sortOrder: 100 }),
-        folder({ id: 'b', name: 'B', parentId: 'a', sortOrder: 200, projectIds: ['p1', 'p2'] }),
-        folder({ id: 'c', name: 'C', parentId: 'a', sortOrder: 300, projectIds: ['p3'] }),
+        folder({ id: 'b', name: 'B', parentId: 'a', sortOrder: 200, projectIds: [`0x${'01'.repeat(32)}`, `0x${'02'.repeat(32)}`] }),
+        folder({ id: 'c', name: 'C', parentId: 'a', sortOrder: 300, projectIds: [`0x${'03'.repeat(32)}`] }),
       ],
     };
     expect(validateFolderDoc(doc)).toEqual({ valid: true, errors: [] });
+  });
+});
+
+
+describe('canonical folder serialization', () => {
+  it('retains document/record extensions and project IDs beyond safe integers', () => {
+    const doc = { schemaVersion: 1, extension: { shared: true }, folders: [folder({
+      projectIds: ['0x' + '12'.repeat(20) + '-9007199254740993'], badge: 'MiXeD',
+    })] };
+    expect(JSON.parse(serializeFolderDoc(doc))).toEqual(doc);
+  });
+
+  it('rejects duplicate assignment expressed as decimal and bytes32 entity IDs', () => {
+    const address = '0x' + '12'.repeat(20);
+    const doc = { schemaVersion: 1, folders: [folder({ projectIds: [
+      address + '-9007199254740993', address + '-0x' + BigInt('9007199254740993').toString(16).padStart(64, '0'),
+    ] })] };
+    expect(validateFolderDoc(doc).valid).toBe(false);
+  });
+
+  it('rejects nonfinite order, malformed IDs and null records without throwing', () => {
+    for (const record of [null, folder({ sortOrder: Infinity }), folder({ projectIds: ['not-a-project'] })]) {
+      expect(validateFolderDoc({ schemaVersion: 1, folders: [record] }).valid).toBe(false);
+    }
   });
 });

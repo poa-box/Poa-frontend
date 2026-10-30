@@ -73,8 +73,10 @@ describe('normalizeSubject', () => {
     });
   });
 
-  it('restores other signed GraphQL Int values to their uint32 seat cap', () => {
-    expect(normalizeMaxMembers(-2)).toEqual({ maxMembers: 4294967294, unlimitedSeats: false });
+  it('keeps malformed, absent and unsupported signed caps unknown instead of unlimited', () => {
+    for (const value of [-2, undefined, null, 'bad', 1.5, '4294967296']) {
+      expect(normalizeMaxMembers(value)).toEqual({ maxMembers: null, unlimitedSeats: false });
+    }
   });
 
   it('drops an unusable row instead of throwing', () => {

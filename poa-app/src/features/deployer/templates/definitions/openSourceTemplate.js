@@ -1,3 +1,4 @@
+import { getTemplateDefaults } from '@/features/deployer/templates/templateDefinitions';
 /**
  * Open Source Project Template
  *
@@ -470,42 +471,7 @@ contribution-based governance.`,
   },
 
   // Default configuration
-  defaults: {
-    roles: [
-      {
-        name: 'Maintainer',
-        hierarchy: { adminRoleIndex: null },
-        vouching: { enabled: false, quorum: 0, voucherRoleIndex: 0 },
-        hatConfig: { maxSupply: 20 },
-      },
-      {
-        name: 'Contributor',
-        hierarchy: { adminRoleIndex: 0 },
-        vouching: { enabled: false, quorum: 0, voucherRoleIndex: 0 },
-        hatConfig: { maxSupply: 1000 },
-      },
-    ],
-    permissions: {
-      taskManagers: [0],
-      projectCreators: [0],
-      taskCreators: [0, 1],
-      taskReviewers: [0],
-      taskClaimers: [0, 1],
-      nftCreators: [0],
-      quickJoinRoles: [1],
-      memberManagers: [0],
-      ddVoters: [0, 1],
-    },
-    voting: {
-      mode: 'HYBRID',
-      democracyWeight: 30,
-      participationWeight: 70,
-    },
-    features: {
-      educationHubEnabled: false,
-      electionHubEnabled: false,
-    },
-  },
+  defaults: getTemplateDefaults('open-source'),
 
   // UI guidance
   ui: {

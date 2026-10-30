@@ -1,3 +1,4 @@
+import { ACTION_REASON } from '@poa-box/core/authority/lifecycle';
 /**
  * RoleRemovalConfigurator — choose one v2 role and one or more current members to remove.
  *
@@ -25,6 +26,7 @@ import {
   Tooltip,
   VStack,
 } from '@chakra-ui/react';
+import { removalBlockers } from '@/lib/accessV2/rules';
 import UserIdentity from '@/components/common/UserIdentity';
 import { inputStyles } from '@/components/shared/glassStyles';
 import { useAuthorityMemberships, useAuthoritySubjects } from '@/hooks/accessV2';
@@ -34,7 +36,6 @@ import {
   defaultRoleRemovalConfig,
   MAX_ROLE_REMOVALS,
   removalBanReasons,
-  removalNeedsBan,
   retainBanConfirmation,
   ROLE_REMOVAL_UNAVAILABLE_MESSAGE,
   shortAddress,
@@ -43,16 +44,19 @@ import {
 const addressKey = (value) => String(value || '').toLowerCase();
 
 function selectedMember(row) {
-  const reasons = removalBanReasons(row);
+  const preflight = row.removalPreflight;
+  const reasons = preflight ? removalBlockers(preflight.sourceSet).messages : removalBanReasons(row);
   return {
     address: row.user,
     username: row.username || '',
-    ban: removalNeedsBan(row),
+    ban: preflight ? preflight.reason === ACTION_REASON.RemovalIneffective : false,
+    expectedReason: preflight?.reason,
+    expectedSourceSet: preflight?.sourceSet,
     banReasons: reasons,
   };
 }
 
-export default function RoleRemovalConfigurator({ proposal, onChange }) {
+export default function RoleRemovalConfigurator({ proposal, onChange, planning }) {
   const {
     roles,
     enabled,
@@ -61,7 +65,7 @@ export default function RoleRemovalConfigurator({ proposal, onChange }) {
     refetch: refetchSubjects,
   } = useAuthoritySubjects();
   const {
-    membersOf,
+    memberships,
     loading: membershipsLoading,
     error: membershipsError,
     complete: membershipsComplete,
@@ -78,12 +82,14 @@ export default function RoleRemovalConfigurator({ proposal, onChange }) {
 
   const roleMembers = useMemo(() => {
     if (!config.subjectId) return [];
-    return [...(membersOf?.(config.subjectId) || [])].sort((a, b) => {
+    return (memberships || []).filter(row => row.subjectId === String(config.subjectId) && row.accepted).map(row => ({ ...row,
+      removalPreflight: planning?.evidence?.preflights.data.find(check => check.account.toLowerCase() === row.user.toLowerCase()),
+    })).sort((a, b) => {
       const aa = String(a.username || a.user || '').toLowerCase();
       const bb = String(b.username || b.user || '').toLowerCase();
       return aa.localeCompare(bb);
     });
-  }, [membersOf, config.subjectId]);
+  }, [memberships, config.subjectId, planning?.evidence]);
 
   const selectedKeys = useMemo(
     () => new Set((config.members || []).map((member) => addressKey(member.address))),
@@ -129,13 +135,16 @@ export default function RoleRemovalConfigurator({ proposal, onChange }) {
     }
 
     const current = new Map(roleMembers.map((row) => [addressKey(row.user), row]));
-    const nextMembers = (config.members || [])
-      .map((member) => current.get(addressKey(member.address)))
-      .filter(Boolean)
-      .map(selectedMember);
-    const membersChanged = JSON.stringify(nextMembers) !== JSON.stringify(config.members || []);
+    const nextMembers = config.members || [];
+    const reconciled = Boolean(planning?.evidence) && nextMembers.every(member => {
+      const row = current.get(addressKey(member.address));
+      const check = row?.removalPreflight;
+      return check && member.expectedReason === check.reason && member.expectedSourceSet === check.sourceSet
+        && member.ban === (check.reason === ACTION_REASON.RemovalIneffective);
+    });
+    const membersChanged = false;
     const roleNameChanged = (selectedRole.name || '') !== (config.subjectName || '');
-    if (membersChanged || roleNameChanged || !config.liveReconciled) {
+    if (membersChanged || roleNameChanged || config.liveReconciled !== reconciled) {
       updateConfig({
         ...config,
         subjectName: selectedRole.name || '',
@@ -145,11 +154,12 @@ export default function RoleRemovalConfigurator({ proposal, onChange }) {
           nextMembers,
           config.confirmBans,
         ),
-        liveReconciled: true,
+        liveReconciled: reconciled,
       });
     }
   }, [
     config,
+    planning?.evidence,
     enabled,
     membershipsComplete,
     membershipsLoading,
@@ -178,7 +188,7 @@ export default function RoleRemovalConfigurator({ proposal, onChange }) {
     const key = addressKey(row.user);
     const current = config.members || [];
     const isSelected = current.some((member) => addressKey(member.address) === key);
-    if (!isSelected && current.length >= MAX_ROLE_REMOVALS) return;
+    if (!isSelected && (current.length >= MAX_ROLE_REMOVALS || !row.removalPreflight)) return;
     const members = isSelected
       ? current.filter((member) => addressKey(member.address) !== key)
       : [...current, selectedMember(row)];
@@ -210,7 +220,7 @@ export default function RoleRemovalConfigurator({ proposal, onChange }) {
     for (const row of filteredMembers) {
       if (members.length >= MAX_ROLE_REMOVALS) break;
       const key = addressKey(row.user);
-      if (have.has(key)) continue;
+      if (have.has(key) || !row.removalPreflight) continue;
       members.push(selectedMember(row));
       have.add(key);
     }
@@ -234,8 +244,8 @@ export default function RoleRemovalConfigurator({ proposal, onChange }) {
   }, [refetchMemberships, refetchSubjects]);
 
   const banCount = (config.members || []).filter((member) => member.ban).length;
-  const loading = subjectsLoading || membershipsLoading;
-  const error = subjectsError || membershipsError;
+  const loading = subjectsLoading || membershipsLoading || planning?.loading;
+  const error = subjectsError || membershipsError || planning?.error;
 
   if (!enabled && !subjectsLoading) {
     return (

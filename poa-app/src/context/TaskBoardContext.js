@@ -5,16 +5,24 @@
  */
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useDataBaseContext } from './dataBaseContext';
-import { useProjectContext } from './ProjectContext';
-import { usePOContext } from './POContext';
-import { useIPFScontext } from './ipfsContext';
-import { useRefreshEmit, RefreshEvent } from './RefreshContext';
-import { useNotification } from './NotificationContext';
-import { useWeb3Services } from '../hooks/useWeb3Services';
-import { calculatePayout } from '../util/taskUtils';
+import { useDataBaseContext } from '@/context/dataBaseContext';
+import { useProjectContext } from '@/context/ProjectContext';
+import { usePOContext } from '@/context/POContext';
+import { useIPFScontext } from '@/context/ipfsContext';
+import { useRefreshEmit, RefreshEvent } from '@/context/RefreshContext';
+import { useNotification } from '@/context/NotificationContext';
+import { useWeb3Services } from '@/hooks/useWeb3Services';
+import { calculatePayout } from '@/util/taskUtils';
 import { useSubgraphClient } from '@/util/apolloClient';
 import { fetchLatestRejectedSubmission } from '@/util/taskSubmissionHistory';
+import { useAuth } from '@/context/authState';
+import { createTaskMetadataStore } from '@/lib/tasks/metadataBase';
+import { editTaskMetadata as mergeTaskMetadata } from '@/lib/tasks/metadata';
+import { assertTaskHostScope, assertCurrentTask, taskHostScopeKey, TASK_OPTIMISTIC_GRACE_MS, remainingTaskLockDelay, memberTaskError } from '@/lib/tasks/hostScope';
+import { pendingTaskId, reconcileCreatedTasks, indexedCreationContinuation } from '@/lib/tasks/creationReconciliation';
+import { serializeTaskMetadata, buildTaskRejectionMetadata, serializeTaskRejectionMetadata } from '@poa-box/core/metadata/task';
+import { nowMs } from '@/util/deadlineUtils';
+import { taskReceiptBlock, indexedTaskProject, reconcileTaskHostColumns, reconcileIndexedCreation } from '@/lib/tasks/hostState';
 
 const TaskBoardContext = createContext();
 
@@ -81,11 +89,12 @@ export const TaskBoardProvider = ({
   initialColumns,
   onUpdateColumns,
 }) => {
-  const [taskColumns, setTaskColumns] = useState(initialColumns);
+  const [taskColumns, setTaskColumnsState] = useState(initialColumns);
   const { selectedProject } = useDataBaseContext();
-  const { nextTaskId } = useProjectContext();
-  const { taskManagerContractAddress, taskPayoutHoursOnly, taskPayoutHourlyRate, subgraphUrl } = usePOContext();
-  const { addToIpfs, safeFetchFromIpfs } = useIPFScontext();
+  const { projectsData, getTaskActions, refetchProjects } = useProjectContext();
+  const { accountAddress, isAuthHydrated, isPasskeyUser, isAuthenticated } = useAuth();
+  const { orgId, orgChainId, taskManagerContractAddress, taskPayoutHoursOnly, taskPayoutHourlyRate, subgraphUrl } = usePOContext();
+  const { addToIpfs, safeFetchFromIpfs, fetchFromIpfs } = useIPFScontext();
   const { emit } = useRefreshEmit();
   const { addNotification, updateNotification } = useNotification();
 
@@ -100,13 +109,20 @@ export const TaskBoardProvider = ({
   // Get services from the new hook — do NOT pass { ipfsService: { addToIpfs } } here,
   // useWeb3Services already gets it from useIPFScontext(). Passing an inline object
   // creates a new reference every render, causing all services to be recreated.
-  const { task: taskService, isReady, getNotReadyMessage } = useWeb3Services();
+  const { task: taskService, txManager, isReady, getNotReadyMessage } = useWeb3Services();
   const subgraphClient = useSubgraphClient(subgraphUrl);
 
   // Ref to access current taskColumns inside callbacks without adding taskColumns
   // to their dependency arrays (which would recreate every callback on each column change).
   const taskColumnsRef = useRef(taskColumns);
   taskColumnsRef.current = taskColumns;
+  // Keep async callbacks and mounted modals on the same optimistic snapshot,
+  // including writes which finish before React commits the next render.
+  const setTaskColumns = useCallback(update => {
+    const next = typeof update === 'function' ? update(taskColumnsRef.current) : update;
+    taskColumnsRef.current = next;
+    setTaskColumnsState(next);
+  }, []);
 
   // Latest-ref for getNotReadyMessage. The action callbacks below key their deps on
   // `isReady` (a boolean), which stays false across the signed-out → initializing
@@ -120,42 +136,124 @@ export const TaskBoardProvider = ({
   // After an optimistic update, server data is suppressed until it catches up or
   // the grace period expires (safety valve).
   const optimisticLockRef = useRef(null);
-  const OPTIMISTIC_GRACE_PERIOD = 65000; // 65s — covers 2+ poll-interval cycles (30s each)
   const lockClearTimerRef = useRef(null);
+  const taskWritesRef = useRef(new Map());
+  const pendingCreationsRef = useRef(new Map());
   const latestInitialColumnsRef = useRef(initialColumns);
 
   // Keep ref in sync so scheduleLockClear can apply the latest server data
   latestInitialColumnsRef.current = initialColumns;
 
-  // Local prediction for the next task ID. The subgraph-derived `nextTaskId`
-  // lags behind chain state (and is actively suppressed during the 65s
-  // optimistic lock), so back-to-back submissions would all predict the same
-  // ID and collide. We bump locally on each consume and forward-sync from the
-  // subgraph when it eventually catches up.
-  const nextTaskIdRef = useRef(null);
+  const scope = { chainId: orgChainId, orgId, contract: taskManagerContractAddress,
+    endpoint: subgraphUrl, projectId: selectedProject?.id, account: accountAddress, hydrated: isAuthHydrated === true && isAuthenticated === true };
+  const mountedRef = useRef(true);
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const projectsRef = useRef(projectsData);
+  projectsRef.current = projectsData;
+  const getTaskActionsRef = useRef(getTaskActions);
+  getTaskActionsRef.current = getTaskActions;
+  const metadataStore = useRef(null);
+  if (!metadataStore.current) metadataStore.current = createTaskMetadataStore();
+  const boardScopeKey = taskHostScopeKey(scope);
+  const previousScope = useRef(boardScopeKey);
   useEffect(() => {
-    if (nextTaskId == null) return;
-    const incoming = Number(nextTaskId);
-    if (Number.isNaN(incoming)) return;
-    const current = Number(nextTaskIdRef.current ?? -1);
-    if (incoming > current) {
-      nextTaskIdRef.current = String(incoming);
-    }
-  }, [nextTaskId]);
+    if (previousScope.current === boardScopeKey) return;
+    previousScope.current = boardScopeKey;
+    metadataStore.current.clear();
+    taskWritesRef.current.clear();
+    pendingCreationsRef.current.clear();
+    optimisticLockRef.current = null;
+    if (lockClearTimerRef.current) clearTimeout(lockClearTimerRef.current);
+    setTaskColumns(initialColumns);
+  }, [boardScopeKey, initialColumns, setTaskColumns]);
 
-  const consumeNextTaskIds = useCallback(
-    (count = 1) => {
-      const fallback = Number(nextTaskId ?? 0) || 0;
-      const base = Number(nextTaskIdRef.current ?? fallback) || fallback;
-      nextTaskIdRef.current = String(base + count);
-      return base;
-    },
-    [nextTaskId]
-  );
+  const currentProject = useCallback(() => projectsRef.current?.find(project => project.id === scopeRef.current.projectId), []);
+  const currentTask = useCallback(id => currentProject()?.columns?.flatMap(column => column.tasks).find(task => task.id === id), [currentProject]);
+  const beginTaskAction = useCallback((action, task) => {
+    const captured = { ...scopeRef.current };
+    const project = currentProject();
+    const savedTask = task ? currentTask(task.id) : null;
+    if (savedTask && task && Object.prototype.hasOwnProperty.call(task, 'metadataHash')) {
+      try { assertCurrentTask(savedTask, task); } catch {
+        addNotification('The saved task details changed. Reopen the task before editing.', 'error');
+        return null;
+      }
+    }
+    const decisions = getTaskActionsRef.current?.(savedTask, project, nowMs());
+    if (!mountedRef.current || !captured.hydrated || !captured.account || !project || (task && (!savedTask || savedTask.isIndexing))
+        || decisions?.[action]?.state !== 'allowed') {
+      addNotification('This action is unavailable while task details or your permissions are loading. Please try again.', 'error');
+      return null;
+    }
+    const assertScope = () => {
+      if (!mountedRef.current) throw memberTaskError('Reopen the task to see its current state.');
+      assertTaskHostScope(scopeRef.current, captured);
+    };
+    const guard = () => {
+      assertScope();
+      const latestTask = savedTask ? currentTask(savedTask.id) : null;
+      if (savedTask) assertCurrentTask(latestTask, savedTask);
+      if (getTaskActionsRef.current?.(latestTask, currentProject(), nowMs())?.[action]?.state !== 'allowed') {
+        throw memberTaskError('The task or your permissions changed. Reload the task and try again.');
+      }
+    };
+    guard.assertScope = assertScope;
+    guard.scope = captured;
+    guard.task = savedTask;
+    if (savedTask) taskWritesRef.current.set(savedTask.id, { guard, action, scopeKey: taskHostScopeKey(captured), block: null });
+    guard.isCurrent = () => mountedRef.current && taskHostScopeKey(scopeRef.current) === taskHostScopeKey(captured);
+    return guard;
+  }, [currentProject, currentTask, addNotification]);
+
+  const getTaskMetadata = useCallback(async (task, guard) => {
+    const captured = guard?.scope || { ...scopeRef.current };
+    return metadataStore.current.load({ task, scope: captured,
+      currentScope: () => scopeRef.current, currentTask: () => currentTask(task.id), fetchFromIpfs });
+  }, [currentTask, fetchFromIpfs]);
+
+  const reconcileCreation = useCallback(async (result, drafts, prepared, guard) => {
+    guard.assertScope();
+    const { taskCreatedIdsFromResult } = await import('@/lib/tasks/receipts');
+    guard.assertScope();
+    const requiresOperationScope = isPasskeyUser || Boolean(txManager?.bundlerClient);
+    const matched = prepared ? taskCreatedIdsFromResult(result, taskManagerContractAddress, prepared.creations,
+      { requiresOperationScope, directCreationCall: !requiresOperationScope }) : { state: 'unknown' };
+    let continuation;
+    if (matched.state !== 'known') {
+      try {
+        continuation = await indexedCreationContinuation({ result, scope: guard.scope,
+          refresh: refetchProjects, assertCurrent: guard.assertScope });
+      } catch { guard.assertScope(); /* A confirmed write remains successful while indexing catches up. */ }
+    }
+    guard.assertScope();
+    const confirmedColumns = continuation ? reconcileIndexedCreation(taskColumnsRef.current, continuation.columns,
+      drafts.map(task => task.id), continuation.source, guard.scope, taskWritesRef.current) : reconcileCreatedTasks(taskColumnsRef.current,
+      drafts.map(task => task.id), matched, taskManagerContractAddress);
+    if (!continuation && matched.state !== 'known') pendingCreationsRef.current.set(guard,
+      { scopeKey: taskHostScopeKey(guard.scope), block: taskReceiptBlock(result), pendingIds: drafts.map(task => task.id) });
+    if (!continuation && matched.state === 'known') {
+      for (const id of matched.value) taskWritesRef.current.set(`${taskManagerContractAddress.toLowerCase()}-${id}`,
+        { guard, scopeKey: taskHostScopeKey(guard.scope), block: taskReceiptBlock(result) });
+    }
+    const settledColumns = reconcileTaskHostColumns(confirmedColumns, currentProject(), guard.scope, taskWritesRef.current, pendingCreationsRef.current);
+    setTaskColumns(settledColumns);
+    // Indexed continuation certifies the whole current project, never a guessed draft-to-ID match.
+    const confirmedTasks = continuation ? [] : drafts.map((task, index) => matched.state === 'known'
+      ? { ...task, id: `${taskManagerContractAddress.toLowerCase()}-${matched.value[index]}`,
+        taskId: matched.value[index], isIndexing: false } : task);
+    return { confirmedColumns: settledColumns, confirmedTasks, indexedSource: continuation?.source };
+  }, [taskManagerContractAddress, isPasskeyUser, txManager, refetchProjects, currentProject, setTaskColumns]);
 
   // Clear optimistic lock after a delay, giving the subgraph refetch time to arrive.
   // Timestamp-guarded: if a newer operation sets a fresh lock, this timer won't clobber it.
-  const scheduleLockClear = useCallback(() => {
+  const scheduleLockClear = useCallback((result, guard) => {
+    const write = guard?.task && taskWritesRef.current.get(guard.task.id);
+    // Application lists are previews; their absence cannot settle local application optimism.
+    if (write?.guard === guard && write.action !== 'apply') write.block = taskReceiptBlock(result);
+    const settled = reconcileTaskHostColumns(taskColumnsRef.current, currentProject(), scopeRef.current, taskWritesRef.current, pendingCreationsRef.current);
+    setTaskColumns(settled);
     if (lockClearTimerRef.current) {
       clearTimeout(lockClearTimerRef.current);
     }
@@ -165,13 +263,14 @@ export const TaskBoardProvider = ({
         optimisticLockRef.current = null;
         // Apply the latest server data, but merge with optimistic state to
         // preserve task metadata that the subgraph may not have re-indexed yet.
-        setTaskColumns(prev =>
-          mergeColumnsPreservingMetadata(latestInitialColumnsRef.current, prev)
-        );
+        const indexed = indexedTaskProject(currentProject(), scopeRef.current);
+        setTaskColumns(prev => mergeColumnsPreservingMetadata(indexed?.columns || latestInitialColumnsRef.current, prev));
+        taskWritesRef.current.clear();
+        pendingCreationsRef.current.clear();
       }
       lockClearTimerRef.current = null;
-    }, 11000);
-  }, []);
+    }, remainingTaskLockDelay(lockTimestamp));
+  }, [currentProject, setTaskColumns]);
 
   // Clean up timer on unmount
   useEffect(() => {
@@ -185,38 +284,23 @@ export const TaskBoardProvider = ({
   useEffect(() => {
     if (optimisticLockRef.current) {
       const elapsed = Date.now() - optimisticLockRef.current;
-      if (elapsed < OPTIMISTIC_GRACE_PERIOD) {
-        // Lock is active — keep optimistic state, ignore server data.
-        // scheduleLockClear will apply latest server data when the lock expires.
+      if (elapsed < TASK_OPTIMISTIC_GRACE_MS) {
+        // Confirmed, scoped indexed rows can settle without releasing the lock
+        // protecting other writes. Pending writes and old snapshots stay untouched.
+        setTaskColumns(prev => reconcileTaskHostColumns(prev, currentProject(), scopeRef.current, taskWritesRef.current, pendingCreationsRef.current));
         return;
       }
       // Grace period expired — merge to preserve any metadata the subgraph
       // still hasn't re-indexed (same protection as scheduleLockClear).
       optimisticLockRef.current = null;
-      setTaskColumns(prev => mergeColumnsPreservingMetadata(initialColumns, prev));
+      const indexed = indexedTaskProject(currentProject(), scopeRef.current);
+      setTaskColumns(prev => mergeColumnsPreservingMetadata(indexed?.columns || initialColumns, prev));
+      taskWritesRef.current.clear();
+      pendingCreationsRef.current.clear();
       return;
     }
     setTaskColumns(initialColumns);
-  }, [initialColumns]);
-
-  /**
-   * Helper to create task IPFS metadata
-   */
-  const createTaskMetadata = useCallback(async (taskName, taskDescription, location, difficulty, estHours, submission, dueDate = null) => {
-    const data = {
-      name: taskName,
-      description: taskDescription,
-      location: location,
-      difficulty: difficulty,
-      estHours: estHours,
-      submission: submission,
-      // The subgraph re-points task.metadata at the submission JSON on submit —
-      // every upload must carry the soft due date or it vanishes after submission.
-      ...(dueDate ? { dueDate: Math.floor(Number(dueDate)) } : {}),
-    };
-    const result = await addToIpfs(JSON.stringify(data));
-    return result;
-  }, [addToIpfs]);
+  }, [initialColumns, projectsData, boardScopeKey, currentProject, setTaskColumns]);
 
   /**
    * Move a task between columns (claim, submit, complete)
@@ -240,6 +324,9 @@ export const TaskBoardProvider = ({
       addNotification('Invalid task transition.', 'error');
       return;
     }
+
+    const guard = beginTaskAction(destColumnId === 'inProgress' ? 'claim' : destColumnId === 'inReview' ? 'submit' : 'complete', draggedTask);
+    if (!guard) return { success: false };
 
     // Save previous state to revert in case of error
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
@@ -276,53 +363,54 @@ export const TaskBoardProvider = ({
     setTaskColumns(newTaskColumns);
 
     let notifId = null;
+    let result;
 
     // Perform the Web3 operations asynchronously
     try {
       if (destColumnId === 'inProgress') {
         notifId = addNotification('Claiming task...', 'loading');
-        const result = await taskService.claimTask(taskManagerContractAddress, draggedTask.id);
+        result = await taskService.claimTask(taskManagerContractAddress, draggedTask.id, { assertCurrent: guard });
+        guard.assertScope();
         if (result.success) {
           updateNotification(notifId, 'Task claimed successfully!', 'success');
           emit(RefreshEvent.TASK_CLAIMED, { taskId: draggedTask.id });
         } else {
-          throw new Error(result.error?.userMessage || 'Failed to claim task');
+          throw memberTaskError(result.error?.userMessage || 'Failed to claim task');
         }
       } else if (destColumnId === 'inReview') {
         if (!submissionData) {
-          throw new Error('Please enter a submission.');
+          throw memberTaskError('Please enter a submission.');
         }
         notifId = addNotification('Submitting task...', 'loading');
 
-        const ipfsHash = await createTaskMetadata(
-          draggedTask.name,
-          draggedTask.description,
-          'In Review',
-          draggedTask.difficulty,
-          draggedTask.estHours,
-          submissionData,
-          draggedTask.dueDate
-        );
+        const baseMetadata = await getTaskMetadata(guard.task, guard);
+        guard();
+        const document = mergeTaskMetadata({ baseMetadata, submission: submissionData, location: 'In Review' });
+        const ipfsHash = await addToIpfs(serializeTaskMetadata(document));
+        guard();
 
-        const result = await taskService.submitTask(
+        result = await taskService.submitTask(
           taskManagerContractAddress,
           draggedTask.id,
-          ipfsHash.path
+          ipfsHash.path,
+          { assertCurrent: guard }
         );
+        guard.assertScope();
         if (result.success) {
           updateNotification(notifId, 'Task submitted successfully!', 'success');
           emit(RefreshEvent.TASK_SUBMITTED, { taskId: draggedTask.id });
         } else {
-          throw new Error(result.error?.userMessage || 'Failed to submit task');
+          throw memberTaskError(result.error?.userMessage || 'Failed to submit task');
         }
       } else if (destColumnId === 'completed') {
         notifId = addNotification('Completing task...', 'loading');
-        const result = await taskService.completeTask(taskManagerContractAddress, draggedTask.id);
+        result = await taskService.completeTask(taskManagerContractAddress, draggedTask.id, { assertCurrent: guard });
+        guard.assertScope();
         if (result.success) {
           updateNotification(notifId, 'Task completed successfully!', 'success');
           emit(RefreshEvent.TASK_COMPLETED, { taskId: draggedTask.id });
         } else {
-          throw new Error(result.error?.userMessage || 'Failed to complete task');
+          throw memberTaskError(result.error?.userMessage || 'Failed to complete task');
         }
       }
 
@@ -337,28 +425,32 @@ export const TaskBoardProvider = ({
       if (onUpdateColumns && confirmedColumns) {
         onUpdateColumns(confirmedColumns, selectedProject?.id);
       }
-      scheduleLockClear();
+      scheduleLockClear(result, guard);
     } catch (error) {
       // Revert the UI changes if there is an error
-      console.error('Error moving task:', error);
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
       if (notifId) {
-        updateNotification(notifId, error.message || 'Error moving task', 'error');
+        updateNotification(notifId, error.userMessage || 'Error moving task', 'error');
       } else {
-        addNotification(error.message || 'Error moving task', 'error');
+        addNotification(error.userMessage || 'Error moving task', 'error');
       }
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
     }
-  }, [
+  }, [beginTaskAction, getTaskMetadata,
     taskService,
     taskManagerContractAddress,
     isReady,
     addNotification,
     updateNotification,
     emit,
-    createTaskMetadata,
+    addToIpfs,
     onUpdateColumns,
     scheduleLockClear,
+    setTaskColumns,
     selectedProject?.id,
   ]);
 
@@ -373,18 +465,20 @@ export const TaskBoardProvider = ({
 
     const kubixPayout = calculatePayout(task.difficulty, task.estHours, payoutConfig);
 
+    const guard = beginTaskAction(task.assignTo ? 'createAndAssign' : 'create', null);
+    if (!guard) return { success: false };
+
     // Save previous state
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
 
     // Lock to prevent poll-interval from overwriting this optimistic update
     optimisticLockRef.current = Date.now();
 
-    const predictedTaskId = String(consumeNextTaskIds(1));
-    const predictedId = `${taskManagerContractAddress}-${predictedTaskId}`.toLowerCase();
+    const predictedId = pendingTaskId();
     const newTask = {
       ...task,
-      id: task.id || predictedId,
-      taskId: predictedTaskId,
+      id: predictedId,
+      taskId: undefined,
       projectId: selectedProject.id,
       kubixPayout: kubixPayout,
       isIndexing: true,
@@ -396,6 +490,7 @@ export const TaskBoardProvider = ({
       return { ...col, tasks: [...col.tasks, newTask] };
     });
 
+    taskColumnsRef.current = newTaskColumns;
     setTaskColumns(newTaskColumns);
 
     const notifId = addNotification('Creating task...', 'loading');
@@ -417,60 +512,58 @@ export const TaskBoardProvider = ({
         completionWindow: task.completionWindow || 0,
       };
 
+      let prepared;
+      const options = { assertCurrent: guard, onPreparedCreation: value => { guard(); prepared = value; } };
       let result;
       if (task.assignTo) {
         // Create and assign task in one transaction
         result = await taskService.createAndAssignTask(
           taskManagerContractAddress,
           taskData,
-          task.assignTo
+          task.assignTo,
+          options
         );
       } else {
         // Create task normally
-        result = await taskService.createTask(taskManagerContractAddress, taskData);
+        result = await taskService.createTask(taskManagerContractAddress, taskData, options);
       }
 
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, task.assignTo ? 'Task created and assigned!' : 'Task created successfully!', 'success');
 
-        // Task is now on-chain — mark it as no longer indexing so action buttons enable.
-        // Use functional updater to avoid stale closure over taskColumns.
-        let confirmedColumns;
-        setTaskColumns(prev => {
-          confirmedColumns = prev.map(col => ({
-            ...col,
-            tasks: col.tasks.map(t => t.id === newTask.id ? { ...t, isIndexing: false } : t),
-          }));
-          return confirmedColumns;
-        });
+        const { confirmedColumns, confirmedTasks, indexedSource } = await reconcileCreation(result, [newTask], prepared, guard);
 
-        emit(RefreshEvent.TASK_CREATED, { task: newTask });
+        emit(RefreshEvent.TASK_CREATED, confirmedTasks.length ? { task: confirmedTasks[0] } : { source: indexedSource });
 
         if (onUpdateColumns && confirmedColumns) {
           onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
-        scheduleLockClear();
+        scheduleLockClear(result, guard);
       } else {
-        throw new Error(result.error?.userMessage || 'Failed to create task');
+        throw memberTaskError(result.error?.userMessage || 'Failed to create task');
       }
     } catch (error) {
-      console.error('Error adding task:', error);
-      updateNotification(notifId, error.message || 'Error creating task', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error creating task', 'error');
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
     }
-  }, [
+  }, [beginTaskAction, reconcileCreation,
     taskService,
     taskManagerContractAddress,
     payoutConfig,
     selectedProject,
-    consumeNextTaskIds,
     isReady,
     addNotification,
     updateNotification,
     emit,
     onUpdateColumns,
     scheduleLockClear,
+    setTaskColumns,
   ]);
 
   /**
@@ -489,18 +582,20 @@ export const TaskBoardProvider = ({
       return { success: false };
     }
 
+    const guard = beginTaskAction('create', null);
+    if (!guard) return { success: false };
+
+    if (projectId !== guard.scope.projectId) return { success: false };
+
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
     optimisticLockRef.current = Date.now();
 
-    const baseTaskId = consumeNextTaskIds(drafts.length);
-
-    const optimisticTasks = drafts.map((d, i) => {
+    const optimisticTasks = drafts.map(d => {
       const kubixPayout = calculatePayout(d.difficulty, d.estHours, payoutConfig);
-      const predictedTaskId = String(baseTaskId + i);
-      const predictedId = `${taskManagerContractAddress}-${predictedTaskId}`.toLowerCase();
+      const predictedId = pendingTaskId();
       return {
         id: predictedId,
-        taskId: predictedTaskId,
+        taskId: undefined,
         projectId,
         name: d.name,
         description: d.description,
@@ -521,6 +616,7 @@ export const TaskBoardProvider = ({
       if (col.id !== destColumnId) return col;
       return { ...col, tasks: [...col.tasks, ...optimisticTasks] };
     });
+    taskColumnsRef.current = newTaskColumns;
     setTaskColumns(newTaskColumns);
 
     const notifId = addNotification(`Creating ${drafts.length} tasks...`, 'loading');
@@ -546,54 +642,51 @@ export const TaskBoardProvider = ({
         completionWindow: d.completionWindow || 0,
       }));
 
+      let prepared;
       const result = await taskService.createTasksBatch(
         taskManagerContractAddress,
         projectId,
-        taskData
+        taskData,
+        { assertCurrent: guard, onPreparedCreation: value => { guard(); prepared = value; } }
       );
 
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, `${drafts.length} tasks created!`, 'success');
 
-        const optimisticIds = new Set(optimisticTasks.map(t => t.id));
-        let confirmedColumns;
-        setTaskColumns(prev => {
-          confirmedColumns = prev.map(col => ({
-            ...col,
-            tasks: col.tasks.map(t =>
-              optimisticIds.has(t.id) ? { ...t, isIndexing: false } : t
-            ),
-          }));
-          return confirmedColumns;
-        });
+        const { confirmedColumns, confirmedTasks, indexedSource } = await reconcileCreation(result, optimisticTasks, prepared, guard);
 
-        optimisticTasks.forEach(t => emit(RefreshEvent.TASK_CREATED, { task: t }));
+        if (confirmedTasks.length) confirmedTasks.forEach(t => emit(RefreshEvent.TASK_CREATED, { task: t }));
+        else emit(RefreshEvent.TASK_CREATED, { source: indexedSource });
 
         if (onUpdateColumns && confirmedColumns) {
           onUpdateColumns(confirmedColumns, projectId);
         }
-        scheduleLockClear();
+        scheduleLockClear(result, guard);
         return { success: true };
       }
-      throw new Error(result.error?.userMessage || 'Failed to create tasks');
+      throw memberTaskError(result.error?.userMessage || 'Failed to create tasks');
     } catch (error) {
-      console.error('Error creating task batch:', error);
-      updateNotification(notifId, error.message || 'Error creating tasks', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error creating tasks', 'error');
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [
+  }, [beginTaskAction, reconcileCreation,
     taskService,
     taskManagerContractAddress,
     payoutConfig,
-    consumeNextTaskIds,
     isReady,
     addNotification,
     updateNotification,
     emit,
     onUpdateColumns,
     scheduleLockClear,
+    setTaskColumns,
   ]);
 
   /**
@@ -604,6 +697,9 @@ export const TaskBoardProvider = ({
       addNotification(getNotReadyMessageRef.current(), 'error');
       return;
     }
+
+    const guard = beginTaskAction('editFull', updatedTask);
+    if (!guard) return { success: false };
 
     // Save previous state
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
@@ -632,20 +728,28 @@ export const TaskBoardProvider = ({
     const notifId = addNotification('Updating task...', 'loading');
 
     try {
+      if (!taskService.ipfs) throw memberTaskError('Task details are still loading. Please try again.');
+      const baseMetadata = await getTaskMetadata(guard.task, guard);
+      guard();
+      if (guard.task.absoluteDeadline === undefined || guard.task.completionWindow === undefined) {
+        throw memberTaskError('The saved task deadlines are unavailable. Reload the task and try again.');
+      }
       const result = await taskService.editTask(taskManagerContractAddress, updatedTask.id, {
         payout,
+        baseMetadata,
         name: updatedTask.name,
         description: updatedTask.description,
-        location: 'Open',
+        location: baseMetadata.location,
         difficulty: updatedTask.difficulty,
         estHours: updatedTask.estHours,
         bountyToken: updatedTask.bountyToken,
         bountyPayout: updatedTask.bountyAmount,
-        dueDate: updatedTask.dueDate ?? null,
-        absoluteDeadline: updatedTask.absoluteDeadline || 0,
-        completionWindow: updatedTask.completionWindow || 0,
-      });
+        dueDate: updatedTask.dueDate,
+        absoluteDeadline: updatedTask.absoluteDeadline ?? guard.task.absoluteDeadline,
+        completionWindow: updatedTask.completionWindow ?? guard.task.completionWindow,
+      }, { assertCurrent: guard });
 
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, 'Task updated successfully!', 'success');
         emit(RefreshEvent.TASK_UPDATED, { taskId: updatedTask.id });
@@ -655,17 +759,20 @@ export const TaskBoardProvider = ({
         if (onUpdateColumns && confirmedColumns) {
           onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
-        scheduleLockClear();
+        scheduleLockClear(result, guard);
       } else {
-        throw new Error(result.error?.userMessage || 'Failed to update task');
+        throw memberTaskError(result.error?.userMessage || 'Failed to update task');
       }
     } catch (error) {
-      console.error('Error editing task:', error);
-      updateNotification(notifId, error.message || 'Error updating task', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error updating task', 'error');
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
     }
-  }, [
+  }, [beginTaskAction, getTaskMetadata,
     taskService,
     taskManagerContractAddress,
     payoutConfig,
@@ -675,6 +782,7 @@ export const TaskBoardProvider = ({
     emit,
     onUpdateColumns,
     scheduleLockClear,
+    setTaskColumns,
     selectedProject?.id,
   ]);
 
@@ -689,6 +797,9 @@ export const TaskBoardProvider = ({
       addNotification(getNotReadyMessageRef.current(), 'error');
       return;
     }
+
+    const guard = beginTaskAction('editMetadata', updatedTask);
+    if (!guard) return { success: false };
 
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
     optimisticLockRef.current = Date.now();
@@ -706,15 +817,20 @@ export const TaskBoardProvider = ({
     const notifId = addNotification('Updating task metadata...', 'loading');
 
     try {
+      if (!taskService.ipfs) throw memberTaskError('Task details are still loading. Please try again.');
+      const baseMetadata = await getTaskMetadata(guard.task, guard);
+      guard();
       const result = await taskService.editTaskMetadata(taskManagerContractAddress, updatedTask.id, {
+        baseMetadata,
         name: updatedTask.name,
         description: updatedTask.description,
-        location: 'Open',
+        location: baseMetadata.location,
         difficulty: updatedTask.difficulty,
         estHours: updatedTask.estHours,
-        dueDate: updatedTask.dueDate ?? null,
-      });
+        dueDate: updatedTask.dueDate,
+      }, { assertCurrent: guard });
 
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, 'Task metadata updated successfully!', 'success');
         emit(RefreshEvent.TASK_UPDATED, { taskId: updatedTask.id });
@@ -724,17 +840,20 @@ export const TaskBoardProvider = ({
         if (onUpdateColumns && confirmedColumns) {
           onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
-        scheduleLockClear();
+        scheduleLockClear(result, guard);
       } else {
-        throw new Error(result.error?.userMessage || 'Failed to update task metadata');
+        throw memberTaskError(result.error?.userMessage || 'Failed to update task metadata');
       }
     } catch (error) {
-      console.error('Error editing task metadata:', error);
-      updateNotification(notifId, error.message || 'Error updating task metadata', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error updating task metadata', 'error');
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
     }
-  }, [
+  }, [beginTaskAction, getTaskMetadata,
     taskService,
     taskManagerContractAddress,
     isReady,
@@ -743,6 +862,7 @@ export const TaskBoardProvider = ({
     emit,
     onUpdateColumns,
     scheduleLockClear,
+    setTaskColumns,
     selectedProject?.id,
   ]);
 
@@ -754,6 +874,9 @@ export const TaskBoardProvider = ({
       addNotification(getNotReadyMessageRef.current(), 'error');
       return;
     }
+
+    const guard = beginTaskAction('cancel', { id: taskId });
+    if (!guard) return { success: false };
 
     // Save previous state
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
@@ -772,8 +895,9 @@ export const TaskBoardProvider = ({
     const notifId = addNotification('Deleting task...', 'loading');
 
     try {
-      const result = await taskService.cancelTask(taskManagerContractAddress, taskId);
+      const result = await taskService.cancelTask(taskManagerContractAddress, taskId, { assertCurrent: guard });
 
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, 'Task deleted successfully!', 'success');
         emit(RefreshEvent.TASK_CANCELLED, { taskId });
@@ -783,17 +907,20 @@ export const TaskBoardProvider = ({
         if (onUpdateColumns && confirmedColumns) {
           onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
-        scheduleLockClear();
+        scheduleLockClear(result, guard);
       } else {
-        throw new Error(result.error?.userMessage || 'Failed to delete task');
+        throw memberTaskError(result.error?.userMessage || 'Failed to delete task');
       }
     } catch (error) {
-      console.error('Error deleting task:', error);
-      updateNotification(notifId, error.message || 'Error deleting task', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error deleting task', 'error');
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
     }
-  }, [
+  }, [beginTaskAction,
     taskService,
     taskManagerContractAddress,
     isReady,
@@ -802,6 +929,7 @@ export const TaskBoardProvider = ({
     emit,
     onUpdateColumns,
     scheduleLockClear,
+    setTaskColumns,
     selectedProject?.id,
   ]);
 
@@ -813,6 +941,9 @@ export const TaskBoardProvider = ({
       addNotification(getNotReadyMessageRef.current(), 'error');
       return { success: false };
     }
+
+    const guard = beginTaskAction('apply', { id: taskId });
+    if (!guard) return { success: false };
 
     // Save previous state for rollback
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
@@ -844,30 +975,35 @@ export const TaskBoardProvider = ({
       const result = await taskService.applyForTask(
         taskManagerContractAddress,
         taskId,
-        applicationData
+        applicationData,
+        { assertCurrent: guard }
       );
 
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, 'Application submitted successfully!', 'success');
         emit(RefreshEvent.TASK_APPLICATION_SUBMITTED, { taskId });
         if (applicantAddress) {
           if (onUpdateColumns) onUpdateColumns(newTaskColumns, selectedProject?.id);
-          scheduleLockClear();
+          scheduleLockClear(result, guard);
         }
         return { success: true };
       } else {
-        throw new Error(result.error?.userMessage || 'Failed to submit application');
+        throw memberTaskError(result.error?.userMessage || 'Failed to submit application');
       }
     } catch (error) {
-      console.error('Error applying for task:', error);
-      updateNotification(notifId, error.message || 'Error submitting application', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error submitting application', 'error');
       if (applicantAddress) {
         optimisticLockRef.current = null;
         setTaskColumns(previousTaskColumns);
       }
       return { success: false, error };
     }
-  }, [taskService, taskManagerContractAddress, selectedProject, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear]);
+  }, [beginTaskAction, taskService, taskManagerContractAddress, selectedProject, isReady, addNotification, updateNotification, emit, onUpdateColumns, setTaskColumns, scheduleLockClear]);
 
   /**
    * Approve an application for a task
@@ -877,6 +1013,9 @@ export const TaskBoardProvider = ({
       addNotification(getNotReadyMessageRef.current(), 'error');
       return { success: false };
     }
+
+    const guard = beginTaskAction('assign', { id: taskId });
+    if (!guard) return { success: false };
 
     // Save previous state for rollback
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
@@ -888,7 +1027,7 @@ export const TaskBoardProvider = ({
     let movedTask = null;
     const newTaskColumns = taskColumnsRef.current.map(col => {
       if (col.id === 'open') {
-        const task = col.tasks.find(t => t.id === taskId);
+        const task = col.tasks.find(t => t.id === taskId, { assertCurrent: guard });
         if (task) {
           movedTask = {
             ...task,
@@ -913,9 +1052,11 @@ export const TaskBoardProvider = ({
       const result = await taskService.approveApplication(
         taskManagerContractAddress,
         taskId,
-        applicantAddress
+        applicantAddress,
+        { assertCurrent: guard }
       );
 
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, 'Application approved successfully!', 'success');
         emit(RefreshEvent.TASK_APPLICATION_APPROVED, { taskId, applicantAddress });
@@ -925,21 +1066,24 @@ export const TaskBoardProvider = ({
         if (onUpdateColumns && confirmedColumns) {
           onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
-        scheduleLockClear();
+        scheduleLockClear(result, guard);
 
         return { success: true };
       } else {
-        throw new Error(result.error?.userMessage || 'Failed to approve application');
+        throw memberTaskError(result.error?.userMessage || 'Failed to approve application');
       }
     } catch (error) {
-      console.error('Error approving application:', error);
-      updateNotification(notifId, error.message || 'Error approving application', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error approving application', 'error');
       // Rollback optimistic update on failure
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear, selectedProject?.id]);
+  }, [beginTaskAction, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, setTaskColumns, scheduleLockClear, selectedProject?.id]);
 
   /**
    * Assign a task to a specific user
@@ -949,6 +1093,9 @@ export const TaskBoardProvider = ({
       addNotification(getNotReadyMessageRef.current(), 'error');
       return { success: false };
     }
+
+    const guard = beginTaskAction('assign', { id: taskId });
+    if (!guard) return { success: false };
 
     // Save previous state for rollback
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
@@ -963,7 +1110,7 @@ export const TaskBoardProvider = ({
     let movedTask = null;
     const newTaskColumns = taskColumnsRef.current.map(col => {
       if (col.id === 'open') {
-        const task = col.tasks.find(t => t.id === taskId);
+        const task = col.tasks.find(t => t.id === taskId, { assertCurrent: guard });
         if (task) {
           movedTask = {
             ...task,
@@ -975,7 +1122,7 @@ export const TaskBoardProvider = ({
         return { ...col, tasks: col.tasks.filter(t => t.id !== taskId) };
       }
       if (col.id === 'inProgress') {
-        const existing = col.tasks.some(t => t.id === taskId);
+        const existing = col.tasks.some(t => t.id === taskId, { assertCurrent: guard });
         if (existing) {
           return {
             ...col,
@@ -1005,9 +1152,11 @@ export const TaskBoardProvider = ({
       const result = await taskService.assignTask(
         taskManagerContractAddress,
         taskId,
-        assigneeAddress
+        assigneeAddress,
+        { assertCurrent: guard }
       );
 
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, 'Task assigned successfully!', 'success');
         emit(RefreshEvent.TASK_ASSIGNED, { taskId, assigneeAddress });
@@ -1017,20 +1166,23 @@ export const TaskBoardProvider = ({
         if (onUpdateColumns && confirmedColumns) {
           onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
-        scheduleLockClear();
+        scheduleLockClear(result, guard);
 
         return { success: true };
       } else {
-        throw new Error(result.error?.userMessage || 'Failed to assign task');
+        throw memberTaskError(result.error?.userMessage || 'Failed to assign task');
       }
     } catch (error) {
-      console.error('Error assigning task:', error);
-      updateNotification(notifId, error.message || 'Error assigning task', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error assigning task', 'error');
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear, selectedProject?.id]);
+  }, [beginTaskAction, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, setTaskColumns, scheduleLockClear, selectedProject?.id]);
 
 
   /**
@@ -1046,6 +1198,9 @@ export const TaskBoardProvider = ({
       addNotification(getNotReadyMessageRef.current(), 'error');
       return { success: false };
     }
+
+    const guard = beginTaskAction('claim', task);
+    if (!guard) return { success: false };
 
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
     optimisticLockRef.current = Date.now();
@@ -1067,7 +1222,8 @@ export const TaskBoardProvider = ({
     const notifId = addNotification('Taking over task...', 'loading');
 
     try {
-      const result = await taskService.claimTask(taskManagerContractAddress, task.id);
+      const result = await taskService.claimTask(taskManagerContractAddress, task.id, { assertCurrent: guard });
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, "Task taken over — it's yours now!", 'success');
         emit(RefreshEvent.TASK_CLAIMED, { taskId: task.id });
@@ -1077,18 +1233,21 @@ export const TaskBoardProvider = ({
         if (onUpdateColumns && confirmedColumns) {
           onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
-        scheduleLockClear();
+        scheduleLockClear(result, guard);
         return { success: true };
       }
-      throw new Error(result.error?.userMessage || 'Failed to take over task');
+      throw memberTaskError(result.error?.userMessage || 'Failed to take over task');
     } catch (error) {
-      console.error('Error taking over task:', error);
-      updateNotification(notifId, error.message || 'Error taking over task', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error taking over task', 'error');
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear, selectedProject?.id]);
+  }, [beginTaskAction, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, setTaskColumns, scheduleLockClear, selectedProject?.id]);
 
   /**
    * Release a claimed task back to the pool (TaskManager v7 `unclaimTask`).
@@ -1107,7 +1266,7 @@ export const TaskBoardProvider = ({
    * out of inProgress AND clear the fields, or Open shows the ghost and the
    * released card side by side under the same task id.
    *
-   * Permission is the caller's problem (see util/releaseGate): the claimer may
+   * Permission is checked by the caller's scoped core task policy: the claimer may
    * always release, anyone else needs ASSIGN plus an expired claim.
    */
   const releaseTask = useCallback(async (task) => {
@@ -1116,13 +1275,16 @@ export const TaskBoardProvider = ({
       return { success: false };
     }
 
+    const guard = beginTaskAction('release', task);
+    if (!guard) return { success: false };
+
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
     optimisticLockRef.current = Date.now();
 
     setTaskColumns(cols => {
       const released = cols
         .find(c => c.id === 'inProgress')?.tasks
-        ?.find(t => t.id === task.id);
+        ?.find(t => t.id === task.id, { assertCurrent: guard });
       if (!released) return cols;
       const reopened = {
         ...released,
@@ -1147,7 +1309,8 @@ export const TaskBoardProvider = ({
     const notifId = addNotification('Releasing task...', 'loading');
 
     try {
-      const result = await taskService.unclaimTask(taskManagerContractAddress, task.id);
+      const result = await taskService.unclaimTask(taskManagerContractAddress, task.id, { assertCurrent: guard });
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, 'Task released — it is open for anyone to claim.', 'success');
         emit(RefreshEvent.TASK_UNCLAIMED, { taskId: task.id });
@@ -1157,18 +1320,21 @@ export const TaskBoardProvider = ({
         if (onUpdateColumns && confirmedColumns) {
           onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
-        scheduleLockClear();
+        scheduleLockClear(result, guard);
         return { success: true };
       }
-      throw new Error(result.error?.userMessage || 'Failed to release task');
+      throw memberTaskError(result.error?.userMessage || 'Failed to release task');
     } catch (error) {
-      console.error('Error releasing task:', error);
-      updateNotification(notifId, error.message || 'Error releasing task', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error releasing task', 'error');
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, scheduleLockClear, selectedProject?.id]);
+  }, [beginTaskAction, taskService, taskManagerContractAddress, isReady, addNotification, updateNotification, emit, onUpdateColumns, setTaskColumns, scheduleLockClear, selectedProject?.id]);
 
   /**
    * Reject a submitted task, moving it back to inProgress
@@ -1183,6 +1349,9 @@ export const TaskBoardProvider = ({
       addNotification('Please provide a rejection reason.', 'error');
       return { success: false };
     }
+
+    const guard = beginTaskAction('reject', task);
+    if (!guard) return { success: false };
 
     // Save previous state for rollback
     const previousTaskColumns = JSON.parse(JSON.stringify(taskColumnsRef.current));
@@ -1209,15 +1378,19 @@ export const TaskBoardProvider = ({
       // Upload rejection reason to IPFS. The subgraph links TaskRejected to the
       // immutable TaskSubmission record; rejection metadata does not duplicate
       // the submitted work.
-      const rejectionMetadata = JSON.stringify({ rejection: rejectionReason.trim() });
+      guard();
+      const rejectionMetadata = serializeTaskRejectionMetadata(buildTaskRejectionMetadata(rejectionReason.trim()));
       const ipfsResult = await addToIpfs(rejectionMetadata);
+      guard();
 
       const result = await taskService.rejectTask(
         taskManagerContractAddress,
         task.id,
-        ipfsResult.path
+        ipfsResult.path,
+        { assertCurrent: guard }
       );
 
+      guard.assertScope();
       if (result.success) {
         updateNotification(notifId, 'Task rejected successfully!', 'success');
         emit(RefreshEvent.TASK_REJECTED, { taskId: task.id });
@@ -1227,20 +1400,23 @@ export const TaskBoardProvider = ({
         if (onUpdateColumns && confirmedColumns) {
           onUpdateColumns(confirmedColumns, selectedProject?.id);
         }
-        scheduleLockClear();
+        scheduleLockClear(result, guard);
 
         return { success: true };
       } else {
-        throw new Error(result.error?.userMessage || 'Failed to reject task');
+        throw memberTaskError(result.error?.userMessage || 'Failed to reject task');
       }
     } catch (error) {
-      console.error('Error rejecting task:', error);
-      updateNotification(notifId, error.message || 'Error rejecting task', 'error');
+      if (!guard.isCurrent()) {
+        if (typeof notifId !== 'undefined' && notifId) updateNotification(notifId, 'Your account or organization changed. Reopen the task to see its current state.', 'error');
+        return { success: false };
+      }
+      updateNotification(notifId, error.userMessage || 'Error rejecting task', 'error');
       optimisticLockRef.current = null;
       setTaskColumns(previousTaskColumns);
       return { success: false, error };
     }
-  }, [
+  }, [beginTaskAction,
     taskService,
     taskManagerContractAddress,
     isReady,
@@ -1250,6 +1426,7 @@ export const TaskBoardProvider = ({
     addToIpfs,
     onUpdateColumns,
     scheduleLockClear,
+    setTaskColumns,
     selectedProject?.id,
   ]);
 
@@ -1271,6 +1448,7 @@ export const TaskBoardProvider = ({
 
   const value = useMemo(() => ({
     taskColumns,
+    getTaskMetadata,
     moveTask,
     addTask,
     addTaskBatch,
@@ -1284,11 +1462,7 @@ export const TaskBoardProvider = ({
     releaseTask,
     rejectTask,
     getPreviousSubmission,
-  }), [taskColumns, moveTask, addTask, addTaskBatch, editTask, editTaskMetadata, deleteTask, applyForTask, approveApplication, assignTask, takeOverTask, releaseTask, rejectTask, getPreviousSubmission]);
+  }), [taskColumns, getTaskMetadata, moveTask, addTask, addTaskBatch, editTask, editTaskMetadata, deleteTask, applyForTask, approveApplication, assignTask, takeOverTask, releaseTask, rejectTask, getPreviousSubmission]);
 
-  return (
-    <TaskBoardContext.Provider value={value}>
-      {children}
-    </TaskBoardContext.Provider>
-  );
+  return React.createElement(TaskBoardContext.Provider, { value }, children);
 };

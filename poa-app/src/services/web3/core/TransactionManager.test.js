@@ -70,27 +70,29 @@ describe('TransactionManager.execute — ensureChain (org-chain binding)', () =>
     expect(res.success).toBe(true);
   });
 
-  it('leaves the original contract/signer untouched when ensureChain returns null', async () => {
-    const { original } = makeConnectable();
+  it('binds the contract to the manager signer when ensureChain returns null', async () => {
+    const { original, reconnected } = makeConnectable();
     const ensureChain = vi.fn(async () => null);
 
     const tm = createTransactionManager({ id: 'ambient' }, { ensureChain });
     const res = await tm.execute(original, METHOD, []);
 
     expect(ensureChain).toHaveBeenCalledOnce();
-    expect(original.connect).not.toHaveBeenCalled();
-    expect(original[METHOD]).toHaveBeenCalled();
+    expect(original.connect).toHaveBeenCalledWith(tm.signer);
+    expect(original[METHOD]).not.toHaveBeenCalled();
+    expect(reconnected[METHOD]).toHaveBeenCalled();
     expect(res.success).toBe(true);
   });
 
-  it('is a no-op when no ensureChain is injected (backward compatible)', async () => {
-    const { original } = makeConnectable();
+  it('binds the contract to the manager signer when no ensureChain is injected', async () => {
+    const { original, reconnected } = makeConnectable();
 
     const tm = createTransactionManager({ id: 'ambient' });
     const res = await tm.execute(original, METHOD, []);
 
-    expect(original.connect).not.toHaveBeenCalled();
-    expect(original[METHOD]).toHaveBeenCalled();
+    expect(original.connect).toHaveBeenCalledWith(tm.signer);
+    expect(original[METHOD]).not.toHaveBeenCalled();
+    expect(reconnected[METHOD]).toHaveBeenCalled();
     expect(res.success).toBe(true);
   });
 

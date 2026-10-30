@@ -35,6 +35,14 @@
  *   contractAddress    string — voting contract for this poll's type
  */
 
+import { useWeb3ServicesContext } from '@/context/Web3ServicesContext';
+import { useAuthorityEvidence } from '@/hooks/accessV2/useAuthorityEvidence';
+import { apolloProtocolQuery } from '@/lib/graphql/coreQuery';
+import { getNetworkByChainId } from '@/config/networks';
+import { useMountedProposalDetail } from '@/hooks/useMountedProposalDetail';
+import { nowMs } from '@/util/deadlineUtils';
+import { mountedProposalView } from '@/lib/voting/hostProjection';
+import { requireRawUint } from '@poa-box/core/amounts';
 import { useShareLink } from '@/hooks/useShareLink';
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
@@ -74,6 +82,7 @@ import GlassBack from './GlassBack';
 import { useAuth } from '@/context/authState';
 import { useUserContext } from '@/context/UserContext';
 import { useVotingContext } from '@/context/VotingContext';
+import { bindPowerEvidence, proposalRawPowerPreview } from '@/lib/voting/powerAdapter';
 import { useVotingPower } from '@/hooks/useVotingPower';
 import { useRoleNames } from '@/hooks/useRoleNames';
 import { useOrgName } from '@/hooks/useOrgName';
@@ -157,19 +166,58 @@ function CopyLinkButton({ poll }) {
 }
 
 export function PollDetail({
-  poll,
+  poll: feedPoll,
   isOpen,
   onClose,
   onVote,
   onFinalize,
   contractAddress,
 }) {
-  const { accountAddress } = useAuth();
+  const { accountAddress, isAuthHydrated, isAuthenticated } = useAuth();
+  const mountedDetail = useMountedProposalDetail({ poll: feedPoll, isOpen, contractAddress });
+  const poll = useMemo(() => mountedProposalView(feedPoll, mountedDetail,
+    isAuthHydrated && isAuthenticated ? accountAddress : null),
+  [feedPoll, mountedDetail, isAuthHydrated, isAuthenticated, accountAddress]);
   const { userData, graphUsername, hasMemberRole, userDataLoading } = useUserContext();
-  const { addOptimisticVote, removeOptimisticVote, ddVotingHats, votingClassesByVersion } = useVotingContext();
+  const { addOptimisticVote, removeOptimisticVote, ddVotingHats, votingClassesByVersion, proposalPowerEvidenceById, registerProposalPowerEvidence } = useVotingContext();
   const { classBreakdown, totalSharePct } = useVotingPower();
   const { getRoleNamesString } = useRoleNames();
-  const { poMembers, leaderboardData } = usePOContext();
+  const { poMembers, leaderboardData, participationTokenAddress, orgChainId, orgId } = usePOContext();
+
+  const { services: readServices, requestRuntime: requestReadRuntime } = useWeb3ServicesContext();
+  const roleCreation = readServices?.roleCreation;
+  useEffect(() => {
+    if (isOpen && isAuthHydrated && isAuthenticated) return requestReadRuntime();
+    return undefined;
+  }, [isOpen, isAuthHydrated, isAuthenticated, requestReadRuntime]);
+  const authorityObservation = useAuthorityEvidence();
+  const { executorContractAddress } = usePOContext();
+  const powerSnapshot = authorityObservation.snapshot;
+  const powerAuthority = authorityObservation.scope.contract;
+  const powerPollId = poll?.id;
+  const powerProposalId = poll?.proposalId;
+  const powerPollType = poll?.type;
+  const refreshAuthorityPower = authorityObservation.refetch;
+  useEffect(() => {
+    if (isOpen) refreshAuthorityPower().catch(() => {});
+  }, [isOpen, refreshAuthorityPower]);
+  useEffect(() => {
+    if (powerPollId && isOpen) registerProposalPowerEvidence(powerPollId, {});
+    if (!isOpen || !powerPollId || !powerSnapshot
+        || !roleCreation || !isAuthHydrated || !isAuthenticated || !accountAddress) return undefined;
+    let current = true;
+    const readPower = powerPollType === 'Direct Democracy' ? roleCreation.getDDPowerEvidence.bind(roleCreation) : roleCreation.getProposalPowerEvidence.bind(roleCreation);
+    readPower({
+      query: apolloProtocolQuery, authority: powerSnapshot, proposalId: String(powerProposalId),
+      rpcEndpoint: getNetworkByChainId(orgChainId)?.rpcUrl,
+      scope: { chainId: orgChainId, orgId, account: accountAddress, contract: contractAddress,
+        contracts: { membershipAuthority: powerAuthority, executor: executorContractAddress } },
+    }).then(evidence => { if (current) registerProposalPowerEvidence(powerPollId, evidence); })
+      .catch(() => { if (current) registerProposalPowerEvidence(powerPollId, {}); });
+    return () => { current = false; };
+  }, [isOpen, powerPollId, powerProposalId, powerPollType, powerSnapshot, roleCreation, isAuthHydrated,
+    isAuthenticated, accountAddress, orgChainId, orgId, contractAddress, powerAuthority,
+    executorContractAddress, registerProposalPowerEvidence]);
 
   const isMobile = useBreakpointValue({ base: true, md: false });
 
@@ -204,7 +252,27 @@ export function PollDetail({
   const shownPollIdRef = React.useRef(null);
   useEffect(() => { shownPollIdRef.current = poll?.id ?? null; }, [poll?.id]);
 
-  const variant = useMemo(() => lifecycleVariant(poll), [poll]);
+  // The feed's expiry flag is a snapshot. Wake this open detail at its deadline
+  // using the app clock, without polling readers or ticking a hidden modal.
+  const [deadlineClock, setDeadlineClock] = useState(nowMs);
+  const deadline = useMemo(() => {
+    try {
+      const seconds = Number(requireRawUint(poll?.endTimestamp));
+      return Number.isSafeInteger(seconds) && seconds > 0 ? seconds : null;
+    } catch {
+      return null;
+    }
+  }, [poll?.endTimestamp]);
+  const deadlineKnown = deadline !== null;
+  useEffect(() => {
+    if (!isOpen || !poll?.isOngoing || deadline === null) return undefined;
+    const remaining = deadline * 1000 - nowMs();
+    if (remaining <= 0) return undefined;
+    // Long windows must not overflow the browser's signed 32-bit timer delay.
+    const timer = setTimeout(() => setDeadlineClock(nowMs()), Math.min(remaining, 2147483647));
+    return () => clearTimeout(timer);
+  }, [isOpen, poll?.id, poll?.isOngoing, deadline, deadlineClock]);
+  const variant = lifecycleVariant(poll && { ...poll, endTimestamp: deadline, isExpired: false }, nowMs());
   const roster = useMemo(() => computeVoterRoster(poll, leaderboardData), [poll, leaderboardData]);
   // Roster gives an EXACT eligible denominator (restricted polls narrow to the
   // actual hat holders) — prefer it over the poMembers approximation.
@@ -229,10 +297,13 @@ export function PollDetail({
       proposalClasses: poll?.type === 'Hybrid' && poll?.classesVersion != null
         ? votingClassesByVersion?.[poll.classesVersion] || null
         : null,
-      userBalance: userData?.participationTokenBalanceWei || '0',
+      userBalance: userData?.participationTokenBalanceWei,
+      balanceAsset: participationTokenAddress,
+      powerEvidence: bindPowerEvidence(proposalPowerEvidenceById?.[poll?.id] || {},
+        { chainId: orgChainId, orgId, account: accountAddress, contract: contractAddress }),
       userDataReady: !userDataLoading,
     }),
-    [poll, userData, ddVotingHats, classBreakdown, votingClassesByVersion, userDataLoading]
+    [poll, userData, ddVotingHats, classBreakdown, votingClassesByVersion, userDataLoading, participationTokenAddress, proposalPowerEvidenceById, orgChainId, orgId, accountAddress, contractAddress]
   );
   const eligible = verdict.eligible;
 
@@ -243,7 +314,8 @@ export function PollDetail({
   //
   // Additive and silent everywhere else: legacy orgs, an org whose rows have not arrived, and a
   // poll with no creation timestamp all return `blocked: false` (see lib/accessV2/ballotGate).
-  const activation = useActivationGate(poll);
+  const activation = useActivationGate(poll?.type === 'Hybrid' ? { ...poll,
+    proposalCreatedAt: proposalPowerEvidenceById?.[poll.id]?.proposal?.data?.createdAt } : null);
 
   // NOTE: no early return before this point — every hook above and below must
   // run on EVERY render (React hooks-order rule). All poll derivations here are
@@ -251,7 +323,7 @@ export function PollDetail({
   const isBinding = poll?.type === 'Hybrid';
   const isBlended = poll?.type === 'Hybrid';
   const closed = !!poll && !poll.isOngoing;
-  const awaitingCount = variant === 'awaiting-finalize';
+  const awaitingCount = deadlineKnown && variant === 'awaiting-finalize';
   const hasVoted = !!poll?.userHasVoted;
   // ONE source of truth for "the voting window is over". `poll.isExpired` is
   // frozen at transform time, so mixing it with the ticking `variant` would let
@@ -267,13 +339,13 @@ export function PollDetail({
   // that mounts PollDetail without wiring onVote gets the read-only view rather
   // than a button that optimistically celebrates a vote it never sent.
   const canCast = typeof onVote === 'function';
-  const canVote = !windowClosed && eligible && !hasVoted && canAct && canCast && !activation.blocked;
+  const canVote = deadlineKnown && !windowClosed && eligible && !hasVoted && canAct && canCast && !activation.blocked;
 
   // A miswire otherwise degrades into a silent dead end: a member who is told
   // "You're eligible ✓" on a live poll, with no ballot and no reason given.
   // Say so where a developer will see it, in dev only.
   if (process.env.NODE_ENV !== 'production' && !canCast
-      && !windowClosed && eligible && !hasVoted && canAct) {
+      && deadlineKnown && !windowClosed && eligible && !hasVoted && canAct) {
     console.error(
       '[PollDetail] eligible member has no ballot: this surface rendered PollDetail '
       + 'without a callable `onVote`. Wire it with useVoteActions().'
@@ -311,19 +383,9 @@ export function PollDetail({
 
     const userVote = { optionIndexes, optionWeights };
 
-    // classRawPowers — makes Blended optimistic bars weight-accurate. Derived
-    // from the truthful classBreakdown (userRawPower per class, ordered by
-    // classIndex) when available; omitted otherwise (voter counts still move).
-    // MUST be plain decimal strings: large share balances stringify through
-    // Number as "1e+21", and computeHybridOptionScores feeds these to BigInt(),
-    // which throws on exponent notation — crashing right after casting.
-    const toDecimalString = (n) => {
-      if (!Number.isFinite(n) || n <= 0) return '0';
-      return Math.round(n).toLocaleString('fullwide', { useGrouping: false });
-    };
-    const classRawPowers = Array.isArray(classBreakdown)
-      ? classBreakdown.map((c) => (c.eligible ? toDecimalString(c.userRawPower || 0) : '0'))
-      : undefined;
+    const classRawPowers = poll.type === 'Hybrid' ? proposalRawPowerPreview(bindPowerEvidence(
+      proposalPowerEvidenceById?.[poll.id], { chainId: orgChainId, orgId, account: accountAddress, contract: contractAddress },
+    )) : undefined;
 
     // Fire optimistic vote immediately so bars + userHasVoted reflect it.
     addOptimisticVote(poll.id, {
@@ -367,7 +429,7 @@ export function PollDetail({
     isWeighted,
     weights,
     selectedOption,
-    classBreakdown,
+    proposalPowerEvidenceById, orgChainId, orgId,
     addOptimisticVote,
     removeOptimisticVote,
     poll,
@@ -542,10 +604,15 @@ export function PollDetail({
                     <Text as="span" color="#C6B4F5" fontWeight="600">by {poll.proposerUsername} · </Text>
                   )}
                   opened {shortDate(poll.startTimestamp)} · closes {shortDate(poll.endTimestamp)}
-                  {!windowClosed && (
+                  {deadlineKnown && !windowClosed && (
                     <Text as="span" color={leaderText}> ({relativeTime(poll.endTimestamp)})</Text>
                   )}
                 </Text>
+                {!closed && !deadlineKnown && (
+                  <Text role="status" fontSize="xs" color="gray.400">
+                    The voting deadline is still being verified.
+                  </Text>
+                )}
               </VStack>
 
               {/* b. Description (collapsible) */}
@@ -679,7 +746,10 @@ export function PollDetail({
 
               {/* e. VotePowerReceipt (compact) — only when the viewer can still vote */}
               {canVote && (
-                <VotePowerReceipt variant="compact" restrictedHatIds={poll.restrictedHatIds} />
+                <VotePowerReceipt variant="compact" restrictedHatIds={poll.restrictedHatIds}
+                  votingType={poll.type} approximate={turnout.approximate}
+                  eligibleCount={poll.type === 'Direct Democracy' && poll.isHatRestricted
+                    && poll.restrictedHatIds?.length > 0 && !roster.exact ? null : turnout.eligible} />
               )}
 
               {/* f. Ballot zone (live + eligible + !voted) — NO results here */}
@@ -775,6 +845,9 @@ export function PollDetail({
                   <Text fontSize="sm" fontWeight="700" color="gray.200">
                     {awaitingCount ? 'Provisional results' : 'Results'}
                   </Text>
+                  {poll.tallyComplete === false && <Text fontSize="xs" color="gray.400">
+                    {poll.tallyKnown === false ? 'Vote totals could not yet be verified.' : 'Based on the votes received so far.'}
+                  </Text>}
                   <ResultBars
                     earlyCaption={
                       poll.isOngoing && turnout.voted > 0 && turnout.voted < 3

@@ -16,7 +16,10 @@
  *   bits 0..253  VALUE       — bool-any: nonzero = true; OR-mask: the TaskManager bitmask
  */
 
-import { utils } from 'ethers';
+import { permissionKey, permissionWord, AUTHORITY_KEYS, EXISTS_BIT as CORE_EXISTS_BIT, INHERIT_GLOBAL_BIT as CORE_INHERIT_GLOBAL_BIT, VALUE_MASK as CORE_VALUE_MASK } from '@poa-box/core/tx/authority';
+import { decodePermissionWord, resolvePermissionContext } from '@poa-box/core/authority/permissions';
+import { knownFact } from '@poa-box/core/data/facts';
+import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
 /** Fold tags (top byte of the key). */
 export const FOLD_TAG = {
@@ -33,9 +36,7 @@ const TAG_LABEL = {
 
 /** `(tag << 248) | (keccak256(label) >> 8)` as a 0x-prefixed bytes32. */
 export function derivePermKey(tag, label) {
-  const hash = BigInt(utils.keccak256(utils.toUtf8Bytes(label)));
-  const key = (BigInt(tag) << 248n) | (hash >> 8n);
-  return `0x${key.toString(16).padStart(64, '0')}`;
+  return permissionKey(label, tag);
 }
 
 /** The fold tag encoded in a key's top byte. */
@@ -52,19 +53,7 @@ export function foldTagLabel(key) {
  * The protocol key set. `ctx` documents the ONLY ctx a key is meaningful at:
  * 'global' means ctx must be bytes32(0); 'project' means the key also takes a projectId ctx.
  */
-export const PERM_KEYS = {
-  DD_VOTE: derivePermKey(FOLD_TAG.BOOL_ANY, 'poa.perm.dd.vote'),
-  DD_CREATE: derivePermKey(FOLD_TAG.BOOL_ANY, 'poa.perm.dd.create'),
-  HV_CREATE: derivePermKey(FOLD_TAG.BOOL_ANY, 'poa.perm.hv.create'),
-  TM_PERMS: derivePermKey(FOLD_TAG.OR_MASK, 'poa.perm.tm.perms'),
-  PT_MEMBER: derivePermKey(FOLD_TAG.BOOL_ANY, 'poa.perm.pt.member'),
-  PT_APPROVE: derivePermKey(FOLD_TAG.BOOL_ANY, 'poa.perm.pt.approve'),
-  EDU_CREATE: derivePermKey(FOLD_TAG.BOOL_ANY, 'poa.perm.edu.create'),
-  EDU_MEMBER: derivePermKey(FOLD_TAG.BOOL_ANY, 'poa.perm.edu.member'),
-  QJ_AUTOJOIN: derivePermKey(FOLD_TAG.BOOL_ANY, 'poa.perm.qj.autojoin'),
-  PAY_CREATE: derivePermKey(FOLD_TAG.BOOL_ANY, 'poa.perm.pay.create'),
-  SUBJECT_RENAME: derivePermKey(FOLD_TAG.BOOL_ANY, 'poa.perm.subject.rename'),
-};
+export const PERM_KEYS = AUTHORITY_KEYS;
 
 /** key (lowercased hex) -> constant name, for rendering an indexed PermRow. */
 export const PERM_KEY_NAMES = Object.entries(PERM_KEYS).reduce((acc, [name, key]) => {
@@ -115,16 +104,16 @@ export const PERM_CATALOGUE = [
   {
     id: 'PT_MEMBER',
     key: PERM_KEYS.PT_MEMBER,
-    label: 'Hold participation tokens',
-    help: 'Counts as a token member — can receive and hold participation tokens.',
-    group: 'Tokens',
+    label: 'Hold Shares',
+    help: 'Can receive and hold Shares.',
+    group: 'Shares',
   },
   {
     id: 'PT_APPROVE',
     key: PERM_KEYS.PT_APPROVE,
-    label: 'Approve token requests',
-    help: 'Can approve other people’s participation-token requests.',
-    group: 'Tokens',
+    label: 'Approve Shares requests',
+    help: 'Can approve other people’s Shares requests.',
+    group: 'Shares',
   },
   {
     id: 'EDU_CREATE',
@@ -155,6 +144,15 @@ export const PERM_CATALOGUE = [
     group: 'Organization',
   },
 ];
+
+/** Display only: protocol keys and grant semantics never depend on the label. */
+export function permissionCatalogue(tokenLabel = DEFAULT_TOKEN_LABEL) {
+  return PERM_CATALOGUE.map(entry => entry.id === 'PT_MEMBER'
+    ? { ...entry, label: `Hold ${tokenLabel}`, help: `Can receive and hold ${tokenLabel}.`, group: tokenLabel }
+    : entry.id === 'PT_APPROVE'
+      ? { ...entry, label: `Approve ${tokenLabel} requests`, help: `Can approve other people’s ${tokenLabel} requests.`, group: tokenLabel }
+      : entry);
+}
 
 /**
  * QJ_AUTOJOIN is a real permission key, but it is a JOINING behaviour ("everyone who joins the org
@@ -189,9 +187,9 @@ export function taskPermLabels(mask) {
 
 // ── Word packing ───────────────────────────────────────────────────────────────────────────────
 
-export const EXISTS_BIT = 1n << 255n;
-export const INHERIT_GLOBAL_BIT = 1n << 254n;
-export const VALUE_MASK = (1n << 254n) - 1n;
+export const EXISTS_BIT = BigInt(CORE_EXISTS_BIT.toString());
+export const INHERIT_GLOBAL_BIT = BigInt(CORE_INHERIT_GLOBAL_BIT.toString());
+export const VALUE_MASK = BigInt(CORE_VALUE_MASK.toString());
 
 /**
  * Pack a perm word.
@@ -199,30 +197,18 @@ export const VALUE_MASK = (1n << 254n) - 1n;
  * @returns {string} decimal uint256 string (what the contract takes and the subgraph stores)
  */
 export function encodePermWord({ value = 0n, inheritGlobal = false, exists = true } = {}) {
-  const v = BigInt(value ?? 0);
-  if (v < 0n || v > VALUE_MASK) throw new Error('encodePermWord: value exceeds the 254-bit field');
-  let word = v;
-  if (inheritGlobal) word |= INHERIT_GLOBAL_BIT;
-  if (exists) word |= EXISTS_BIT;
-  return word.toString();
+  const packed = BigInt(permissionWord(String(value ?? 0), inheritGlobal).toString());
+  return (exists ? packed : packed & ~EXISTS_BIT).toString();
 }
 
 /** The inverse of {@link encodePermWord}. Never throws on a garbage row. */
 export function decodePermWord(word) {
-  let w;
   try {
-    w = BigInt(word ?? 0);
+    const decoded = decodePermissionWord(String(word ?? 0));
+    return { ...decoded, enabled: decoded.exists && decoded.enabled };
   } catch {
-    w = 0n;
+    return { ...decodePermissionWord('0'), enabled: false };
   }
-  return {
-    raw: w.toString(),
-    exists: (w & EXISTS_BIT) !== 0n,
-    inheritGlobal: (w & INHERIT_GLOBAL_BIT) !== 0n,
-    value: (w & VALUE_MASK).toString(),
-    /** bool-any keys read the value as a plain truthiness. */
-    enabled: (w & EXISTS_BIT) !== 0n && (w & VALUE_MASK) !== 0n,
-  };
 }
 
 /** A bool-any grant word: exists + value 1. */
@@ -259,18 +245,13 @@ export function isGlobalCtx(ctx) {
  * @returns {{ value: string, source: 'project'|'global'|'combined'|'none' }}
  */
 export function resolvePermCtx(key, globalRow, projectRow) {
-  const tag = foldTag(key);
-  const g = globalRow && globalRow.exists ? BigInt(globalRow.value) : null;
-  const p = projectRow && projectRow.exists ? BigInt(projectRow.value) : null;
-
-  if (p === null) {
-    return g === null ? { value: '0', source: 'none' } : { value: g.toString(), source: 'global' };
-  }
-  if (!projectRow.inheritGlobal) return { value: p.toString(), source: 'project' };
-  if (g === null) return { value: p.toString(), source: 'project' };
-
-  const combined = tag === FOLD_TAG.OR_MASK
-    ? p | g
-    : (p !== 0n || g !== 0n ? 1n : 0n);
-  return { value: combined.toString(), source: 'combined' };
+  const raw = (row) => row?.exists ? encodePermWord(row) : null;
+  const result = resolvePermissionContext({
+    permKey: key, global: knownFact(raw(globalRow)), project: knownFact(raw(projectRow)),
+  });
+  if (result.state !== 'known') return { value: '0', source: 'none' };
+  const { value, source } = result.value;
+  // Presentation distinguishes no row from a present disabled row.
+  if (!projectRow?.exists && !globalRow?.exists) return { value: '0', source: 'none' };
+  return { value, source: projectRow?.exists && projectRow.inheritGlobal && !globalRow?.exists ? 'project' : source };
 }

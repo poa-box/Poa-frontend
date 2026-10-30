@@ -1,14 +1,17 @@
+import { useProjectCreator } from '@/hooks/useProjectCreator';
 import { useAuthoritySubjects } from '@/hooks/accessV2/useAuthoritySubjects';
 import { authorityTaskPermissionRows } from '@/lib/accessV2/taskPermissions';
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
-import { useQuery } from '@apollo/client';
-import { FETCH_PROJECTS_DATA_NEW, FETCH_PROJECTS_DATA_WITH_RELEASES, FETCH_PROJECT_MANAGERS } from '../util/queries';
-import { usePOContext } from './POContext';
-import { useRefreshSubscription, RefreshEvent } from './RefreshContext';
-import { formatTokenAmount } from '../util/formatToken';
-import { getTokenByAddress } from '../util/tokens';
-import { useUserActive } from '../hooks/useUserActive';
-import { useSubgraphClient } from '../util/apolloClient';
+import { parseProjectId } from '@poa-box/core/encoding';
+import { requireCompleteSnapshot } from '@poa-box/core/data/facts';
+import { useAuth } from '@/context/authState';
+import { useBoardProjectReads } from '@/hooks/useBoardProjectReads';
+import { usePOContext } from '@/context/POContext';
+import { useRefreshSubscription, RefreshEvent } from '@/context/RefreshContext';
+import { transformBoardProjects } from '@/lib/tasks/boardPresentation';
+import { projectTaskAuthorityFacts, isCurrentBoardProject } from '@/lib/tasks/authorityPolicy';
+import { useUserActive } from '@/hooks/useUserActive';
+import { useSubgraphClient } from '@/util/apolloClient';
 import { CAPABILITY } from '@/util/subgraphCapabilities';
 import { useSubgraphCapability } from '@/hooks/useSubgraphCapability';
 
@@ -16,25 +19,25 @@ const ProjectContext = createContext();
 
 export const useProjectContext = () => useContext(ProjectContext);
 
-const STATUS_TO_COLUMN = {
-    'Open': 'Open',
-    'Assigned': 'In Progress',
-    'Submitted': 'In Review',
-    'Completed': 'Completed',
-    'Cancelled': null,
-};
+const UNAVAILABLE_ACTIONS = Object.fromEntries(['create', 'createAndAssign', 'claim', 'apply', 'assign', 'submit',
+    'complete', 'reject', 'cancel', 'editFull', 'editMetadata', 'release', 'budget', 'deleteProject']
+    .map(action => [action, { state: 'unknown', reasons: ['INCOMPLETE_SOURCE'] }]));
 
 export const ProjectProvider = ({ children }) => {
     const [projectsData, setProjectsData] = useState([]);
-    const [nextTaskId, setNextTaskId] = useState(0);
+    // IDs remain unknown until a creation receipt or the indexer supplies them.
+    const nextTaskId = null;
     // Org-wide ROLE_PERM grants, lifted to state so consumers can read them without a
     // project in hand (e.g. the Create Project modal, which shows them as a baseline
     // even when the org has zero projects yet).
     const [globalRolePermissions, setGlobalRolePermissions] = useState([]);
-    const { orgId, subgraphUrl, initialSnapshotLoaded } = usePOContext();
+    const { orgId, orgChainId, taskManagerContractAddress, subgraphUrl, initialSnapshotLoaded } = usePOContext();
+    const { accountAddress, isAuthHydrated, isAuthenticated } = useAuth();
+    const identityReady = isAuthHydrated === true && isAuthenticated === true;
+    const source = useMemo(() => ({ chainId: orgChainId, orgId, contract: taskManagerContractAddress,
+        endpoint: subgraphUrl, indexed: true, snapshot: 'latest', method: 'task-board' }),
+        [orgChainId, orgId, taskManagerContractAddress, subgraphUrl]);
 
-    const authoritySubjects = useAuthoritySubjects();
-    const currentSubjects = useMemo(() => authoritySubjects.enabled && !authoritySubjects.error ? authoritySubjects.subjects : [], [authoritySubjects.enabled, authoritySubjects.error, authoritySubjects.subjects]);
     const client = useSubgraphClient(subgraphUrl);
     const isActive = useUserActive();
 
@@ -42,67 +45,51 @@ export const ProjectProvider = ({ children }) => {
     // endpoint starts with the compatible base document until its probe settles.
     const releasesSupported = useSubgraphCapability(subgraphUrl, CAPABILITY.TASK_RELEASES);
 
-    const projectsQuery = releasesSupported ? FETCH_PROJECTS_DATA_WITH_RELEASES : FETCH_PROJECTS_DATA_NEW;
-
-    // A fresh lookup snapshot already fetched this data. Other entry paths retain
-    // cache-and-network; polling and explicit refresh still request fresh data.
-    // 40s balances liveness against The Graph Studio rate limits.
-    // Polling pauses when the tab is hidden or the user is idle (useUserActive).
-    const { data, error, refetch } = useQuery(projectsQuery, {
-        variables: { orgId: orgId },
-        skip: !orgId,
-        fetchPolicy: initialSnapshotLoaded ? 'cache-first' : 'cache-and-network',
-        pollInterval: isActive ? 40000 : 0,
-        client,
-    });
-
-    // Project managers ride in a SEPARATE document so an endpoint that lacks
-    // `Project.managers` degrades to "no manager bypass" instead of blanking the
-    // board (see FETCH_PROJECT_MANAGERS). Managers only change via createProject
-    // or the executor-only setConfig(PROJECT_MANAGER, ...), so no poll — the
-    // refresh subscription below (plus the tab-return refetch) covers both, and is
-    // also how a failed initial fetch recovers.
-    const { data: managersData, refetch: refetchManagers } = useQuery(FETCH_PROJECT_MANAGERS, {
-        variables: { orgId: orgId },
-        skip: !orgId,
-        fetchPolicy: 'cache-first',
-        client,
-    });
-
-    const managersByProjectId = useMemo(() => {
-        const map = new Map();
-        (managersData?.organization?.taskManager?.projects || []).forEach((p) => {
-            map.set(p.id, (p.managers || []).map((m) => String(m.manager).toLowerCase()));
-        });
-        return map;
-    }, [managersData]);
-
+    const boardRead = useBoardProjectReads({ client, source, isActive, releasesSupported, initialSnapshotLoaded });
+    const authoritySubjects = useAuthoritySubjects({ block: boardRead.result?.source.block });
+    const currentSubjects = useMemo(() => authoritySubjects.enabled && !authoritySubjects.error
+        ? authoritySubjects.subjects : [], [authoritySubjects.enabled, authoritySubjects.error, authoritySubjects.subjects]);
+    const authorityEvidence = useMemo(() => ({ enabled: authoritySubjects.enabled, error: authoritySubjects.error,
+        scope: authoritySubjects.scope, snapshot: authoritySubjects.snapshot, taskPolicyForProject: authoritySubjects.taskPolicyForProject }),
+        [authoritySubjects.enabled, authoritySubjects.error, authoritySubjects.scope, authoritySubjects.snapshot, authoritySubjects.taskPolicyForProject]);
+    const creatorScope = useMemo(() => ({ chainId: orgChainId, orgId, contract: taskManagerContractAddress,
+        endpoint: subgraphUrl, account: accountAddress, contracts: { membershipAuthority: authoritySubjects.scope?.contract } }),
+        [orgChainId, orgId, taskManagerContractAddress, subgraphUrl, accountAddress, authoritySubjects.scope?.contract]);
+    const creatorRead = useProjectCreator({ authority: authoritySubjects.snapshot, scope: creatorScope,
+        enabled: identityReady && authoritySubjects.complete && !authoritySubjects.error && !boardRead.error && !!boardRead.result });
+    const creatorRef = useRef(); creatorRef.current = creatorRead;
+    const assertProjectCreator = useCallback(() => {
+        if (creatorRef.current?.facts?.authorized.state !== 'known' || !creatorRef.current.facts.authorized.value) {
+            throw new Error('Project creation permissions are unavailable or this account cannot create projects.');
+        }
+    }, []);
+    const authorityForProject = useCallback(projectId => projectTaskAuthorityFacts({ authority: authorityEvidence,
+        projectId, scope: { ...source, account: accountAddress, hydrated: identityReady }, source: boardRead.result?.source, projectCreator: creatorRead.input }),
+        [authorityEvidence, source, accountAddress, identityReady, boardRead.result, creatorRead.input]);
+    const boardReleasesSupported = releasesSupported && boardRead.result?.hasReleaseData === true;
+    const data = boardRead.result?.data;
+    const error = boardRead.error;
+    const refetch = boardRead.refetch;
+    const managersData = boardRead.managers;
     // Reset the board the moment the org changes — otherwise the previous org's
     // projects survive until (and unless) the new org's query answers with a
     // taskManager, and actions would pair the new org's TaskManager address
     // with the old org's composite ids.
-    const prevOrgIdRef = useRef(orgId);
+    const readScopeKey = JSON.stringify([orgId, orgChainId, taskManagerContractAddress, subgraphUrl]);
+    const prevOrgIdRef = useRef(readScopeKey);
     useEffect(() => {
-        if (prevOrgIdRef.current === orgId) return;
-        prevOrgIdRef.current = orgId;
+        if (prevOrgIdRef.current === readScopeKey) return;
+        prevOrgIdRef.current = readScopeKey;
         setProjectsData([]);
-        setNextTaskId(0);
         setGlobalRolePermissions([]);
-    }, [orgId]);
+    }, [readScopeKey]);
 
-    // True while this org's query has not answered yet (Apollo clears `data`
-    // when variables change; cache-and-network serves a revisit instantly from
-    // cache). Lets pages show a loader instead of a false "no projects" state.
-    // `!error` is the escape hatch: a persistent subgraph failure must render
-    // the (empty) board rather than an infinite spinner — the 40s poll then
-    // heals the board when the endpoint recovers.
-    const projectsLoading = !!orgId && !data && !error;
+    // A failed read settles loading with an explicit error; it does not certify an empty board.
+    const projectsLoading = !!orgId && boardRead.loading && !data;
 
     // Ref-stabilize refetch so callbacks don't re-create when Apollo returns a new reference
     const refetchRef = useRef(refetch);
     refetchRef.current = refetch;
-    const refetchManagersRef = useRef(refetchManagers);
-    refetchManagersRef.current = refetchManagers;
 
     // When the user returns (tab visible / mouse moves), refetch immediately
     // so stale data doesn't persist until the next poll tick.
@@ -110,10 +97,6 @@ export const ProjectProvider = ({ children }) => {
     useEffect(() => {
         if (isActive && !wasActiveRef.current && orgId) {
             refetchRef.current();
-            // The managers document has no poll of its own, so this is also how a
-            // failed initial fetch recovers — without it, one bad response would
-            // disable the project-manager bypass for the rest of the session.
-            refetchManagersRef.current();
         }
         wasActiveRef.current = isActive;
     }, [isActive, orgId]);
@@ -126,12 +109,10 @@ export const ProjectProvider = ({ children }) => {
         }
     }, [orgId]);
 
-    // Creating or deleting a project also changes its manager set (the creator is
-    // auto-added on-chain), so those two events refresh the managers document too.
+    // Project changes refresh both complete collections, including their manager records.
     const handleProjectSetChange = useCallback(() => {
         if (orgId) {
             refetchRef.current();
-            refetchManagersRef.current();
         }
     }, [orgId]);
 
@@ -170,145 +151,18 @@ export const ProjectProvider = ({ children }) => {
 
     useEffect(() => {
         if (data?.organization?.taskManager) {
-            const projects = data.organization.taskManager.projects || [];
             // Org-wide ROLE_PERM grants — shared across every project under this TaskManager.
-            // Attach to each transformed project so consumers can mirror the contract's
-            // _permMask fallback: project mask wins if non-zero, else fall back to global.
+            // Exact project-context permissions are supplied by the authority projection.
             // Also surfaced at the context level (below) for consumers that need the org-wide
             // grants without a project — e.g. the Create Project modal's baseline display.
             const globalPerms = authorityTaskPermissionRows(currentSubjects);
             setGlobalRolePermissions(globalPerms);
 
-            // Transform projects for kanban board
-            const transformedProjects = projects.map(project => {
-                const projectTitle = project.title || 'Indexing...';
-                const transformedProject = {
-                    id: project.id,
-                    title: projectTitle,
-                    name: projectTitle, // Alias for TaskManager components
-                    metadataHash: project.metadataHash,
-                    // Use indexed metadata from subgraph as primary source
-                    description: project.metadata?.description || '',
-                    // createdAt is indexed by the subgraph (unix seconds string); surfaced in the
-                    // project info modal's stats. May be undefined on optimistic/indexing projects.
-                    createdAt: project.createdAt,
-                    cap: project.cap,
-                    spent: project.spent || '0',
-                    bountyCaps: project.bountyCaps || [],
-                    rolePermissions: authorityTaskPermissionRows(currentSubjects, project.id),
-                    // Context values are already folded; never fall back to the retired global table.
-                    globalRolePermissions: [],
-                    // Active project managers (lowercased). The contract's `_isPM` bypass —
-                    // arrives from its own document, so it may be [] for a beat on first paint.
-                    managers: managersByProjectId.get(project.id) || [],
-                    columns: [
-                        { id: 'open', title: 'Open', tasks: [] },
-                        { id: 'inProgress', title: 'In Progress', tasks: [] },
-                        { id: 'inReview', title: 'In Review', tasks: [] },
-                        { id: 'completed', title: 'Completed', tasks: [] },
-                    ],
-                };
-
-                (project.tasks || []).forEach(task => {
-                    if (task.status === 'Cancelled') return;
-
-                    const taskTitle = task.title || 'Indexing...';
-                    const taskPayout = formatTokenAmount(task.payout || '0');
-                    const bountyTokenInfo = getTokenByAddress(task.bountyToken);
-                    const transformedTask = {
-                        id: task.id,
-                        taskId: task.taskId,
-                        title: taskTitle,
-                        name: taskTitle, // Alias for TaskManager components
-                        // Use indexed metadata from subgraph as primary source.
-                        // Use ?? (not ||) to preserve empty strings as valid values
-                        // and keep null to signal "not yet loaded" for the IPFS fallback.
-                        description: task.metadata?.description ?? null,
-                        difficulty: task.metadata?.difficulty ?? 'medium',
-                        estHours: task.metadata?.estimatedHours ?? 1,
-                        // Raw hashes for IPFS fallback if indexed data is missing
-                        metadataHash: task.metadataHash,
-                        submissionHash: task.submissionHash,
-                        // Submission text from subgraph (stored in metadata entity)
-                        submission: task.metadata?.submission ?? null,
-                        claimedBy: task.assignee || '',
-                        payout: taskPayout,
-                        Payout: taskPayout, // Alias with capital P for TaskCard
-                        kubixPayout: taskPayout, // Alias for TaskColumn
-                        bountyToken: task.bountyToken,
-                        bountyPayoutRaw: task.bountyPayout || '0',
-                        bountyPayout: formatTokenAmount(task.bountyPayout || '0', bountyTokenInfo.decimals, bountyTokenInfo.decimals <= 6 ? 2 : 2),
-                        projectId: project.id,
-                        status: task.status,
-                        claimerUsername: task.assigneeUsername || '',
-                        completerUsername: task.completerUsername || '',
-                        requiresApplication: task.requiresApplication,
-                        applications: task.applications || [],
-                        // Transform applications to applicants format for TaskCardModal
-                        applicants: (task.applications || []).map(app => ({
-                            address: app.applicant,
-                            username: app.applicantUsername || '',
-                            applicationHash: app.applicationHash,
-                            approved: app.approved,
-                            appliedAt: app.appliedAt,
-                        })),
-                        rejectionHash: task.rejectionHash,
-                        rejectionCount: task.rejectionCount || 0,
-                        rejectionReason: (task.rejections || []).find(r => r.metadata?.rejection)?.metadata?.rejection || '',
-                        rejections: (task.rejections || []).map(r => ({
-                            rejectorUsername: r.rejectorUsername || '',
-                            rejectedAt: r.rejectedAt,
-                        })),
-                        isIndexing: !task.title,
-                        createdAt: task.createdAt,
-                        assignedAt: task.assignedAt,
-                        submittedAt: task.submittedAt,
-                        completedAt: task.completedAt,
-                        // ---- Deadlines (TaskManager v6) ----
-                        // Raw subgraph passthrough (string seconds or null); consumers
-                        // normalize via deadlineUtils.toSec (0/'0' also mean unset).
-                        completionWindow: task.completionWindow ?? null,
-                        absoluteDeadline: task.absoluteDeadline ?? null,
-                        claimDeadline: task.claimDeadline ?? null,
-                        reclaimCount: task.reclaimCount || 0,
-                        claimExpiries: task.claimExpiries || [],
-                        // v7 claim release. Absent whenever the endpoint predates
-                        // subgraph-pop #201 (or Apollo replays a cache entry that
-                        // was normalized before the capability probe flipped), so
-                        // these must default rather than assume the richer query ran.
-                        releaseCount: task.releaseCount || 0,
-                        lastReleasedAt: task.lastReleasedAt ?? null,
-                        releases: task.releases || [],
-                        // Soft due date lives in the IPFS metadata (unix seconds).
-                        dueDate: task.metadata?.dueDate != null ? Number(task.metadata.dueDate) : null,
-                    };
-
-                    const columnTitle = STATUS_TO_COLUMN[task.status] || 'Open';
-                    const column = transformedProject.columns.find(c => c.title === columnTitle);
-                    if (column) {
-                        column.tasks.push(transformedTask);
-                    }
-                });
-
-                return transformedProject;
-            });
-
-            // Compute nextTaskId from raw data (includes cancelled tasks) so optimistic
-            // IDs never collide with cancelled task IDs that are filtered from projectsData.
-            let maxTaskId = -1;
-            projects.forEach(project => {
-                (project.tasks || []).forEach(task => {
-                    const numId = parseInt(task.taskId, 10);
-                    if (!isNaN(numId) && numId > maxTaskId) maxTaskId = numId;
-                });
-            });
-            setNextTaskId(maxTaskId + 1);
-
+            const transformedProjects = transformBoardProjects({ result: boardRead.result, managersData,
+                scope: { ...source, account: accountAddress, hydrated: identityReady }, currentSubjects, authorityForProject, authorityDisplayComplete: authoritySubjects.complete && !authoritySubjects.error, error });
             setProjectsData(transformedProjects);
         }
-        // managersByProjectId is a dep so the board re-transforms when the (separate,
-        // usually slower) managers document lands and PM affordances appear without a reload.
-    }, [data, managersByProjectId, currentSubjects]);
+    }, [data, error, managersData, currentSubjects, accountAddress, identityReady, source, boardRead.result, authorityForProject, authoritySubjects.complete, authoritySubjects.error]);
 
     // Derive taskCount from projectsData (correctly excludes cancelled tasks)
     const taskCount = useMemo(() => {
@@ -321,6 +175,31 @@ export const ProjectProvider = ({ children }) => {
         return totalTasks;
     }, [projectsData]);
 
+    // Dashboard totals use the complete canonical observation, not the preview
+    // or a previous render's board. Failed/loading/old-scope reads are unavailable.
+    const taskTotals = useMemo(() => {
+        const unavailable = { active: null, completed: null };
+        if (boardRead.loading || error || !boardRead.result) return unavailable;
+        try {
+            const observed = requireCompleteSnapshot(boardRead.result, {
+                scope: { chainId: source.chainId, orgId: source.orgId,
+                    contract: source.contract, endpoint: source.endpoint },
+                indexed: true, snapshot: 'pinned',
+            });
+            const projects = observed?.organization?.taskManager?.projects;
+            if (!Array.isArray(projects)) return unavailable;
+            let active = 0, completed = 0;
+            for (const project of projects) {
+                if (!Array.isArray(project.tasks)) return unavailable;
+                for (const task of project.tasks) {
+                    if (task.status === 'Completed') completed++;
+                    else if (task.status !== 'Cancelled') active++;
+                }
+            }
+            return { active, completed };
+        } catch { return unavailable; }
+    }, [boardRead.loading, boardRead.result, error, source]);
+
     // Derive recommended (open) tasks from projectsData
     const recommendedTasks = useMemo(() => {
         return projectsData.flatMap(project =>
@@ -331,10 +210,76 @@ export const ProjectProvider = ({ children }) => {
         );
     }, [projectsData]);
 
+    const [applicationReads, setApplicationReads] = useState({});
+    const applicationsKey = JSON.stringify([source, accountAddress, identityReady, boardRead.result?.source]);
+    const applicationScope = useMemo(() => ({ key: applicationsKey, client }), [applicationsKey, client]);
+    const applicationsScopeRef = useRef(); applicationsScopeRef.current = applicationScope;
+    const applicationPending = useMemo(() => new Map(), [applicationScope]);
+    useEffect(() => { applicationsScopeRef.current = applicationScope; return () => { if (applicationsScopeRef.current === applicationScope) applicationsScopeRef.current = null; }; }, [applicationScope]);
+    const ensureTaskApplications = useCallback(async (task, retry = false) => {
+        if (!identityReady || !boardRead.result || error || !task?.id || applicationsScopeRef.current !== applicationScope) return null;
+        const key = task.id;
+        if (applicationPending.has(key)) return applicationPending.get(key);
+        if (!retry && applicationReads[task.id]?.scope === applicationScope) return applicationReads[task.id];
+        setApplicationReads(previous => ({ ...previous, [task.id]: { scope: applicationScope, loading: true,
+            applicants: previous[task.id]?.scope === applicationScope ? previous[task.id].applicants : undefined } }));
+        const run = (async () => {
+            try {
+                const { readTaskApplications } = await import('@/lib/tasks/applications');
+                if (applicationsScopeRef.current !== applicationScope) return null;
+                const result = await readTaskApplications({ client, source: boardRead.result.source, task: task.id });
+                if (applicationsScopeRef.current !== applicationScope) return null;
+                const value = { scope: applicationScope, ...result };
+                setApplicationReads(previous => ({ ...previous, [task.id]: value }));
+                return value;
+            } catch {
+                if (applicationsScopeRef.current === applicationScope) setApplicationReads(previous => ({ ...previous,
+                    [task.id]: { scope: applicationScope, applicants: previous[task.id]?.scope === applicationScope ? previous[task.id].applicants : undefined, error: 'Applications could not finish loading. Please try again.' } }));
+                return null;
+            } finally { applicationPending.delete(key); }
+        })();
+        applicationPending.set(key, run);
+        return run;
+    }, [identityReady, boardRead.result, error, applicationScope, applicationPending, applicationReads, client]);
+    useEffect(() => { setApplicationReads({}); }, [applicationScope]);
+    const getTaskApplicationRead = useCallback(task => applicationReads[task?.id]?.scope === applicationScope
+        ? applicationReads[task.id] : null, [applicationReads, applicationScope]);
+
+    const getTaskActions = useCallback((task, project, now = Date.now()) => {
+        const scope = { ...source, account: accountAddress, hydrated: identityReady,
+            projectId: project?.id };
+        const runtime = boardRead.result;
+        if (error || !isCurrentBoardProject(project, runtime)) return UNAVAILABLE_ACTIONS;
+        const authority = authorityForProject(parseProjectId(project?.id || '0'));
+        // Optimistic cards may still carry pre-claim status/pointers during their
+        // grace period. Those display fields are not indexed policy evidence.
+        const observedTask = task && project?.columns?.flatMap(column => column.tasks).find(row => row.id === task.id);
+        const policyTask = !task ? null : observedTask
+            ? { ...observedTask, isIndexing: observedTask.isIndexing || task.isIndexing }
+            : { id: task.id, projectId: task.projectId, isIndexing: true };
+        return runtime.taskActionPolicy({ scope, task: policyTask && { ...policyTask, applicationsEvidence: getTaskApplicationRead(task)?.snapshot }, project, authority, now, releasesSupported: boardReleasesSupported });
+    }, [source, accountAddress, identityReady, authorityForProject, boardReleasesSupported, boardRead.result, error, getTaskApplicationRead]);
+
+    const hasReviewCapability = useCallback(project => {
+        const runtime = boardRead.result;
+        if (error || !isCurrentBoardProject(project, runtime)) return false;
+        const scope = { ...source, account: accountAddress, hydrated: identityReady };
+        const authority = authorityForProject(parseProjectId(project?.id || '0'));
+        return runtime.projectHasReviewCapability({ scope, project, authority });
+    }, [source, accountAddress, identityReady, authorityForProject, boardRead.result, error, getTaskApplicationRead]);
+
     const contextValue = useMemo(() => ({
         projectsData,
         projectsLoading,
+        projectsError: error,
+        refetchProjects: refetch,
+        getTaskActions,
+        ensureTaskApplications, getTaskApplicationRead,
+        projectCreator: creatorRead.facts?.authorized,
+        assertProjectCreator,
+        hasReviewCapability,
         taskCount,
+        taskTotals,
         recommendedTasks,
         nextTaskId,
         globalRolePermissions,
@@ -343,12 +288,8 @@ export const ProjectProvider = ({ children }) => {
         // subgraph release as these fields, so an endpoint that fails the probe
         // also cannot index a release — the board would show the task as still
         // claimed forever, and the next click would revert BadStatus.
-        releasesSupported,
-    }), [projectsData, projectsLoading, taskCount, recommendedTasks, nextTaskId, globalRolePermissions, releasesSupported]);
+        releasesSupported: boardReleasesSupported,
+    }), [projectsData, projectsLoading, error, refetch, getTaskActions, hasReviewCapability, taskCount, taskTotals, recommendedTasks, nextTaskId, globalRolePermissions, boardReleasesSupported, creatorRead.facts, assertProjectCreator, ensureTaskApplications, getTaskApplicationRead]);
 
-    return (
-        <ProjectContext.Provider value={contextValue}>
-            {children}
-        </ProjectContext.Provider>
-    );
+    return React.createElement(ProjectContext.Provider, { value: contextValue }, children);
 };

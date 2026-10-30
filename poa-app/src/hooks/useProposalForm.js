@@ -861,7 +861,10 @@ export function useProposalForm({ onSubmit }) {
       assertCurrent();
       const { submitProposalRuntime } = await import('@/hooks/runtime/proposalSubmitRuntime');
       assertCurrent();
-      return await submitProposalRuntime({ proposal, orgNetwork, nativeCurrencySymbol, roleNames, projectNames, setLoadingSubmit, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, validateCreateRoleProposal, validateRoleRemovalProposal, buildActionSummaries, onSubmit: (...values) => { assertCurrent(); return onSubmit(...values); }, resetForm: () => { if (activeRef.current && isCurrent?.()) resetForm(); }, toast, orgChainId, addToIpfs: (...values) => { assertCurrent(); return addToIpfs(...values); } }, ...args);
+      return await submitProposalRuntime({ proposal, retainRoleContinuation: id => { assertCurrent(); setProposal(current => ({ ...current, roleFormV2: { ...resolveRoleForm(current), continuationId: id } })); }, orgNetwork, nativeCurrencySymbol, roleNames, projectNames, setLoadingSubmit, validateBasicFields, validateTransferProposal, validateElectionProposal, validateNormalProposal, validateSetterProposal, validateCreateRoleProposal, validateRoleRemovalProposal, buildActionSummaries, onSubmit: (...values) => {
+        try { assertCurrent(); } catch (error) { error.roleSubmissionState = 'not-submitted'; throw error; }
+        return onSubmit(...values);
+      }, resetForm: () => { if (activeRef.current && isCurrent?.()) resetForm(); }, toast, orgChainId, addToIpfs: (...values) => { assertCurrent(); return addToIpfs(...values); } }, ...args);
     } catch (error) {
       toast({ title: 'Error', description: error.message || 'Failed to prepare proposal.', status: 'error', duration: 5000, isClosable: true });
       setLoadingSubmit(false);

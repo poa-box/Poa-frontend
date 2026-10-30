@@ -1,4 +1,7 @@
-import { formatTokenAmount, parseTokenAmount } from '@/util/formatToken';
+import { normalizeIndexedRecordedInflows } from '@poa-box/core/treasury/indexed-inflows';
+import { requireRawUint, parseDecimalAmountToRaw } from '@poa-box/core/amounts';
+import { requireCompleteSnapshot } from '@poa-box/core/data/facts';
+import { formatTokenAmount } from '@/util/formatToken';
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 export const TRANSFER_TOPIC = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef';
@@ -8,14 +11,6 @@ export function addressTopic(address) {
   return `0x${address.slice(2).toLowerCase().padStart(64, '0')}`;
 }
 
-export function inflowContracts(data) {
-  return [
-    ...data.taskManagers,
-    ...data.paymentManagerContracts,
-    ...data.executorContracts,
-    ...data.paymasterHubContracts,
-  ];
-}
 
 /**
  * Sum external deposits, retaining integer precision until display. ERC20 event
@@ -27,52 +22,48 @@ export function inflowContracts(data) {
  * Do not net by transaction: a bundler may include unrelated orgs' deposits and
  * payouts in the same transaction. Withdrawals never erase a historical inflow.
  */
-export function aggregateChainInflows({ data, transferLogs, network, tokens }) {
-  const pots = new Set(inflowContracts(data).map(({ id }) => lower(id)));
-  const tokenMap = new Map(tokens.map((token) => [lower(token.address), token]));
-  const amounts = {};
-  const seen = new Set();
-
-  function add(currency, raw, decimals) {
-    const amount = BigInt(raw);
-    if (amount < 0n || decimals > 18 || decimals < 0) throw new Error('Invalid inflow amount');
-    const normalized = amount * 10n ** BigInt(18 - decimals);
-    amounts[currency] = (amounts[currency] || 0n) + normalized;
-  }
-
-  for (const log of transferLogs) {
+export function aggregateChainInflows({ transferLogs, network, tokens, evidence }) {
+  if (!evidence) throw new Error('Inflow source evidence unavailable');
+  const pots = Object.values(evidence.pots).flatMap(snapshot =>
+    requireCompleteSnapshot(snapshot, { snapshot: 'pinned', block: evidence.block }));
+  const destinations = new Set(pots.map(p => p.address.toLowerCase()));
+  const tokenMap = new Map(tokens.filter(t => t.isStable).map(t => [t.address.toLowerCase(), t]));
+  const decodeLogs = logs => {
+  const events = [];
+  // The host decodes its existing bounded RPC Transfer response. Core owns
+  // identity, deduplication, historical pot binding and movement classification.
+  for (const log of logs) {
     if (log.removed || log.topics?.[0] !== TRANSFER_TOPIC || log.topics.length !== 3) continue;
     const token = tokenMap.get(lower(log.address));
-    if (!token?.isStable) continue;
-    const key = `${lower(log.transactionHash)}:${log.logIndex}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
+    if (!token) continue;
     const from = `0x${log.topics[1].slice(-40)}`.toLowerCase();
     const to = `0x${log.topics[2].slice(-40)}`.toLowerCase();
-    if (pots.has(to) && !pots.has(from)) add('USD', log.data, token.decimals);
+    if (!destinations.has(to)) continue;
+    events.push({ chainId: network.chainId, transactionHash: log.transactionHash, logIndex: requireRawUint(BigInt(log.logIndex)),
+      blockNumber: requireRawUint(BigInt(log.blockNumber)), from, to,
+      asset: { chainId: network.chainId, address: token.address.toLowerCase(), decimals: token.decimals },
+      amountRaw: requireRawUint(BigInt(log.data)), provenance: 'erc20-transfer' });
   }
-
-  const nativeCurrency = network.nativeCurrency.usdPegged ? 'USD' : network.nativeCurrency.symbol;
-  const nativeEvents = [
-    // Payment ERC20 events duplicate the Transfer logs above.
-    ...data.payments.filter((payment) => lower(payment.token) === ZERO_ADDRESS)
-      .map((payment) => ({ ...payment, from: payment.payer, source: 'payment' })),
-    // HubDeposit is the hub moving funds into EntryPoint, not a new external deposit.
-    ...data.paymasterDepositEvents.filter((event) => event.eventType === 'OrgDeposit')
-      .map((event) => ({ ...event, source: 'orgGas' })),
-    // Fees and solidarity redistribution reuse money already deposited.
-    ...data.solidarityEvents.filter((event) => event.eventType === 'DonationReceived')
-      .map((event) => ({ ...event, source: 'solidarity' })),
-  ];
-  for (const event of nativeEvents) {
-    const key = `${event.source}:${lower(event.id)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    if (!event.from) throw new Error('Deposit sender missing');
-    if (pots.has(lower(event.from))) continue;
-    add(nativeCurrency, event.amount, network.nativeCurrency.decimals);
+  return events;
+  };
+  const nativeAsset = { chainId: network.chainId, address: ZERO_ADDRESS, decimals: network.nativeCurrency.decimals };
+  const normalized = normalizeIndexedRecordedInflows({ pots: evidence.pots, streams: evidence.streams,
+    nativeAsset, block: evidence.block, fromBlock: evidence.fromBlock,
+    chunks: (evidence.transferChunks || [{ fromBlock: evidence.fromBlock, toBlock: evidence.block.number, logs: transferLogs }]).map(chunk => ({
+      source: evidence.logSource, coverage: { ...evidence.logCoverage, receivedKeys: [...new Set(chunk.logs.map(log => `${log.transactionHash}:${log.logIndex}`))] },
+      data: { fromBlock: chunk.fromBlock, toBlock: chunk.toBlock, events: decodeLogs(chunk.logs) },
+    })) });
+  if (normalized.externalRecordedTotals.state !== 'known') throw new Error('Inflow history incomplete');
+  const amounts = {};
+  for (const total of normalized.externalRecordedTotals.value) {
+    const decimals = total.asset.decimals;
+    if (decimals > 18 || decimals < 0) throw new Error('Invalid inflow decimals');
+    const native = total.asset.address.toLowerCase() === ZERO_ADDRESS;
+    const currency = native && !network.nativeCurrency.usdPegged ? network.nativeCurrency.symbol : 'USD';
+    const raw = BigInt(requireRawUint(total.rawAmount)) * 10n ** BigInt(18 - decimals);
+    amounts[currency] = (amounts[currency] || 0n) + raw;
   }
-
+  // This is recorded gross inflow only. Core's completeRevenue stays unknown.
   return amounts;
 }
 
@@ -95,7 +86,7 @@ export function parseUsdRate(value) {
   if (typeof value !== 'string' || !/^\d+(?:\.\d{1,18})?$/.test(value)) {
     throw new Error('USD exchange rate unavailable');
   }
-  const rate = BigInt(parseTokenAmount(value, 18));
+  const rate = BigInt(parseDecimalAmountToRaw(value, 18));
   if (rate <= 0n) throw new Error('USD exchange rate unavailable');
   return rate;
 }

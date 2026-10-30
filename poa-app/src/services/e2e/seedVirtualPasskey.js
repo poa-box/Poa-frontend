@@ -21,7 +21,7 @@ import {
 import { NETWORKS, DEFAULT_DEPLOY_NETWORK } from '../../config/networks';
 import { getVirtualPasskeyCredential } from './virtualPasskey';
 import { E2E_ORG_NAME } from './e2eMode';
-import PasskeyAccountFactoryABI from '../../../abi/PasskeyAccountFactory.json';
+import { PasskeyAccountFactoryAbi as PasskeyAccountFactoryABI } from '@poa-box/core/abis/PasskeyAccountFactory';
 
 const SUBGRAPH_HEADERS = { 'Content-Type': 'application/json' };
 const FACTORY_CACHE_KEY = `poa-e2e-factory-${DEFAULT_DEPLOY_NETWORK}`;

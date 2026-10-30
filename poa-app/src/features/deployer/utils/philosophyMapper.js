@@ -211,7 +211,7 @@ export function getPhilosophyPermissionHints(sliderValue, roles) {
   const roleCount = roles.length;
 
   // Find the "leader" role (first top-level role)
-  const leaderRoleIndex = roles.findIndex(r => r.hierarchy.adminRoleIndex === null);
+  const leaderRoleIndex = roles.length - 1;
 
   switch (type) {
     case 'delegated':

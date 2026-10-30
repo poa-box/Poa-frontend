@@ -23,8 +23,6 @@ import { ALL_TASKS_ID } from '../taskViewIds';
 import TaskRow from './list/TaskRow';
 import {
   isTaskMine,
-  taskNeedsReview,
-  userCanReviewAnywhere,
   hasPendingApplication,
 } from '@/util/taskIndicators';
 import { effectiveDeadlineSec, dueDateSec } from '@/util/deadlineUtils';
@@ -55,16 +53,14 @@ const MyWorkView = ({ isDesktop = true, sidebarVisible, toggleSidebar }) => {
   const rowIsMobile = useBreakpointValue({ base: true, md: false }, { ssr: false });
   const org = useOrgName();
   const tasks = useAllProjectsFlatTasks();
-  const { projectsData } = useProjectContext();
+  const { projectsData, getTaskActions, hasReviewCapability } = useProjectContext();
   const { accountAddress } = useAuth() || {};
   const {
     address: ctxAddress,
     graphUsername,
-    userData,
   } = useUserContext() || {};
 
   const address = accountAddress || ctxAddress || '';
-  const userHatIds = useMemo(() => userData?.hatIds || [], [userData?.hatIds]);
 
   const projectById = useMemo(() => {
     const m = new Map();
@@ -75,8 +71,8 @@ const MyWorkView = ({ isDesktop = true, sidebarVisible, toggleSidebar }) => {
   }, [projectsData]);
 
   const canReviewAnywhere = useMemo(
-    () => userCanReviewAnywhere(projectsData, userHatIds, address),
-    [projectsData, userHatIds, address],
+    () => (projectsData || []).some(project => hasReviewCapability(project)),
+    [projectsData, hasReviewCapability],
   );
 
   const { sections, activeCount, needsYouCount } = useMemo(() => {
@@ -95,7 +91,7 @@ const MyWorkView = ({ isDesktop = true, sidebarVisible, toggleSidebar }) => {
           (t) =>
             t.columnId === 'inReview' &&
             !mine(t) &&
-            taskNeedsReview(t.columnId, projectById.get(t.projectId), userHatIds, address, t),
+            getTaskActions(t, projectById.get(t.projectId)).complete.state === 'allowed',
         )
       : [];
 
@@ -117,7 +113,7 @@ const MyWorkView = ({ isDesktop = true, sidebarVisible, toggleSidebar }) => {
     ].filter((s) => s.tasks.length > 0);
 
     return { sections: list, activeCount: inProgress.length, needsYouCount: needsReview.length };
-  }, [tasks, address, graphUsername, canReviewAnywhere, projectById, userHatIds]);
+  }, [tasks, address, graphUsername, canReviewAnywhere, projectById, getTaskActions]);
 
   const subtitleParts = [`${activeCount} active`];
   if (needsYouCount > 0) subtitleParts.push(`${needsYouCount} needs you`);

@@ -70,6 +70,15 @@ const defaultChain = defineChain({
 export const AuthProvider = ({ children }) => {
   const { address: eoaAddress, isConnected: eoaConnected, status: eoaStatus } = useAccount();
 
+  // Invalidate async discovery/restore synchronously on account or session changes.
+  const authGeneration = useRef(0);
+  const currentEoa = useRef(null);
+  const eoaIdentity = eoaConnected ? eoaAddress?.toLowerCase() : null;
+  if (currentEoa.current !== eoaIdentity) {
+    currentEoa.current = eoaIdentity;
+    authGeneration.current += 1;
+  }
+
   // Passkey state
   const [passkeyState, setPasskeyState] = useState(null);
   const [passkeyConnecting, setPasskeyConnecting] = useState(false);
@@ -135,9 +144,11 @@ export const AuthProvider = ({ children }) => {
     // call settle() without a fragile "I am the only async path" assumption:
     // an async restore settles in its own .finally, the synchronous fall-through
     // settles at the bottom, and a double-call is a harmless no-op.
+    const generation = authGeneration.current;
+    let cancelled = false;
     let settled = false;
     const settle = () => {
-      if (settled) return;
+      if (settled || cancelled) return;
       settled = true;
       setPasskeyRestoreSettled(true);
     };
@@ -160,7 +171,7 @@ export const AuthProvider = ({ children }) => {
       if (E2E_AS === 'passkey') {
         asyncSettlePending = true;
         seedRuntime.then(({ ensureVirtualPasskeyActivated }) => ensureVirtualPasskeyActivated()).then((cred) => {
-          if (cred && !explicitSignOutRef.current) setPasskeyState(cred);
+          if (cred && !explicitSignOutRef.current && !currentEoa.current && authGeneration.current === generation && !cancelled) setPasskeyState(cred);
         }).catch(() => { /* logged inside activator */ })
           .finally(settle);
       }
@@ -174,12 +185,14 @@ export const AuthProvider = ({ children }) => {
 
     // Synchronous paths settle here; async restores settle in their .finally.
     if (!asyncSettlePending) settle();
+    return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // If EOA connects, passkey deactivates (EOA takes priority).
   // A fresh wallet connect is also an opt-in, so clear any prior signOut flag.
   useEffect(() => {
     if (eoaConnected) {
+      setPasskeyConnecting(false);
       explicitSignOutRef.current = false;
       writeExplicitSignOut(false);
       if (passkeyState) setPasskeyState(null);
@@ -203,6 +216,7 @@ export const AuthProvider = ({ children }) => {
    * 2. If none stored, trigger WebAuthn discoverable auth and look up account from subgraph.
    */
   const connectPasskey = useCallback(async (credential = null) => {
+    const generation = ++authGeneration.current;
     setPasskeyConnecting(true);
     try {
       // Fast path: use provided credential or localStorage
@@ -218,6 +232,8 @@ export const AuthProvider = ({ children }) => {
       const { discoverPasskeyCredential } = await import('@/services/web3/passkey/passkeyDiscover');
       const discovered = await discoverPasskeyCredential();
 
+      if (authGeneration.current !== generation || currentEoa.current) throw new Error('Your account changed. Please try again.');
+
       // Save to localStorage for future fast reconnects
       savePasskeyCredential(discovered);
       explicitSignOutRef.current = false;
@@ -225,7 +241,7 @@ export const AuthProvider = ({ children }) => {
       setPasskeyState(discovered);
       return discovered;
     } finally {
-      setPasskeyConnecting(false);
+      if (authGeneration.current === generation) setPasskeyConnecting(false);
     }
   }, []);
 
@@ -233,6 +249,7 @@ export const AuthProvider = ({ children }) => {
    * Save and activate a new passkey credential (after onboarding).
    */
   const activatePasskey = useCallback((credentialData) => {
+    authGeneration.current += 1;
     explicitSignOutRef.current = false;
     writeExplicitSignOut(false);
     savePasskeyCredential(credentialData);
@@ -243,6 +260,8 @@ export const AuthProvider = ({ children }) => {
    * Disconnect passkey session (keeps stored credential for re-authentication).
    */
   const disconnectPasskey = useCallback(() => {
+    authGeneration.current += 1;
+    setPasskeyConnecting(false);
     setPasskeyState(null);
   }, []);
 
@@ -254,6 +273,8 @@ export const AuthProvider = ({ children }) => {
    * connectPasskey/activatePasskey.
    */
   const signOut = useCallback(() => {
+    authGeneration.current += 1;
+    setPasskeyConnecting(false);
     explicitSignOutRef.current = true;
     writeExplicitSignOut(true);
     setPasskeyState(null);
@@ -267,17 +288,41 @@ export const AuthProvider = ({ children }) => {
    * re-attach via "Sign in with passkey" (discoverable WebAuthn).
    */
   const forgetPasskey = useCallback(() => {
+    authGeneration.current += 1;
+    setPasskeyConnecting(false);
     explicitSignOutRef.current = true;
     writeExplicitSignOut(true);
     clearAllCredentials();
     setPasskeyState(null);
   }, []);
 
+  useEffect(() => {
+    if (!passkeyState || (passkeyState.publicKeyX && passkeyState.publicKeyY)) return;
+    let cancelled = false;
+    const generation = authGeneration.current;
+    const guard = () => {
+      if (cancelled || currentEoa.current || generation !== authGeneration.current) throw new Error('Account changed.');
+    };
+    import('@/services/web3/passkey/accountReadiness').then(async ({ restoreCredentialKeys }) => {
+      const { createChainClients } = await import('@/services/web3/utils/chainClients');
+      const complete = await restoreCredentialKeys(passkeyState, { clientForChain: chainId => createChainClients(chainId)?.publicClient, guard });
+      guard();
+      savePasskeyCredential(complete);
+      setPasskeyState(complete);
+    }).catch(() => { /* Missing source evidence remains unknown; keep the restored identity. */ });
+    return () => { cancelled = true; };
+  }, [passkeyState]);
+
   const hasStoredPasskey = typeof window !== 'undefined' ? hasStoredCredentials() : false;
+
+  const sessionGeneration = authGeneration.current;
+  const isSessionCurrent = useCallback(() => authGeneration.current === sessionGeneration, [sessionGeneration]);
 
   const value = useMemo(() => ({
     // Auth state
     authType,
+    sessionGeneration,
+    isSessionCurrent,
     accountAddress,
     isAuthenticated,
     isAuthHydrated,
@@ -297,7 +342,7 @@ export const AuthProvider = ({ children }) => {
     // Shared infrastructure
     publicClient,
     bundlerClient,
-  }), [authType, accountAddress, isAuthenticated, isAuthHydrated, passkeyState, passkeyConnecting, connectPasskey, activatePasskey, disconnectPasskey, signOut, forgetPasskey, hasStoredPasskey, publicClient, bundlerClient]);
+  }), [authType, accountAddress, isAuthenticated, isAuthHydrated, passkeyState, passkeyConnecting, connectPasskey, activatePasskey, disconnectPasskey, signOut, forgetPasskey, hasStoredPasskey, publicClient, bundlerClient, sessionGeneration, isSessionCurrent]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
