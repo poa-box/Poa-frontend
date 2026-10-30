@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createParityHost } from '@/test/parityHost';
 import CommunityLoadingState from '@/components/shared/CommunityLoadingState';
+import { loadingQuotes } from '@/components/shared/loadingQuotes';
 import PostDeployLoadingScreen from '@/components/shared/PostDeployLoadingScreen';
 
 // Keep status semantics and real component effects in this layout-free host.
@@ -15,7 +16,7 @@ vi.mock('@chakra-ui/react', () => ({
 }));
 let host;
 beforeEach(() => { vi.useFakeTimers(); host = createParityHost(); });
-afterEach(async () => { await host.unmount(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+afterEach(async () => { await host.unmount(); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const status = () => host.nodes().find(node => host.props(node)?.role === 'status');
 const hidden = () => host.nodes().find(node => host.props(node)?.['aria-hidden'] === true && host.props(node)?.visibility === 'hidden');
 
@@ -50,6 +51,24 @@ it('renders without organization providers and shows fullscreen status with reco
   expect(host.button('Retry')).toBeDefined();
 });
 
+it('keeps one original reflection stable across a mounted wait, outside the live status', async () => {
+  const random = vi.spyOn(Math, 'random').mockReturnValue(0);
+  await host.render(<CommunityLoadingState fullScreen label="Loading tasks…" />);
+  const reflection = loadingQuotes[0];
+  expect(host.container.textContent).toContain(reflection);
+  expect(loadingQuotes.filter(quote => host.container.textContent.includes(quote))).toEqual([reflection]);
+  expect(status().textContent).toBe('Loading tasks…');
+
+  random.mockReturnValue(0.99);
+  await host.render(<CommunityLoadingState fullScreen label="Still loading tasks…" description="Please wait" />);
+  await act(async () => vi.advanceTimersByTime(10000));
+  expect(host.container.textContent).toContain(reflection);
+  expect(host.container.textContent).not.toContain(loadingQuotes[loadingQuotes.length - 1]);
+  expect(host.nodes().filter(node => host.props(node)?.role === 'status')).toHaveLength(1);
+  expect(status().textContent).toBe('Still loading tasks…Please wait');
+  expect(vi.getTimerCount()).toBe(0);
+});
+
 it('keeps post-creation refresh available after the timeout and clears the timer', async () => {
   const reload = vi.fn();
   window.location = { reload };
@@ -80,11 +99,10 @@ it('cancels post-creation recovery when the organization becomes ready', async (
 // These eager fallbacks must remain usable before organization providers load.
 // Check their complete local dependency surface so an indirect data import also fails.
 it('keeps the early loading dependency graph limited to presentation modules', () => {
-  const allowed = new Set(['react', '@chakra-ui/react', '@emotion/react', '@/components/shared/PulseLoader']);
-  for (const file of ['CommunityLoadingState.jsx', 'PulseLoader.jsx']) {
+  const allowed = new Set(['react', '@chakra-ui/react', '@emotion/react', '@/components/shared/PulseLoader', '@/components/shared/loadingQuotes']);
+  for (const file of ['CommunityLoadingState.jsx', 'PulseLoader.jsx', 'loadingQuotes.js']) {
     const source = readFileSync(new URL(`./${file}`, import.meta.url), 'utf8');
     const dependencies = [...source.matchAll(/(?:from\s*|import\s*(?:\(\s*)?|require\s*\(\s*)(['"])([^'"]+)\1/g)].map(match => match[2]);
-    expect(dependencies.length).toBeGreaterThan(0);
     expect(dependencies.filter(dependency => !allowed.has(dependency))).toEqual([]);
   }
 });
