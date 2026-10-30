@@ -1,66 +1,106 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { Alert, AlertIcon, Box, Button, HStack, Text, VStack } from '@chakra-ui/react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Box, Button, FormControl, FormLabel, HStack, Input, Text, VStack } from '@chakra-ui/react';
+import { inputStyles } from '@/components/shared/glassStyles';
 
-/** Discoverable local drafts on the voting page, including after refresh/reopen.
- * Check status never signs. Finish opens the actual form for a separate review/submit. */
-export default function RoleContinuationPanel({ ctx, onResume }) {
-  const [state, setState] = useState({});
-  const current = useRef(ctx.resolveContinuation);
-  const checking = useRef(new Set());
-  current.current = ctx.resolveContinuation;
-  useEffect(() => { current.current = ctx.resolveContinuation; checking.current = new Set(); setState({}); return () => { current.current = null; }; }, [ctx.resolveContinuation]);
-  const check = async row => {
-    const checks = checking.current;
-    if (checks.has(row.id)) return;
-    checks.add(row.id);
-    const resolver = ctx.resolveContinuation;
-    setState(value => ({ ...value, [row.id]: { loading: true } }));
+const retryable = stage => ['failed', 'rejected'].includes(stage?.status);
+const uncertain = stage => stage && (stage.recoveryInvalid || ['submitting', 'uncertain'].includes(stage.status));
+const needsAction = row => !row.creation || uncertain(row.creation) || uncertain(row.configuration)
+  || retryable(row.creation) || retryable(row.configuration)
+  || row.creation.status === 'created' && row.requiresConfiguration !== false && !row.configuration;
+const pending = row => row.creation?.status === 'pending' || row.configuration?.status === 'pending';
+const completedVote = (row, stage, votes) => stage?.status === 'pending' && stage.proposalId != null && row.scope?.hybridVoting
+  ? votes.find(vote => vote.id?.toLowerCase() === `${row.scope.hybridVoting}-${stage.proposalId}`.toLowerCase()) : null;
+const retryHint = vote => vote && (vote.executionFailed === true || vote.isValid === false || Number(vote.winningOption) > 0);
+const needsRecheck = (row, votes) => {
+  const creation = completedVote(row, row.creation, votes);
+  return Boolean(creation && (retryHint(creation) || row.requiresConfiguration !== false && !row.configuration)
+    || retryHint(completedVote(row, row.configuration, votes)));
+};
+
+/** Saved drafts and recovery actions live inside Votes. The cards own vote status.
+ * Saved pending states are only hints: refresh on entry and changes to vote outcomes,
+ * without polling, signing, reopening forms automatically, or discarding records. */
+export default function RoleContinuationPanel({ ctx, onResume, completedVotes = [] }) {
+  const refreshKey = JSON.stringify(completedVotes.map(vote => [vote.id, vote.status, vote.executionFailed, vote.isValid, vote.winningOption]));
+  const scope = useMemo(() => ({ resolver: ctx.resolveContinuation, checking: new Set(), checked: new Map() }), [ctx.resolveContinuation]);
+  const current = useRef(scope); current.current = scope;
+  const [snapshot, setSnapshot] = useState(null);
+  const state = useMemo(() => snapshot?.scope === scope ? snapshot.rows : {}, [snapshot, scope]);
+  useEffect(() => { current.current = scope; return () => { current.current = null; }; }, [scope]);
+  const update = useCallback((id, patch) => {
+    if (current.current !== scope) return;
+    setSnapshot(value => {
+      const rows = value?.scope === scope ? value.rows : {};
+      return { scope, rows: { ...rows, [id]: { ...rows[id], ...patch } } };
+    });
+  }, [scope]);
+  const check = useCallback(async (row, automatic = false) => {
+    if (scope.checking.has(row.id)) return;
+    scope.checking.add(row.id);
+    update(row.id, { loading: true, message: null });
     try {
-      const result = await resolver(row.id);
-      if (current.current !== resolver) return;
-      if (result.proof.state === 'created' && result.requiresConfiguration !== false && (!result.configuration || ['failed', 'rejected'].includes(result.configuration.status))) {
+      const result = await scope.resolver(row.id, { candidateTxHash: state[row.id]?.creation || undefined,
+        configurationTxHash: state[row.id]?.configuration || undefined });
+      if (current.current !== scope) return;
+      if (!automatic && result.proof.state === 'preparing') {
+        const form = { ...result.form }; delete form.continuationId; onResume(form);
+      } else if (!automatic && result.proof.state === 'created' && result.requiresConfiguration !== false
+        && (!result.configuration || retryable(result.configuration))) {
         onResume({ ...result.form, continuationId: row.id });
-        setState(value => ({ ...value, [row.id]: {} }));
-      } else {
-        const message = result.configuration?.status === 'executed' ? 'The configuration vote passed and ran successfully.'
-          : result.proof.state === 'created' && result.requiresConfiguration === false ? 'The role or group was created. This request is complete in one vote.'
-          : result.proof.state === 'pending' ? 'Waiting for the creation vote to pass and run. Your settings are saved.'
-          : result.proof.state === 'failed' ? result.creation.failureKind === 'submission'
-            ? 'The creation vote was not submitted successfully. Review a new creation vote to try again.'
-            : 'The creation vote did not run successfully. No configuration was submitted.'
-            : result.proof.state === 'rejected' ? 'The creation vote was not approved. Your draft is retained.'
-              : 'Your configuration vote is already submitted. Check it in the votes below.';
-        setState(value => ({ ...value, [row.id]: { message } }));
       }
     } catch (error) {
       const message = /^[A-Z][A-Z_0-9]+$/.test(error?.message || '')
-        ? 'The saved vote could not be verified. Refresh its status and try again.' : error?.message || 'Status is unavailable. Try again.';
-      if (current.current === resolver) setState(value => ({ ...value, [row.id]: { message } }));
-    } finally { checks.delete(row.id); }
-  };
-  if (!ctx.continuations?.length) return null;
-  return <VStack align="stretch" mb={5} spacing={3} data-testid="role-continuations">
-    {ctx.continuations.map(row => <Box key={row.id} p={4} bg="white" borderRadius="lg" borderWidth="1px">
-      <HStack justify="space-between" align="start">
-        <Box><Text fontWeight="bold">{row.requiresConfiguration === false ? 'Role creation' : 'Finish configuration'}: {row.form.name}</Text>
-          <Text fontSize="sm">{row.configuration
-            ? row.configuration.status === 'failed' ? row.configuration.failureKind === 'submission'
-              ? 'The configuration vote was not submitted successfully. Review the saved settings to try again.'
-              : `Configuration vote ${row.configuration.proposalId ? `#${row.configuration.proposalId} ` : ''}did not run successfully. Review the saved settings to try again.`
-              : row.configuration.status === 'rejected' ? 'The configuration vote was not approved. Review the saved settings to try again.'
-                : row.configuration.status === 'executed' ? 'The configuration vote passed and ran successfully.'
-                  : `Configuration vote ${row.configuration.proposalId ? `#${row.configuration.proposalId}` : 'submission'} ${row.configuration.status === 'uncertain' || row.configuration.status === 'submitting' ? 'needs a status check' : 'submitted'}.`
-            : row.creation.proposalId ? `Creation vote #${row.creation.proposalId}. ${row.requiresConfiguration === false ? 'Check the outcome below.' : 'Your requested settings are saved for a separate vote.'}`
-              : row.creation.status === 'failed' ? 'The creation vote was not submitted successfully. Your draft is saved.'
-                : 'Creation submission needs a status check. Your draft is saved; no duplicate vote will be sent.'}</Text>
+        ? 'The saved vote could not be verified. Check again to continue.' : error?.message || 'Status is unavailable. Try again.';
+      update(row.id, { message });
+    } finally { scope.checking.delete(row.id); update(row.id, { loading: false }); }
+  }, [scope, state, onResume, update]);
+
+  useEffect(() => {
+    if (scope.checking.size) return;
+    for (const row of ctx.continuations || []) {
+      if (!pending(row) || uncertain(row.creation) || uncertain(row.configuration) || scope.checking.has(row.id)) continue;
+      // Recovery persists revisions as it reads. Those writes must not trigger a read loop.
+      const key = JSON.stringify([refreshKey, row.creation?.attemptId, row.configuration?.attemptId]);
+      if (scope.checked.get(row.id) === key) continue;
+      scope.checked.set(row.id, key);
+      void check(row, true);
+      break;
+    }
+  }, [ctx.continuations, refreshKey, scope, check]);
+
+  // A completed feed can arrive ahead of the authority snapshot used by recovery.
+  // Keep an explicit recheck reachable; only exact recovery above may open the form.
+  const rows = (ctx.continuations || []).filter(row => needsAction(row) || needsRecheck(row, completedVotes) || state[row.id]?.message);
+  if (!rows.length) return null;
+  return <VStack align="stretch" mb={5} spacing={2} color="white" data-testid="role-continuations">
+    {rows.map(row => <Box key={row.id} py={3} px={3} bg="whiteAlpha.50" borderRadius="lg" borderWidth="1px" borderColor="whiteAlpha.200" minW={0}>
+      <HStack justify="space-between" align="center" spacing={3} flexWrap="wrap">
+        <Box flex="1" minW="min(100%, 180px)">
+          <Text fontSize="sm" fontWeight="600" overflowWrap="anywhere">{row.form.name}</Text>
+          {(!row.creation || retryable(row.creation) || retryable(row.configuration)) && <Text fontSize="xs" color="gray.300">
+            {!row.creation ? 'Saved draft'
+              : retryable(row.configuration) ? row.configuration.status === 'rejected' ? 'The settings vote was not approved.'
+                : row.configuration.failureKind === 'submission' ? 'The settings vote was not submitted successfully.' : 'The settings vote did not run successfully.'
+                : row.creation.status === 'rejected' ? 'The creation vote was not approved.'
+                  : row.creation.failureKind === 'submission' ? 'The creation vote was not submitted successfully.' : 'The creation vote did not run successfully.'}
+          </Text>}
         </Box>
-        <Button size="sm" isLoading={state[row.id]?.loading} onClick={() => check(row)} data-testid={`role-continuation-${row.id}`}>
-          {row.configuration || row.requiresConfiguration === false ? 'Check status' : 'Finish configuration'}
+        <Button size="sm" variant="ghost" color="purple.200" _hover={{ bg: 'whiteAlpha.200' }} flexShrink={0}
+          isLoading={state[row.id]?.loading} onClick={() => check(row)} data-testid={`role-continuation-${row.id}`}>
+          {!row.creation ? 'Review saved draft' : uncertain(row.creation) || uncertain(row.configuration) || state[row.id]?.message || retryable(row.creation) || needsRecheck(row, completedVotes)
+            ? 'Check saved vote' : 'Continue role setup'}
         </Button>
       </HStack>
-      {['failed', 'rejected'].includes(row.creation.status) && <Button size="sm" mt={2} variant="outline"
+      {['creation', 'configuration'].filter(field => row[field]?.submission?.kind === 'transaction'
+        && !row[field].transactionHash && ['submitting', 'uncertain'].includes(row[field].status)).map(field => <FormControl key={field} mt={3}>
+        <FormLabel fontSize="sm">{field === 'creation' ? 'Creation' : 'Configuration'} vote transaction reference (optional)</FormLabel>
+        <Input {...inputStyles} size="sm" data-testid={`role-reference-${row.id}-${field}`} value={state[row.id]?.[field] || ''} isDisabled={state[row.id]?.loading}
+          onChange={event => update(row.id, { [field]: event.target.value.trim() })} />
+        <Text fontSize="xs" color="gray.300" mt={1}>Use the reference from your account activity. Checking never submits another vote.</Text>
+      </FormControl>)}
+      {retryable(row.creation) && <Button size="sm" mt={2} variant="ghost" color="purple.200" _hover={{ bg: 'whiteAlpha.200' }}
         onClick={() => { const form = { ...row.form }; delete form.continuationId; onResume(form); }} data-testid={`role-continuation-restart-${row.id}`}>Review a new creation vote</Button>}
-      {state[row.id]?.message && <Alert status="info" mt={3}><AlertIcon />{state[row.id].message}</Alert>}
+      {state[row.id]?.message && <Text role="status" fontSize="sm" color="gray.300" mt={2} overflowWrap="anywhere">{state[row.id].message}</Text>}
     </Box>)}
   </VStack>;
 }

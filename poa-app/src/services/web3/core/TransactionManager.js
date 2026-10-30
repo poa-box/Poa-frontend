@@ -3,12 +3,12 @@
  * Unified transaction handling with gas estimation, error parsing, and state tracking
  */
 
-import { createSubmissionJournal, pendingSubmissionError } from '@/services/web3/core/submissionJournal';
+import { pendingSubmissionError } from '@/services/web3/core/submissionJournal';
 import { unknownSubmissionError, reconcileUserOperationSubmission } from '@/services/web3/core/userOperationSubmission';
-import { managerIntentKey, DELEGATED_SUBMISSION_LEASE, snapshotCallValue, snapshotExecutionArguments, assertBeforeSend } from '@/services/web3/core/managerSubmissionScope';
-import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
-import { parseError, Web3ErrorCategory } from '@/lib/errors';
-import { calculateGasLimit, createGasOptions, getNetworkByChainId } from '@/config';
+import { managerIntentKey, snapshotCallValue, snapshotExecutionArguments, assertBeforeSend } from '@/services/web3/core/managerSubmissionScope';
+import { installManagerLifecycle } from '@/services/web3/core/managerLifecycle';
+import { parseError } from '@/lib/errors';
+import { createGasOptions, getNetworkByChainId } from '@/config';
 import { BigNumber } from 'ethers';
 import { guardedRpcSigner } from '@poa-box/core/browser/wallet';
 
@@ -77,19 +77,6 @@ const DEFAULT_OPTIONS = {
   gasLimit: null,
 };
 
-/** Recovery owns a fresh lock; scope must still match when that lock is acquired. */
-export async function clearRecoveredSubmission(journal, submission, assertCurrent) {
-  assertCurrent();
-  const release = await journal.acquire();
-  try {
-    assertCurrent();
-    if (await journal.clear(submission) !== true) throw pendingSubmissionError(submission);
-  } finally {
-    await release();
-  }
-  assertCurrent();
-}
-
 /**
  * TransactionManager - Handles the full transaction lifecycle
  *
@@ -106,22 +93,9 @@ export class TransactionManager {
     this.submissionChainId = config.chainId;
     this.accountAddress = config.accountAddress;
     this.publicClient = config.publicClient;
-    this.assertCurrent = config.scopeGuard || (() => {});
-    this.submissionJournal = config.accountAddress && config.chainId ? createSubmissionJournal({
-      accountAddress: config.accountAddress, chainId: config.chainId, entryPoint: ENTRY_POINT_ADDRESS, context: config.submissionContext, storage: config.submissionStorage, locks: config.submissionLocks,
-    }) : null;
-    this.getPendingSubmission = () => this.submissionJournal?.read() || null;
-    this.reconcileSubmission = async (submission = this.getPendingSubmission()) => {
-      this.assertCurrent();
-      if (!submission || submission.chainId !== config.chainId || (submission.accountAddress && submission.accountAddress.toLowerCase() !== config.accountAddress?.toLowerCase()) || !config.publicClient || (submission.kind !== 'transaction' && !config.bundlerClient)) {
-        throw new Error('Check this transaction on the network where it was submitted.');
-      }
-      const result = await reconcileUserOperationSubmission(submission, config.bundlerClient, config.publicClient);
-      this.assertCurrent();
-      if (result.outcome.status !== 'unknown') await clearRecoveredSubmission(this.submissionJournal, submission, this.assertCurrent);
-      this.assertCurrent();
-      return result;
-    };
+    this.chainId = config.chainId;
+    this.bundlerClient = config.bundlerClient;
+    installManagerLifecycle(this, { ...config, direct: true });
     this._chainId = null; // resolved lazily in _getChainContext()
     // Optional async guard injected by useWeb3Services. Called before every
     // send to guarantee the wallet + signer are bound to the intended (org)
@@ -146,7 +120,6 @@ export class TransactionManager {
     // `this.signer`) so a chain switch during one execute can't leave the shared
     // manager instance in a half-mutated state for a concurrent/next call.
     let activeSigner = this.signer;
-    let release;
     let submission;
     let sendStarted = false;
     let rpcBoundary;
@@ -154,24 +127,12 @@ export class TransactionManager {
     let expectedTarget;
     let expectedValue;
     let expectedNonce;
+    let acknowledgedCapture, acknowledgedError;
 
     try {
       args = snapshotCallValue(args);
       if (opts.value !== undefined) opts.value = snapshotCallValue(opts.value);
       this.assertCurrent();
-      if (this.submissionJournal) {
-        const delegated = opts[DELEGATED_SUBMISSION_LEASE] === this.submissionJournal && this.submissionJournal.hasLease();
-        if (!delegated) release = await this.submissionJournal.acquire();
-        this.assertCurrent();
-        if (!delegated) this.submissionJournal.abandonUnsent();
-        const pending = delegated ? this.submissionJournal.read() : this.submissionJournal.readPendingAccount();
-        if (pending && !delegated) {
-          const error = unknownSubmissionError(pendingSubmissionError(pending));
-          this._notifyState(opts.onStateChange, TransactionState.ERROR, { error });
-          return TransactionResult.failure(error);
-        }
-        if (!pending) this.submissionJournal.begin(managerIntentKey('execute', [contract, method, args, opts]));
-      }
       // Bind to the intended chain BEFORE we estimate/sign/send. An EOA tx
       // broadcasts through the wallet's *connected* chain — if that's the wrong
       // network the contract address has no code there. Depending on the wallet,
@@ -200,7 +161,11 @@ export class TransactionManager {
         onHash: hash => {
           if (!submission) return;
           if (typeof hash !== 'string' || !/^0x[0-9a-f]{64}$/i.test(hash)) throw new Error('Transaction status is not available.');
-          submission = this.submissionJournal.write({ ...submission, phase: 'submitted', txHash: hash });
+          submission = { ...submission, phase: 'submitted', txHash: hash };
+          // Core 2.2 invokes onHash synchronously. Persist immediately, track the
+          // host's async capture, and consume rejection until execute can await it.
+          acknowledgedCapture = this.recordSubmission(submission).then(
+            saved => { submission = saved; }, error => { acknowledgedError = error; });
         },
       });
       if (rpcBoundary) activeSigner = rpcBoundary.signer;
@@ -249,26 +214,27 @@ export class TransactionManager {
       // Wallet signing and dispatch share one call. Refresh AFTER all awaited
       // setup and identity reads; only synchronous scope/lease checks follow.
       await assertBeforeSend(this, opts.beforeSend);
-      this.submissionJournal?.signing();
       this._notifyState(opts.onStateChange, TransactionState.AWAITING_SIGNATURE);
       if (this.submissionJournal) {
         this.submissionJournal.assertLease();
         submission = { kind: 'transaction', phase: 'submitting', chainId: this.submissionChainId, nonce: String(nonce),
           callKey: managerIntentKey('execute', [contract, method, args, opts]),
           ...(fromBlock === undefined ? {} : { fromBlock: String(fromBlock) }) };
-        submission = this.submissionJournal.write(submission);
+        submission = await this.recordSubmission(submission);
         gasOptions.nonce = nonce;
       }
-      // The wallet owns signing + broadcast as one awaited call. Persist safe identity first.
-      this.assertCurrent();
+      // Capture may await durable host persistence. Renew consent after it, too.
+      await assertBeforeSend(this, opts.beforeSend);
       this.submissionJournal?.assertLease();
       if (!rpcBoundary) sendStarted = true;
       const tx = await contract[method](...args, gasOptions);
+      await acknowledgedCapture;
+      if (acknowledgedError) throw acknowledgedError;
 
       if (submission) {
         if (typeof tx?.hash !== 'string' || !/^0x[0-9a-f]{64}$/i.test(tx.hash)) throw new Error('Transaction status is not available.');
         if (submission.txHash && submission.txHash.toLowerCase() !== tx.hash.toLowerCase()) throw new Error('Transaction status is not available.');
-        if (!submission.txHash) submission = this.submissionJournal.write({ ...submission, phase: 'submitted', txHash: tx.hash });
+        if (!submission.txHash) submission = await this.recordSubmission({ ...submission, phase: 'submitted', txHash: tx.hash });
       }
       // State: Pending
       this._notifyState(opts.onStateChange, TransactionState.PENDING, {
@@ -285,7 +251,7 @@ export class TransactionManager {
 
       if (submission) {
         if (receipt.transactionHash?.toLowerCase() !== submission.txHash?.toLowerCase() || ![0, 1, 0n, 1n, '0', '1', '0x0', '0x1'].includes(receipt.status)) throw new Error('Transaction status is not available.');
-        if (this.submissionJournal.clear(submission) !== true) throw pendingSubmissionError(submission);
+        await this.settleSubmission(submission, { receipt, outcome: { status: [0, 0n, '0', '0x0'].includes(receipt.status) ? 'failed' : 'succeeded' } });
       }
       if ([0, 0n, '0', '0x0'].includes(receipt.status)) throw new Error('This action did not complete. Please try again.');
       // Preserve a known original outcome after navigation; callbacks remain scope-guarded.
@@ -300,6 +266,9 @@ export class TransactionManager {
       return TransactionResult.success(receipt);
 
     } catch (error) {
+      // Ethers' post-send lookup can fail before the acknowledged capture finishes.
+      await acknowledgedCapture;
+      if (acknowledgedError) error = acknowledgedError;
       // The wallet's replacement hash selects one candidate. RPC transaction, receipt and canonical
       // block observations establish its outcome; wallet diagnostics alone cannot settle the barrier.
       if (submission?.recovery && error.code === 'TRANSACTION_REPLACED' && typeof error.replacement?.hash === 'string' && error.receipt) {
@@ -309,7 +278,7 @@ export class TransactionManager {
         }
         catch { /* Unverifiable replacement retains the original barrier. */ }
         const outcome = recovered?.outcome;
-        if (outcome && outcome.status !== 'unknown' && this.submissionJournal.clear(submission) === true) {
+        if (outcome && outcome.status !== 'unknown' && await this.settleSubmission(submission, recovered)) {
           if (outcome.status === 'succeeded') {
             this._notifyState(opts.onStateChange, TransactionState.SUCCESS, { receipt: recovered.receipt, txHash: outcome.txHash });
             return TransactionResult.success(recovered.receipt);
@@ -325,14 +294,14 @@ export class TransactionManager {
         && error.receipt.transactionHash?.toLowerCase() === submission?.txHash?.toLowerCase();
       let pendingError = null;
       try {
-        if (submission && (cancelled || failedReceipt || !sendStarted) && this.submissionJournal.clear(submission) !== true) {
+        if (submission && (cancelled || failedReceipt || !sendStarted) && await this.settleSubmission(submission, { success: false, ...(cancelled || !sendStarted ? { submissionState: 'not-submitted' } : {}), receipt: error.receipt }) !== true) {
           pendingError = unknownSubmissionError(pendingSubmissionError(submission));
         }
         if (submission && sendStarted && !cancelled && !failedReceipt && this.submissionJournal.read()) {
           pendingError = unknownSubmissionError(pendingSubmissionError(submission));
         }
       } catch {
-        pendingError = { category: 'account_unavailable', userMessage: 'Saved transaction status is unavailable. Check this account before trying again.' };
+        pendingError = submission ? unknownSubmissionError(pendingSubmissionError(submission)) : { category: 'account_unavailable', userMessage: 'Saved transaction status is unavailable. Check this account before trying again.' };
       }
       const parsedError = pendingError || parseError(error, abi, await this._getChainContext(activeSigner));
 
@@ -350,10 +319,7 @@ export class TransactionManager {
       return result;
     } finally {
       rpcBoundary?.dispose();
-      if (release) {
-        try { this.submissionJournal.abandonUnsent(); } catch { /* Preserve unavailable state. */ }
-        await release();
-      }
+
     }
   }
 
@@ -447,18 +413,6 @@ export class TransactionManager {
     };
   }
 
-  /**
-   * Notify state change callback
-   * @param {Function|null} callback - State change callback
-   * @param {string} state - New state
-   * @param {Object} [data={}] - Additional data
-   */
-  _notifyState(callback, state, data = {}) {
-    if (typeof callback === 'function') {
-      try { this.assertCurrent(); } catch { return; }
-      try { callback(state, data); } catch { /* Observers cannot change a known transaction outcome. */ }
-    }
-  }
 }
 
 /**

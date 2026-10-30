@@ -54,7 +54,7 @@ describe('role-removal vote production wiring', () => {
     expect(page).toContain('recheckGovernanceSubmission(proposalData, proposalData.governancePlanning)');
     expect(page).toContain('The selected role was renamed.');
     expect(page).toContain('recordGasFloor(');
-    expect(page).toMatch(/if \(!result\?\.success\) \{ roleSubmission\?\.notSubmitted\(\); return result \|\| false; \}/);
+    expect(page).toContain('if (!result?.success) return result || false;');
     expect(page).toContain('return result;');
     expect(detail).toContain('onFinalize(contractAddress, proposalId, isBinding, poll)');
     expect(actions).toContain('roleRemovalGasFloorFromProposal(proposal)');

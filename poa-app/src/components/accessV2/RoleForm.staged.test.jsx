@@ -44,21 +44,23 @@ import RoleForm from '@/components/accessV2/RoleForm';
 import RoleContinuationPanel from '@/components/accessV2/RoleContinuationPanel';
 import { useRoleCreationContext } from '@/hooks/accessV2/useRoleCreationContext';
 import { useProposalForm } from '@/hooks/useProposalForm';
+import { resolveTokenLabel } from '@/util/tokenLabel';
 import { defaultRoleForm } from '@/lib/accessV2/roleFormBatch';
 import { RoleCreationService } from '@/services/web3/domain/RoleCreationService';
 import { VotingService } from '@/services/web3/domain/VotingService';
 import { guardService } from '@/lib/services/runtimeScope';
 import { ZkEmailInvitesService } from '@/services/web3/domain/ZkEmailInvitesService';
 import { submitProposalRuntime } from '@/hooks/runtime/proposalSubmitRuntime';
-import { submitTrackedRoleProposal } from '@/hooks/runtime/roleSubmissionTransport';
-import { roleSubmissionIntent } from '@/lib/accessV2/roleSubmissionRecovery';
+import { installManagerLifecycle } from '@/services/web3/core/managerLifecycle';
+import { managerIntentKey } from '@/services/web3/core/managerSubmissionScope';
+const roleSubmissionIntent = (...args) => managerIntentKey('execute', args);
 import { createSubmissionJournal } from '@/services/web3/core/submissionJournal';
-import { clearRecoveredSubmission, TransactionManager } from '@/services/web3/core/TransactionManager';
+import { TransactionManager } from '@/services/web3/core/TransactionManager';
 import { reconcileUserOperationSubmission } from '@/services/web3/core/userOperationSubmission';
 import { fakeBrowserLocks } from '@/services/web3/core/submissionTestHelpers';
 import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
 import { fixture, contracts, account, orgId, hash, roleId, groupId, selectedResponse, interfaces, authorityResponse } from '@/lib/accessV2/roleObservationFixtures';
-import { roleContinuationKey, readRoleContinuations } from '@/lib/accessV2/roleContinuationDraft';
+import { roleContinuationKey, roleContinuationScope, readRoleContinuations } from '@/lib/accessV2/roleContinuationDraft';
 
 const live = vi.hoisted(() => ({}));
 vi.mock('@/context/authState', () => ({ useAuth: () => live.auth }));
@@ -75,7 +77,14 @@ vi.mock('@apollo/client', () => ({ useQuery: () => live.infrastructure }));
 vi.mock('@/lib/accessV2/roleOperationQuery', () => ({ roleOperationQuery: (...args) => live.query(...args) }));
 let root, container, f, options, initial, latest, formValue, setFormValue, closeForm, submit, writes, stored, txs, receipts, queryRows, createdId, lastPayload, uncertainty, nextId;
 let journal, callbackMode, retainFailure, queryFailure, lostAck, submissionFailure, latePageFailure, recoveryAvailable;
-let proposalForm, scopeChangeAfterTicket, capturedTicket;
+let proposalForm, scopeChangeAfterTicket, capturedTicket, proposalExtras;
+async function prepareForAssertion(form) {
+  const service = live.services.voting.createHybridProposal;
+  const implementation = service.getMockImplementation();
+  service.mockImplementationOnce(async () => ({ success: true }));
+  try { return (await latest.submitRole({ form, proposal: {} })).role; }
+  finally { service.mockImplementation(implementation); }
+}
 const hashOf = digit => `0x${digit.repeat(64)}`;
 const oldHash = hashOf('b'), execHash = hashOf('c');
 const flush = async () => { for (let i = 0; i < 3; i++) await new Promise(resolve => setTimeout(resolve, 5)); };
@@ -95,19 +104,17 @@ function Harness() {
   const [status, setStatus] = useState({ blocked: true });
   const doSubmit = useCallback(async () => {
     const runtime = {
-      proposal: { type: 'createRole', name: `Settings for ${form.name}`, description: 'Reviewed changes', time: 1, roleFormV2: form },
+      proposal: { type: 'createRole', name: `Settings for ${form.name}`, description: 'Reviewed changes', time: 1, roleFormV2: form, ...proposalExtras },
       orgNetwork: { nativeCurrency: { decimals: 18 } }, nativeCurrencySymbol: 'xDAI', orgChainId: 100,
       roleNames: {}, projectNames: {}, setLoadingSubmit() {}, resetForm: () => setOpen(false), toast() {},
       retainRoleContinuation: id => { if (retainFailure) throw new Error('Scope changed before callback'); setForm(value => ({ ...value, continuationId: id })); },
       buildActionSummaries: () => [],
       ...Object.fromEntries(['BasicFields', 'CreateRoleProposal'].map(name => [`validate${name}`, () => true])),
       onSubmit: async (payload, tracker) => {
-        lastPayload = payload;
-        if (callbackMode === 'false') { tracker?.notSubmitted(); return false; }
+        if (callbackMode === 'false') return false;
         if (callbackMode === 'scope-guard') throw Object.assign(new Error('Account changed before transport'), { roleSubmissionState: 'not-submitted' });
         if (callbackMode === 'unknown-throw') throw new Error('No transport evidence');
-        const result = await submitTrackedRoleProposal(live.services.voting, tracker,
-          voting => voting.createHybridProposal(contracts.hybridVoting, { ...payload, durationMinutes: payload.time }));
+        const result = await tracker();
         if (latePageFailure) throw new Error('Page work failed after confirmation');
         return result;
       },
@@ -117,7 +124,7 @@ function Harness() {
   }, [ctx, form]);
   useEffect(() => { latest = ctx; formValue = form; setFormValue = setForm; closeForm = () => setOpen(false); submit = doSubmit; }, [ctx, form, doSubmit]);
   return <>
-    <RoleContinuationPanel ctx={ctx} onResume={next => { setForm(next); setOpen(true); }} />
+    <RoleContinuationPanel ctx={ctx} completedVotes={queryRows.filter(row => row.status !== 'Active' || row.executionFailed || row.isValid === false)} onResume={next => { setForm(next); setOpen(true); }} />
     {open && <><RoleForm value={form} onChange={setForm} ctx={{ ...ctx, authority: live.authority.address,
       roles: options.subjects.filter(row => row.kind === 'Role'), groups: options.subjects.filter(row => row.kind === 'Group'), votingClasses: [{ classIndex: 0, strategy: 0, slicePct: 100 }] }} onStatus={setStatus} />
       <button data-testid="submit-vote" disabled={Boolean(status.blocked)} onClick={doSubmit}>Create vote</button></>}
@@ -125,31 +132,143 @@ function Harness() {
 }
 function ProposalHarness() {
   const ctx = useRoleCreationContext({ enabled: true, authority: live.authority.address });
-  const form = useProposalForm({ onSubmit: (payload, tracker) => callbackMode === 'false' ? false
-    : submitTrackedRoleProposal(live.services.voting, tracker,
-      voting => voting.createHybridProposal(contracts.hybridVoting, { ...payload, durationMinutes: payload.time })) });
+  const form = useProposalForm({ onSubmit: (payload, action) => callbackMode === 'false' ? false : action() });
   const restore = form.restoreProposal;
   useEffect(() => { restore({ type: 'createRole', name: 'A new role', time: 1, roleFormV2: initial }); }, [restore]);
   useEffect(() => {
     latest = ctx; proposalForm = form;
     submit = () => form.handleSubmit(null, { membershipAuthorityAddress: contracts.membershipAuthority }, { accessV2: { enabled: true,
-      roleCreation: { ...ctx, beginRoleSubmission: (...args) => {
-        const ticket = ctx.beginRoleSubmission(...args); capturedTicket = ticket;
+      roleCreation: { ...ctx, submitRole: options => ctx.submitRole({ ...options, onSaved: id => {
+        capturedTicket = { id, scope: roleContinuationScope({ chainId: 100, orgId, authority: contracts.membershipAuthority,
+          hybridVoting: contracts.hybridVoting, executor: contracts.executor, account, endpoint: live.po.subgraphUrl }) };
         if (scopeChangeAfterTicket) flushSync(() => { live.auth = { ...live.auth, accountAddress: contracts.executor }; root.render(<ProposalHarness />); });
-        return ticket;
-      } },
+        return options.onSaved?.(id);
+      } }) },
     } });
   }, [ctx, form]);
   return <RoleContinuationPanel ctx={ctx} onResume={next => restore({ type: 'createRole', name: 'A new role', time: 1, roleFormV2: next })} />;
 }
+
+it('keeps optional creation and configuration references separate and retains them after a failed status check', async () => {
+  const resolver = vi.fn().mockRejectedValueOnce(new Error('Still unconfirmed')).mockResolvedValue({ proof: { state: 'pending' } });
+  const ctx = { resolveContinuation: resolver, continuations: [{ id: 'detached', form: { name: 'Saved role' },
+    creation: { status: 'uncertain', submission: { kind: 'transaction' } },
+    configuration: { status: 'uncertain', submission: { kind: 'transaction' } } }] };
+  await render(<RoleContinuationPanel ctx={ctx} onResume={vi.fn()} />);
+  await act(async () => {
+    byId('role-reference-detached-creation').edit(hashOf('a'));
+    byId('role-reference-detached-configuration').edit(hashOf('b'));
+  });
+  await press('role-continuation-detached');
+  expect(resolver).toHaveBeenLastCalledWith('detached', { candidateTxHash: hashOf('a'), configurationTxHash: hashOf('b') });
+  await press('role-continuation-detached');
+  expect(resolver).toHaveBeenLastCalledWith('detached', { candidateTxHash: hashOf('a'), configurationTxHash: hashOf('b') });
+});
+describe('saved role actions in Votes', () => {
+  it.each([
+    ['pending creation', { status: 'pending' }, undefined, true],
+    ['submitted settings', { status: 'created' }, { status: 'pending' }, true],
+    ['completed settings', { status: 'created' }, { status: 'executed' }, true],
+    ['create-only pending', { status: 'pending' }, undefined, false],
+    ['create-only completed', { status: 'created' }, undefined, false],
+  ])('leaves %s to vote cards, retains the saved record and never opens a form', async (_name, creation, configuration, requiresConfiguration) => {
+    const row = { id: 'saved', form: { name: 'Builders' }, creation, configuration, requiresConfiguration };
+    const before = structuredClone(row), resume = vi.fn();
+    const resolveContinuation = vi.fn(async () => ({ ...row, proof: { state: creation.status } }));
+    const ctx = { continuations: [row], resolveContinuation };
+    await render(<RoleContinuationPanel ctx={ctx} onResume={resume} />);
+    expect(byId('role-continuations')).toBeUndefined(); expect(resume).not.toHaveBeenCalled(); expect(row).toEqual(before);
+    const calls = resolveContinuation.mock.calls.length;
+    await render(<RoleContinuationPanel ctx={{ ...ctx }} onResume={resume} />);
+    expect(resolveContinuation).toHaveBeenCalledTimes(calls); // Saving/read rerenders are not a polling loop.
+  });
+
+  it.each([
+    ['draft', undefined, undefined, 'Review saved draft'],
+    ['ready setup', { status: 'created' }, undefined, 'Continue role setup'],
+    ['failed settings', { status: 'created' }, { status: 'failed' }, 'Continue role setup'],
+    ['rejected settings', { status: 'created' }, { status: 'rejected' }, 'Continue role setup'],
+    ['uncertain creation', { status: 'uncertain' }, undefined, 'Check saved vote'],
+    ['interrupted creation', { status: 'submitting' }, undefined, 'Check saved vote'],
+    ['uncertain settings', { status: 'created' }, { status: 'uncertain' }, 'Check saved vote'],
+    ['interrupted settings', { status: 'created' }, { status: 'submitting' }, 'Check saved vote'],
+  ])('keeps the %s action discoverable without opening or submitting anything', async (_name, creation, configuration, label) => {
+    const ctx = { continuations: [{ id: 'saved', form: { name: 'Builders' }, creation, configuration }], resolveContinuation: vi.fn() };
+    const resume = vi.fn(); await render(<RoleContinuationPanel ctx={ctx} onResume={resume} />);
+    expect(byId('role-continuation-saved').textContent).toBe(label);
+    expect(ctx.resolveContinuation).not.toHaveBeenCalled(); expect(resume).not.toHaveBeenCalled();
+  });
+
+  it('keeps a recovery action when a saved pending vote cannot be verified, without repeatedly reading it', async () => {
+    const row = { id: 'saved', form: { name: 'Builders' }, creation: { status: 'pending' } };
+    const ctx = { continuations: [row], resolveContinuation: vi.fn().mockRejectedValue(new Error('Status unavailable')) };
+    const resume = vi.fn(); await render(<RoleContinuationPanel ctx={ctx} onResume={resume} />);
+    expect(byId('role-continuation-saved').textContent).toBe('Check saved vote');
+    expect(container.textContent).toContain('Status unavailable');
+    await render(<RoleContinuationPanel ctx={{ ...ctx }} onResume={resume} />);
+    expect(ctx.resolveContinuation).toHaveBeenCalledOnce(); expect(resume).not.toHaveBeenCalled();
+    ctx.resolveContinuation.mockResolvedValue({ ...row, proof: { state: 'pending' } });
+    await press('role-continuation-saved');
+    expect(byId('role-continuations')).toBeUndefined(); expect(ctx.resolveContinuation).toHaveBeenCalledTimes(2);
+  });
+
+  it('coalesces rapid recovery clicks and only resumes once', async () => {
+    let release;
+    const row = { id: 'saved', form: { name: 'Builders' }, creation: { status: 'created' } };
+    const ctx = { continuations: [row], resolveContinuation: vi.fn(() => new Promise(resolve => { release = resolve; })) };
+    const resume = vi.fn(); await render(<RoleContinuationPanel ctx={ctx} onResume={resume} />);
+    let checks;
+    await act(async () => { const button = byId('role-continuation-saved'); checks = Promise.all([button.press(), button.press()]); });
+    expect(ctx.resolveContinuation).toHaveBeenCalledOnce(); expect(resume).not.toHaveBeenCalled();
+    await act(async () => { release({ ...row, proof: { state: 'created' } }); await checks; });
+    expect(resume).toHaveBeenCalledOnce(); expect(resume).toHaveBeenCalledWith({ name: 'Builders', continuationId: 'saved' });
+  });
+
+  it.each([
+    ['another voting contract', { status: 'pending', proposalId: '7' }, undefined, true, `${contracts.executor}-7`],
+    ['another proposal', { status: 'pending', proposalId: '8' }, undefined, true, `${contracts.hybridVoting}-7`],
+    ['completed create-only vote', { status: 'pending', proposalId: '7' }, undefined, false, `${contracts.hybridVoting}-7`],
+    ['completed settings vote', { status: 'created' }, { status: 'pending', proposalId: '7' }, true, `${contracts.hybridVoting}-7`],
+  ])('does not turn %s into a redundant action', async (_name, creation, configuration, requiresConfiguration, id) => {
+    const row = { id: 'saved', form: { name: 'Builders' }, scope: { hybridVoting: contracts.hybridVoting }, creation, configuration, requiresConfiguration };
+    const ctx = { continuations: [row], resolveContinuation: vi.fn(async () => ({ ...row, proof: { state: creation.status } })) };
+    const resume = vi.fn();
+    await render(<RoleContinuationPanel ctx={ctx} completedVotes={[{ id, status: 'Executed', isValid: true }]} onResume={resume} />);
+    expect(byId('role-continuations')).toBeUndefined(); expect(resume).not.toHaveBeenCalled();
+  });
+
+  it.each(['success', 'failure'])('discards a delayed %s from the previous account or organization, including its candidate references', async outcome => {
+    let release;
+    const resolver = vi.fn(() => new Promise((resolve, reject) => { release = outcome === 'success' ? resolve : reject; }));
+    const row = { id: 'saved', form: { name: 'Builders' }, creation: { status: 'uncertain', submission: { kind: 'transaction' } } };
+    const resume = vi.fn(), ctx = { continuations: [row], resolveContinuation: resolver };
+    await render(<RoleContinuationPanel ctx={ctx} onResume={resume} />);
+    await act(async () => { byId('role-reference-saved-creation').edit(hashOf('a')); });
+    let pendingCheck;
+    await act(async () => { pendingCheck = byId('role-continuation-saved').press(); await flush(); });
+    const nextResolver = vi.fn().mockRejectedValue(new Error('Current account still unconfirmed'));
+    await render(<RoleContinuationPanel ctx={{ ...ctx, resolveContinuation: nextResolver }} onResume={resume} />);
+    expect(byId('role-reference-saved-creation').value).toBe('');
+    await act(async () => {
+      release(outcome === 'success' ? { ...row, proof: { state: 'created' } } : new Error('Old account failure'));
+      await pendingCheck;
+    });
+    expect(resume).not.toHaveBeenCalled(); expect(container.textContent).not.toContain('Old account failure');
+    await press('role-continuation-saved');
+    expect(nextResolver).toHaveBeenLastCalledWith('saved', { candidateTxHash: undefined, configurationTxHash: undefined });
+    expect(container.textContent).toContain('Current account still unconfirmed');
+  });
+});
+
 function newProposal(contract, method, args) {
   const id = String(nextId++), transactionHash = hashOf(nextId.toString(16));
   const data = contract.interface.encodeFunctionData(method, args);
   const parsed = contract.interface.parseTransaction({ data });
   txs[transactionHash] = { hash: transactionHash, to: contracts.hybridVoting, from: account, chainId: 100, nonce: String(Number(id) - 7),
     blockNumber: 100, blockHash: oldHash, data, value: constants.Zero };
-  const event = interfaces.hybridVoting.encodeEventLog(interfaces.hybridVoting.getEvent('NewProposal'),
-    [id, parsed.args.title, parsed.args.descriptionHash, 2, 1600, 900]);
+  const restricted = parsed.args.hatIds.length > 0;
+  const event = interfaces.hybridVoting.encodeEventLog(interfaces.hybridVoting.getEvent(restricted ? 'NewHatProposal' : 'NewProposal'),
+    [id, parsed.args.title, parsed.args.descriptionHash, 2, 1600, 900, ...(restricted ? [parsed.args.hatIds] : [])]);
   const receipt = { status: 1, transactionHash, blockNumber: 100, blockHash: oldHash,
     logs: [{ ...event, address: contracts.hybridVoting, transactionHash, blockNumber: 100, blockHash: oldHash, removed: false }] };
   receipts[transactionHash] = receipt;
@@ -158,7 +277,7 @@ function newProposal(contract, method, args) {
     hybridVoting: { id: contracts.hybridVoting, organization: { id: orgId } } });
   return receipt;
 }
-async function executeCreation() {
+async function executeCreation(refresh = true) {
   const row = queryRows[0], creation = interfaces.membershipAuthority.parseTransaction({ data: lastPayload.batches[0][0].data });
   const kind = creation.name === 'createGroup' ? 'Group' : 'Role';
   createdId = composeSubjectId(contracts.membershipAuthority, '19'); // Deliberately different from any predicted next ID.
@@ -178,6 +297,7 @@ async function executeCreation() {
   Object.assign(row, { wasExecuted: true, isValid: true, winningOption: '0', status: 'Executed',
     batchExecutions: [{ proposalId: row.proposalId, callCount: '1', transactionHash, executedAtBlock: '110', executor: { id: contracts.executor } }] });
   advanceIndexedHead();
+  if (refresh) await render(); // The Votes feed observes the execution and refreshes saved pending state.
 }
 function executeConfiguration(state = 'executed') {
   const row = queryRows[1];
@@ -198,19 +318,39 @@ function executeConfiguration(state = 'executed') {
     batchExecutions: [{ proposalId: row.proposalId, callCount: String(batch.length), transactionHash, executedAtBlock: '110', executor: { id: contracts.executor } }] });
   advanceIndexedHead();
 }
+
+// Reproduce a shared authority read that remains fresh but is pinned before the
+// completed feed. Keep installed core status/proof resolution real at both pins.
+async function laggingAuthorityRead() {
+  const authority = structuredClone(await live.authorityObservation.refetch());
+  const block = structuredClone(f.indexedResponse._meta.block);
+  const response = structuredClone({ ...f.indexedResponse, proposals: queryRows });
+  const data = structuredClone(f.input.snapshot.data);
+  const query = live.query.getMockImplementation();
+  live.query.mockImplementation((document, variables) => {
+    if (variables?.block?.hash === block.hash || String(variables?.block?.number) === String(block.number)) {
+      const pinned = { ...response, proposals: response.proposals.filter(row => row.id === variables.id) };
+      return selectedResponse(document, authorityResponse(pinned, data, variables));
+    }
+    return query(document, variables);
+  });
+  const getBlock = f.provider.getBlock.getMockImplementation();
+  f.provider.getBlock.mockImplementation(tag => tag === block.hash || Number(tag) === block.number ? block : getBlock(tag));
+  return authority;
+}
 beforeEach(() => {
   options = { subjects: [{ subjectId: roleId, kind: 'Role', name: 'Members', maxMembers: '0', memberCount: '1' },
     { subjectId: groupId, kind: 'Group', name: 'Team', maxMembers: '0', memberCount: '0' }], emailRoot: constants.HashZero,
     accountAcceptance: address => address.toLowerCase() === account };
   f = fixture(options); stored = new Map(); txs = {}; receipts = {}; queryRows = []; writes = vi.fn(); nextId = 7; uncertainty = false;
   callbackMode = null; retainFailure = false; queryFailure = false; lostAck = false; submissionFailure = null; latePageFailure = false; recoveryAvailable = true;
-  scopeChangeAfterTicket = false; capturedTicket = null; live.toast = vi.fn();
+  scopeChangeAfterTicket = false; capturedTicket = null; proposalExtras = {}; live.toast = vi.fn();
   f.provider.getTransaction = vi.fn(async hash => txs[hash]); f.provider.getTransactionReceipt = vi.fn(async hash => receipts[hash]);
   f.provider.getBlock.mockImplementation(async tag => tag === '0x64' ? { number: 100, hash: oldHash, timestamp: 900 }
     : tag === '0x6e' ? { number: 110, hash: execHash, timestamp: 950 } : { ...f.indexedResponse._meta.block });
   const query = vi.fn(async (document, variables) => {
     if (queryFailure && (queryFailure === true || queryFailure === variables.id) && /RoleContinuation/.test(document)) throw new Error('Indexed status unavailable');
-    if (/FetchHybridProposalsPage|RecoverSubjectCreation/.test(document)) throw new Error('UNRELATED_HISTORY_FORBIDDEN');
+    if (initial?.creationMode !== 'compound' && /FetchHybridProposalsPage|RecoverSubjectCreation/.test(document)) throw new Error('UNRELATED_HISTORY_FORBIDDEN');
     const response = { ...f.indexedResponse, proposals: queryRows.filter(row => row.id === variables.id) };
     return selectedResponse(document, authorityResponse(response, f.input.snapshot.data, variables));
   });
@@ -226,27 +366,19 @@ beforeEach(() => {
   // Only transport is mocked; role continuation/planning/proof remain installed core.
   journal = createSubmissionJournal({ accountAddress: account, chainId: 100, entryPoint: ENTRY_POINT_ADDRESS,
     context: { orgId }, storage: transportStorage, locks: fakeBrowserLocks() });
-  const txManager = { execute: vi.fn(async (contract, method, args, executionOptions) => {
-    const release = await journal.acquire();
-    try {
+  const txManager = { accountAddress: account, chainId: 100, execute: vi.fn(async (contract, method, args, executionOptions) => {
       const intentKey = roleSubmissionIntent(contract, method, args, executionOptions);
-      journal.begin(intentKey); journal.signing();
-      if (submissionFailure === 'pre-send') return { success: false, error: { category: 'user_rejected' } };
+      journal.signing();
+      if (submissionFailure === 'pre-send') return { success: false, submissionState: 'not-submitted', error: { category: 'user_rejected' } };
+      await executionOptions.beforeSend?.();
       writes(); const receipt = newProposal(contract, method, args);
-      let saved = journal.write({ kind: 'transaction', phase: 'submitting', chainId: 100,
+      let saved = await txManager.recordSubmission({ kind: 'transaction', phase: 'submitting', chainId: 100,
         nonce: txs[receipt.transactionHash].nonce, callKey: intentKey, fromBlock: '100' });
-      if (!lostAck) saved = journal.write({ ...saved, phase: 'submitted', txHash: receipt.transactionHash });
-      txManager.lastSubmission = saved;
+      if (!lostAck) saved = await txManager.recordSubmission({ ...saved, phase: 'submitted', txHash: receipt.transactionHash });
       if (submissionFailure === 'revert') { receipt.status = 0; receipt.logs = []; queryRows.pop(); }
       if (uncertainty) return { success: false, error: { category: 'submission_unknown', submission: saved } };
-      expect(journal.clear(saved)).toBe(true);
-      return { success: true, receipt, txHash: receipt.transactionHash };
-    } finally { journal.abandonUnsent(); await release(); }
-  }), getPendingSubmission: vi.fn(() => journal.read()),
-  reconcileSubmission: vi.fn(async submission => {
-    const result = await reconcileUserOperationSubmission(submission || journal.read(), null, txManager.publicClient);
-    if (result.outcome.status !== 'unknown') await clearRecoveredSubmission(journal, submission, () => {});
-    return result;
+      await txManager.settleSubmission(saved, { receipt, outcome: { status: receipt.status === 0 ? 'failed' : 'succeeded' } });
+      return { success: receipt.status !== 0, receipt, txHash: receipt.transactionHash };
   }), publicClient: {
     getChainId: vi.fn(async () => 100),
     getTransactionReceipt: vi.fn(async ({ hash }) => recoveryAvailable ? receipts[hash] : null),
@@ -257,9 +389,16 @@ beforeEach(() => {
       ...(includeTransactions ? { transactions: Object.values(txs).filter(tx => BigInt(tx.blockNumber) === blockNumber).map(tx => ({ ...tx, value: String(tx.value) })) } : {}),
     })),
   } };
+  txManager.transportExecute = txManager.execute;
+  installManagerLifecycle(txManager, { submissionJournal: journal, direct: true });
+  vi.spyOn(txManager, 'execute'); vi.spyOn(txManager, 'reconcileSubmission'); vi.spyOn(txManager, 'getPendingSubmission');
   live.services = { roleCreation: new RoleCreationService(f.input.readFactory),
     zkEmailInvites: new ZkEmailInvitesService(f.input.readFactory, txManager),
-    voting: guardService(new VotingService(f.input.readFactory, txManager, live.ipfs), () => {}), txManager };
+    voting: new VotingService(f.input.readFactory, txManager, live.ipfs), txManager };
+  const createProposal = live.services.voting.createHybridProposal.bind(live.services.voting);
+  live.services.voting.createHybridProposal = vi.fn((address, proposal, options) => {
+    lastPayload = proposal; return createProposal(address, proposal, options);
+  });
   live.auth = { accountAddress: account, isAuthHydrated: true, isAuthenticated: true };
   live.po = { orgId, orgChainId: 100, subgraphUrl: f.input.snapshot.source.endpoint, treasuryContractAddress: contracts.executor,
     votingContractAddress: contracts.hybridVoting, taskManagerContractAddress: contracts.taskManager, zkEmailInvitesAddress: contracts.email };
@@ -279,11 +418,28 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => { root.unmount(); await flush(); }); expect(fetch).not.toHaveBeenCalled(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('mounted actual role/group staged lifecycle with real installed core and services', () => {
+  it.each(['role', 'proposal'])('retains an uncertain %s publication through reload without another upload or send', async document => {
+    if (document === 'role') initial.description = 'Exact requested metadata';
+    live.ipfs.addToIpfs.mockRejectedValueOnce(new Error('Upload response lost'));
+    await render(); await act(async () => { expect(await submit()).toBe(false); await flush(); });
+    const row = latest.continuations[0];
+    expect(row.version).toBe(3); expect(row.creation).toBeUndefined();
+    expect(row.publications).toHaveLength(1); expect(row.publications[0]).toMatchObject({ status: 'unknown' });
+    expect(row.publications[0].json).toContain(document === 'role' ? 'Exact requested metadata' : 'Reviewed changes');
+    expect(writes).not.toHaveBeenCalled(); expect(live.ipfs.addToIpfs).toHaveBeenCalledOnce();
+    await render(null); await render(); await press(`role-continuation-${row.id}`);
+    expect(formValue).toMatchObject(row.originalForm);
+    await act(async () => { expect(await submit()).toBe(false); await flush(); });
+    expect(live.ipfs.addToIpfs).toHaveBeenCalledOnce(); expect(writes).not.toHaveBeenCalled();
+    expect(latest.continuations[0].publications).toEqual(row.publications);
+  });
+
   it.each(['role', 'group'])('reviews a simple %s as one create call with bounded reads and no history or optional module gates', async kind => {
     initial.kind = kind; await render();
     await vi.waitFor(async () => { await act(flush); expect(byId('submit-vote').disabled).toBe(false); });
     expect(container.textContent).not.toContain('could not be verified');
-    let built; await act(async () => { built = await latest.prepareReviewedRole(formValue); });
+    expect(latest.continuations).toEqual([]);
+    let built; await act(async () => { built = await prepareForAssertion(formValue); });
     expect(built.stage).toBe('create'); expect(built.requiresConfiguration).toBe(false); expect(built.batch).toHaveLength(1);
     expect(built.predictedSubjectId).toBeNull();
     expect(built.plan.data.evidence.context.coverage.expectedKeys).toEqual(['module-bindings', 'authority:executor', 'authority:orgId', 'canonical:after']);
@@ -291,8 +447,20 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     // still requests only creation proof and never subject/holder/history work.
     expect(f.calls.some(call => ['getSubject', 'userSubjects', 'getStatus', 'subjectCount'].includes(call.method))).toBe(false);
     expect(live.query.mock.calls.every(([doc]) => !/ProposalsPage|RecoverSubjectCreation/.test(doc))).toBe(true);
-    expect(writes).not.toHaveBeenCalled(); expect(latest.continuations).toEqual([]);
+    expect(writes).not.toHaveBeenCalled(); expect(latest.continuations[0].creation).toBeUndefined();
   });
+  it.each(['role', 'group'])('keeps a create-only %s in vote cards through completion and reload', async kind => {
+    initial.kind = kind; await render();
+    await act(async () => { expect(await submit()).toBe(true); await flush(); });
+    expect(byId('role-continuations')).toBeUndefined(); expect(writes).toHaveBeenCalledOnce();
+    await executeCreation();
+    expect(latest.continuations[0]).toMatchObject({ requiresConfiguration: false, creation: { status: 'created' } });
+    expect(byId('role-continuations')).toBeUndefined();
+    await render(null); await render();
+    expect(byId('role-continuations')).toBeUndefined(); expect(latest.continuations).toHaveLength(1);
+    expect(writes).toHaveBeenCalledOnce();
+  });
+
   it.each(['role', 'group'])('persists configured %s pending, reopens, matches actual event, and submits original choices only after a second review', async kind => {
     initial = { ...initial, kind, description: 'Keep these details', imageURI: 'https://image.invalid/role.png', perms: { DD_VOTE: true },
       groupIds: kind === 'role' ? [groupId] : [], memberRoleIds: kind === 'group' ? [roleId] : [],
@@ -303,13 +471,15 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     await act(async () => { expect(await submit()).toBe(true); await flush(); });
     expect(writes).toHaveBeenCalledTimes(1); expect(lastPayload.createsSubject).toBe(true); expect(lastPayload.batches[0]).toHaveLength(1);
     const row = latest.continuations[0]; expect(row.form.description).toBe(initial.description); expect(row.creation.proposalId).toBe('7');
-    expect(container.textContent).toContain('Finish configuration: Builders');
+    expect(byId('role-continuations')).toBeUndefined();
     await render(null); await render();
-    await press(`role-continuation-${row.id}`); expect(container.textContent).toContain('Waiting for the creation vote'); expect(writes).toHaveBeenCalledTimes(1);
-    await executeCreation(); await press(`role-continuation-${row.id}`);
+    expect(byId('role-continuations')).toBeUndefined(); expect(writes).toHaveBeenCalledTimes(1);
+    await executeCreation();
+    expect(container.textContent).toContain('Continue role setup'); expect(container.textContent).not.toContain('Step 2 of 2');
+    await press(`role-continuation-${row.id}`);
     expect(container.textContent).toContain('Step 2 of 2'); expect(formValue.description).toBe(initial.description);
     expect(formValue.perms).toEqual(initial.perms); expect(writes).toHaveBeenCalledTimes(1);
-    let built; await act(async () => { built = await latest.prepareReviewedRole(formValue); });
+    let built; await act(async () => { built = await prepareForAssertion(formValue); });
     expect(built.plan.status).toBe('ready'); expect(built.stage).toBe('existing'); expect(built.subjectId).toBe(createdId); expect(built.createsSubject).toBe(false);
     const calls = built.batch.filter(call => call.target === contracts.membershipAuthority).map(call => interfaces.membershipAuthority.parseTransaction({ data: call.data }));
     expect(calls[0].name).toBe('renameSubject'); expect(calls[0].args[0].toString()).toBe(createdId); expect(calls[0].args[2]).not.toBe(constants.HashZero);
@@ -321,19 +491,49 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     expect(latest.continuations[0].configuration.proposalId).toBe('8');
     expect(latest.continuations[0].creation.submission.recovery.attemptId).not.toBe(latest.continuations[0].configuration.submission.recovery.attemptId);
     expect(latest.continuations[0].creation.expectedIntentKey).not.toBe(latest.continuations[0].configuration.expectedIntentKey);
-    await press(`role-continuation-${row.id}`); expect(writes).toHaveBeenCalledTimes(2); expect(container.textContent).toContain('already submitted');
+    expect(byId('role-continuations')).toBeUndefined(); expect(writes).toHaveBeenCalledTimes(2);
+  });
+  it.each([
+    [{}, 'Shares'], [{ useTokenSymbol: false, symbol: 'Ignored' }, 'Shares'],
+    [{ useTokenSymbol: true, symbol: 'pOa' }, 'pOa'], [{ useTokenSymbol: true, symbol: '  ' }, 'Shares'],
+  ])('preserves proposal presentation and configured ownership label %s through the one-call workflow', async (settings, label) => {
+    live.po.tokenLabel = resolveTokenLabel(settings); initial.perms = { PT_APPROVE: true };
+    proposalExtras = { isRestricted: true, restrictedHatIds: [roleId], extensions: { future: { note: 'Keep this metadata' } } };
+    await render(); await act(async () => { expect(await submit()).toBe(true); await flush(); });
+    expect(lastPayload.optionNames).toEqual(['Create role', 'Reject']);
+    const row = latest.continuations[0]; await executeCreation(); await press(`role-continuation-${row.id}`);
+    const checked = await latest.resolveContinuation(row.id);
+    expect(checked.proof.state).toBe('created');
+    await act(async () => { expect(await submit()).toBe(true); await flush(); });
+    expect(lastPayload.actionSummaries.join(' ')).toContain(`${label} requests`);
+    expect(lastPayload.hatIds).toEqual([roleId]); expect(lastPayload.extensions).toEqual(proposalExtras.extensions);
+    expect(lastPayload.optionNames).toEqual(['Apply settings', 'Reject']);
+    const call = txs[queryRows[1].transactionHash];
+    const decoded = interfaces.hybridVoting.parseTransaction({ data: call.data });
+    expect(decoded.args.hatIds.map(String)).toEqual([roleId]);
+    const document = await live.ipfs.fetchFromIpfs(bytes32ToCidV0(decoded.args.descriptionHash));
+    expect(document.optionNames).toEqual(lastPayload.optionNames); expect(document.extensions).toEqual(proposalExtras.extensions);
+  });
+  it('retains explicitly selected compound creation with core-validated settings and no staged continuation', async () => {
+    initial.creationMode = 'compound'; initial.perms = { DD_VOTE: true };
+    await render();
+    await latest.reviewRoleConfiguration(formValue);
+    await act(async () => { expect(await submit()).toBe(true); await flush(); });
+    expect(writes).toHaveBeenCalledOnce(); expect(latest.continuations).toEqual([]);
+    const calls = lastPayload.batches[0].map(call => interfaces.membershipAuthority.parseTransaction({ data: call.data }));
+    expect(calls[0].name).toBe('createRole'); expect(calls.some(call => call.name === 'setPerm')).toBe(true);
+    expect(lastPayload.actionSummaries.join(' ')).toContain('Another role or group creation');
   });
   it.each(['failed', 'rejected', 'executed'])('reconciles the separate configuration vote as %s without recreating its subject', async outcome => {
     initial.perms = { DD_VOTE: true }; await render(); await act(async () => { await submit(); await flush(); });
     const row = latest.continuations[0]; await executeCreation(); await press(`role-continuation-${row.id}`);
     await act(async () => { expect(await submit()).toBe(true); await flush(); });
-    expect(writes).toHaveBeenCalledTimes(2); executeConfiguration(outcome);
-    await press(`role-continuation-${row.id}`);
+    expect(writes).toHaveBeenCalledTimes(2); executeConfiguration(outcome); await render();
     if (outcome === 'executed') {
-      expect(container.textContent).toContain('passed and ran successfully');
-      await press(`role-continuation-${row.id}`); expect(writes).toHaveBeenCalledTimes(2);
+      expect(byId('role-continuations')).toBeUndefined(); expect(writes).toHaveBeenCalledTimes(2);
       await act(async () => { expect(await submit()).toBe(false); await flush(); }); expect(writes).toHaveBeenCalledTimes(2);
     } else {
+      await press(`role-continuation-${row.id}`);
       expect(container.textContent).toContain('Step 2 of 2');
       expect(container.textContent).toContain(outcome === 'failed' ? 'did not run successfully' : 'was not approved');
       expect(container.textContent).not.toContain('was not submitted');
@@ -343,10 +543,54 @@ describe('mounted actual role/group staged lifecycle with real installed core an
       expect(latest.continuations[0].configurationHistory).toHaveLength(1);
     }
   });
+  it.each(['creation', 'failed settings', 'rejected settings'])('keeps %s reachable when a completed feed outruns a still-fresh authority observation', async stage => {
+    initial.perms = { DD_VOTE: true }; await render();
+    await act(async () => { expect(await submit()).toBe(true); await flush(); });
+    const id = latest.continuations[0].id;
+    const field = stage === 'creation' ? 'creation' : 'configuration';
+    if (field === 'configuration') {
+      await executeCreation(); await press(`role-continuation-${id}`);
+      await act(async () => { expect(await submit()).toBe(true); await flush(); });
+    }
+    const submissionCount = writes.mock.calls.length;
+    const oldAuthority = await laggingAuthorityRead();
+    const status = vi.spyOn(live.services.roleCreation.roleOperationHost, 'status');
+    if (field === 'creation') await executeCreation(false);
+    else {
+      executeConfiguration(stage === 'failed settings' ? 'failed' : 'rejected');
+      if (stage === 'rejected settings') Object.assign(queryRows[1], { status: 'Completed', isValid: true }); // Valid vote, rejection wins.
+    }
+    live.authorityObservation.refetch.mockResolvedValueOnce(oldAuthority);
+    await render();
+    expect(latest.continuations[0][field].status).toBe('pending');
+    const observed = await status.mock.results.at(-1).value;
+    expect(observed).toMatchObject({ status: 'ready', data: { [field]: { state: 'pending' } } });
+    const afterAutomatic = live.authorityObservation.refetch.mock.calls.length;
+    await render(); await render();
+    expect(live.authorityObservation.refetch).toHaveBeenCalledTimes(afterAutomatic);
+    expect(byId(`role-continuation-${id}`).textContent).toBe('Check saved vote');
+    expect(container.textContent).not.toContain('Step 2 of 2');
+
+    // Even a user click cannot open the form using the feed hint alone.
+    live.authorityObservation.refetch.mockResolvedValueOnce(oldAuthority);
+    await press(`role-continuation-${id}`);
+    expect(latest.continuations[0][field].status).toBe('pending');
+    expect(byId(`role-continuation-${id}`)).toBeDefined();
+    expect(container.textContent).not.toContain('Step 2 of 2');
+    expect(writes).toHaveBeenCalledTimes(submissionCount);
+
+    // The next explicit check gets current exact proof and restores saved settings.
+    await press(`role-continuation-${id}`);
+    expect(latest.continuations[0][field].status).toBe(field === 'creation' ? 'created' : stage === 'failed settings' ? 'failed' : 'rejected');
+    expect(container.textContent).toContain('Step 2 of 2');
+    expect(formValue).toMatchObject({ continuationId: id, name: initial.name, perms: { DD_VOTE: true } });
+    expect(writes).toHaveBeenCalledTimes(submissionCount);
+  });
   it.each(['failed', 'rejected'])('retains a %s creation and requires an explicit new review for another creation vote', async outcome => {
     initial.perms = { DD_VOTE: true }; await render(); await act(async () => { await submit(); await flush(); });
     const row = latest.continuations[0];
     if (outcome === 'failed') queryRows[0].executionFailed = true; else queryRows[0].isValid = false;
+    advanceIndexedHead(); await render();
     await press(`role-continuation-${row.id}`); expect(writes).toHaveBeenCalledTimes(1);
     expect(byId(`role-continuation-restart-${row.id}`)).toBeDefined();
     await press(`role-continuation-restart-${row.id}`); expect(formValue.continuationId).toBeUndefined();
@@ -354,8 +598,8 @@ describe('mounted actual role/group staged lifecycle with real installed core an
   });
   it('requires fresh retry after an unavailable execution receipt and suppresses late work after close', async () => {
     initial.perms = { DD_VOTE: true }; await render(); await act(async () => { await submit(); await flush(); });
-    const row = latest.continuations[0]; await executeCreation();
-    const receipt = receipts[hashOf('d')]; delete receipts[hashOf('d')];
+    const row = latest.continuations[0]; await executeCreation(false);
+    const receipt = receipts[hashOf('d')]; delete receipts[hashOf('d')]; await render();
     await press(`role-continuation-${row.id}`); expect(container.textContent).not.toContain('Step 2 of 2');
     receipts[hashOf('d')] = receipt; await press(`role-continuation-${row.id}`);
     expect(container.textContent).toContain('Step 2 of 2');
@@ -367,7 +611,7 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     const row = latest.continuations[0]; expect(row.originalForm.description).toBe('Original details');
     await executeCreation(); await press(`role-continuation-${row.id}`);
     await update({ description: '' });
-    let built; await act(async () => { built = await latest.prepareReviewedRole(formValue); });
+    let built; await act(async () => { built = await prepareForAssertion(formValue); });
     expect(built.submittable.ok).toBe(true);
     const rename = interfaces.membershipAuthority.parseTransaction({ data: built.batch[0].data });
     expect(rename.name).toBe('renameSubject'); expect(rename.args[2]).toBe(constants.HashZero);
@@ -381,7 +625,7 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     const row = latest.continuations[0]; expect(row.form.emailInvites).toEqual(initial.emailInvites);
     expect(live.ipfs.addToIpfs.mock.calls.every(([json]) => !json.includes('person@example.org'))).toBe(true);
     await executeCreation(); await press(`role-continuation-${row.id}`);
-    let built; await act(async () => { built = await latest.prepareReviewedRole(formValue); });
+    let built; await act(async () => { built = await prepareForAssertion(formValue); });
     expect(built.plan.status).toBe('ready');
     const calls = built.batch.map(call => {
       const key = Object.keys(contracts).find(key => contracts[key] === call.target); return { key, parsed: interfaces[key].parseTransaction({ data: call.data }) };
@@ -396,7 +640,8 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     await render(); await act(async () => { expect(await submit()).toBe(false); await flush(); });
     const row = latest.continuations[0]; expect(['uncertain', 'pending']).toContain(row.creation.status); expect(formValue.continuationId).toBe(row.id);
     await act(async () => { expect(await submit()).toBe(false); await flush(); }); expect(writes).toHaveBeenCalledTimes(1);
-    await render(null); await render(); await press(`role-continuation-${row.id}`);
+    await render(null); await render();
+    expect(byId('role-continuations')).toBeUndefined();
     expect(live.services.txManager.reconcileSubmission).toHaveBeenCalled(); expect(writes).toHaveBeenCalledTimes(1);
     await executeCreation(); uncertainty = false; await press(`role-continuation-${row.id}`);
     expect(container.textContent).toContain('Step 2 of 2'); expect(writes).toHaveBeenCalledTimes(1);
@@ -432,7 +677,7 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     await press(`role-continuation-${row.id}`);
     expect(writes).toHaveBeenCalledTimes(expectedWrites);
     if (stage === 'creation') { await executeCreation(); await press(`role-continuation-${row.id}`); expect(container.textContent).toContain('Step 2 of 2'); }
-    else { executeConfiguration(); await press(`role-continuation-${row.id}`); expect(container.textContent).toContain('passed and ran successfully'); }
+    else { executeConfiguration(); await render(); expect(byId('role-continuations')).toBeUndefined(); }
     expect(writes).toHaveBeenCalledTimes(expectedWrites);
   });
   it.each(['creation', 'configuration'])('recovers %s from its own recorded identity after another surface cleared the manager journal first', async stage => {
@@ -444,17 +689,18 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     await render(null); await render();
     await press(`role-continuation-${row.id}`);
     expect(latest.continuations[0][stage].transactionHash).toBe(recovered.receipt.transactionHash);
-    expect(live.services.txManager.reconcileSubmission).toHaveBeenCalledTimes(earlierChecks + 1);
+    expect(live.services.txManager.reconcileSubmission).toHaveBeenCalledTimes(earlierChecks + 2);
+    expect(live.services.txManager.reconcileSubmission.mock.calls.at(-1)[1]).toMatchObject({ detached: true });
     expect(writes).toHaveBeenCalledTimes(count);
   });
   it.each(['creation', 'configuration'])('survives %s teardown after actual journal removal but before reconciliation returns its receipt', async stage => {
     const row = await uncertainStage(stage), count = writes.mock.calls.length;
     let release, pending;
     const gate = new Promise(resolve => { release = resolve; });
-    const reconcile = live.services.txManager.reconcileSubmission.getMockImplementation();
+    const reconcile = live.services.txManager.submissionController.recover;
     live.services.txManager.reconcileSubmission.mockImplementationOnce(async submission => { const result = await reconcile(submission); await gate; return result; });
     await act(async () => { pending = latest.resolveContinuation(row.id).catch(error => error); await flush(); });
-    expect(journal.read()).toBeNull(); expect(latest.continuations[0][stage].transactionHash).toBeUndefined();
+    await vi.waitFor(() => expect(journal.read()).toBeNull()); expect(latest.continuations[0][stage].transactionHash).toBeUndefined();
     await render(null); await render(); await press(`role-continuation-${row.id}`);
     expect(latest.continuations[0][stage].transactionHash).toMatch(/^0x[\da-f]{64}$/);
     await act(async () => { release(); expect((await pending).name).toBe('AbortError'); await flush(); });
@@ -502,27 +748,29 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     initial.perms = { DD_VOTE: true }; callbackMode = mode; retainFailure = mode === 'retain-guard'; submissionFailure = mode === 'pre-send' ? mode : null;
     await render(); await act(async () => { expect(await submit()).toBe(false); await flush(); });
     expect(writes).not.toHaveBeenCalled(); expect(journal.read()).toBeNull();
-    const row = latest.continuations[0]; expect(row.creation.status).toBe('failed');
-    expect(container.textContent).toContain('not submitted successfully');
+    const row = latest.continuations[0];
+    if (row) { expect(row.creation.status).toBe('failed'); expect(container.textContent).toContain('not submitted successfully'); }
+    else expect(['false', 'scope-guard']).toContain(mode); // The workflow was never invoked.
     callbackMode = null; retainFailure = false; submissionFailure = null;
-    await press(`role-continuation-restart-${row.id}`);
+    if (row) await press(`role-continuation-restart-${row.id}`);
+    else await act(async () => { await latest.reviewRoleConfiguration(formValue); });
     await act(async () => { expect(await submit()).toBe(true); await flush(); });
-    expect(writes).toHaveBeenCalledOnce(); expect(latest.continuations).toHaveLength(2);
+    expect(writes).toHaveBeenCalledOnce(); expect(latest.continuations).toHaveLength(row ? 2 : 1);
   });
-  it('retains an unclassified callback exception as uncertain even when there is no shared journal', async () => {
+  it('retains the form when its notification callback throws before invoking the role action', async () => {
     callbackMode = 'unknown-throw'; initial.perms = { DD_VOTE: true }; await render();
     await act(async () => { expect(await submit()).toBe(false); await flush(); });
-    expect(journal.read()).toBeNull(); expect(latest.continuations[0].creation.status).toBe('uncertain');
+    expect(journal.read()).toBeNull(); expect(latest.continuations).toEqual([]);
     expect(container.textContent).not.toContain('Review a new creation vote');
-    callbackMode = null; await act(async () => { expect(await submit()).toBe(false); await flush(); });
-    expect(writes).not.toHaveBeenCalled();
+    callbackMode = null; await act(async () => { await latest.reviewRoleConfiguration(formValue); expect(await submit()).toBe(true); await flush(); });
+    expect(writes).toHaveBeenCalledOnce();
   });
   it('reopens the same confirmed subject after a configuration pre-send refusal and explicitly retries its saved settings', async () => {
     initial.perms = { DD_VOTE: true }; await render(); await act(async () => { await submit(); await flush(); });
     const id = latest.continuations[0].id; await executeCreation(); await press(`role-continuation-${id}`);
     submissionFailure = 'pre-send'; await act(async () => { expect(await submit()).toBe(false); await flush(); });
     expect(latest.continuations[0].configuration).toMatchObject({ status: 'failed', transportOutcome: 'not-submitted' });
-    expect(container.textContent).toContain('configuration vote was not submitted successfully');
+    expect(container.textContent).toContain('settings vote was not submitted successfully');
     submissionFailure = null; await press(`role-continuation-${id}`);
     expect(container.textContent).toContain('Step 2 of 2');
     await act(async () => { expect(await submit()).toBe(true); await flush(); });
@@ -551,6 +799,8 @@ describe('mounted actual role/group staged lifecycle with real installed core an
       estimateGas: { createProposal: async () => utils.parseUnits('1', 5) }, createProposal: wallet };
     const factory = { createWritable: () => contract };
     live.services = { ...live.services, txManager: manager, voting: guardService(new VotingService(factory, manager, live.ipfs), () => {}) };
+    const actualCreate = live.services.voting.createHybridProposal.bind(live.services.voting);
+    live.services.voting = { createHybridProposal: (...args) => { lastPayload = args[1]; return actualCreate(...args); } };
     await render();
     await act(async () => { expect(await submit()).toBe(false); await flush(); });
     const row = latest.continuations.at(-1);
@@ -588,6 +838,8 @@ describe('mounted actual role/group staged lifecycle with real installed core an
       estimateGas: { createProposal: async () => utils.parseUnits('1', 5) }, createProposal: wallet };
     live.services = { ...live.services, txManager: manager,
       voting: guardService(new VotingService({ createWritable: () => contract }, guardService(manager, () => {}), live.ipfs), () => {}) };
+    const actualCreate = live.services.voting.createHybridProposal.bind(live.services.voting);
+    live.services.voting = { createHybridProposal: (...args) => { lastPayload = args[1]; return actualCreate(...args); } };
     await render();
     await act(async () => { expect(await submit()).toBe(false); await flush(); });
     const row = latest.continuations.at(-1);
@@ -607,7 +859,7 @@ describe('mounted actual role/group staged lifecycle with real installed core an
       await act(async () => { await submit(); await flush(); }); await executeCreation();
       await press(`role-continuation-${latest.continuations[0].id}`);
     }
-    const count = writes.mock.calls.length, calls = live.services.txManager.execute.mock.calls.length;
+    const count = writes.mock.calls.length, calls = live.services.txManager.transportExecute.mock.calls.length;
     const setItem = window.localStorage.setItem;
     let failed = false;
     window.localStorage.setItem = (key, value) => {
@@ -618,11 +870,13 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     };
     await act(async () => { expect(await submit()).toBe(false); await flush(); });
     expect(failed).toBe(true); expect(writes).toHaveBeenCalledTimes(count);
-    expect(live.services.txManager.execute).toHaveBeenCalledTimes(calls); expect(journal.read()).toBeNull();
-    const row = latest.continuations.at(-1); expect(row[stage]).toMatchObject({ status: 'failed', transportStarted: false, transportOutcome: 'not-submitted' });
+    expect(live.services.txManager.transportExecute).toHaveBeenCalledTimes(calls); expect(journal.read()).toBeNull();
+    const row = latest.continuations.at(-1);
+    if (stage === 'creation') { expect(row.creation).toBeUndefined(); expect(row.publications[0].status).toBe('published'); }
+    else expect(row.configuration).toBeUndefined();
     window.localStorage.setItem = setItem;
     await render(null); await render();
-    await press(`role-continuation-${stage === 'creation' ? 'restart-' : ''}${row.id}`);
+    if (row) await press(`role-continuation-${row.id}`);
     await act(async () => { expect(await submit()).toBe(true); await flush(); });
     expect(writes).toHaveBeenCalledTimes(count + 1); expect(lastPayload.createsSubject).toBe(stage === 'creation');
   });
@@ -631,18 +885,13 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     if (stage === 'configuration') {
       await act(async () => { await submit(); await flush(); }); await executeCreation(); await press(`role-continuation-${latest.continuations[0].id}`);
     }
-    live.services.txManager.execute.mockImplementationOnce(async (contract, method, args, executionOptions) => {
-      const release = await journal.acquire(), intentKey = roleSubmissionIntent(contract, method, args, executionOptions);
-      try {
-        for (const computedHash of [hashOf('a'), hashOf('f')]) {
-          journal.begin(intentKey); journal.signing();
-          const saved = journal.write({ phase: 'submitting', chainId: 100, entryPoint: ENTRY_POINT_ADDRESS,
-            sender: account, nonce: '123456789012345678901234', computedHash });
-          await executionOptions.onSubmitted({ ...saved, signature: 'SECRET_SIGNATURE', userOperation: { signature: 'SECRET_NESTED' } });
-          if (computedHash === hashOf('a')) expect(journal.clear(saved)).toBe(true); // Manager positively refused admission, then rebuilt.
-        }
-        return { success: false, error: { category: 'submission_unknown' } };
-      } finally { await release(); }
+    live.services.txManager.transportExecute.mockImplementationOnce(async (contract, method, args, executionOptions) => {
+      for (const computedHash of [hashOf('a'), hashOf('f')]) {
+        const saved = await live.services.txManager.recordSubmission({ phase: 'submitting', chainId: 100, entryPoint: ENTRY_POINT_ADDRESS,
+          sender: account, nonce: '123456789012345678901234', computedHash, signature: 'SECRET_SIGNATURE', userOperation: { signature: 'SECRET_NESTED' } });
+        if (computedHash === hashOf('a')) await live.services.txManager.settleSubmission(saved); // Definite admission refusal.
+      }
+      return { success: false, error: { category: 'submission_unknown' } };
     });
     await act(async () => { expect(await submit()).toBe(false); await flush(); });
     const row = latest.continuations[0]; expect(row[stage].status).toBe('uncertain');
@@ -657,7 +906,7 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     await act(async () => { expect(await submit()).toBe(false); await flush(); });
     expect(latest.continuations[0].creation).toMatchObject({ status: 'pending', transportOutcome: 'succeeded', proposalId: '7' });
     expect(journal.read()).toBeNull(); await render(null); await render();
-    await press(`role-continuation-${latest.continuations[0].id}`); expect(writes).toHaveBeenCalledOnce();
+    expect(byId('role-continuations')).toBeUndefined(); expect(writes).toHaveBeenCalledOnce();
   });
   it('uses the mounted proposal form guard to mark a ticket saved immediately before account change as proven unsubmitted', async () => {
     initial.perms = { DD_VOTE: true }; await render(<ProposalHarness />);
@@ -673,7 +922,7 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     callbackMode = 'false'; initial.perms = { DD_VOTE: true }; await render(<ProposalHarness />);
     await act(async () => { await latest.reviewRoleConfiguration(proposalForm.proposal.roleFormV2); });
     await act(async () => { expect(await submit()).toBe(false); await flush(); });
-    expect(writes).not.toHaveBeenCalled(); expect(latest.continuations[0].creation.status).toBe('failed');
+    expect(writes).not.toHaveBeenCalled(); expect(latest.continuations).toEqual([]);
     expect(proposalForm.proposal.roleFormV2.name).toBe(initial.name); expect(proposalForm.proposal.roleFormV2.perms).toEqual(initial.perms);
     expect(live.toast.mock.calls.some(([message]) => message.status === 'success')).toBe(false);
   });
@@ -683,13 +932,11 @@ describe('mounted actual role/group staged lifecycle with real installed core an
     await act(async () => { expect((await Promise.all([submit(), submit()])).sort()).toEqual([false, true]); await flush(); });
     expect(writes).toHaveBeenCalledOnce(); expect(latest.continuations).toHaveLength(1);
   });
-  it('locks duplicate submit and status clicks before React can rerender', async () => {
+  it('locks duplicate submit clicks before React can rerender', async () => {
     initial.perms = { DD_VOTE: true }; await render();
-    await act(async () => { const results = await Promise.all([submit(), submit()]); expect(results.sort()).toEqual([false, true]); await flush(); });
+    await act(async () => { const results = await Promise.all([submit(), submit()]); expect(results.sort()).toEqual([true, true]); await flush(); });
     expect(writes).toHaveBeenCalledOnce();
-    const button = byId(`role-continuation-${latest.continuations[0].id}`), oldCount = live.query.mock.calls.filter(([doc]) => /RoleContinuation/.test(doc)).length;
-    await act(async () => { await Promise.all([button.press(), button.press()]); await flush(); });
-    expect(live.query.mock.calls.filter(([doc]) => /RoleContinuation/.test(doc))).toHaveLength(oldCount + 1);
+    expect(byId('role-continuations')).toBeUndefined();
     expect(writes).toHaveBeenCalledOnce();
   });
   it.each(['account', 'chain', 'intent', 'organization', 'authority'])('never adopts a mismatched %s journal as this saved role operation', async mismatch => {
@@ -710,7 +957,7 @@ describe('mounted actual role/group staged lifecycle with real installed core an
   });
   it.each(['wrong account', 'wrong org', 'wrong event', 'wrong proposal', 'removed receipt', 'missing indexed subject'])('keeps %s evidence from authorizing a continuation', async mode => {
     initial.perms = { DD_VOTE: true }; await render(); await act(async () => { await submit(); await flush(); });
-    const row = latest.continuations[0]; await executeCreation();
+    const row = latest.continuations[0]; await executeCreation(false);
     if (mode === 'wrong account') { live.auth = { ...live.auth, accountAddress: contracts.executor }; await render(); expect(latest.continuations).toEqual([]); }
     else if (mode === 'wrong org') { live.po = { ...live.po, orgId: hashOf('f') }; await render(); expect(latest.continuations).toEqual([]); }
     else {
@@ -718,7 +965,7 @@ describe('mounted actual role/group staged lifecycle with real installed core an
       if (mode === 'wrong proposal') queryRows[0].batchExecutions[0].proposalId = '99';
       if (mode === 'removed receipt') receipts[hashOf('d')].logs[0].removed = true;
       if (mode === 'missing indexed subject') options.subjects.pop();
-      await press(`role-continuation-${row.id}`); expect(container.textContent).not.toContain('Step 2 of 2');
+      await render(); await press(`role-continuation-${row.id}`); expect(container.textContent).not.toContain('Step 2 of 2');
     }
     expect(writes).toHaveBeenCalledTimes(1);
   });
@@ -740,10 +987,10 @@ describe('mounted actual role/group staged lifecycle with real installed core an
   it('edits require a fresh second-stage review; malformed saved records and storage failure never permit a write', async () => {
     initial.perms = { DD_VOTE: true }; await render(); await act(async () => { await submit(); await flush(); });
     const row = latest.continuations[0]; await executeCreation(); await press(`role-continuation-${row.id}`);
-    const oldPrepare = latest.prepareReviewedRole;
+    const oldSubmit = latest.submitRole; const oldPrepare = form => oldSubmit({ form, proposal: {} });
     await expect(oldPrepare({ ...formValue, name: 'Unreviewed' })).rejects.toThrow();
     await update({ name: 'Reviewed edit' }); let built;
-    await act(async () => { built = await latest.prepareReviewedRole(formValue); }); expect(built.plan.status).toBe('ready');
+    await act(async () => { built = await prepareForAssertion(formValue); }); expect(built.plan.status).toBe('ready');
     const key = [...stored.keys()][0]; const data = JSON.parse(stored.get(key)); data[0].scope.account = contracts.executor; stored.set(key, JSON.stringify(data));
     await expect(latest.resolveContinuation(row.id)).rejects.toThrow('unavailable'); expect(writes).toHaveBeenCalledTimes(1);
     await render(null); initial = { ...initial, name: 'Other draft' }; await render();

@@ -1,5 +1,5 @@
 import { beforeEach, expect, it, vi } from 'vitest';
-import { RoleCreationService } from '@/services/web3/domain/RoleCreationService';
+import { roleCreationReference } from '@/services/web3/domain/RoleCreationWorkflow';
 import { account, contracts, orgId, hash } from '@/lib/accessV2/roleObservationFixtures';
 
 const readers = { status: vi.fn() };
@@ -12,11 +12,8 @@ function input() {
     creation: { transactionHash: hash, proposalId: '7', call: {}, submission: operation('a', '20') },
     query: vi.fn(), now: () => 1000 };
 }
-const service = () => {
-  const service = new RoleCreationService({ provider: {} });
-  service.roleOperations = async () => readers;
-  return service;
-};
+const service = () => ({ getRoleContinuation: args => readers.status({ ...args,
+  creation: roleCreationReference(args.creation), ...(args.configuration ? { configuration: roleCreationReference(args.configuration) } : {}) }) });
 it('binds the creation proof to the locally computed operation rather than the echoed hash', async () => {
   const args = input(); await service().getRoleContinuation(args);
   expect(readers.status).toHaveBeenCalledOnce();

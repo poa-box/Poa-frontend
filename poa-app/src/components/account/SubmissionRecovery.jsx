@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { canAbandonSubmissionRecovery } from '@poa-box/core/execute/recovery';
 import { listPendingSubmissions, createSubmissionJournal } from '@/services/web3/core/submissionJournal';
 import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
+import { createSubmissionController } from '@/services/web3/core/managerLifecycle';
 
 /** Account status is read-only. Exclusive compare-and-clear owns every removal. */
 export default function SubmissionRecovery({ manager, guard, accountAddress }) {
@@ -31,32 +32,16 @@ export default function SubmissionRecovery({ manager, guard, accountAddress }) {
     const journal = createSubmissionJournal({ accountAddress, chainId: saved.chainId, entryPoint: saved.entryPoint || ENTRY_POINT_ADDRESS });
     try {
       current(); busy.current = true; setChecking(true);
-      if (saved.accountAddress !== accountAddress.toLowerCase()
-        || saved.entryPoint?.toLowerCase() !== ENTRY_POINT_ADDRESS.toLowerCase()) throw new Error('Scope mismatch');
-      let status;
-      if (saved.recovery && canAbandonSubmissionRecovery(saved.recovery)) {
-        const release = await journal.acquire();
-        try { current(); if (!await journal.clear(saved)) throw new Error('Saved action changed'); }
-        finally { await release(); }
-        status = 'aborted';
-      } else {
-        const [{ createChainClients }, { reconcileUserOperationSubmission }] = await Promise.all([
-          import('@/services/web3/utils/chainClients'), import('@/services/web3/core/userOperationSubmission'),
-        ]);
-        current();
-        if (candidate && !/^0x[0-9a-f]{64}$/i.test(candidate)) throw new Error('Invalid transaction reference');
-        const clients = createChainClients(saved.chainId);
-        if (!clients || await clients.publicClient.getChainId() !== saved.chainId) throw new Error('Network unavailable');
-        current();
-        const result = await reconcileUserOperationSubmission(saved, clients.bundlerClient, clients.publicClient,
-          candidate ? { candidateTxHash: candidate } : {});
-        current(); status = result.outcome.status;
-        if (status !== 'unknown') {
-          const release = await journal.acquire();
-          try { current(); if (!await journal.clear(saved)) throw new Error('Saved action changed'); }
-          finally { await release(); }
-        }
-      }
+      const controller = createSubmissionController({ journal, accountAddress, chainId: saved.chainId, scopeGuard: current,
+        clients: async () => {
+          const { createChainClients } = await import('@/services/web3/utils/chainClients');
+          current();
+          const clients = createChainClients(saved.chainId);
+          if (!clients || await clients.publicClient.getChainId() !== saved.chainId) throw new Error('Network unavailable');
+          return clients;
+        },
+      });
+      const { outcome: { status } } = await controller.recover(saved, { candidateTxHash: candidate || undefined });
       current();
       setPending(listPendingSubmissions(accountAddress)[0] || null);
       setMessage(status === 'unknown' ? 'This transaction is still unconfirmed. Please check again later.'

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ethers } from 'ethers';
 import { TransactionManager } from '@/services/web3/core/TransactionManager';
-import { fakeBrowserLocks, recoveryTestStorage } from '@/services/web3/core/submissionTestHelpers';
+import { fakeBrowserLocks, recoveryTestStorage, deferredRecoveryTest } from '@/services/web3/core/submissionTestHelpers';
 const ACCOUNT = `0x${'11'.repeat(20)}`, OTHER = `0x${'22'.repeat(20)}`, TARGET = `0x${'33'.repeat(20)}`;
 const HASH = `0x${'aa'.repeat(32)}`, BLOCK = `0x${'bb'.repeat(32)}`;
 class HostSigner extends ethers.Signer {
@@ -22,6 +22,60 @@ beforeEach(() => {
 });
 afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 describe('real ethers-contract signer binding at the direct wallet boundary', () => {
+  it.each(['resolve', 'reject', 'lookup failure'])('awaits acknowledged host capture through JsonRpcSigner when it will %s', async mode => {
+    const gate = deferredRecoveryTest(), reached = deferredRecoveryTest();
+    const sends = []; let completed = false, captureFinished = false, manager;
+    const request = vi.fn(async ({ method, params }) => {
+      if (method === 'eth_chainId') return '0x64';
+      if (method === 'eth_accounts') return [ACCOUNT];
+      if (method === 'eth_estimateGas') return '0x186a0';
+      if (method === 'eth_getTransactionCount') return '0x7';
+      if (method === 'eth_blockNumber') return '0x28';
+      if (method === 'eth_sendTransaction') { sends.push(params[0]); return HASH; }
+      if (method === 'eth_getTransactionByHash') {
+        expect(manager.getPendingSubmission().txHash).toBe(HASH);
+        reached.resolve();
+        if (mode === 'lookup failure') throw new Error('Post-send lookup unavailable');
+        return { hash: HASH, nonce: '0x7', from: ACCOUNT, to: TARGET, input: sends[0].data,
+          value: '0x0', gas: sends[0].gas, gasPrice: '0x1', blockHash: BLOCK, blockNumber: '0x28',
+          transactionIndex: '0x0', chainId: '0x64', type: '0x0', v: '0xeb',
+          r: `0x${'01'.repeat(32)}`, s: `0x${'02'.repeat(32)}` };
+      }
+      if (method === 'eth_getTransactionReceipt') return { transactionHash: HASH, transactionIndex: '0x0',
+        blockHash: BLOCK, blockNumber: '0x28', from: ACCOUNT, to: TARGET, contractAddress: null,
+        cumulativeGasUsed: '0x100', gasUsed: '0x100', status: '0x1', type: '0x0',
+        logsBloom: `0x${'00'.repeat(256)}`, logs: [] };
+      throw new Error('Unexpected external method ' + method);
+    });
+    const provider = new ethers.providers.Web3Provider({ request }, { name: 'gnosis', chainId: 100 });
+    const signer = provider.getSigner(ACCOUNT), contract = new ethers.Contract(TARGET, ['function deposit()'], signer);
+    manager = new TransactionManager(signer, { accountAddress: ACCOUNT, chainId: 100, publicClient: { getBlockNumber: async () => 39n } });
+    const capture = vi.fn(async saved => {
+      if (saved.phase !== 'submitted') return;
+      await gate.promise; captureFinished = true;
+      if (mode === 'reject') throw new Error('Acknowledged capture unavailable');
+    });
+    const pending = manager.execute(contract, 'deposit', [], { onRecoveryRecord: capture }).then(result => { completed = true; return result; });
+    try {
+      await reached.promise;
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(completed).toBe(false); expect(captureFinished).toBe(false);
+      expect(manager.getPendingSubmission()).toMatchObject({ phase: 'submitted', txHash: HASH });
+      expect(sends).toHaveLength(1);
+      gate.resolve(); const result = await pending;
+      expect(captureFinished).toBe(true);
+      expect(result.success).toBe(mode === 'resolve');
+      if (mode === 'resolve') {
+        expect(result.receipt.transactionHash).toBe(HASH); expect(manager.getPendingSubmission()).toBeNull();
+      } else {
+        expect(result.error.category).toBe('submission_unknown');
+        expect(manager.getPendingSubmission().txHash).toBe(HASH);
+        expect((await manager.execute(contract, 'deposit')).error.category).toBe('submission_unknown');
+      }
+      expect(sends).toHaveLength(1);
+    } finally { gate.resolve(); provider.removeAllListeners(); }
+  });
+
   it.each(['absent', 'null'])('binds the actual call to the validated account even when ensureChain is %s', async mode => {
     const selected = new HostSigner(ACCOUNT), stale = new HostSigner(OTHER);
     const contract = new ethers.Contract(TARGET, ['function deposit(uint256 amount) payable'], stale);
@@ -160,7 +214,7 @@ describe('real ethers-contract signer binding at the direct wallet boundary', ()
     expect(BigInt(sends[0].nonce)).toBe(7n);
     expect(iface.decodeFunctionData('deposit', sends[0].data)[0].toString()).toBe(amount);
     expect(trace[trace.indexOf('eth_sendTransaction') - 1]).toBe('FINAL_REVIEW');
-    expect(beforeSend).toHaveBeenCalledTimes(2);
+    expect(beforeSend).toHaveBeenCalledTimes(3); // setup, awaited capture, actual wallet RPC
     expect(result.receipt.events[0]).toMatchObject({ event: 'Deposited', args: expect.anything() });
     expect(result.receipt.events[0].args.amount.toString()).toBe(amount);
     expect(manager.getPendingSubmission()).toBeNull();

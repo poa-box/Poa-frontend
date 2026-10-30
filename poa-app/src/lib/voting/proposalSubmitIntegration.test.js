@@ -52,15 +52,16 @@ describe('proposal host evidence handoff', () => {
     await expect(refreshReviewedTreasuryTransfer({ reviewed: evidence(), refetch: async () => ({ planningEvidence: fresh }),
       request, scope })).rejects.toThrow('organization changed');
   });
-  it('uses the reviewed prepared role directly, preserving creation metadata and manager result flow', async () => {
+  it('hands one role action to the notification callback and preserves its manager result flow', async () => {
     const ctx = context({ type: 'createRole', roleFormV2: { name: 'Builders' } });
     const prepared = { createsSubject: true, stage: 'create', batch: [{ target: authority, value: '0', data: '0x1234' }],
       submittable: { ok: true }, warnings: [], summaries: ['Create the role “Builders”'], gasLimit: 1000000, revalidate: vi.fn(async () => {}) };
-    const prepareReviewedRole = vi.fn(async () => prepared);
+    const submitRole = vi.fn(async () => ({ success: true, role: prepared }));
+    ctx.onSubmit.mockImplementation(async (_envelope, action) => action());
     expect(await submitProposalRuntime(ctx, null, contracts,
-      { accessV2: { enabled: true, roleCreation: { prepareReviewedRole } } })).toBe(true);
-    expect(prepareReviewedRole).toHaveBeenCalledOnce();
-    expect(ctx.onSubmit.mock.calls[0][0]).toMatchObject({ createsSubject: true, actionSummaries: prepared.summaries,
-      batches: [prepared.batch, []], gasLimit: prepared.gasLimit });
+      { accessV2: { enabled: true, roleCreation: { submitRole } } })).toBe(true);
+    expect(submitRole).toHaveBeenCalledOnce();
+    expect(submitRole.mock.calls[0][0]).toMatchObject({ form: { name: 'Builders' }, proposal: { name: 'A reviewed choice', durationMinutes: 60 } });
+    expect(ctx.resetForm).toHaveBeenCalledOnce();
   });
 });

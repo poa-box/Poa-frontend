@@ -30,13 +30,8 @@ export class VotingService {
     this.ipfs = ipfsService;
   }
 
-  /** Create a request-local transport view through the guarded service entry. */
-  withTransactionManager(transactionManager) {
-    return new VotingService(this.factory, transactionManager, this.ipfs);
-  }
-
   async createProposal(type, contractAddress, proposalData, options = {}) {
-    const { beforeExecute, ...transactionOptions } = options;
+    const { beforeExecute, publishMetadata, ...transactionOptions } = options;
     if (beforeExecute !== undefined && typeof beforeExecute !== 'function') throw new Error('Review this vote again before creating it.');
     if (transactionOptions.beforeSend !== undefined && typeof transactionOptions.beforeSend !== 'function') throw new Error('Review this vote again before creating it.');
     requireAddress(contractAddress, 'Voting contract address');
@@ -63,7 +58,7 @@ export class VotingService {
     // during an asynchronous upload; rebuilding afterward would silently submit
     // an electorate different from the reviewed request.
     const intent = buildGovernanceProposal(namedInput);
-    const descriptionHash = await this._uploadProposalMetadata(proposalData);
+    const descriptionHash = await this._uploadProposalMetadata(proposalData, publishMetadata);
     intent.args[1] = descriptionHash;
     await beforeExecute?.();
     const beforeSend = transactionOptions.beforeSend;
@@ -84,7 +79,7 @@ export class VotingService {
   }
 
   async _uploadProposalMetadata({ description = '', optionNames = [], actionSummaries = [],
-    promotedFrom, createsSubject, schemaVersion, extensions, createdAt, metadata }) {
+    promotedFrom, createsSubject, schemaVersion, extensions, createdAt, metadata }, publishMetadata) {
     const hasContent = Boolean(metadata || description || optionNames.length || actionSummaries.length
       || promotedFrom !== undefined || createsSubject !== undefined || extensions !== undefined);
     if (!hasContent) return constants.HashZero;
@@ -96,11 +91,12 @@ export class VotingService {
         || document.optionNames.some((name, index) => name !== optionNames[index]))) {
       throw new Error('Proposal metadata options do not match the ballot.');
     }
-    if (!this.ipfs || typeof this.ipfs.addToIpfs !== 'function') {
+    if (!publishMetadata && (!this.ipfs || typeof this.ipfs.addToIpfs !== 'function')) {
       throw new Error('Proposal details could not be saved. Please try again.');
     }
-    const result = await this.ipfs.addToIpfs(serializeProposalMetadata(document));
-    const hash = cidV0ToBytes32(result?.path);
+    const json = serializeProposalMetadata(document);
+    const result = publishMetadata ? await publishMetadata(json) : await this.ipfs.addToIpfs(json);
+    const hash = cidV0ToBytes32(result?.cid || result?.path);
     if (hash === constants.HashZero) throw new Error('Proposal metadata could not be persisted.');
     return hash;
   }

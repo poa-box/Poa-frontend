@@ -8,22 +8,9 @@ import { dedupeDomains, dedupeEmails } from '@/lib/accessV2/joinConfig';
 import { sponsorshipAmounts } from '@/lib/accessV2/sponsorship';
 import { PERM_KEYS } from '@/lib/accessV2/permKeys';
 
-export function roleCreationReference(stage) {
-  const submission = stage.submission;
-  const operation = submission && submission.kind !== 'transaction' ? {
-    ...(submission.computedHash ? { userOpHash: submission.computedHash } : {}),
-    ...(submission.sender || submission.accountAddress ? { sender: submission.sender || submission.accountAddress } : {}),
-    ...(submission.nonce === undefined ? {} : { nonce: submission.nonce }),
-    ...(submission.entryPoint ? { entryPoint: submission.entryPoint } : {}),
-  } : undefined;
-  return { transactionHash: stage.transactionHash, ...(stage.proposalId ? { proposalId: stage.proposalId } : {}),
-    call: stage.call, ...(operation ? { operation } : {}),
-    ...(stage.executionOperation ? { executionOperation: stage.executionOperation } : {}) };
-}
-export function roleConfigurationReference(stage) {
-  const { call, ...reference } = roleCreationReference(stage);
-  return { ...reference, batch: stage.batch };
-}
+import { roleCreationReference } from '@/services/web3/domain/RoleCreationWorkflow';
+export { roleCreationReference };
+export const roleConfigurationReference = roleCreationReference;
 
 export function roleFormRequest(input, { subjectId, continuation, votingClasses = [] } = {}) {
   const f = normalizeRoleForm(input), group = f.kind === ROLE_FORM_KIND.GROUP;

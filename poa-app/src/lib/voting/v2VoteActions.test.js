@@ -33,7 +33,7 @@ describe('retired encoders are removed and authority encoders require readiness'
     // `buildRoleFormBatch` is the create-role half — ONE encoder shared with /team's modal
     // (lib/accessV2/roleFormBatch). A second create-role encoder appearing here is the bug this
     // whole file exists to catch.
-    for (const adapter of ['buildV2ElectionBatches', 'prepareReviewedRole']) {
+    for (const adapter of ['buildV2ElectionBatches', 'submitRole']) {
       // import + at least one call site
       expect(src).toContain(adapter);
       const callSites = src.split(`${adapter}(`).length - 1;

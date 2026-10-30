@@ -1,7 +1,14 @@
 /** Read-only preflights for proposal configuration, always on the org's chain. */
-import { providers } from 'ethers';
+import { providers, utils } from 'ethers';
 import { ContractFactory } from '@/services/web3/core/ContractFactory';
 import { getAbi } from '@poa-box/core/contracts';
+import { parseCreatedProposalId } from '@/lib/voting/proposalReceipt';
+import { createRoleCreationWorkflow } from '@/services/web3/domain/RoleCreationWorkflow';
+import { createRoleOperationHost } from '@/lib/accessV2/roleOperationHost';
+import { buildRoleFormBatch, normalizeRoleForm, roleOptionNames } from '@/lib/accessV2/roleFormBatch';
+import { roleFormRequest } from '@/lib/accessV2/roleFormRequest';
+import { readRoleContinuations, saveRoleContinuation, roleRecoveryIdentity } from '@/lib/accessV2/roleContinuationDraft';
+import { DELEGATED_SUBMISSION_LEASE } from '@/services/web3/core/managerSubmissionScope';
 export class RoleCreationService {
   constructor(readFactory) { this.readFactory = readFactory; }
 
@@ -20,21 +27,34 @@ export class RoleCreationService {
     return observeElection({ ...input, readFactory: this.readFactory });
   }
 
-  async roleOperations() {
-    const { createRoleOperationHost } = await import('@/lib/accessV2/roleOperationHost');
-    this.roleOperationHost ||= createRoleOperationHost(this.readFactory);
-    return this.roleOperationHost;
-  }
-
-  async getRolePlanningEvidence(input) { return (await this.roleOperations()).read(input); }
-  async reviewRoleOperation(input) { return (await this.roleOperations()).review(input); }
-  async prepareRoleOperation(input) { return (await this.roleOperations()).prepare(input); }
-  async revalidatePreparedRoleOperation(input) { return (await this.roleOperations()).revalidate(input); }
-
-  async getRoleContinuation(input) {
-    const { roleCreationReference, roleConfigurationReference } = await import('@/lib/accessV2/roleFormRequest');
-    return (await this.roleOperations()).status({ ...input, creation: roleCreationReference(input.creation),
-      ...(input.configuration ? { configuration: roleConfigurationReference(input.configuration) } : {}) });
+  createWorkflow({ scope, observe, storage, txManager, voting, display, assertCurrent, canReview, changed }) {
+    const operations = this.roleOperationHost ||= createRoleOperationHost(this.readFactory);
+    const controller = createRoleCreationWorkflow({ operations, observe, assertCurrent, canReview, changed,
+      proposalId: receipt => parseCreatedProposalId(receipt, scope.hybridVoting),
+      store: { read: () => readRoleContinuations(storage(), scope), save: row => saveRoleContinuation(storage(), scope, row) },
+      submission: { session: run => txManager.submissionController.session(run),
+        withLease: (run, capability) => txManager.submissionController.withLease(run, capability, { settlement: true }),
+        pending: () => txManager.getPendingSubmission(), recover: (saved, options) => txManager.reconcileSubmission(saved, options) },
+      identity: (input, intent) => roleRecoveryIdentity(input, scope, intent),
+      fetchDocument: display.fetchDocument, uploadDocument: display.uploadDocument,
+      project: (form, operation, review, preview) => buildRoleFormBatch({ form, operation, review, preview, ...display }),
+      propose: (built, proposal, { lease, publishDocument, ...options }) => voting.createHybridProposal(scope.hybridVoting, { ...proposal,
+        numOptions: 2, batches: [built.batch, []], optionNames: roleOptionNames(built), createsSubject: built.createsSubject,
+        actionSummaries: [...built.summaries, ...built.warnings.map(warning => `Worth knowing: ${warning}`)],
+      }, { ...options, [DELEGATED_SUBMISSION_LEASE]: lease,
+        publishMetadata: json => publishDocument({ key: 'proposal-metadata', digest: utils.id(json), json }) }),
+    });
+    const input = form => {
+      const draft = normalizeRoleForm(form), normalized = { ...draft }; delete normalized.continuationId;
+      return { request: roleFormRequest(form), draft, draftKey: utils.id(JSON.stringify(normalized)), continuationId: draft.continuationId };
+    };
+    return { ...controller,
+      review: (form, options) => controller.review(input(form), options).catch(error => {
+        if (error?.name === 'AbortError' || error?.code === 'PLANNING_READ_LIMIT' || error?.code === 'ROLE_OPERATION_UNAVAILABLE') throw error;
+        throw new Error('Current role settings could not be verified. Refresh and review them again.', { cause: error });
+      }),
+      submit: ({ form, proposal, ...options }) => controller.submit(input(form), proposal, options),
+    };
   }
 
   async getElectionAcceptance(authorityAddress, requests) {
