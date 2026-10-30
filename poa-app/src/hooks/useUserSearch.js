@@ -73,6 +73,9 @@ export function useUserSearch({ debounceMs = 300 } = {}) {
       return;
     }
 
+    // Previous matches must not remain selectable for a different query.
+    setSearchResults([]);
+
     // Start searching indicator immediately for UX
     setIsSearching(true);
     setError(null);

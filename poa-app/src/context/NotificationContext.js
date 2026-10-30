@@ -12,6 +12,8 @@ export const useNotification = useNotificationContext;
 export const NotificationProvider = ({ children }) => {
     const [notifications, setNotifications] = useState([]);
 
+    const nextIdRef = useRef(0);
+
     // Track all active timers for cleanup
     const timersRef = useRef(new Map());
 
@@ -25,7 +27,7 @@ export const NotificationProvider = ({ children }) => {
 
     // Function to add a notification and return the notification id
     const addNotification = useCallback((message, status) => {
-        const id = Date.now();
+        const id = ++nextIdRef.current;
 
         setNotifications(prev => [...prev, { id, message, status }]);
 
@@ -77,9 +79,5 @@ export const NotificationProvider = ({ children }) => {
         removeNotification,
     }), [notifications, addNotification, updateNotification, removeNotification]);
 
-    return (
-        <NotificationContext.Provider value={value}>
-            {children}
-        </NotificationContext.Provider>
-    );
+    return React.createElement(NotificationContext.Provider, { value }, children);
 };

@@ -17,8 +17,8 @@ export default function PostDeployLoadingScreen({ orgName }) {
       fullScreen
       label={timedOut ? 'Taking a little longer than expected' : `Preparing ${orgName || 'your organization'}…`}
       description={timedOut
-        ? 'Your organization was deployed successfully. The network needs a little more time before it appears here.'
-        : 'Your organization is live. We’re waiting for the network to finish indexing so you can begin.'}
+        ? 'Your organization was created. It needs a little more time to appear here.'
+        : 'Your organization was created. We’re getting it ready for you.'}
     >
       {timedOut && (
         <VStack spacing={3}>
@@ -31,7 +31,7 @@ export default function PostDeployLoadingScreen({ orgName }) {
           >
             Refresh Page
           </Button>
-          <Text fontSize="xs" color="warmGray.600">
+          <Text fontSize="xs" color="inherit">
             This usually resolves within a couple of minutes
           </Text>
         </VStack>
