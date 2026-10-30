@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { utils } from 'ethers';
 import { createSubmissionRecovery, transitionSubmissionRecovery } from '@poa-box/core/execute/recovery';
-import { roleRecoveryIdentity, roleSubmissionIntent } from '@/lib/accessV2/roleSubmissionRecovery';
-import { roleContinuationScope, readRoleContinuations, saveRoleContinuation } from '@/lib/accessV2/roleContinuationDraft';
+import { roleRecoveryIdentity } from '@/lib/accessV2/roleContinuationDraft';
+import { managerIntentKey } from '@/services/web3/core/managerSubmissionScope';
+import { roleContinuationScope, roleContinuationKey, readRoleContinuations, saveRoleContinuation } from '@/lib/accessV2/roleContinuationDraft';
 
 const address = digit => `0x${digit.repeat(40)}`, hash = digit => `0x${digit.repeat(64)}`;
 const scope = roleContinuationScope({ chainId: 100, orgId: hash('a'), authority: address('1'), hybridVoting: address('2'), executor: address('3'), account: address('4'), endpoint: 'https://index.invalid' });
 const contract = { address: scope.hybridVoting, interface: new utils.Interface(['function createProposal(bytes title)']) };
-const intentKey = roleSubmissionIntent(contract, 'createProposal', ['0x1234']);
+const intentKey = managerIntentKey('execute', [contract, 'createProposal', ['0x1234']]);
 function submission(kind = 'user-operation') {
   let recovery = createSubmissionRecovery({ chainId: 100, accountAddress: scope.account, intentKey, sessionKey: hash('b'), contextKey: hash('c') }, 'owner', 'attempt');
   const advance = event => { recovery = transitionSubmissionRecovery(recovery, recovery, event); };
@@ -32,7 +33,7 @@ describe('durable unsigned role-stage lookup identity', () => {
     saveRoleContinuation(storage, scope, record(input));
     expect([...stored.values()].join()).not.toContain('SECRET_');
     const [row] = readRoleContinuations(storage, scope);
-    expect(row.version).toBe(2); expect(row.originalForm.description).toBe('Keep my description');
+    expect(row.version).toBe(3); expect(row.originalForm.description).toBe('Keep my description');
     for (const stage of [row.creation, row.configuration, ...row.configurationHistory]) {
       expect(stage.submission.recovery.attemptId).toBe('attempt'); expect(stage.submission.nonce).toBe(input.nonce);
       if (kind === 'user-operation') {
@@ -41,6 +42,19 @@ describe('durable unsigned role-stage lookup identity', () => {
         expect(stage.submission.recovery.computedHash).toBe(hash('d'));
       }
     }
+  });
+  it.each([1, 2])('loads the original version-%s continuation key and keeps create-only and failed configuration history', version => {
+    const row = { ...record(submission()), version, scope, requiresConfiguration: false,
+      configuration: { status: 'failed', failureKind: 'execution', batch: [] } };
+    const stored = new Map([[roleContinuationKey(scope), JSON.stringify([row])]]);
+    const storage = { getItem: key => stored.get(key) || null, setItem: (key, value) => stored.set(key, value) };
+    const [loaded] = readRoleContinuations(storage, scope);
+    expect(loaded.originalForm).toEqual(row.originalForm); expect(loaded.requiresConfiguration).toBe(false);
+    expect(loaded.configuration).toMatchObject({ status: 'failed', failureKind: 'execution' });
+    expect(loaded.configurationHistory).toHaveLength(1);
+    const updated = saveRoleContinuation(storage, scope, loaded);
+    expect(updated.version).toBe(3); expect(updated.creation.submission.recovery).toEqual(loaded.creation.submission.recovery);
+    expect(stored.size).toBe(1);
   });
   it.each(['chain', 'account', 'intent', 'organization', 'nonce', 'hash', 'entryPoint'])('rejects mismatched %s and retains the draft locked rather than silently dropping it', mismatch => {
     const input = submission();

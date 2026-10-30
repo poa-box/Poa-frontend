@@ -14,7 +14,7 @@ import { encodeFunctionData } from 'viem';
 import { TransactionResult, TransactionState } from '@/services/web3/core/TransactionManager';
 import { PasskeyAccountAbi as PasskeyAccountABI } from '@poa-box/core/abis/PasskeyAccount';
 import { intentToExecutionRequest } from '@poa-box/core/tx/intent';
-import { submitUserOperation, confirmUserOperation, reconcileUserOperationSubmission, unknownSubmissionError, paymasterSubmissionRefusal } from '@/services/web3/core/userOperationSubmission';
+import { submitUserOperation, confirmUserOperation, unknownSubmissionError, paymasterSubmissionRefusal } from '@/services/web3/core/userOperationSubmission';
 import { buildUserOpWithFallback, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
 import { describeReceiptFailure } from '@/services/web3/passkey/receiptFailure';
 import { decodeContractRevert, decodeRevertData } from '@/lib/errors/contractErrors';
@@ -213,7 +213,7 @@ export class EOA7702TransactionManager {
       // 7. Wait for receipt
       this._notifyState(onStateChange, TransactionState.CONFIRMING);
       const { receipt: txReceipt, outcome } = await confirmUserOperation(submitted, this.bundlerClient);
-      this.settleSubmission(submitted.submission);
+      await this.settleSubmission(submitted.submission, { receipt: txReceipt, outcome });
       // Keep the canonical original outcome; _notifyState suppresses stale page callbacks.
       if (outcome.status === 'failed') {
         const error = this._parseAAError(describeReceiptFailure(outcome.revertReason, 'Transaction was mined but its action failed'), null, contract?.interface);
@@ -312,7 +312,7 @@ export class EOA7702TransactionManager {
 
       this._notifyState(onStateChange, TransactionState.CONFIRMING);
       const { receipt: txReceipt, outcome } = await confirmUserOperation(submitted, this.bundlerClient);
-      this.settleSubmission(submitted.submission);
+      await this.settleSubmission(submitted.submission, { receipt: txReceipt, outcome });
       // Keep the canonical original outcome; _notifyState suppresses stale page callbacks.
       if (outcome.status === 'failed') {
         const error = this._parseAAError(describeReceiptFailure(outcome.revertReason, 'Transaction was mined but its action failed'));
@@ -436,27 +436,14 @@ export class EOA7702TransactionManager {
       beforeSend: () => this._beforeWalletSend(walletClient, beforeSend),
       onSubmission: async submission => {
         this.assertCurrent();
-        this.recordSubmission(submission);
-        this.lastSubmission = submission;
+        await this.recordSubmission(submission);
         await onSubmitted?.(submission);
         this.assertCurrent();
       },
     }); } catch (error) {
-      if (error.submission?.phase === 'pre-submit') this.settleSubmission(error.submission);
+      if (error.submission?.phase === 'pre-submit') await this.settleSubmission(error.submission, { success: false, submissionState: 'not-submitted' });
       throw error;
     }
-  }
-
-  async reconcileSubmission(submission = this.getPendingSubmission() || this.lastSubmission) {
-    this.assertCurrent();
-    if (submission?.accountAddress && submission.accountAddress.toLowerCase() !== this.accountAddress.toLowerCase()) throw new Error('This transaction belongs to another account.');
-    if (submission?.chainId !== this.chainId || (submission.kind !== 'transaction' && submission?.entryPoint?.toLowerCase() !== ENTRY_POINT_ADDRESS.toLowerCase())) {
-      throw new Error('Check this transaction on the network where it was submitted.');
-    }
-    const result = await reconcileUserOperationSubmission(submission, this.bundlerClient, this.publicClient);
-    if (result.outcome.status !== 'unknown') this.settleSubmission(submission);
-    this.assertCurrent();
-    return result;
   }
 
   _parseAAError(message, originalError = null, iface = null) {
@@ -580,10 +567,6 @@ export class EOA7702TransactionManager {
     return friendly7702FromDecoded(decodeContractRevert(originalError, text, iface));
   }
 
-  _notifyState(callback, state, data = {}) {
-    try { this.assertCurrent(); } catch { return; }
-    if (callback) callback(state, data);
-  }
 }
 
 export function createEOA7702TransactionManager(params) {

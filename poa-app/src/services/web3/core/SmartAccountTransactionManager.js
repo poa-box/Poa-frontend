@@ -10,10 +10,10 @@
 import { encodeFunctionData } from 'viem';
 import { installManagerLifecycle } from '@/services/web3/core/managerLifecycle';
 import { assertBeforeSend } from '@/services/web3/core/managerSubmissionScope';
-import { TransactionResult, TransactionState, clearRecoveredSubmission } from '@/services/web3/core/TransactionManager';
+import { TransactionResult, TransactionState } from '@/services/web3/core/TransactionManager';
 import { PasskeyAccountAbi as PasskeyAccountABI } from '@poa-box/core/abis/PasskeyAccount';
 import { intentToExecutionRequest } from '@poa-box/core/tx/intent';
-import { submitUserOperation, confirmUserOperation, reconcileUserOperationSubmission, unknownSubmissionError, paymasterSubmissionRefusal } from '@/services/web3/core/userOperationSubmission';
+import { submitUserOperation, confirmUserOperation, unknownSubmissionError, paymasterSubmissionRefusal } from '@/services/web3/core/userOperationSubmission';
 import { buildUserOpWithFallback, getUserOpHash } from '@/services/web3/passkey/userOpBuilder';
 import { initCodeOf } from '@/services/web3/passkey/sponsorshipBudget';
 import { describeReceiptFailure } from '@/services/web3/passkey/receiptFailure';
@@ -167,7 +167,7 @@ export class SmartAccountTransactionManager {
 
       // 7. Wait for receipt
       const { receipt: txReceipt, outcome } = await confirmUserOperation(submitted, this.bundlerClient);
-      this.settleSubmission(submitted.submission);
+      await this.settleSubmission(submitted.submission, { receipt: txReceipt, outcome });
       // Keep the canonical original outcome; _notifyState suppresses stale page callbacks.
       if (outcome.status === 'failed') {
         const error = this._parseAAError(describeReceiptFailure(outcome.revertReason, 'Transaction was mined but its action failed'), null, contract?.interface);
@@ -259,7 +259,7 @@ export class SmartAccountTransactionManager {
       this._notifyState(onStateChange, TransactionState.CONFIRMING);
 
       const { receipt: txReceipt, outcome } = await confirmUserOperation(submitted, this.bundlerClient);
-      this.settleSubmission(submitted.submission);
+      await this.settleSubmission(submitted.submission, { receipt: txReceipt, outcome });
       // Keep the canonical original outcome; _notifyState suppresses stale page callbacks.
       if (outcome.status === 'failed') {
         const error = this._parseAAError(describeReceiptFailure(outcome.revertReason, 'Transaction was mined but its action failed'));
@@ -451,29 +451,14 @@ export class SmartAccountTransactionManager {
       beforeSend: () => assertBeforeSend(this, beforeSend),
       onSubmission: async submission => {
         this.assertCurrent();
-        const saved = this.recordSubmission(submission);
-        this._submissionOwnerRecord = saved.recovery;
-        this.lastSubmission = saved;
+        await this.recordSubmission(submission);
         await onSubmitted?.(submission);
         this.assertCurrent();
       },
     }); } catch (error) {
-      if (error.submission?.phase === 'pre-submit') this.settleSubmission(error.submission);
+      if (error.submission?.phase === 'pre-submit') await this.settleSubmission(error.submission, { success: false, submissionState: 'not-submitted' });
       throw error;
     }
-  }
-
-  async reconcileSubmission(submission = this.getPendingSubmission() || this.lastSubmission) {
-    this.assertCurrent();
-    if (submission?.accountAddress && submission.accountAddress.toLowerCase() !== this.accountAddress.toLowerCase()) throw new Error('This transaction belongs to another account.');
-    if (submission?.chainId !== this.chainId || (submission.kind !== 'transaction' && submission?.entryPoint?.toLowerCase() !== ENTRY_POINT_ADDRESS.toLowerCase())) {
-      throw new Error('Check this transaction on the network where it was submitted.');
-    }
-    const result = await reconcileUserOperationSubmission(submission, this.bundlerClient, this.publicClient);
-    this.assertCurrent();
-    if (result.outcome.status !== 'unknown') await clearRecoveredSubmission(this.submissionJournal, submission, this.assertCurrent);
-    this.assertCurrent();
-    return result;
   }
 
   _parseAAError(message, originalError = null, iface = null) {
@@ -640,13 +625,6 @@ export class SmartAccountTransactionManager {
   /**
    * Notify state change callback.
    */
-  _notifyState(callback, state, data = {}) {
-    if (state === TransactionState.AWAITING_SIGNATURE) this.submissionJournal.signing();
-    if (typeof callback === 'function') {
-      try { this.assertCurrent(); } catch { return; }
-      try { callback(state, data); } catch { /* Observers cannot change a known transaction outcome. */ }
-    }
-  }
 }
 
 /**

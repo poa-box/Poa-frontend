@@ -98,6 +98,32 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe.each([['passkey', SmartAccountTransactionManager], ['wallet 7702', EOA7702TransactionManager]])('%s host with core protocol evidence', (_name, Manager) => {
+  it.each(['single', 'batch'])('delivers the %s settled outcome once before clear despite later observer rejection', async mode => {
+    const { manager, bundlerClient, rawReceipt } = setup(Manager);
+    const onOutcome = vi.fn(async result => {
+      if (onOutcome.mock.calls.length > 1) throw new Error('Second persistence attempt failed');
+      expect(result.outcome.status).toBe('succeeded'); expect(result.receipt).toBe(rawReceipt);
+      expect(manager.getPendingSubmission().computedHash).toBeTruthy();
+      await Promise.resolve(); expect(manager.getPendingSubmission()).not.toBeNull();
+    });
+    const options = { onOutcome, onStateChange: async state => { if (state === 'success') throw new Error('WALLET_7702_UNSUPPORTED'); } };
+    const result = mode === 'single' ? await manager.execute(targetContract, 'deposit', [], options)
+      : await manager.executeBatch([{ contract: targetContract, method: 'deposit' }], options);
+    expect(result.success).toBe(true); expect(result.receipt).toBe(rawReceipt);
+    expect(onOutcome).toHaveBeenCalledOnce(); expect(bundlerClient.sendUserOperation).toHaveBeenCalledOnce();
+    expect(manager.getPendingSubmission()).toBeNull();
+  });
+
+  it('keeps a rejected durable settlement blocked without invoking the sink twice', async () => {
+    const { manager, bundlerClient } = setup(Manager);
+    const onOutcome = vi.fn(async () => { throw new Error('Durable outcome unavailable'); });
+    const result = await manager.execute(targetContract, 'deposit', [], { onOutcome });
+    expect(result.error.category).toBe('submission_unknown'); expect(onOutcome).toHaveBeenCalledOnce();
+    expect(manager.getPendingSubmission().computedHash).toBeTruthy();
+    expect((await manager.execute(targetContract, 'deposit')).error.category).toBe('submission_unknown');
+    expect(bundlerClient.sendUserOperation).toHaveBeenCalledOnce();
+  });
+
   it('preserves native amount, gas policy, callbacks and raw receipt while journaling before send/wait', async () => {
     const { manager, rawReceipt, order, bundlerClient } = setup(Manager);
     const onStateChange = vi.fn();
@@ -299,7 +325,7 @@ describe.each([['passkey', SmartAccountTransactionManager], ['wallet 7702', EOA7
     expect(fallbackTxManager.execute).not.toHaveBeenCalled();
   });
 
-  it.each(['send-timeout', 'receipt-timeout', 'callback-after-send', 'hash-mismatch'])('retains identity and sends once after %s even with paymaster context', async mode => {
+  it.each(['send-timeout', 'receipt-timeout', 'callback-after-send', 'hash-mismatch', 'capture-after-send', 'capture-before-clear'])('retains identity and sends once after %s even with paymaster context', async mode => {
     const timeout = new Error('HTTP request timed out. Details: AA33 validatePaymasterUserOp');
     const { manager, bundlerClient, fallbackTxManager } = setup(Manager, {
       sendError: mode === 'send-timeout' ? timeout : null,
@@ -308,6 +334,11 @@ describe.each([['passkey', SmartAccountTransactionManager], ['wallet 7702', EOA7
     mocks.build.mockImplementation(async params => op({ callData: params.callData, paymaster: PAYMASTER, paymasterData: '0x', paymasterVerificationGasLimit: 1n, paymasterPostOpGasLimit: 1n }));
     if (mode === 'hash-mismatch') bundlerClient.sendUserOperation.mockResolvedValueOnce(OTHER_HASH);
     const result = await manager.execute(targetContract, 'deposit', [], {
+      onRecoveryRecord: async submission => {
+        await Promise.resolve();
+        if (mode === 'capture-after-send' && submission.phase === 'submitted') throw new Error('Host capture failed');
+      },
+      onOutcome: async result => { if (mode === 'capture-before-clear' && result?.receipt) throw new Error('Host outcome failed'); },
       onSubmitted: submission => { if (mode === 'callback-after-send' && submission.phase === 'submitted') throw new Error('AA33 WALLET_7702_UNSUPPORTED'); },
     });
     expect(result.success).toBe(false);
@@ -320,14 +351,31 @@ describe.each([['passkey', SmartAccountTransactionManager], ['wallet 7702', EOA7
     expect(bundlerClient.sendUserOperation).toHaveBeenCalledOnce();
   });
 
+  it('awaits recovery capture and refuses any dispatch when durable capture fails', async () => {
+    const { manager, bundlerClient, fallbackTxManager } = setup(Manager);
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    const capture = vi.fn(async () => { await gate; throw new Error('Host persistence unavailable'); });
+    const pending = manager.execute(targetContract, 'deposit', [], { onRecoveryRecord: capture });
+    await vi.waitFor(() => expect(capture).toHaveBeenCalled());
+    expect(bundlerClient.sendUserOperation).not.toHaveBeenCalled();
+    release(); expect((await pending).success).toBe(false);
+    expect(bundlerClient.sendUserOperation).not.toHaveBeenCalled(); expect(fallbackTxManager.execute).not.toHaveBeenCalled();
+  });
+
   it('rebuilds and re-signs once for an explicit paymaster admission refusal, retaining deployment data and gas policy', async () => {
     const { manager, bundlerClient } = setup(Manager);
     bundlerClient.sendUserOperation.mockRejectedValueOnce(new Error('AA33 validatePaymasterUserOp reverted\nDocs: https://bundler.test/errors'));
     mocks.build
       .mockResolvedValueOnce(op({ paymaster: PAYMASTER, paymasterData: '0x', paymasterVerificationGasLimit: 1n, paymasterPostOpGasLimit: 1n, factory: FACTORY, factoryData: '0x1234' }))
       .mockImplementationOnce(async params => op({ callData: params.callData, factory: FACTORY, factoryData: '0x1234' }));
-    const result = await manager.execute(targetContract, 'deposit', [], { callGasLimitFloor: 1234567n });
+    const attempts = [], outcomes = [];
+    const result = await manager.execute(targetContract, 'deposit', [], { callGasLimitFloor: 1234567n,
+      onOutcome: async result => { attempts.push(manager.getPendingSubmission().recovery.attemptId); outcomes.push(result); } });
     expect(result.success).toBe(true);
+    expect(outcomes).toHaveLength(2);
+    expect(outcomes[0]).toMatchObject({ success: false, submissionState: 'not-submitted' });
+    expect(outcomes[1].outcome.status).toBe('succeeded'); expect(new Set(attempts).size).toBe(2);
     expect(bundlerClient.sendUserOperation).toHaveBeenCalledTimes(2);
     expect(mocks.build.mock.calls[1][0].gasOverrides.callGasLimitFloor).toBe(1234567n);
     if (Manager === SmartAccountTransactionManager) {
@@ -391,6 +439,25 @@ describe.each([['passkey', SmartAccountTransactionManager], ['wallet 7702', EOA7
     expect(bundlerClient.getUserOperationReceipt).not.toHaveBeenCalled();
     expect(publicClient.getTransactionReceipt).not.toHaveBeenCalled();
   });
+});
+
+it('shares one durable settlement delivery across 7702 and its actual direct fallback', async () => {
+  const signer = { getAddress: async () => ACCOUNT, getChainId: async () => 100, getTransactionCount: async () => 7 };
+  const receipt = { transactionHash: TX_HASH, blockNumber: 42, status: 1 };
+  const contract = { ...targetContract, estimateGas: { deposit: async () => ethers.BigNumber.from(100000) },
+    deposit: vi.fn(async () => ({ hash: TX_HASH, wait: async () => receipt })) };
+  const fallbackTxManager = new TransactionManager(signer, { accountAddress: ACCOUNT, chainId: 100,
+    publicClient: { getBlockNumber: async () => 40n } });
+  const { manager, bundlerClient } = setup(EOA7702TransactionManager, { managerConfig: { fallbackTxManager } });
+  mocks.authorize.mockRejectedValueOnce(new Error('WALLET_7702_UNSUPPORTED'));
+  const onOutcome = vi.fn(async result => {
+    if (onOutcome.mock.calls.length > 1) throw new Error('Second persistence attempt failed');
+    expect(result.outcome.status).toBe('succeeded'); expect(manager.getPendingSubmission().txHash).toBe(TX_HASH);
+  });
+  const result = await manager.execute(contract, 'deposit', [], { onOutcome });
+  expect(result, JSON.stringify(result)).toMatchObject({ success: true }); expect(result.receipt).toBe(receipt); expect(onOutcome).toHaveBeenCalledOnce();
+  expect(contract.deposit).toHaveBeenCalledOnce(); expect(bundlerClient.sendUserOperation).not.toHaveBeenCalled();
+  expect(manager.getPendingSubmission()).toBeNull();
 });
 
 function browserStorage() {

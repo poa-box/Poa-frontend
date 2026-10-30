@@ -4,7 +4,7 @@ import { submissionIntentKey, transitionSubmissionRecovery } from '@poa-box/core
 import { TransactionManager } from '@/services/web3/core/TransactionManager';
 import { SmartAccountTransactionManager } from '@/services/web3/core/SmartAccountTransactionManager';
 import { EOA7702TransactionManager } from '@/services/web3/eip7702/EOA7702TransactionManager';
-import { installManagerLifecycle } from '@/services/web3/core/managerLifecycle';
+import { installManagerLifecycle, createSubmissionController } from '@/services/web3/core/managerLifecycle';
 import { createSubmissionJournal, pendingSubmissionError } from '@/services/web3/core/submissionJournal';
 import { fakeBrowserLocks, recoveryTestStorage, deferredRecoveryTest } from '@/services/web3/core/submissionTestHelpers';
 import { ENTRY_POINT_ADDRESS } from '@/config/passkey';
@@ -81,8 +81,8 @@ function recoverer(kind, scopeGuard = () => {}) {
     manager = new Manager({ accountAddress: ACCOUNT, chainId: 100, publicClient: f.publicClient,
       bundlerClient: {}, submissionJournal: journal(), scopeGuard });
   }
-  const reconcile = kind === 'passkey prototype'
-    ? submission => SmartAccountTransactionManager.prototype.reconcileSubmission.call(manager, submission)
+  const reconcile = kind === 'independent controller'
+    ? submission => createSubmissionController({ journal: manager.submissionJournal, accountAddress: ACCOUNT, chainId: 100, scopeGuard, clients: () => manager }).recover(submission)
     : submission => manager.reconcileSubmission(submission);
   return { ...f, manager, reconcile };
 }
@@ -96,6 +96,41 @@ beforeEach(() => {
 afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('real EOA manager replacement with installed core and canonical transport', () => {
+  it('delivers a successful durable outcome once before clear, preserving success when observers reject', async () => {
+    const f = direct();
+    const onOutcome = vi.fn(async result => {
+      if (onOutcome.mock.calls.length > 1) throw new Error('Second persistence attempt failed');
+      expect(result.outcome.status).toBe('succeeded');
+      expect(f.manager.getPendingSubmission().txHash).toBe(ORIGINAL);
+      await Promise.resolve();
+      expect(f.manager.getPendingSubmission().txHash).toBe(ORIGINAL);
+    });
+    const onStateChange = vi.fn(async state => { if (state === 'success') throw new Error('Notification failed'); });
+    const result = await f.manager.execute(f.contract, 'deposit', [], { onOutcome, onStateChange });
+    expect(result.success).toBe(true); expect(result.receipt.transactionHash).toBe(ORIGINAL);
+    expect(onOutcome).toHaveBeenCalledOnce(); expect(f.manager.getPendingSubmission()).toBeNull();
+    expect(f.contract.deposit).toHaveBeenCalledOnce();
+  });
+
+  it('does not redeliver a rejected settlement sink and keeps the exact barrier against retry', async () => {
+    const f = direct();
+    const onOutcome = vi.fn(async () => { throw new Error('Durable storage failed'); });
+    const result = await f.manager.execute(f.contract, 'deposit', [], { onOutcome });
+    expect(result.error.category).toBe('submission_unknown'); expect(onOutcome).toHaveBeenCalledOnce();
+    expect(f.manager.getPendingSubmission().txHash).toBe(ORIGINAL);
+    expect((await f.manager.execute(f.contract, 'deposit')).error.category).toBe('submission_unknown');
+    expect(f.contract.deposit).toHaveBeenCalledOnce();
+  });
+
+  it('delivers a pre-transport refusal once even when its durable sink rejects', async () => {
+    const f = direct(); f.contract.estimateGas.deposit.mockRejectedValue(new Error('Estimation failed'));
+    const onOutcome = vi.fn(async () => { throw new Error('Durable storage failed'); });
+    const result = await f.manager.execute(f.contract, 'deposit', [], { onOutcome });
+    expect(result.success).toBe(false); expect(onOutcome).toHaveBeenCalledOnce();
+    expect(onOutcome.mock.calls[0][0].submissionState).toBe('not-submitted');
+    expect(f.contract.deposit).not.toHaveBeenCalled(); expect(f.manager.getPendingSubmission()).toBeNull();
+  });
+
   it.each(['success', 'reverted'])('settles a fee-only replacement from canonical %s evidence and sends once', async status => {
     const f = direct(); const r = replacement(f, { status }); const callback = vi.fn();
     const result = await f.manager.execute(f.contract, 'deposit', [], { onStateChange: callback });
@@ -171,6 +206,20 @@ describe('real EOA manager replacement with installed core and canonical transpo
     expect(callback.mock.calls.map(([state]) => state)).not.toContain('success');
   });
 
+  it.each(['before-send', 'after-ack', 'before-clear'])('awaits EOA host capture and retains exact recovery when %s capture fails', async phase => {
+    const f = direct(), capture = vi.fn(async record => {
+      await Promise.resolve();
+      if (phase === 'before-send' || phase === 'after-ack' && record.phase === 'submitted') throw new Error('Persistence unavailable');
+    });
+    const result = await f.manager.execute(f.contract, 'deposit', [], { onRecoveryRecord: capture,
+      onOutcome: async result => { if (phase === 'before-clear' && result?.receipt) throw new Error('Outcome unavailable'); } });
+    expect(result.success).toBe(false);
+    expect(f.contract.deposit).toHaveBeenCalledTimes(phase === 'before-send' ? 0 : 1);
+    expect(f.manager.getPendingSubmission().recovery.callKey).toBe(callKey);
+    await f.manager.execute(f.contract, 'deposit');
+    expect(f.contract.deposit).toHaveBeenCalledTimes(phase === 'before-send' ? 0 : 1);
+  });
+
   it.each(['receipt', 'replacement', 'failed receipt'])('retains the blocker when active %s settlement cannot remove storage', async mode => {
     const f = direct();
     if (mode === 'replacement') replacement(f);
@@ -186,7 +235,7 @@ describe('real EOA manager replacement with installed core and canonical transpo
   });
 });
 
-describe.each(['direct', 'passkey lifecycle', 'passkey prototype', '7702 lifecycle'])('%s recovery fencing', kind => {
+describe.each(['direct', 'passkey lifecycle', 'independent controller', '7702 lifecycle'])('%s recovery fencing', kind => {
   it('returns canonical success only after exact fenced removal', async () => {
     const record = await saved(); const f = recoverer(kind);
     const result = await f.reconcile(record);
@@ -262,15 +311,15 @@ describe('active lifecycle settlement fences', () => {
     manager._submissionOwnerRecord = activeJournal.begin(callKey).recovery;
     activeJournal.signing();
     const raw = { chainId: 100, entryPoint: ENTRY_POINT_ADDRESS, sender: ACCOUNT, nonce: '7', computedHash: ORIGINAL, phase: 'submitting' };
-    const first = manager.recordSubmission(raw); manager._submissionOwnerRecord = first.recovery;
+    const first = await manager.recordSubmission(raw); manager._submissionOwnerRecord = first.recovery;
     const submission = { ...raw, phase: 'submitted', userOpHash: ORIGINAL };
-    const record = manager.recordSubmission(submission); manager._submissionOwnerRecord = record.recovery;
+    const record = await manager.recordSubmission(submission); manager._submissionOwnerRecord = record.recovery;
     return { manager, record, submission, release };
   }
 
-  it('clears the exact current owner, revision and identity synchronously under its lease', async () => {
+  it('clears the exact current owner, revision and identity after awaited capture under its lease', async () => {
     const f = await active();
-    try { expect(f.manager.settleSubmission(f.submission)).toBe(true); expect(journal().read()).toBeNull(); }
+    try { expect(await f.manager.settleSubmission(f.submission)).toBe(true); expect(journal().read()).toBeNull(); }
     finally { await f.release(); }
   });
 
@@ -284,8 +333,8 @@ describe('active lifecycle settlement fences', () => {
       if (mode === 'identity') current = { ...current, computedHash: REPLACEMENT, recovery: { ...current.recovery, computedHash: REPLACEMENT } };
       storage.setItem(storage.key(0), JSON.stringify(current));
       if (mode === 'false clear') storage.removeItem = vi.fn();
-      expect(() => f.manager.settleSubmission(f.submission)).toThrow('earlier transaction');
-      expect(f.manager._uncertainSubmission).not.toBeNull(); expect(journal().read()).toEqual(current);
+      await expect(f.manager.settleSubmission(f.submission)).rejects.toThrow('earlier transaction');
+      expect(journal().read()).toEqual(current);
     } finally { await f.release(); }
   });
 });

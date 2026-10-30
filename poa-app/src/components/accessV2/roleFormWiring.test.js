@@ -5,9 +5,8 @@
  * (`lib/accessV2/roleFormBatch.test.js`). These checks keep both entry points connected to
  * the normal vote wizard rather than letting a separate creation/submission flow reappear.
  *
- * There is no React harness in this repo (vitest runs in `node`, no jsdom, no testing-library), so
- * the wiring is checked the only way it can be: against the files. Precedent:
- * `components/voting/ballotWiring.test.js`, `hooks/accessV2/gating.test.js`.
+ * Mounted behavior and exact core proof are covered in RoleForm.staged.test.jsx.
+ * These checks cover the route wiring and visible control inventory only.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -87,9 +86,9 @@ describe('both entry points use the normal vote wizard', () => {
 
 describe('one encoder', () => {
   it('the vote wizard submits the reviewed canonical role plan', () => {
-    expect(proposalRuntime).toContain('prepareReviewedRole');
-    expect(proposalRuntime).toContain('const built = v2.preparedRole');
-    expect(read('lib', 'accessV2', 'roleReview.js')).toContain('buildRoleFormBatch');
+    expect(proposalRuntime).toContain('roleCreation.submitRole');
+    expect(proposalRuntime).not.toContain('preparedRole(resolveRoleForm');
+    expect(read('services', 'web3', 'domain', 'RoleCreationService.js')).toContain('buildRoleFormBatch');
   });
 
   it('the create-role encoder that used to live in v2VoteActions is gone, not duplicated', () => {
@@ -102,12 +101,12 @@ describe('one encoder', () => {
 
   it('the wizard gate and the encoder read the SAME form', () => {
     // `resolveRoleForm` is what makes "validated" and "encoded" the same object.
-    expect(proposalRuntime).toContain('prepareReviewedRole(resolveRoleForm(proposal))');
+    expect(proposalRuntime).toContain('form: resolveRoleForm(proposal)');
     expect(read('lib', 'voting', 'proposalChecks.js')).toContain('roleFormError(resolveRoleForm(p))');
   });
 
   it('the v2 create-role arm is still behind the accessV2 gate', () => {
-    expect(proposalRuntime).toMatch(/proposal\.type === "createRole" && extras\?\.accessV2\?\.enabled/);
+    expect(proposalRuntime).toContain("!extras?.accessV2?.enabled");
     // Retired Hats drafts cannot reintroduce the legacy encoder in the deferred runtime.
     expect(proposalRuntime).not.toContain('createHatWithEligibility');
     expect(proposalRuntime).not.toContain('setProjectRolePerm');

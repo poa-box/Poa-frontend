@@ -41,7 +41,6 @@ import { useAuthorityMemberships } from "@/hooks/accessV2/useAuthorityMembership
 import { useRoleCreationContext } from '@/hooks/accessV2/useRoleCreationContext';
 import { recordGasFloor } from "@/lib/accessV2/gasFloors";
 import RoleContinuationPanel from '@/components/accessV2/RoleContinuationPanel';
-import { submitTrackedRoleProposal } from '@/hooks/runtime/roleSubmissionTransport';
 import { defaultRoleForm } from '@/lib/accessV2/roleFormBatch';
 import { estimateBatchGas } from "@/lib/accessV2/proposalBuilders";
 import { recheckGovernanceSubmission } from '@/lib/voting/governanceSubmission';
@@ -221,7 +220,7 @@ const VotingPage = () => {
 
   // Preserve the public manager result and the staged role's exact lookup identity.
   const handleProposalSubmit = useCallback(async (proposalData, roleSubmission) => {
-    if (!voting) { roleSubmission?.notSubmitted(); return false; }
+    if (!voting) return false;
 
     // Every authority removal is one call in a single atomic Executor batch. A stale member or a
     // newly-acquired eligibility source would make the ENTIRE winning batch revert later, while
@@ -281,9 +280,9 @@ const VotingPage = () => {
       : directDemocracyVotingContractAddress;
 
     const result = await executeWithNotification(
-      () => submitTrackedRoleProposal(voting, roleSubmission, scoped => (lane === 'hybrid'
-        ? scoped.createHybridProposal(contractAddress, proposalParams, { beforeExecute: proposalData.beforeExecute })
-        : scoped.createDDProposal(contractAddress, proposalParams, { beforeExecute: proposalData.beforeExecute }))),
+      () => roleSubmission ? roleSubmission() : lane === 'hybrid'
+        ? voting.createHybridProposal(contractAddress, proposalParams, { beforeExecute: proposalData.beforeExecute })
+        : voting.createDDProposal(contractAddress, proposalParams, { beforeExecute: proposalData.beforeExecute }),
       {
         pendingMessage: 'Creating proposal...',
         successMessage: 'Proposal created successfully!',
@@ -295,7 +294,7 @@ const VotingPage = () => {
     // shows the failure and resolves { success: false }. That used to be
     // dropped here, so the form read a revert as success (reset, draft wiped,
     // green toast). Hand the answer back instead.
-    if (!result?.success) { roleSubmission?.notSubmitted(); return result || false; }
+    if (!result?.success) return result || false;
 
     // announceWinner runs the winning batch inside a try/catch, so every gas
     // estimator prices only the cheap caught-failure path; an under-funded
@@ -307,7 +306,7 @@ const VotingPage = () => {
       const { parseCreatedProposalId } = await import('@/lib/voting/proposalReceipt');
       const proposalId = parseCreatedProposalId(result.receipt, contractAddress);
       const perOption = proposalParams.batches.map((b) => estimateBatchGas(b || []));
-      const floor = proposalData.gasLimit
+      const floor = result.role?.gasLimit || proposalData.gasLimit
         || (perOption.length ? Math.max(...perOption) : 0);
       if (proposalId && floor) recordGasFloor(contractAddress, proposalId, floor);
     }
@@ -639,11 +638,6 @@ const VotingPage = () => {
             />
           </Box>
 
-          <RoleContinuationPanel ctx={roleCreation} onResume={form => {
-            restoreProposal({ type: 'createRole', name: `Configure ${form.name}`, description: `Apply the saved settings for ${form.name}.`, roleFormV2: form });
-            setDeepLinkedOpen(true); setShowCreatePoll(true);
-          }} />
-
           {/* Board panel — the dark glass container the whole board lives in.
               Lane headers, chips, and cards are unreadable directly on themed
               org backgrounds (e.g. Test6 mint), so everything sits on glass,
@@ -707,6 +701,13 @@ const VotingPage = () => {
                 </Tooltip>
               )}
             </Flex>
+
+            <RoleContinuationPanel ctx={roleCreation}
+              completedVotes={hybridVotingCompleted}
+              onResume={form => {
+                restoreProposal({ type: 'createRole', name: `Configure ${form.name}`, description: `Apply the saved settings for ${form.name}.`, roleFormV2: form });
+                setDeepLinkedOpen(true); setShowCreatePoll(true);
+              }} />
 
             <VotingBoard
               lanes={lanes}

@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { mountedHostDocument } from '@/test/mountedHost';
 import { fixture, contracts, account, orgId } from '@/lib/accessV2/roleObservationFixtures';
-import { readRoleContinuations, roleContinuationScope } from '@/lib/accessV2/roleContinuationDraft';
+import { readRoleContinuations, roleContinuationScope, saveRoleContinuation } from '@/lib/accessV2/roleContinuationDraft';
+import { RoleCreationService } from '@/services/web3/domain/RoleCreationService';
+import { normalizeRoleForm } from '@/lib/accessV2/roleFormBatch';
 import { createRoleOperationHost } from '@/lib/accessV2/roleOperationHost';
 
 const live = vi.hoisted(() => ({}));
@@ -22,6 +24,25 @@ vi.mock('@/lib/accessV2/roleOperationQuery', () => ({ roleOperationQuery: (...ar
 import { useRoleCreationContext } from '@/hooks/accessV2/useRoleCreationContext';
 
 let root, container, f, latest, errors, commits, stored;
+
+const savedScope = () => roleContinuationScope({ chainId: 100, orgId, authority: contracts.membershipAuthority,
+  hybridVoting: contracts.hybridVoting, executor: contracts.executor, account, endpoint: live.po.subgraphUrl });
+function seedStage(built, form) {
+  const scope = savedScope(), rows = readRoleContinuations(window.localStorage, scope);
+  const existing = rows.find(row => row.id === form.continuationId), id = existing?.id || crypto.randomUUID();
+  const field = built.stage === 'create' ? 'creation' : 'configuration';
+  const batch = built.batch.map(call => ({ target: call.target, value: call.value, calldata: call.data }));
+  saveRoleContinuation(window.localStorage, scope, { ...(existing || { id, originalForm: normalizeRoleForm(form), creation: {} }),
+    form, requiresConfiguration: built.requiresConfiguration, [field]: { status: 'submitting', attemptId: crypto.randomUUID(),
+      ...(field === 'creation' ? { call: batch[0] } : { batch }) } });
+  return { id, scope, field };
+}
+function seedOutcome({ id, scope, field }, result) {
+  const row = readRoleContinuations(window.localStorage, scope).find(row => row.id === id);
+  saveRoleContinuation(window.localStorage, scope, { ...row, [field]: { ...row[field], status: 'pending', transactionHash: result.receipt.transactionHash } });
+}
+const prepareForAssertion = async form => (await latest.submitRole({ form, proposal: {} })).role;
+
 const form = { name: 'Builders', sponsorship: { enabled: false } };
 const flush = async () => { for (let i = 0; i < 80; i++) await Promise.resolve(); };
 const deferred = () => { let resolve; const promise = new Promise(finish => { resolve = finish; }); return { promise, resolve }; };
@@ -59,12 +80,12 @@ async function delayedConfigurationContinuation(configurationState = 'rejected')
   const transactionHash = `0x${'ab'.repeat(32)}`, configurationHash = `0x${'cd'.repeat(32)}`;
   let ticket;
   await act(async () => {
-    ticket = latest.beginRoleSubmission({ stage: 'create', requiresConfiguration: true,
+    ticket = seedStage({ stage: 'create', requiresConfiguration: true,
       batch: [{ target: contracts.membershipAuthority, data: '0x1234', value: '0' }] }, original);
-    latest.finishRoleSubmission(ticket, { success: true, receipt: { transactionHash, logs: [] } });
-    const configurationTicket = latest.beginRoleSubmission({ stage: 'existing',
+    seedOutcome(ticket, { success: true, receipt: { transactionHash, logs: [] } });
+    const configurationTicket = seedStage({ stage: 'existing',
       batch: [{ target: contracts.membershipAuthority, data: '0x5678', value: '0' }] }, { ...original, continuationId: ticket.id });
-    latest.finishRoleSubmission(configurationTicket, { success: true, receipt: { transactionHash: configurationHash, logs: [] } });
+    seedOutcome(configurationTicket, { success: true, receipt: { transactionHash: configurationHash, logs: [] } });
   });
   const proof = { state: 'created', subjectId: ((BigInt(contracts.membershipAuthority) << 64n) | 19n).toString(),
     proposalId: '7', creationTransactionHash: transactionHash };
@@ -119,6 +140,13 @@ beforeEach(() => {
     prepareRoleOperation: vi.fn(input => host.prepare(input)), revalidatePreparedRoleOperation: vi.fn(input => host.revalidate(input)),
     getRolePlanningEvidence: vi.fn(async () => ({ status: 'ready', data: { context: { data: {} } } })),
   }, zkEmailInvites: {} };
+  const service = live.services.roleCreation;
+  service.roleOperationHost = Object.fromEntries(Object.entries({ read: 'getRolePlanningEvidence', review: 'reviewRoleOperation',
+    prepare: 'prepareRoleOperation', revalidate: 'revalidatePreparedRoleOperation', status: 'getRoleContinuation' })
+    .map(([name, method]) => [name, input => service[method](input)]));
+  service.createWorkflow = RoleCreationService.prototype.createWorkflow;
+  live.services.txManager = { submissionController: { session: async run => run({}), withLease: async run => run() }, getPendingSubmission: () => null };
+  live.services.voting = { createHybridProposal: async () => ({ success: true }) };
   live.ipfs = { addToIpfs: vi.fn(), fetchFromIpfs: vi.fn() };
   live.query = f.query; live.client = {};
   const doc = mountedHostDocument(); container = doc.createElement('main');
@@ -220,11 +248,11 @@ describe('actual role creation hook lifetimes', () => {
     expect(latest.reviewRoleConfiguration).toBe(callback);
     const built = await callback(form);
     expect(built.plan.status).toBe('ready');
-    expect((await latest.prepareReviewedRole(form)).submittable.ok).toBe(true);
+    expect((await prepareForAssertion(form)).submittable.ok).toBe(true);
     expect(f.calls.filter(call => call.method === 'getSubject')).toHaveLength(0);
     const group = { kind: 'group', name: 'Builders group', sponsorship: { enabled: false } };
     expect((await latest.reviewRoleConfiguration(group)).plan.status).toBe('ready');
-    expect((await latest.prepareReviewedRole(group)).submittable.ok).toBe(true);
+    expect((await prepareForAssertion(group)).submittable.ok).toBe(true);
   });
 
   it.each(['pending hydration', 'anonymous', 'disabled'])('does not start a review for %s', async mode => {
@@ -255,7 +283,7 @@ describe('actual role creation hook lifetimes', () => {
   it.each(['account', 'organization', 'source'])('cancels the prior %s scope and rejects old submission callbacks', async mode => {
     await render({});
     await latest.reviewRoleConfiguration(form);
-    const oldPrepare = latest.prepareReviewedRole;
+    const oldSubmit = latest.submitRole; const oldPrepare = form => oldSubmit({ form, proposal: {} });
     const gate = deferred();
     live.infrastructure.refetch.mockImplementationOnce(async () => { await gate.promise; return { data: { poaManagerContracts: [] } }; });
     const old = latest.reviewRoleConfiguration(form).catch(error => error);
@@ -278,9 +306,9 @@ describe('actual role creation hook lifetimes', () => {
     const original = { ...form, description: 'Original details', perms: { DD_VOTE: true } };
     let ticket;
     await act(async () => {
-      ticket = latest.beginRoleSubmission({ stage: 'create', requiresConfiguration: true,
+      ticket = seedStage({ stage: 'create', requiresConfiguration: true,
         batch: [{ target: contracts.membershipAuthority, data: '0x1234', value: '0' }] }, original);
-      latest.finishRoleSubmission(ticket, { success: true, receipt: { transactionHash: `0x${'ab'.repeat(32)}`, logs: [] } });
+      seedOutcome(ticket, { success: true, receipt: { transactionHash: `0x${'ab'.repeat(32)}`, logs: [] } });
     });
     const actualId = ((BigInt(contracts.membershipAuthority) << 64n) | 19n).toString();
     live.services.roleCreation.getRoleContinuation = vi.fn(async () => ({ status: 'ready', data: { next: 'review-configuration',
@@ -438,12 +466,12 @@ describe('actual role creation hook lifetimes', () => {
     await render({}); let creationTicket, configurationTicket;
     const original = { ...form, perms: { DD_VOTE: true } }, transactionHash = `0x${'ab'.repeat(32)}`;
     await act(async () => {
-      creationTicket = latest.beginRoleSubmission({ stage: 'create', requiresConfiguration: true,
+      creationTicket = seedStage({ stage: 'create', requiresConfiguration: true,
         batch: [{ target: contracts.membershipAuthority, data: '0x1234', value: '0' }] }, original);
-      latest.finishRoleSubmission(creationTicket, { success: true, receipt: { transactionHash, logs: [] } });
-      configurationTicket = latest.beginRoleSubmission({ stage: 'existing', batch: [{ target: contracts.membershipAuthority, data: '0x5678', value: '0' }] },
+      seedOutcome(creationTicket, { success: true, receipt: { transactionHash, logs: [] } });
+      configurationTicket = seedStage({ stage: 'existing', batch: [{ target: contracts.membershipAuthority, data: '0x5678', value: '0' }] },
         { ...original, continuationId: creationTicket.id });
-      latest.finishRoleSubmission(configurationTicket, { success: true, receipt: { transactionHash: `0x${'cd'.repeat(32)}`, logs: [] } });
+      seedOutcome(configurationTicket, { success: true, receipt: { transactionHash: `0x${'cd'.repeat(32)}`, logs: [] } });
     });
     const proof = { state: 'created', subjectId: 'actual-subject', proposalId: '7', creationTransactionHash: transactionHash };
     live.services.roleCreation.getRoleContinuation = vi.fn().mockResolvedValueOnce({ status: 'ready', data: { creation: proof, next: 'review-configuration' } })
@@ -460,7 +488,7 @@ describe('actual role creation hook lifetimes', () => {
     const described = { ...form, description: 'Reviewed details' };
     await latest.reviewRoleConfiguration(described);
     Date.now.mockReturnValue(1032000);
-    await expect(latest.prepareReviewedRole(described)).rejects.toThrow('could not be verified');
+    await expect(prepareForAssertion(described)).rejects.toThrow('could not be verified');
     expect(live.ipfs.addToIpfs).not.toHaveBeenCalled();
   });
 });

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createRoleReviewSession } from '@/lib/accessV2/roleReview';
+import { createRoleCreationWorkflow } from '@/services/web3/domain/RoleCreationWorkflow';
+import { normalizeRoleForm, buildRoleFormBatch } from '@/lib/accessV2/roleFormBatch';
 import { roleFormRequest } from '@/lib/accessV2/roleFormRequest';
 
 const ready = data => ({ status: 'ready', data, consequences: [] });
@@ -15,9 +16,25 @@ function fixture() {
   const service = { reviewRoleOperation: vi.fn(async () => ready(review)), prepareRoleOperation: vi.fn(async () => ready(prepared)),
     revalidatePreparedRoleOperation: vi.fn(async () => ready(prepared)) };
   const uploadDocument = vi.fn(async () => ({ path: 'reviewed-cid' })), assertCurrent = vi.fn(), controllers = new Set();
+  const rows = [];
+  const workflow = createRoleCreationWorkflow({
+    operations: { review: input => service.reviewRoleOperation(input), prepare: input => service.prepareRoleOperation(input),
+      revalidate: input => service.revalidatePreparedRoleOperation(input) },
+    observe: async () => (await describe(form)).input,
+    store: { read: () => rows, save: row => { const index = rows.findIndex(item => item.id === row.id); if (index < 0) rows.push(row); else rows[index] = row; return row; } }, submission: { session: async run => run({}), withLease: async run => run() }, uploadDocument, assertCurrent,
+    project: (form, operation, review, preview) => buildRoleFormBatch({ form, operation, review, preview }),
+    propose: async (built, proposal, options) => { built.revalidate = options.beforeExecute; return { success: true }; },
+  });
+  const input = form => ({ request: roleFormRequest(form), draft: normalizeRoleForm(form) });
+  let controller;
   return { review, prepared, describe, service, uploadDocument, assertCurrent, controllers,
-    session: createRoleReviewSession({ describe, service, uploadDocument, assertCurrent,
-      registerController: controller => { controllers.add(controller); return () => controllers.delete(controller); } }) };
+    session: {
+      review: (form, options) => workflow.review(input(form), options),
+      prepare: form => { controller = new AbortController(); controllers.add(controller);
+        return workflow.submit(input(form), {}, { signal: controller.signal }).then(result => result.role).finally(() => controllers.delete(controller)); },
+      invalidate: () => workflow.dispose(),
+    } };
+
 }
 beforeEach(() => vi.stubGlobal('fetch', vi.fn(() => { throw new Error('OFFLINE_NETWORK_FORBIDDEN'); })));
 afterEach(() => { expect(fetch).not.toHaveBeenCalled(); vi.unstubAllGlobals(); });
@@ -67,7 +84,7 @@ describe('host opaque review lifecycle (protocol API explicitly stubbed)', () =>
     const f = fixture(), gate = deferred(), controller = new AbortController();
     f.service.reviewRoleOperation.mockImplementation(async () => { await gate.promise; return ready(f.review); });
     const pending = f.session.review(form, { signal: controller.signal });
-    await Promise.resolve(); await Promise.resolve(); expect(f.controllers.size).toBe(1);
+    for (let i = 0; i < 10; i++) await Promise.resolve(); expect(f.service.reviewRoleOperation.mock.calls[0][0].signal.aborted).toBe(false);
     controller.abort(); gate.resolve(); await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
     expect(f.controllers.size).toBe(0); expect(f.uploadDocument).not.toHaveBeenCalled();
   });
@@ -79,7 +96,7 @@ describe('host opaque review lifecycle (protocol API explicitly stubbed)', () =>
       throw new Error('must abort');
     });
     await f.session.review(form); const pending = f.session.prepare(form);
-    for (let i = 0; i < 5; i++) await Promise.resolve();
+    for (let i = 0; i < 30; i++) await Promise.resolve();
     for (const controller of f.controllers) controller.abort(); gate.resolve();
     await expect(pending).rejects.toMatchObject({ name: 'AbortError', publishedDocuments: [{ cid: 'published-cid', key: 'role-metadata', digest: 'digest' }] });
     expect(f.uploadDocument).toHaveBeenCalledOnce();

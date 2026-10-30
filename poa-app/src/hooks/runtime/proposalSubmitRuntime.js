@@ -10,7 +10,7 @@ import { TRANSFER_DESTINATION, TRANSFER_SOURCE, BOUNTY_POOL_LABEL, buildTreasury
 import {
   buildV2ElectionBatches,
 } from '@/lib/voting/v2VoteActions';
-import { resolveRoleForm, ROLE_FORM_KIND, roleOptionNames } from '@/lib/accessV2/roleFormBatch';
+import { resolveRoleForm, ROLE_FORM_KIND } from '@/lib/accessV2/roleFormBatch';
 
 import { buildRoleRemovalBatch } from '@/lib/accessV2/proposalBuilders';
 import { checkBatchSubmittable } from '@/lib/accessV2/submission';
@@ -103,27 +103,6 @@ export async function submitProposalRuntime(context, ...args) {
       // Warnings ride along with the summaries: they are the sentences that say what this ballot
       // can NOT do (a departed incumbent, a fallback that had to be dropped), and voters are
       // exactly the people who need to read them.
-      summaries = [...built.summaries, ...built.warnings.map(worthKnowing)];
-      gasLimit = built.gasLimit;
-    } else if (proposal.type === "createRole" && extras?.accessV2?.enabled) {
-      // ── CREATE ROLE (or GROUP), access-v2 org ──
-      // The legacy arm below SUCCEEDS here, which is worse than reverting: it mints an inert
-      // Role calldata comes only from the prepared shared operation. The host keeps
-      // ballot wording and transport; staged configuration uses the proven actual ID.
-      const v2 = extras.accessV2;
-      const built = v2.preparedRole;
-      if (!built) throw new Error('Review the current role settings before creating this vote.');
-      // The on-chain call ceiling is a gate, not a warning: HybridVoting reverts `TooManyCalls`
-      // at CREATION, after the IPFS upload and — for a passkey member — a burned UserOp.
-      if (built.submittable && !built.submittable.ok) {
-        throw new Error(built.submittable.message || 'This proposal has too many steps to submit in one vote.');
-      }
-      createsSubject = built.createsSubject;
-      batches = [built.batch, []];   // Yes wins: create + configure. No wins: nothing.
-      numOptions = 2;
-      optionNames = roleOptionNames(built);
-      // The id-race warning is the one a voter most needs and can act on (close the other
-      // proposal first), so it goes into the metadata with the rest of the preview.
       summaries = [...built.summaries, ...built.warnings.map(worthKnowing)];
       gasLimit = built.gasLimit;
     } else if (proposal.type === "removeRoleMembers") {
@@ -326,16 +305,10 @@ export async function submitProposalRuntime(context, ...args) {
 
       const freshHoldersOverride = null;
       const v2FreshAccepted = null;
-      let preparedRole = null;
-      if (proposal.type === 'createRole') {
-        if (!extras.accessV2.roleCreation?.prepareReviewedRole) throw new Error('Review the current role settings before creating this vote.');
-        preparedRole = await extras.accessV2.roleCreation.prepareReviewedRole(resolveRoleForm(proposal));
-        if (typeof preparedRole?.revalidate !== 'function') throw new Error('Review the current role settings before creating this vote.');
-      }
       const hatsProtocolAddress = null;
       const predictedRoleHatId = null;
       const metadataCIDBytes32 = null;
-      let preparedExtras = preparedRole ? { ...extras, accessV2: { ...extras.accessV2, preparedRole } } : extras;
+      let preparedExtras = extras;
       if (proposal.type === 'election' || proposal.type === 'removeRoleMembers') {
         const key = proposal.type === 'election' ? 'electionPlanning' : 'removalPlanning';
         const reviewed = extras.accessV2[key];
@@ -365,7 +338,7 @@ export async function submitProposalRuntime(context, ...args) {
 
       const {
         numOptions, batches, optionNames, summaries: builtSummaries, gasLimit, createsSubject,
-      } = buildProposalData(
+      } = proposal.type === 'createRole' ? {} : buildProposalData(
         eligibilityModuleAddress,
         contractAddresses,
         freshHoldersOverride,
@@ -414,13 +387,6 @@ export async function submitProposalRuntime(context, ...args) {
         ? builtSummaries
         : buildActionSummaries();
 
-      const roleTicket = preparedRole && extras.accessV2.roleCreation.beginRoleSubmission?.(preparedRole, resolveRoleForm(proposal));
-      const tracker = preparedRole && extras.accessV2.roleCreation.trackRoleSubmission?.(roleTicket, preparedRole);
-      let submitted;
-      let callbackEntered = false;
-      try {
-        if (roleTicket) context.retainRoleContinuation?.(roleTicket.id);
-        callbackEntered = true;
         const submission = {
         name: finalName,
         description: finalDescription,
@@ -462,18 +428,18 @@ export async function submitProposalRuntime(context, ...args) {
             proposal.type === 'election' ? extras.accessV2.electionPlanning : extras.accessV2.removalPlanning,
             extras.accessV2.refreshGovernancePlanning);
         }
-        submitted = await onSubmit(submission, tracker); } catch (error) {
-        if (!tracker?.completed) extras.accessV2.roleCreation?.finishRoleSubmission?.(roleTicket, { success: false, error,
-          ...(!callbackEntered || error?.roleSubmissionState === 'not-submitted' ? { submissionState: 'not-submitted' } : {}) });
-        throw error;
-      } finally { tracker?.stop(); }
-      if (roleTicket && !tracker?.completed) extras.accessV2.roleCreation.finishRoleSubmission(roleTicket, submitted);
+      const submitted = await onSubmit(submission, proposal.type === 'createRole' ? () => {
+        if (!extras.accessV2.roleCreation?.submitRole) throw new Error('Review the current role settings before creating this vote.');
+        return extras.accessV2.roleCreation.submitRole({ form: resolveRoleForm(proposal),
+          proposal: { ...submission, durationMinutes }, onSaved: context.retainRoleContinuation });
+      } : undefined);
+      const preparedRole = submitted?.role;
 
       // The page's submit handler answers `false` when the transaction did not
       // land (it has already shown the failure). A resolved promise used to be
       // read as success here — form reset, draft wiped, green toast — over a
       // revert. Keep the member's work and let them retry.
-      if (submitted === false || submitted?.success === false || roleTicket && submitted?.success !== true) {
+      if (submitted === false || submitted?.success === false || proposal.type === 'createRole' && submitted?.success !== true) {
         setLoadingSubmit(false);
         return false;
       }
@@ -507,9 +473,9 @@ export async function submitProposalRuntime(context, ...args) {
           const form = resolveRoleForm(proposal);
           const holderCount = (form.holders || []).length;
           successDescription = preparedRole?.stage === 'existing'
-            ? `Configuration vote submitted for “${form.name}”. Your settings take effect after this vote passes and runs.`
+            ? `The settings for “${form.name}” take effect if this vote passes.`
             : preparedRole?.requiresConfiguration
-              ? `Step 1 submitted for “${form.name}”. After this vote passes and runs, use Finish configuration on the voting page for the saved settings.`
+              ? `After this vote passes and runs, choose Continue role setup in Votes to review the saved settings for “${form.name}”.`
               : form.kind === ROLE_FORM_KIND.GROUP
                 ? `Create-group proposal submitted for “${form.name || 'new group'}”.`
                 : `Create-role proposal submitted for “${form.name || 'new role'}”${holderCount ? ` with ${holderCount} starting members` : ''}.`;
