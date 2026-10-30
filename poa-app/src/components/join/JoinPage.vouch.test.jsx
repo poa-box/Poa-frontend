@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
   query: {}, actions: [], vouch: null, revoke: null, viewerHasVouched: false, username: null,
   authenticated: true, hydrated: true, roles: [], authority: {}, states: {}, loading: false, error: null,
   claim: null, refetch: null, connect: null, share: null, push: null, quickJoin: null, ready: true,
-  inviteStatus: 'absent', inviteRefresh: null, passkeyProps: null, solidarityProps: null,
+  snapshot: null, inviteStatus: 'absent', inviteRefresh: null, passkeyProps: null, solidarityProps: null,
 }));
 vi.mock('@chakra-ui/react', async () => (await import('@/test/mockChakra')).mockChakra(state.actions));
 vi.mock('next/router', () => ({ useRouter: () => ({ query: state.query, push: state.push }) }));
@@ -27,7 +27,7 @@ vi.mock('@/util/shortLinks', () => ({ shareUrl: (...args) => state.share(...args
 vi.mock('@/components/shared/useOnboardingColors', () => ({ default: () => ({ ink: 'black', muted: 'gray', line: 'gray', primary: 'purple', surface: 'white' }) }));
 vi.mock('@/hooks/useAuthorityJoinRoles', () => ({ useAuthorityJoinRoles: () => ({
   roles: state.roles, authority: state.authority, loading: state.loading, error: state.error,
-  states: state.states, refetch: state.refetch,
+  states: state.states, snapshot: state.snapshot, refetch: state.refetch,
 }) }));
 vi.mock('@/hooks/accessV2', () => ({
   useAuthorityActions: () => ({ claim: state.claim, vouch: state.vouch, revokeVouch: state.revoke, isBusy: () => false }),
@@ -74,6 +74,7 @@ describe('shared vouch links identify the authority action recipient', () => {
     state.push = vi.fn();
     state.quickJoin = vi.fn().mockResolvedValue({ success: true });
     state.inviteRefresh = vi.fn();
+    state.snapshot = null;
     state.passkeyProps = null;
     state.solidarityProps = null;
   });
@@ -143,7 +144,7 @@ describe('shared vouch links identify the authority action recipient', () => {
     renderToStaticMarkup(React.createElement(JoinPage));
     await button('Join Delegates').onClick();
     expect(state.claim).toHaveBeenCalledWith('123', 'Delegates');
-    expect(state.refetch).toHaveBeenCalledOnce();
+    expect(state.refetch).not.toHaveBeenCalled();
   });
 
   it.each(['paused', 'unknown', 'denied'])('does not submit a role claim when %s, even if its handler is invoked', async condition => {
@@ -161,6 +162,7 @@ describe('shared vouch links identify the authority action recipient', () => {
   it('keeps mixed auto-join and vouched roles available and uses configured authority ids for onboarding', async () => {
     state.roles.push({ subjectId: '456', name: 'Member', permEffective: key => key === PERM_KEYS.QJ_AUTOJOIN ? 1n : 0n });
     state.states[456] = { reason: 0 };
+    state.snapshot = { coverage: { status: 'complete' }, data: { subjects: [{ subjectId: '456', defaultAllow: true, vouchConfig: null }] } };
     const html = renderToStaticMarkup(React.createElement(JoinPage));
     expect(html).toContain('Delegates');
     expect(state.passkeyProps).toMatchObject({ variant: 'join', showWalletOption: true, paymasterHatId: '456' });

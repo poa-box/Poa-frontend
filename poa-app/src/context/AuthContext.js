@@ -133,8 +133,8 @@ export const AuthProvider = ({ children }) => {
   const bundlerClient = useMemo(() => createLazyPimlicoClient(defaultChain), []);
 
   // Auto-reconnect: on mount, check for stored passkey credential.
-  // In E2E mode, seed the pending credential for the target org so the
-  // /join page enters the same vouch-first onboarding flow real users hit.
+  // E2E restores only a deployed virtual credential. A fresh seed stays
+  // anonymous until normal account creation records its enrollment scope.
   useEffect(() => {
     if (typeof window === 'undefined') return; // SSR guard
 
@@ -166,7 +166,7 @@ export const AuthProvider = ({ children }) => {
     if (process.env.NEXT_PUBLIC_E2E_MODE === 'true') {
       const seedRuntime = import('@/services/e2e/seedVirtualPasskey');
       // In passkey mode, restore the deployed virtual passkey before falling
-      // back to the pending/onboarding flow — otherwise a fresh tab can't act
+      // back to normal account creation — otherwise a fresh tab can't act
       // as the already-deployed E2E identity.
       if (E2E_AS === 'passkey') {
         asyncSettlePending = true;
@@ -175,7 +175,6 @@ export const AuthProvider = ({ children }) => {
         }).catch(() => { /* logged inside activator */ })
           .finally(settle);
       }
-      seedRuntime.then(({ ensureVirtualPasskeyPendingSeeded }) => ensureVirtualPasskeyPendingSeeded()).catch(() => { /* logged inside seeder */ });
     }
 
     if (hasStoredCredentials()) {

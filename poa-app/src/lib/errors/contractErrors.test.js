@@ -44,6 +44,14 @@ describe('decodeRevertData', () => {
     expect(decodeRevertData('0x235dddba').message).toMatch(/requires an application/i); // RequiresApplication
   });
 
+  it('keeps the DKIM rejection identity while directing members to an admin update', () => {
+    const decoded = decodeRevertData('0x165a0726');
+    expect(decoded).toMatchObject({ name: 'InvalidDKIMKey', reason: 'InvalidDKIMKey' });
+    expect(CONTRACT_ERROR_SELECTORS['0x165a0726']).toBe('InvalidDKIMKey');
+    expect(decoded.message).toContain("organization's email verification needs an admin update");
+    expect(decoded.message).not.toMatch(/register your domain|supported provider/i);
+  });
+
   it('returns null for unknown selectors and non-hex input', () => {
     expect(decodeRevertData('0xdeadbeef')).toBeNull();
     expect(decodeRevertData('not hex')).toBeNull();

@@ -22,7 +22,8 @@ The script prints:
 2. **Vouch URL for the EOA** — open in your member browser, click Vouch.
 3. **Vouch URL for the passkey smart account** — same.
 
-Both addresses must be vouched once before the agent can claim hats.
+Vouch requirements come from the role’s current configuration. Only members of
+the configured voucher role or group can vouch; an admin label alone is insufficient.
 
 ## Running the agent
 
@@ -35,17 +36,45 @@ yarn dev:e2e-passkey     # skips EOA auto-connect; activates virtual passkey
 immediately signed in.
 
 **Passkey mode** has two phases:
-1. *First run, before deploy.* `seedVirtualPasskey.ensureVirtualPasskeyPendingSeeded()`
-   primes the pending credential, agent drives `/join?org=Test6`, and the
-   production code path takes over: `useVouchFirstOnboarding` →
-   `PasskeyOnboardingService.deployWithExistingCredential`.
-2. *Every run after deploy.* `seedVirtualPasskey.ensureVirtualPasskeyActivated()`
-   queries the subgraph for the deployed smart account by credentialId and
-   restores it into `AuthContext` on mount, so a fresh tab is signed in
-   immediately — no `/join` round-trip. UserOps go through the same
-   `signUserOpWithPasskey` path real users hit; `virtualPasskey.js` emits a
-   strictly-increasing `signCount` (Unix seconds) to satisfy the contract's
-   anti-replay check.
+1. *Fresh identity.* The app leaves an undeployed virtual passkey anonymous. Drive
+   `/join/?org=Test6`, choose account creation, and enter a unique username. The
+   normal onboarding service creates the virtual credential and persists a scoped
+   pending enrollment. Nothing writes a legacy pending hint before this flow.
+   Organization creation/join may require vouches for the predicted address;
+   only members of the role's configured voucher subject can provide them.
+2. *Returning identity.* `ensureVirtualPasskeyActivated()` finds an indexed account
+   by the current credential ID and restores it into AuthContext. UserOperations
+   use the same service and signing path as normal passkey users. A fresh identity
+   must be tested in an isolated browser storage context so an earlier stored
+   credential cannot restore the old account.
+
+To use fresh test identities without rotating the machine-level configuration,
+provide nonempty `NEXT_PUBLIC_E2E_BURNER_PK` and/or
+`NEXT_PUBLIC_E2E_PASSKEY_SEED` values to the single dev-server process. The E2E
+configuration only fills missing variables from `~/.poa/e2e.env`; it does not
+replace process overrides. Keep those test secrets out of logs and committed
+files. A new EOA needs native funds on the organization chain for direct wallet
+registration/join calls; sponsored passkey creation uses the configured org or
+solidarity budget.
+
+## Managed email acceptance
+
+Use the same public inbox pair as `.github/workflows/deploy-ipfs.yml` before
+starting the dev server or building the app:
+
+```sh
+NEXT_PUBLIC_ZKEMAIL_INBOX=claim@poa.box
+NEXT_PUBLIC_ZKEMAIL_INBOX_URL=https://poa-zkemail-claim-inbox.caffe-jump0d.workers.dev
+```
+
+Send the approved verification email from the invited address to that managed
+inbox and let the page pick up the received message automatically. Do not use a
+same-account self-send for this acceptance check. Retries can reuse the stored
+received message without sending another email.
+
+If either setting is absent, the app deliberately shows the expanded manual
+`.eml` fallback. That tests manual upload, not managed-inbox delivery. With the
+pair configured, manual upload remains an optional collapsed fallback.
 
 ## Production safety
 

@@ -1,5 +1,5 @@
 import { useWalletAction } from '@/components/common/WalletActionButton';
-import { useId, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import {
   Box,
   Button,
@@ -26,6 +26,7 @@ import { OnboardingStep } from '@/services/web3/domain/PasskeyOnboardingService'
 
 const STEP_PROGRESS = {
   [OnboardingStep.IDLE]: 0,
+  [OnboardingStep.CHECKING_USERNAME]: 10,
   [OnboardingStep.CREATING_CREDENTIAL]: 15,
   [OnboardingStep.COMPUTING_ADDRESS]: 30,
   [OnboardingStep.BUILDING_TRANSACTION]: 45,
@@ -48,6 +49,8 @@ export default function PasskeyOnboardingDialog({
   onboarding,
   startOnboarding,
   successMessage,
+  successTitle,
+  accountOnly = false,
   successActionLabel,
   onConnectWallet,
   variant,
@@ -74,6 +77,13 @@ export default function PasskeyOnboardingDialog({
     isReady,
     reset,
   } = onboarding;
+  const pendingUsername = onboarding.pendingEnrollment?.credential?.flow === 'onboarding'
+    ? onboarding.pendingEnrollment.credential.username : '';
+  const pendingKey = onboarding.pendingEnrollment?.key;
+  const pendingCredentialId = onboarding.pendingEnrollment?.credential?.credentialId;
+  useEffect(() => {
+    if (isOpen && pendingUsername) setUsername(pendingUsername);
+  }, [isOpen, pendingKey, pendingCredentialId, pendingUsername]);
 
   const progress = STEP_PROGRESS[step] || 0;
   const isInProgress = isOnboarding || (
@@ -85,18 +95,18 @@ export default function PasskeyOnboardingDialog({
   const isError = step === OnboardingStep.ERROR;
   // Only the join presentation translates phase labels; the service's step data is unchanged.
   const joinStepLabels = {
+    [OnboardingStep.CHECKING_USERNAME]: 'Checking your username…',
     [OnboardingStep.CREATING_CREDENTIAL]: 'Create your passkey to continue.',
     [OnboardingStep.COMPUTING_ADDRESS]: 'Setting up your account…',
-    [OnboardingStep.BUILDING_TRANSACTION]: 'Preparing your membership…',
+    [OnboardingStep.BUILDING_TRANSACTION]: accountOnly ? 'Preparing your account…' : 'Preparing your membership…',
     [OnboardingStep.SIGNING_REGISTRATION]: 'Confirm your username with your passkey.',
     [OnboardingStep.SIGNING]: 'Confirm with your passkey to continue.',
     [OnboardingStep.SUBMITTING]: 'Finishing your account setup…',
-    [OnboardingStep.CONFIRMING]: 'Confirming your membership…',
+    [OnboardingStep.CONFIRMING]: accountOnly ? 'Confirming your account setup…' : 'Confirming your membership…',
   };
 
   const handleStart = async () => {
-    const trimmed = onboarding.pendingEnrollment?.credential?.flow === 'onboarding'
-      ? onboarding.pendingEnrollment.credential.username : username.trim();
+    const trimmed = username.trim();
     if (!trimmed) {
       inputRef.current?.focus();
       toast({
@@ -156,7 +166,7 @@ export default function PasskeyOnboardingDialog({
         mx={4}
       >
         <ModalHeader textAlign={isJoin ? 'left' : 'center'} pt={isJoin ? 7 : 6} pr={isJoin ? 12 : undefined} pb={2} fontSize={isJoin ? '26px' : 'xl'} fontWeight={isJoin ? '600' : '700'} letterSpacing={isJoin ? '-0.035em' : undefined}>
-          {isSuccess ? (isJoin ? 'You’re all set' : 'Account Created!') : (isJoin ? 'Create your account' : 'Create Passkey Account')}
+          {isSuccess ? (successTitle || (isJoin ? 'You’re all set' : 'Account Created!')) : (isJoin ? 'Create your account' : 'Create Passkey Account')}
         </ModalHeader>
         {!isInProgress && <ModalCloseButton />}
 
@@ -311,7 +321,7 @@ export default function PasskeyOnboardingDialog({
                 _hover={{ bg: 'amethyst.600', transform: 'translateY(-1px)', boxShadow: 'lg' }}
                 _active={{ bg: 'amethyst.700', transform: 'translateY(0)' }}
                 onClick={handleStart}
-                isDisabled={!isReady || (onboarding.hasPendingEnrollment
+                isDisabled={!isReady || !username.trim() || (onboarding.hasPendingEnrollment
                   ? !(onboarding.pendingEnrollment?.credential?.flow === 'onboarding' && ['not-submitted', 'failed'].includes(onboarding.recoveryStatus))
                   : !username.trim())}
                 leftIcon={<FaFingerprint />}

@@ -21,6 +21,8 @@ import { buildAuthorityAction } from '@poa-box/core/tx/authority';
 import { normalizeSubjectId } from '@poa-box/core/authority/ids';
 import { executeCoreIntent } from '@/services/web3/core/coreIntent';
 import { requireAddress } from '@/services/web3/utils/validation';
+import { knownFact, assertSourceBlock } from '@poa-box/core/data/facts';
+import { requireRawUint } from '@poa-box/core/amounts';
 
 const requireSubject = (subjectId) => {
   if (subjectId === null || subjectId === undefined || subjectId === '') {
@@ -218,6 +220,43 @@ export class MembershipAuthorityService {
     requireAddress(user, 'User address');
     const word = await this._readonly(authority).hasPerm(user, permKey, ctx);
     return word.toString();
+  }
+
+  /** Effective (epoch-adjusted) counter for a target not yet represented by the index.
+   * Keep this distinct from raw wearer storage: the contract exposes no wearer-epoch getter.
+   * Both counter and config are observed at the same verified indexed inclusion block.
+   */
+  async readEffectiveVouchCount(authority, subjectId, user, { source, config }) {
+    requireAddress(user, 'User address');
+    if (/^0x0{40}$/i.test(user)) throw new Error('A nonzero user address is required.');
+    const id = requireSubject(subjectId);
+    if (!source || !Number.isSafeInteger(source.chainId) || source.chainId <= 0 || !source.orgId
+      || source.contract?.toLowerCase() !== authority.toLowerCase()
+      || source.account?.toLowerCase() !== user.toLowerCase() || !source.block?.hash
+      || !/^0x[0-9a-f]{64}$/i.test(source.block.hash)) throw new Error('Vouch observation scope is unavailable.');
+    const blockNumber = Number(requireRawUint(source.block.number));
+    if (!Number.isSafeInteger(blockNumber)) throw new Error('Vouch observation block is unavailable.');
+    const contract = this._readonly(authority);
+    const provider = contract.provider;
+    const verifyBlock = async () => {
+      const [network, block] = await Promise.all([provider.getNetwork(), provider.getBlock(blockNumber)]);
+      if (network.chainId !== source.chainId) throw new Error('Vouch observation network changed.');
+      assertSourceBlock(block && { number: String(block.number), hash: block.hash }, source.block);
+    };
+    await verifyBlock();
+    const [observedConfig, count] = await Promise.all([
+      contract.vouchConfig(id, { blockTag: blockNumber }),
+      contract.vouchCount(id, user, { blockTag: blockNumber }),
+    ]);
+    await verifyBlock();
+    const exact = (value, width) => requireRawUint(value.toString(), width);
+    if (exact(observedConfig.quorum ?? observedConfig[0], 32) !== exact(config.quorum, 32)
+      || exact(observedConfig.voucherSubject ?? observedConfig[1], 256) !== requireSubject(config.voucherSubjectId)
+      || exact(observedConfig.epoch ?? observedConfig[2], 64) !== exact(config.epoch, 64)) {
+      throw new Error('Vouch configuration does not match the selected observation.');
+    }
+    return knownFact(exact(count, 32), { ...source, indexed: false, method: 'vouchCount',
+      endpoint: provider.connection?.url || 'org-chain-provider', snapshot: 'pinned' });
   }
 
   async paused(authority) {

@@ -40,12 +40,23 @@ export default function JoinPage() {
   const colors = useOnboardingColors();
   const { isAuthenticated, accountAddress, isAuthHydrated } = useAuth();
   const { graphUsername } = useUserContext();
-  const { roles, authority, loading, error, states, refetch } = useAuthorityJoinRoles();
+  const { roles, authority, loading, error, snapshot, states, refetch } = useAuthorityJoinRoles();
   const { claim, isBusy } = useAuthorityActions();
   const [claimError, setClaimError] = useState(null);
   const [joining, setJoining] = useState(false);
   const { organization, executeWithNotification, isReady } = useWeb3();
   const autoJoinRoles = roles.filter(role => subjectHoldsPerm(role, PERM_KEYS.QJ_AUTOJOIN));
+  // Classification uses complete, uncoerced core observations. A normalized false
+  // can otherwise mean a missing default, which cannot authorize atomic signup.
+  const autoJoinConfigs = autoJoinRoles.map(role => snapshot?.coverage.status === 'complete'
+    ? snapshot.data.subjects.find(subject => subject.subjectId === role.subjectId) : null);
+  const knownVouchGate = config => config?.defaultAllow === false
+    && Number.isInteger(Number(config.vouchConfig?.quorum))
+    && Number(config.vouchConfig.quorum) > 0 && Number(config.vouchConfig.quorum) <= 4294967295;
+  const atomicAccountJoin = autoJoinConfigs.length > 0 && autoJoinConfigs.every(config => config?.defaultAllow === true);
+  const accountBeforeVouch = autoJoinConfigs.some(knownVouchGate)
+    && autoJoinConfigs.every(config => config?.defaultAllow === true || knownVouchGate(config));
+  const signupUnavailable = autoJoinConfigs.length > 0 && !atomicAccountJoin && !accountBeforeVouch;
   const canAutoJoin = autoJoinRoles.length > 0 && autoJoinRoles.every(role => joinRoleState(states[role.subjectId]).canClaim);
   const hasVouchGatedRoles = roles.some(role => role.vouchConfig?.quorum > 0);
   const requiresInvitation = autoJoinRoles.length === 0 && !hasVouchGatedRoles && !roles.some(role => role.defaultAllow === true);
@@ -67,8 +78,7 @@ export default function JoinPage() {
     if (!canChangeMembership || !joinRoleState(states[role.subjectId]).canClaim) return;
     setClaimError(null);
     const result = await claim(role.subjectId, role.name);
-    if (result?.success) refetch();
-    else if (result?.error) setClaimError(result.error.message);
+    if (!result?.success && result?.error) setClaimError(result.error.message);
   };
   const joinOrganization = async () => {
     if (!organization || !isReady || !quickJoinContractAddress || !canChangeMembership || !canAutoJoin) return;
@@ -77,8 +87,7 @@ export default function JoinPage() {
       const result = await executeWithNotification(() => organization.quickJoinWithUser(quickJoinContractAddress, {
         paymasterHatIds: autoJoinRoles.map(role => role.subjectId),
       }), { pendingMessage: 'Joining organization…', successMessage: 'You joined the organization.', refreshEvent: 'member:joined' });
-      if (result?.success) refetch();
-      else if (result?.error) setClaimError(result.error.message);
+      if (!result?.success && result?.error) setClaimError(result.error.message);
     } finally { setJoining(false); }
   };
   const share = async role => {
@@ -123,7 +132,12 @@ export default function JoinPage() {
                 <Button variant="outline" onClick={() => router.push(orgUrl(orgName, 'profile'))}>View your profile</Button>
               </VStack>
             ) : !requiresInvitation ? (
-              <JoinAccountStart orgName={orgName} roleName={autoJoinRoles.length === 1 ? autoJoinRoles[0].name : undefined} onCreate={createAccount.onOpen} onSignIn={signIn.onOpen} isDisabled={authority.paused} />
+              signupUnavailable ? (
+                <JoinInvitationStart orgName={orgName} status="unknown" hasError onRetry={refetch} isAuthenticated={false} onSignIn={signIn.onOpen} />
+              ) : <>
+                {accountBeforeVouch && <Text fontSize="sm" color={colors.muted}>Create your account first. Then share your vouch link with a member and return here to finish joining.</Text>}
+                <JoinAccountStart orgName={orgName} roleName={atomicAccountJoin && autoJoinRoles.length === 1 ? autoJoinRoles[0].name : undefined} onCreate={createAccount.onOpen} onSignIn={signIn.onOpen} isDisabled={authority.paused} />
+              </>
             ) : null}
             {requiresInvitation && (
               <JoinInvitationStart
@@ -166,11 +180,11 @@ export default function JoinPage() {
           </VStack>
         )}
       </JoinLayout>
-      <SignInModal variant="join" isOpen={signIn.isOpen} onClose={signIn.onClose} onSuccess={refetch} onCreateAccount={!requiresInvitation && authority.enabled ? () => { signIn.onClose(); createAccount.onOpen(); } : undefined} />
-      {autoJoinRoles.length > 0 && quickJoinContractAddress ? (
+      <SignInModal variant="join" isOpen={signIn.isOpen} onClose={signIn.onClose} onSuccess={refetch} onCreateAccount={!requiresInvitation && !signupUnavailable && authority.enabled ? () => { signIn.onClose(); createAccount.onOpen(); } : undefined} />
+      {atomicAccountJoin && quickJoinContractAddress ? (
         <PasskeyOnboardingModal variant="join" showWalletOption isOpen={createAccount.isOpen} onClose={createAccount.onClose} paymasterHatId={autoJoinRoles[0].subjectId} onSuccess={() => { createAccount.onClose(); refetch(); }} />
-      ) : (
-        <SolidarityOnboardingModal isOpen={createAccount.isOpen} onClose={createAccount.onClose} onSuccess={() => { createAccount.onClose(); refetch(); }} />
+      ) : !signupUnavailable && (
+        <SolidarityOnboardingModal variant="join" needsVouch={accountBeforeVouch} isOpen={createAccount.isOpen} onClose={createAccount.onClose} onSuccess={() => { createAccount.onClose(); refetch(); }} />
       )}
       <SignupModal isOpen={username.isOpen} onClose={username.onClose} />
     </>
