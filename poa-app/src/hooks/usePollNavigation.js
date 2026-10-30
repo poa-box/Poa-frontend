@@ -92,8 +92,7 @@ export function usePollNavigation({
     onDetailCloseBase();
     const r = routerRef.current;
     if (r?.query?.poll) {
-      const dao = userDAORef.current;
-      const query = dao ? { userDAO: dao } : {};
+      const { poll, ...query } = r.query;
       r.replace({ pathname: r.pathname, query }, undefined, { shallow: true });
     }
   }, [rememberClosed, onDetailCloseBase]);
@@ -120,7 +119,7 @@ export function usePollNavigation({
     // /votes archive (losing filters/scroll) just to open a modal it already has.
     const r = routerRef.current;
     r.push(
-      { pathname: r.pathname, query: { poll: poll.id, userDAO: userDAORef.current } },
+      { pathname: r.pathname, query: { ...r.query, poll: poll.id, userDAO: userDAORef.current } },
       undefined,
       { shallow: true }
     );
