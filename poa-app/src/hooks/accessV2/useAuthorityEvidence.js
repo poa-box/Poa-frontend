@@ -37,7 +37,7 @@ export function useAuthorityEvidence({ block } = {}) {
     if (store !== disabled && !current.loading && !current.snapshot && !current.error) store.refresh().catch(() => {});
   }, [store]);
   useRefreshSubscription([
-    RefreshEvent.PROPOSAL_COMPLETED, RefreshEvent.ROLE_CLAIMED, RefreshEvent.ROLE_RENOUNCED,
+    RefreshEvent.PROPOSAL_COMPLETED, RefreshEvent.MEMBER_JOINED, RefreshEvent.ROLE_CLAIMED, RefreshEvent.ROLE_RENOUNCED,
     RefreshEvent.VOUCH_CHANGED, RefreshEvent.MEMBERSHIP_PENDING, RefreshEvent.MEMBERSHIP_CHANGED,
   ], () => { store.refresh().catch(() => {}); }, [store]);
   return { ...state, scope, authority, enabled: authority.enabled,

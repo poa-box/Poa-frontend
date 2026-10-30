@@ -64,10 +64,12 @@ describe('newcomer account creation before vouching', () => {
  it('keeps the new account on Join for a real vouch link and waits for current eligibility before joining', async () => {
   await render(); await host.click(host.button('Create account'));
   f.authenticated = true; await act(async () => { f.solidarity.onSuccess({ accountAddress: f.account }); }); await render();
+  expect(f.refetch).toHaveBeenCalledOnce();
   expect(f.push).not.toHaveBeenCalled(); expect(host.container.textContent).toContain('Your membership');
   expect(host.container.textContent).toContain(f.account); expect(host.props(host.button('Join organization')).disabled).toBe(true);
   await host.click(host.button('Copy your vouch link')); expect(f.share).toHaveBeenCalledWith('/join/', { org: 'Any community', hatId: '7', vouch: f.account });
   expect(f.quickJoin).not.toHaveBeenCalled(); f.states = { 7: { reason: 0 } }; await render();
   await host.click(host.button('Join organization')); expect(f.quickJoin).toHaveBeenCalledExactlyOnceWith(`0x${'11'.repeat(20)}`, { paymasterHatIds: ['7'] });
+  expect(f.refetch).toHaveBeenCalledOnce();
  });
 });

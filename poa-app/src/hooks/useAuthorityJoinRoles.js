@@ -29,7 +29,7 @@ export function useAuthorityJoinRoles() {
     setRevision(value => value + 1);
   }, [refetchAuthority, authority.enabled, authority.address, refetchSubjects]);
   useRefreshSubscription(
-    [RefreshEvent.ROLE_CLAIMED, RefreshEvent.VOUCH_CHANGED, RefreshEvent.MEMBERSHIP_CHANGED, RefreshEvent.PROPOSAL_COMPLETED],
+    [RefreshEvent.MEMBER_JOINED, RefreshEvent.ROLE_CLAIMED, RefreshEvent.VOUCH_CHANGED, RefreshEvent.MEMBERSHIP_CHANGED, RefreshEvent.PROPOSAL_COMPLETED],
     refetch,
     [refetch],
   );

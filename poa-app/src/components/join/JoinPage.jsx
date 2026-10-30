@@ -78,8 +78,7 @@ export default function JoinPage() {
     if (!canChangeMembership || !joinRoleState(states[role.subjectId]).canClaim) return;
     setClaimError(null);
     const result = await claim(role.subjectId, role.name);
-    if (result?.success) refetch();
-    else if (result?.error) setClaimError(result.error.message);
+    if (!result?.success && result?.error) setClaimError(result.error.message);
   };
   const joinOrganization = async () => {
     if (!organization || !isReady || !quickJoinContractAddress || !canChangeMembership || !canAutoJoin) return;
@@ -88,8 +87,7 @@ export default function JoinPage() {
       const result = await executeWithNotification(() => organization.quickJoinWithUser(quickJoinContractAddress, {
         paymasterHatIds: autoJoinRoles.map(role => role.subjectId),
       }), { pendingMessage: 'Joining organization…', successMessage: 'You joined the organization.', refreshEvent: 'member:joined' });
-      if (result?.success) refetch();
-      else if (result?.error) setClaimError(result.error.message);
+      if (!result?.success && result?.error) setClaimError(result.error.message);
     } finally { setJoining(false); }
   };
   const share = async role => {

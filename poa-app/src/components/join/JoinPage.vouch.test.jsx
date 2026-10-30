@@ -144,7 +144,7 @@ describe('shared vouch links identify the authority action recipient', () => {
     renderToStaticMarkup(React.createElement(JoinPage));
     await button('Join Delegates').onClick();
     expect(state.claim).toHaveBeenCalledWith('123', 'Delegates');
-    expect(state.refetch).toHaveBeenCalledOnce();
+    expect(state.refetch).not.toHaveBeenCalled();
   });
 
   it.each(['paused', 'unknown', 'denied'])('does not submit a role claim when %s, even if its handler is invoked', async condition => {

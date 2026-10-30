@@ -30,7 +30,7 @@ import { lightCardStyle } from '@/components/shared/glassStyles';
 import { useSubjectVouches, useAuthorityActions } from '@/hooks/accessV2';
 
 export default function SubjectVouchPanel({ subjectId, user }) {
-  const { config, records, progress, progressCopy, vouchGate, viewerHasVouched, enabled, refetch, subject } =
+  const { config, records, progress, progressCopy, vouchGate, viewerHasVouched, enabled, subject } =
     useSubjectVouches(subjectId, user);
   const { vouch, revokeVouch, isBusy } = useAuthorityActions();
   const [error, setError] = useState(null);
@@ -40,8 +40,9 @@ export default function SubjectVouchPanel({ subjectId, user }) {
   const run = async (fn) => {
     setError(null);
     const res = await fn(subjectId, user);
-    if (res?.success) refetch?.();
-    else if (res?.error) setError(res.error.message);
+    // The action's notification refreshes shared evidence after indexing. An
+    // earlier refresh can unmount this panel and cancel that completion event.
+    if (!res?.success && res?.error) setError(res.error.message);
   };
 
   return (
