@@ -237,15 +237,30 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
   const orgDisplayName = userDAO || 'this org';
 
   // IPFS metadata state
-  const [taskMetadata, setTaskMetadata] = useState(null);
-  const [baseTaskMetadata, setBaseTaskMetadata] = useState(null);
-  const [submissionMetadata, setSubmissionMetadata] = useState(null);
-  const [rejectionMetadata, setRejectionMetadata] = useState(null);
-  const [metadataLoading, setMetadataLoading] = useState(false);
+  // Bind resolved documents during render as well as cancelling old requests.
+  // Effects reset after a commit; an unkeyed prior document could otherwise
+  // briefly describe a different task/hash/account before that reset runs.
+  const metadataIdentity = JSON.stringify([task.id, task.projectId, task.metadataHash, task.submissionHash,
+    task.rejectionHash, account?.toLowerCase(), poContext.orgId, poContext.orgChainId, poContext.subgraphUrl]);
+  const [taskMetadataRead, setTaskMetadataRead] = useState(null);
+  const [baseTaskMetadataRead, setBaseTaskMetadataRead] = useState(null);
+  const [submissionMetadataRead, setSubmissionMetadataRead] = useState(null);
+  const [rejectionMetadataRead, setRejectionMetadataRead] = useState(null);
+  const taskMetadata = taskMetadataRead?.identity === metadataIdentity ? taskMetadataRead.document : null;
+  const baseTaskMetadata = baseTaskMetadataRead?.identity === metadataIdentity ? baseTaskMetadataRead.document : null;
+  const submissionMetadata = submissionMetadataRead?.identity === metadataIdentity ? submissionMetadataRead.document : null;
+  const rejectionMetadata = rejectionMetadataRead?.identity === metadataIdentity ? rejectionMetadataRead.document : null;
+  const [metadataLoadingIdentity, setMetadataLoadingIdentity] = useState(null);
+  const metadataLoading = metadataLoadingIdentity === metadataIdentity;
+  const displayedDescription = task.description ?? taskMetadata?.description;
   const [previousSubmission, setPreviousSubmission] = useState(null);
   const [previousSubmissionLoading, setPreviousSubmissionLoading] = useState(false);
   const [previousSubmissionUnavailable, setPreviousSubmissionUnavailable] = useState(false);
-  const displayedSubmission = task?.submission ?? submissionMetadata?.submission ?? null;
+  const displayedSubmission = task?.submission ?? baseTaskMetadata?.submission ?? submissionMetadata?.submission ?? null;
+  // Board rows supply medium/1 presentation defaults while metadata is indexing.
+  // The complete document for this exact pointer is authoritative once loaded.
+  const displayedDifficulty = baseTaskMetadata?.difficulty ?? taskMetadata?.difficulty ?? task.difficulty ?? 'Unknown';
+  const displayedHours = baseTaskMetadata?.estHours ?? taskMetadata?.estHours ?? taskMetadata?.estimatedHours ?? task.estHours ?? 0;
 
   // Application IPFS content state
   const [applicationContents, setApplicationContents] = useState({});
@@ -331,16 +346,20 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
       const needsRejectionMetadata = !task.rejectionReason && task.rejectionHash &&
         task.rejectionCount > 0 && !rejectionMetadata;
 
-      if (!needsTaskMetadata && !needsSubmissionMetadata && !needsRejectionMetadata) return;
+      if (!needsTaskMetadata && !needsSubmissionMetadata && !needsRejectionMetadata) {
+        setMetadataLoadingIdentity(previous => previous === metadataIdentity ? null : previous);
+        return;
+      }
 
-      if (!cancelled) setMetadataLoading(true);
+      if (!cancelled) setMetadataLoadingIdentity(metadataIdentity);
 
       // Fetch task metadata (description, difficulty, estHours) - IPFS fallback
       if (needsTaskMetadata) {
         try {
           const metadata = await safeFetchFromIpfs(task.metadataHash);
           if (!cancelled && metadata) {
-            setTaskMetadata(metadata);
+            setTaskMetadataRead(previous => previous?.identity === metadataIdentity && previous.verified
+              ? previous : { identity: metadataIdentity, document: metadata });
           }
         } catch (err) {
           console.error('[TaskCardModal] IPFS fallback failed for task metadata:', err);
@@ -352,7 +371,7 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
         try {
           const metadata = await safeFetchFromIpfs(task.submissionHash);
           if (!cancelled && metadata) {
-            setSubmissionMetadata(metadata);
+            setSubmissionMetadataRead({ identity: metadataIdentity, document: metadata });
           }
         } catch (err) {
           console.error('[TaskCardModal] IPFS fallback failed for submission metadata:', err);
@@ -364,38 +383,37 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
         try {
           const metadata = await safeFetchFromIpfs(task.rejectionHash);
           if (!cancelled && metadata) {
-            setRejectionMetadata(metadata);
+            setRejectionMetadataRead({ identity: metadataIdentity, document: metadata });
           }
         } catch (err) {
           console.error('[TaskCardModal] IPFS fallback failed for rejection metadata:', err);
         }
       }
 
-      if (!cancelled) setMetadataLoading(false);
+      if (!cancelled) setMetadataLoadingIdentity(previous => previous === metadataIdentity ? null : previous);
     };
 
     fetchIpfsMetadata();
     return () => { cancelled = true; };
-  }, [isOpen, task, safeFetchFromIpfs, taskMetadata, submissionMetadata, rejectionMetadata]);
+  }, [isOpen, task, metadataIdentity, safeFetchFromIpfs, taskMetadata, submissionMetadata, rejectionMetadata]);
 
   useEffect(() => {
     let cancelled = false;
-    setTaskMetadata(null);
-    setBaseTaskMetadata(null);
-    setSubmissionMetadata(null);
-    setRejectionMetadata(null);
+    setTaskMetadataRead(null);
+    setBaseTaskMetadataRead(null);
+    setSubmissionMetadataRead(null);
+    setRejectionMetadataRead(null);
     const capturedTask = taskRef.current;
     if (isOpen && !capturedTask.isIndexing) {
       getTaskMetadata(capturedTask).then(document => {
         if (!cancelled) {
-          setTaskMetadata(document);
-          setBaseTaskMetadata(document);
+          setTaskMetadataRead({ identity: metadataIdentity, document, verified: true });
+          setBaseTaskMetadataRead({ identity: metadataIdentity, document });
         }
       }).catch(() => { /* Edits/submissions fail closed at the action boundary. */ });
     }
     return () => { cancelled = true; };
-  }, [isOpen, task.id, task.metadataHash, task.submissionHash, task.isIndexing, getTaskMetadata,
-    account, poContext.orgId, poContext.orgChainId, poContext.subgraphUrl]);
+  }, [isOpen, metadataIdentity, task.isIndexing, getTaskMetadata]);
 
   // A rejection moves the task back to In Progress and clears its mutable
   // submissionHash. The subgraph retains an immutable TaskSubmission and links
@@ -974,26 +992,26 @@ const TaskCardModal = ({ task, columnId, onEditTask, onEditTaskMetadata }) => {
                       border="1px solid"
                       borderColor="whiteAlpha.100"
                     >
-                      {metadataLoading ? (
+                      {metadataLoading && displayedDescription == null ? (
                         <Text fontSize="sm" lineHeight="6" color="gray.200">
                           Loading task details...
                         </Text>
                       ) : (
                         <ExpandableText
-                          text={task.description ?? taskMetadata?.description ?? 'No description available'}
+                          text={displayedDescription ?? 'No description available'}
                           collapsedLines={{ base: 4, md: 5 }}
                           expandLabel="Show full description"
                         />
                       )}
                     </Box>
                     <HStack mt={3} spacing={3} flexWrap="wrap" rowGap={2}>
-                      <Badge colorScheme={difficultyColorScheme[(task.difficulty || taskMetadata?.difficulty)?.toLowerCase()?.replace(" ", "") || 'easy']}>
-                        {task.difficulty || taskMetadata?.difficulty || 'Unknown'}
+                      <Badge colorScheme={difficultyColorScheme[displayedDifficulty?.toLowerCase()?.replace(" ", "") || 'easy']}>
+                        {displayedDifficulty}
                       </Badge>
                       <Badge colorScheme="blue">
                         {taskPayoutHoursOnly
-                          ? formatEstTime(task.estHours || taskMetadata?.estHours || 0)
-                          : `${task.estHours || taskMetadata?.estHours || '0'} hrs`}
+                          ? formatEstTime(displayedHours)
+                          : `${displayedHours} hrs`}
                       </Badge>
                       {taskDue !== null && (
                         <Tooltip label={taskAbs !== null ? 'Hard deadline — enforced on-chain' : 'Due date (display-only)'} placement="top">
