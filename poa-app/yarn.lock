@@ -2871,9 +2871,10 @@
     tslib "^2.8.1"
     tsyringe "^4.10.0"
 
-"@poa-box/core@file:vendor/poa-box-core-2.2.0-4d2c3b8ebb5d.tgz":
+"@poa-box/core@2.2.0":
   version "2.2.0"
-  resolved "file:vendor/poa-box-core-2.2.0-4d2c3b8ebb5d.tgz#5c5fcf579f992dd1c6b2fb3e52cb7e1d34444a86"
+  resolved "https://registry.yarnpkg.com/@poa-box/core/-/core-2.2.0.tgz#5c5fcf579f992dd1c6b2fb3e52cb7e1d34444a86"
+  integrity sha512-VUXnkXzidSV9R76B+7mZCzrWkRSO/XETDPuagnkpeMIiX7jtBeqB6oz6ZxbccSuErfqgTZNCMq0Lw8IK4RhU/A==
   dependencies:
     "@ethersproject/bytes" "^5.8.0"
     "@ethersproject/keccak256" "^5.8.0"

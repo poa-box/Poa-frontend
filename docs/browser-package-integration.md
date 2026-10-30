@@ -1,9 +1,11 @@
 # Single-package browser integration
 
-The frontend consumes one `@poa-box/core@2.2.0` release candidate, using a
-content-addressed archive committed under `poa-app/vendor/` until that version is
-published. There is no separate browser package, dependency, version or release.
-The exact archive is recorded in `poa-app/package.json` and Yarn's lockfile.
+The frontend installs exact `@poa-box/core@2.2.0` from npm. There is no separate
+browser package, dependency, version or release. The registry URL and SHA-512
+integrity are pinned in Yarn's lockfile. The published archive is byte-for-byte
+identical to the reviewed candidate used for the live Test6 acceptance run
+(SHA-256 `4d2c3b8ebb5d50bf20184ecbceaa316aa5f8e43675bf7793fdea97f8988b913d`);
+all 434 distributed files match the installed package.
 
 Use `@poa-box/core` and its existing domain subpaths for protocol functionality,
 `@poa-box/core/browser/*` for optional browser adapters, and
@@ -22,6 +24,9 @@ controller is replaced by this import migration.
 Documentation ships in the same core archive: `docs/browser.md`,
 `docs/browser-integration.md` and `docs/browser-features.v1.json`. It specifies
 supported operations, injected services, units, side effects and recovery states.
-After core 2.2.0 is published, replace the archive dependency with that exact npm
-version and repeat artifact/frontend verification. Core 2.1.0 remains the currently
-published release; this branch does not publish, merge or deploy anything.
+Core 2.2.0 was published after [core PR #40](https://github.com/poa-box/poa-cli/pull/40)
+merged. Registry integrity and payload equality were independently verified before
+switching this frontend to the exact npm version. Fresh Test6 acceptance exercised
+12 transactions across a task lifecycle and learning module using both passkey and
+direct-wallet identities. Production build, tests and leakage checks also run
+against the registry installation. This frontend PR does not deploy the app.

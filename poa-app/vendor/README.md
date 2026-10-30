@@ -1,19 +1,22 @@
 # Core package integration
 
-The application now installs **one unpublished `@poa-box/core@2.2.0` candidate**
-from `poa-box-core-2.2.0-4d2c3b8ebb5d.tgz`. Its SHA-256 is
-`4d2c3b8ebb5d50bf20184ecbceaa316aa5f8e43675bf7793fdea97f8988b913d`.
-All 434 installed files match the archive, and there is exactly one core copy.
+The application installs exact **`@poa-box/core@2.2.0` from npm**. The Yarn lock
+records its registry URL and SHA-512 integrity. Its published archive is byte-for-byte
+identical to the reviewed candidate used for 12 fresh Test6 transactions:
+SHA-256 `4d2c3b8ebb5d50bf20184ecbceaa316aa5f8e43675bf7793fdea97f8988b913d`.
+All 434 installed files match the published payload, and there is one core copy.
 
 This combines the protocol APIs with optional `@poa-box/core/browser/*` adapters
 and `@poa-box/core/workflows`. There is no separate browser dependency or release.
-Core 2.1.0’s 364 compiled files are unchanged. The tracked archive makes CI
-reproducible while core PR #40 is under review; it is not an npm publication.
-After publication, replace the file dependency with exact version `2.2.0` only
-after verifying the registry payload against this reviewed archive.
+Core 2.1.0’s 364 compiled files are unchanged. [Core PR #40](https://github.com/poa-box/poa-cli/pull/40)
+is merged; the registry payload was independently verified before the frontend
+switched to the exact published version. The candidate archive remains local,
+ignored evidence and is no longer tracked or selected as a dependency.
 
 See [the integration guide](../../docs/browser-package-integration.md). Current
-verification is recorded in `.context/core-consolidation/` at the repository root.
+receipt, metadata, package and browser verification is recorded in
+`.context/core22-live-variety/` at the repository root. Earlier consolidation
+verification remains in `.context/core-consolidation/`.
 
 ## Previous published core 2.1.0 integration
 

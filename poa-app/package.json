@@ -37,7 +37,7 @@
     "@noble/curves": "^1.9.1",
     "@noble/hashes": "^1.8.0",
     "@openzeppelin/merkle-tree": "^1.0.8",
-    "@poa-box/core": "file:vendor/poa-box-core-2.2.0-4d2c3b8ebb5d.tgz",
+    "@poa-box/core": "2.2.0",
     "@rainbow-me/rainbowkit": "2.2.11",
     "@simplewebauthn/browser": "^13.3.0",
     "@tanstack/react-query": "^5.102.8",
