@@ -4,7 +4,7 @@ import {
   Tag, TagCloseButton, TagLabel, Text, VStack, Wrap, WrapItem,
 } from '@chakra-ui/react';
 import { FiPlus } from 'react-icons/fi';
-import { mergeInviteTokens, EMAIL_PRIVACY_NOTE } from '@/lib/accessV2/joinConfig';
+import { mergeInviteTokens } from '@/lib/accessV2/joinConfig';
 import { tokensFor } from '@/components/accessV2/roleForm/formTokens';
 
 /** Domain and specific-email inputs share the exact normalisation used to build proof leaves. */
@@ -22,7 +22,7 @@ export default function InviteListInput({ kind, value = [], onChange, openRole, 
       : result.duplicate.length ? 'Already on the list. Each entry is included once.' : null);
   };
   const readiness = !config?.ready
-    ? 'Checking this org’s email verification. You can prepare the list while it loads.'
+    ? 'Checking email access…'
     : config.error || (!config.enabled
       ? 'Email verification is not enabled for this org. Enable it before submitting a role with email access.'
       : config.authorityMatches === false
@@ -35,11 +35,11 @@ export default function InviteListInput({ kind, value = [], onChange, openRole, 
         <Text fontSize="sm" fontWeight="medium" color={t.label}>
           {domain ? 'Join with an email domain' : 'Invite by email'}
         </Text>
-        <Text fontSize="xs" color={t.help} mt={1}>
-          {domain
-            ? 'Anyone who proves they own an email at one of these domains can claim this role. Each domain is a separate way to qualify; vouches are not also required.'
-            : 'List specific people who can claim this role after verifying their email. No wallet address is needed, and no invitation email is sent.'}
-        </Text>
+        {domain && (
+          <Text fontSize="xs" color={t.help} mt={1}>
+            A verified email at any listed domain qualifies without vouches.
+          </Text>
+        )}
       </Box>
       {openRole && (
         <Alert status="info" borderRadius="md" fontSize="sm">
@@ -78,10 +78,8 @@ export default function InviteListInput({ kind, value = [], onChange, openRole, 
             Add
           </Button>
         </HStack>
-        <Text fontSize="xs" color={t.help} mt={1}>Paste several entries separated by commas or spaces.</Text>
       </FormControl>
       {feedback && <Text role="status" fontSize="xs" color={t.text}>{feedback}</Text>}
-      {draft.trim() && <Text fontSize="xs" color={t.help}>Select Add to include these entries in the proposal.</Text>}
       {value.length > 0 && (
         <Wrap spacing={2}>
           {value.map((item) => (
@@ -97,7 +95,7 @@ export default function InviteListInput({ kind, value = [], onChange, openRole, 
       {readiness && (
         <Text role="status" fontSize="xs" color={t.help}>{readiness}</Text>
       )}
-      {!domain && <Text fontSize="xs" color={t.help}>{EMAIL_PRIVACY_NOTE}</Text>}
+      {!domain && value.length > 0 && <Text fontSize="xs" color={t.help}>Invitation emails are not sent automatically.</Text>}
     </VStack>
   );
 }

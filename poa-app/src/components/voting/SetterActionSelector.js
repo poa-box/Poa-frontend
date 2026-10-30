@@ -652,8 +652,7 @@ const SetterActionSelector = ({
                 <Alert status="warning" borderRadius="md" bg="rgba(236, 201, 75, 0.15)">
                   <AlertIcon color="yellow.300" />
                   <Text fontSize="sm" color="yellow.200">
-                    This group’s roles and permissions are still loading — give it a moment before
-                    creating the vote.
+                    Wait for roles and permissions to load before creating the vote.
                   </Text>
                 </Alert>
               )}
@@ -775,7 +774,7 @@ const SetterActionSelector = ({
           <Alert status="info" borderRadius="md" bg="rgba(66, 153, 225, 0.15)">
             <AlertIcon color="blue.300" />
             <Text fontSize="sm" color="gray.300">
-              This creates a Yes/No vote. If "Yes" wins, the settings will be updated automatically.
+              A Yes/No vote. If "Yes" wins, settings update automatically.
             </Text>
           </Alert>
         </>

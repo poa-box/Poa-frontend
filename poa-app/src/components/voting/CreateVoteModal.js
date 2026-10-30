@@ -1,5 +1,5 @@
 import { ACTION_REASON } from '@poa-box/core/authority/lifecycle';
-import React, { useMemo, useState, useCallback, useEffect } from "react";
+import React, { useMemo, useState, useCallback, useEffect, useRef } from "react";
 import { useElectionPlanning } from '@/hooks/accessV2/useElectionPlanning';
 import { electionPlanningFingerprint } from '@poa-box/core/governance/elections';
 import { useTour } from "@/features/tour";
@@ -64,6 +64,7 @@ import RoleConfigurator, { parseAutoTitle as parseRoleAutoTitle } from "./RoleCo
 import RoleForm from "@/components/accessV2/RoleForm";
 import { ROLE_FORM_KIND, roleOptionNames, resolveRoleForm, roleConfigToRoleForm, roleFormCopy } from "@/lib/accessV2/roleFormBatch";
 import RoleRemovalConfigurator from "./RoleRemovalConfigurator";
+import { createVoteModalStyles, createVoteSurfaceStyle } from "@/components/voting/create/modalStyles";
 import { inputStyles } from '@/components/shared/glassStyles';
 import IntentGallery, { INTENT_OPTIONS } from "./create/IntentGallery";
 import DurationField from "./create/DurationField";
@@ -88,17 +89,6 @@ import {
   defaultRoleRemovalConfig,
   removalMemberLabel,
 } from '@/lib/accessV2/roleRemoval';
-
-const glassLayerStyle = {
-  position: "absolute",
-  height: "100%",
-  width: "100%",
-  zIndex: -1,
-  borderRadius: "inherit",
-  backgroundColor: "rgba(15, 10, 25, 0.97)",
-  boxShadow: "inset 0 0 15px rgba(148, 115, 220, 0.15)",
-  border: "1px solid rgba(148, 115, 220, 0.3)",
-};
 
 // The types that route through official Blended-voting governance are
 // `BINDING_TYPES` from ./create/wizardSteps — ONE definition shared with the
@@ -339,6 +329,10 @@ const CreateVoteModal = ({
   // so useProposalForm's empty-type branches (buildProposalData's trailing else,
   // the validator switchboard, VotingPage's DD-vs-hybrid routing) stay dead.
   const [step, setStep] = useState(STEP_INTENT);
+  const bodyRef = useRef(null);
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+  }, [step]);
   const electionLike = proposal.type === 'election' || proposal.type === 'removeRoleMembers';
   const planningSubject = proposal.type === 'election' ? proposal.electionRoleId : proposal.roleRemovalConfig?.subjectId;
   const governancePlanning = useElectionPlanning({ enabled: isOpen && accessV2Enabled && electionLike,
@@ -864,16 +858,19 @@ const CreateVoteModal = ({
     >
       <ModalOverlay bg={isTourStep ? "transparent" : "blackAlpha.800"} />
       <ModalContent
-        bg="transparent"
+        sx={{ ...createVoteSurfaceStyle, ...createVoteModalStyles }}
+        color="gray.100"
         borderRadius={{ base: 'none', md: 'xl' }}
         position="relative"
         boxShadow="dark-lg"
         mx={{ base: 0, md: 4 }}
-        maxH="min(85dvh, 900px)"
+        my={{ base: 0, md: 16 }}
+        minH={0}
+        h={{ base: "100dvh", md: "auto" }}
+        overflow="hidden"
+        maxH={{ base: "100dvh", md: "min(85dvh, 900px)" }}
       >
-        <Box style={glassLayerStyle} />
-
-        <ModalHeader color="white" fontSize="xl" fontWeight="bold" pb={2}>
+        <ModalHeader color="white" fontSize="xl" fontWeight="bold" flexShrink={0} pt="max(1.5rem, env(safe-area-inset-top))" pb={4} pr={12}>
           Create a vote
           {roleFormMounted ? (
             <HStack justify="space-between" mt={1}>
@@ -886,9 +883,9 @@ const CreateVoteModal = ({
             </Text>
           )}
         </ModalHeader>
-        <ModalCloseButton color="white" isDisabled={loadingSubmit} />
+        <ModalCloseButton top="max(0.75rem, env(safe-area-inset-top))" color="white" isDisabled={loadingSubmit} />
 
-        <ModalBody pb={6} inert={loadingSubmit ? '' : undefined}>
+        <ModalBody ref={bodyRef} overflowY="auto" overflowX="hidden" minH={0} pb={6} inert={loadingSubmit ? '' : undefined}>
           <VStack spacing={6} align="stretch">
             {/* Restore-draft prompt */}
             {draft.pendingDraft && (
@@ -955,8 +952,7 @@ const CreateVoteModal = ({
                   <Alert status="info" borderRadius="md" bg="rgba(66, 153, 225, 0.15)" fontSize="sm">
                     <AlertIcon color="blue.300" />
                     <Text color="gray.200">
-                      This creates a binding vote — it runs through your org’s official
-                      Blended-voting governance.
+                      Binding vote · uses your org’s Blended-voting governance.
                     </Text>
                   </Alert>
                 )}
@@ -1255,7 +1251,7 @@ const CreateVoteModal = ({
                           ) : (
                             <Text fontSize="xs" color="gray.400" mt={1}>
                               {potsSettled
-                                ? `A payout comes from one pot, so up to ${fmtPot(transferAvailableWei)} ${transferSymbol} can move in one vote. Members vote Yes or No.`
+                                ? `One pot funds each payout: up to ${fmtPot(transferAvailableWei)} ${transferSymbol} per vote. Members vote Yes or No.`
                                 : pots.error
                                   ? "Couldn't read what the group holds — try again in a moment."
                                   : "Checking what the group holds…"}
@@ -1318,7 +1314,7 @@ const CreateVoteModal = ({
                             >
                               {sourceResolution.ok
                                 ? `Paid from ${proposal.transferSourceLabel || sourceLabelFor(sourceResolution.source, sourceResolution.finalizeIds)}`
-                                : 'More than any one pot holds — lower the amount, or deposit to the treasury first.'}
+                                : 'Exceeds any single pot — lower the amount or deposit to the treasury first.'}
                             </Text>
                           )}
                         </Box>
@@ -1379,7 +1375,7 @@ const CreateVoteModal = ({
                       </FormControl>
 
                       {proposal.isRestricted && (
-                        <FormControl isInvalid={Boolean(visibleErrors.restrictedHatIds)}>
+                        <FormControl data-testid="vote-restrictions">
                           <Box
                             p={4}
                             bg="whiteAlpha.50"
@@ -1399,7 +1395,7 @@ const CreateVoteModal = ({
                               onToggle={toggleRestrictedRole}
                             />
                             {visibleErrors.restrictedHatIds && (
-                              <FormErrorMessage>{visibleErrors.restrictedHatIds}</FormErrorMessage>
+                              <Text role="alert" color="rose.200" fontSize="sm" mt={2}>{visibleErrors.restrictedHatIds}</Text>
                             )}
                           </Box>
                         </FormControl>
@@ -1412,7 +1408,7 @@ const CreateVoteModal = ({
           </VStack>
         </ModalBody>
 
-        <ModalFooter borderTop="1px solid" borderColor="whiteAlpha.200" pt={4}>
+        <ModalFooter pb="max(1rem, env(safe-area-inset-bottom))" flexShrink={0} borderTop="1px solid" borderColor="whiteAlpha.200" pt={4}>
           <HStack spacing={3} w="100%" justify="flex-end">
             {roleFormMounted && <Box ref={setRoleNavigationTarget} flex="1" minW={0} />}
             {!roleFormMounted && (prevStep ? (

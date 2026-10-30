@@ -1,7 +1,7 @@
 /** Shared, controlled v2 role/group creation form. The review uses the proposal encoder so
  * the displayed changes and submitted contract calls always describe the same configuration. */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Accordion,
@@ -123,6 +123,11 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
   const [step, setStep] = useState(() => (String(value?.name || '').trim() ? 'review' : 'basics'));
   const stepIndex = Math.max(0, steps.indexOf(step));
   const current = steps[stepIndex] || 'basics';
+  const formRef = useRef(null);
+  useEffect(() => {
+    const body = formRef.current?.closest?.('.chakra-modal__body');
+    if (body) body.scrollTop = 0;
+  }, [current]);
 
   const [manualAddress, setManualAddress] = useState('');
 
@@ -259,7 +264,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
   );
 
   return (
-    <VStack align="stretch" spacing={5} data-testid="role-form">
+    <VStack ref={formRef} align="stretch" spacing={5} data-testid="role-form">
       <Box>
         <Progress
           aria-label="Role creation progress"
@@ -274,9 +279,10 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
         </Text>
         <Wrap spacing={1} mt={2} aria-label="Creation steps">
           {steps.map((item, index) => (
-            <WrapItem key={item}>
+            <WrapItem key={item} minW={0}>
               <Button
                 size="xs"
+                width="100%"
                 variant={item === current ? 'solid' : 'ghost'}
                 colorScheme={item === current ? t.accent : undefined}
                 color={item === current ? undefined : t.help}
@@ -321,8 +327,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
                   <VStack align="start" spacing={0} ml={1}>
                     <Text fontSize="sm" fontWeight="medium" color={t.label}>A group</Text>
                     <Text fontSize="xs" color={t.help}>
-                      A bundle of permissions. Roles go into it and pick up everything it gives —
-                      change the group once and every role in it changes.
+                      Shared permissions for roles. Changes to the group apply to every role in it.
                     </Text>
                   </VStack>
                 </Radio>
@@ -368,7 +373,6 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
               <HStack justify="space-between" align="flex-start">
                 <Box pr={4}>
                   <Text fontSize="sm" fontWeight="medium" color={t.label}>Limit the number of seats</Text>
-                  <Text fontSize="xs" color={t.help}>Off means as many people as you like.</Text>
                 </Box>
                 <Switch
                   isChecked={form.limitSeats}
@@ -403,8 +407,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
           {isGroup ? (
             <>
               {sectionHelp(
-                'Which roles are in this group. Every one of them gets the permissions you set on '
-                + 'the next screen — and loses them if it leaves.'
+                'Choose roles to receive this group’s permissions. Roles lose those permissions if they leave.'
               )}
               {roles.length === 0 ? (
                 <Alert status="info" borderRadius="md" fontSize="sm">
@@ -439,8 +442,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
           ) : (
             <>
               {sectionHelp(
-                'Groups bundle permissions. A role in a group gets everything the group gives, on '
-                + 'top of its own permissions.'
+                'Groups add shared permissions to this role’s own permissions.'
               )}
               {groups.length === 0 ? (
                 <Alert status="info" borderRadius="md" fontSize="sm">
@@ -481,9 +483,8 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
         <VStack align="stretch" spacing={5}>
           {sectionHelp(
             isGroup
-              ? 'What every role in this group can do. This is on top of whatever those roles '
-                + 'already have.'
-              : 'What this role can do. Anything its groups already give is on top of this.'
+              ? 'Permissions added to every role in this group.'
+              : 'This role’s own permissions, plus any from its groups.'
           )}
 
           <PermissionPicker
@@ -499,8 +500,8 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
                         Vote in binding votes
                       </Text>
                       <Text fontSize="xs" color={t.help}>
-                        Give members voting power in the selected voting class. A person holding several
-                        roles in the same class is counted once. Their other roles keep their existing voting power.
+                        Grant voting power in the selected class. Members count once per class, even with several
+                        roles. Voting power from other roles stays unchanged.
                       </Text>
                     </Box>
                     <Switch
@@ -556,7 +557,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
                   <VStack align="start" spacing={0} ml={1}>
                     <Text fontSize="sm" fontWeight="medium" color={t.label}>Edit org details</Text>
                     <Text fontSize="xs" color={t.help}>
-                      Update the org’s name, description and image. This replaces the org’s current
+                      Edit the org’s name, description and image. Replaces the current
                       editing role with this {isGroup ? 'group' : 'role'}.
                     </Text>
                     {form.editOrgDetails && !canSetOrgMetadataAdmin(ctx) && (
@@ -594,7 +595,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
               <Box pr={4}>
                 <Text fontSize="sm" fontWeight="medium" color={t.label}>Create projects and tasks</Text>
                 <Text fontSize="xs" color={t.help}>
-                  Start new projects and add tasks to any of them.
+                  Start projects and add tasks to any project.
                 </Text>
               </Box>
               <Switch
@@ -608,9 +609,6 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
             <HStack justify="space-between" align="flex-start">
               <Box pr={4}>
                 <Text fontSize="sm" fontWeight="medium" color={t.label}>Organise the folders</Text>
-                <Text fontSize="xs" color={t.help}>
-                  Rearrange the project folder tree.
-                </Text>
               </Box>
               <Switch
                 isChecked={form.canOrganizeFolders}
@@ -667,14 +665,14 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
               <Text fontSize="sm" fontWeight="semibold" color={t.label}>Election</Text>
               <Badge colorScheme="green">Always available</Badge>
             </HStack>
-            {sectionHelp('A passing governance vote can add people to this role. Leave the optional methods below off for election only.')}
+            {sectionHelp('A passing vote can add people. For election only, leave the methods below off.')}
           </Box>
 
           <HStack justify="space-between" align="flex-start">
             <Box pr={4}>
               <Text fontSize="sm" fontWeight="medium" color={t.label}>Open to claim</Text>
               <Text fontSize="xs" color={t.help}>
-                Anyone already in the org can add themselves to this role, subject to its seat limit.
+                Existing org members can claim this role, within its seat limit.
               </Text>
               {(form.join.domains.length > 0 || form.emailInvites.length > 0) && (
                 <Text fontSize="xs" color={t.help} mt={1}>
@@ -706,7 +704,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
             <VStack align="start" spacing={0} ml={1}>
               <Text fontSize="sm" fontWeight="medium" color={t.label}>Add new org members automatically</Text>
               <Text fontSize="xs" color={t.help}>
-                Requires Open to claim. New members receive this role through Quick Join; existing members are unchanged.
+                Requires Open to claim. Quick Join gives new members this role; existing members are unchanged.
               </Text>
             </VStack>
           </Checkbox>
@@ -729,8 +727,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
                   <Box pr={4}>
                     <Text fontSize="sm" fontWeight="medium" color={t.label}>Vouching</Text>
                     <Text fontSize="xs" color={t.help}>
-                      People join by collecting vouches from an existing role, instead of waiting
-                      for a vote or an invitation.
+                      People join with vouches from an existing role, without a vote or invitation.
                     </Text>
                   </Box>
                   <Switch
@@ -801,8 +798,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
       {current === 'people' && (
         <VStack align="stretch" spacing={4}>
           {sectionHelp(
-            'Who holds it from day one. People already in this org are added directly; anyone '
-            + 'else gets an invitation they accept themselves.'
+            'Choose the first holders. Org members are added directly; others receive an invitation to accept.'
           )}
 
           <UserSearchInput
@@ -906,20 +902,20 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
         <VStack align="stretch" spacing={4}>
           {form.continuationId ? (
             <Alert status="info" borderRadius="md" data-testid="role-form-stage-two"><AlertIcon />
-              Step 2 of 2: review the saved settings for the created {isGroup ? 'group' : 'role'}. This is a separate vote. Nothing is submitted until you choose Create vote.
+              Step 2 of 2: review the saved {isGroup ? 'group' : 'role'} settings in a separate vote. Choose Create vote to submit.
             </Alert>
           ) : (
             <Box>
               <Text fontSize="sm" color={t.text}>Choose how to apply these settings.</Text>
-              <Button size="sm" variant="outline" mt={2} data-testid="role-form-staged" onClick={() => update({ creationMode: 'staged' })}>
+              <Button size="sm" variant="outline" mt={2} data-testid="role-form-staged" aria-pressed={form.creationMode !== 'compound'} onClick={() => update({ creationMode: 'staged' })}>
                 Use two votes
               </Button>
-              <Button size="sm" variant="ghost" mt={2} ml={2} data-testid="role-form-compound" onClick={() => update({ creationMode: 'compound' })}>
+              <Button size="sm" variant="ghost" mt={2} ml={2} data-testid="role-form-compound" aria-pressed={form.creationMode === 'compound'} onClick={() => update({ creationMode: 'compound' })}>
                 Check one-vote availability
               </Button>
               <Text fontSize="xs" color={t.help} mt={2}>{form.creationMode === 'compound'
-                ? 'One vote needs a complete check of competing role votes. If that history cannot be verified, choose two votes.'
-                : 'First create the role or group, then review and vote on its saved settings after creation. This avoids waiting for unrelated older votes.'}</Text>
+                ? 'One vote requires checking all competing role votes. If their history cannot be verified, use two votes.'
+                : 'First vote to create the role or group, then vote on its saved settings. No waiting for unrelated older votes.'}</Text>
             </Box>
           )}
           {reviewError && (
@@ -968,7 +964,7 @@ export default function RoleForm({ value, onChange, ctx = {}, variant = 'light',
           ) : !reviewError && (
             <Alert status="info" borderRadius="md" fontSize="sm">
               <AlertIcon />
-              Still loading this org’s roles — give it a moment.
+              Loading this org’s roles…
             </Alert>
           )}
         </VStack>
