@@ -77,7 +77,7 @@ const pick = async (eml = deliveredMail(), name = 'claim.eml', custom) => {
   await act(() => host.props(fileInput()).onChange({ target }));
   expect(target.value).toBe('');
 };
-const finish = () => host.button('Finish & claim my role') || host.button('Retry — confirm with your passkey');
+const finish = () => host.button('Finish & claim my role') || host.button('Retry claim');
 const clickFinish = () => host.click(finish());
 const source = { chainId: 100, registryAddress: REGISTRY, factoryAddress: FACTORY, orgId: ORG, targetAddress: MODULE, flow: 'zkemail' };
 
@@ -508,6 +508,26 @@ describe('dispatch and status boundaries', () => {
     await render(); await pick(); await clickFinish();
     expect(text()).toContain(name === 'NullifierAlreadyUsed' ? 'already been used for a claim' : 'already been used to claim a role');
     expect(f.prove).toHaveBeenCalledOnce(); expect(f.activate).not.toHaveBeenCalled(); expect(text()).not.toContain('Welcome');
+  });
+
+  it.each(['eoa', 'passkey'])('shows an admin-update error and generic cached-proof retry for a %s DKIM refusal', async authType => {
+    f.auth = { ...f.auth, authType, isPasskeyUser: authType === 'passkey' };
+    const refusal = Object.assign(new Error('cannot estimate gas'), { code: 'UNPREDICTABLE_GAS_LIMIT',
+      error: { data: { data: '0x165a0726' } } });
+    f.tx.mockRejectedValue(refusal);
+    await render(); await pick();
+    let result;
+    await act(async () => { result = await host.props(finish()).onClick(); });
+    expect(result).toMatchObject({ success: false }); expect(result.error).toBe(refusal);
+    expect(result.error.error.data.data).toBe('0x165a0726');
+    expect(host.button('Retry claim')).toBeDefined();
+    expect(text()).toContain("organization's email verification needs an admin update");
+    expect(text()).not.toMatch(/confirm with your passkey|register your domain|supported provider/i);
+    await clickFinish();
+    expect(f.tx).toHaveBeenCalledTimes(2); expect(f.prove).toHaveBeenCalledOnce();
+    expect(f.bundler.sendUserOperation).not.toHaveBeenCalled();
+    expect(f.signOp).not.toHaveBeenCalled(); expect(f.signRegistration).not.toHaveBeenCalled();
+    expect(f.activate).not.toHaveBeenCalled(); expect(f.join).not.toHaveBeenCalled();
   });
 });
 

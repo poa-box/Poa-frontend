@@ -183,7 +183,7 @@ export const CONTRACT_ERROR_MESSAGES = {
   AllowlistNotActive:
     "Email invites aren't switched on for this organization yet. An admin has to activate the invite list before anyone can claim.",
   InvalidDKIMKey:
-    "Your email provider's signature couldn't be verified for this organization. Send the claim from a supported provider, or ask an admin to register your domain.",
+    "This organization's email verification needs an admin update for your provider. Contact an organization admin before retrying your claim.",
   ZeroClaimer: 'No account was provided for this claim. Reconnect your wallet or passkey and try again.',
   EmptyHats: 'This invite has no roles attached. Ask an organization admin to fix the invite.',
 

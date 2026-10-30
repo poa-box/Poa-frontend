@@ -1015,7 +1015,7 @@ export default function ZkEmailClaimFlow() {
                   : 'One tap to claim your role.'}
               </Text>
               <Button colorScheme="teal" size="sm" onClick={finishClaim}>
-                {step === ZK_CLAIM_STEPS.ERROR ? 'Retry — confirm with your passkey' : 'Finish & claim my role'}
+                {step === ZK_CLAIM_STEPS.ERROR ? 'Retry claim' : 'Finish & claim my role'}
               </Button>
               {step === ZK_CLAIM_STEPS.ERROR && error && (
                 <Text fontSize="xs" color="red.600" mt={2}>

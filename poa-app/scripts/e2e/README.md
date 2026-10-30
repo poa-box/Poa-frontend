@@ -57,6 +57,25 @@ files. A new EOA needs native funds on the organization chain for direct wallet
 registration/join calls; sponsored passkey creation uses the configured org or
 solidarity budget.
 
+## Managed email acceptance
+
+Use the same public inbox pair as `.github/workflows/deploy-ipfs.yml` before
+starting the dev server or building the app:
+
+```sh
+NEXT_PUBLIC_ZKEMAIL_INBOX=claim@poa.box
+NEXT_PUBLIC_ZKEMAIL_INBOX_URL=https://poa-zkemail-claim-inbox.caffe-jump0d.workers.dev
+```
+
+Send the approved verification email from the invited address to that managed
+inbox and let the page pick up the received message automatically. Do not use a
+same-account self-send for this acceptance check. Retries can reuse the stored
+received message without sending another email.
+
+If either setting is absent, the app deliberately shows the expanded manual
+`.eml` fallback. That tests manual upload, not managed-inbox delivery. With the
+pair configured, manual upload remains an optional collapsed fallback.
+
 ## Production safety
 
 ```
