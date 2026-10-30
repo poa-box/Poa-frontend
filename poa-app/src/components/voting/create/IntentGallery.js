@@ -16,7 +16,7 @@ import {
   FiPlusCircle,
   FiSettings,
 } from 'react-icons/fi';
-import { BINDING_TYPES } from './wizardSteps';
+import { BINDING_TYPES } from '@/components/voting/create/wizardSteps';
 
 /**
  * Intent-first entry for Create-a-Vote. Replaces the old <Select> with a
@@ -34,14 +34,14 @@ export const INTENT_OPTIONS = [
     type: 'normal',
     icon: FiHelpCircle,
     title: 'Ask the group a question',
-    description: 'A simple poll with the options you write.',
+    description: 'A poll with your own options.',
     binding: false,
   },
   {
     type: 'transferFunds',
     icon: FiDollarSign,
     title: 'Send money from the treasury',
-    description: 'Pay someone or fund task rewards — passing the vote moves the money.',
+    description: 'Pay someone or fund task rewards. Passing moves the money.',
     // A payout RUNS on-chain when it passes, so it is binding: it submits to
     // Blended voting (the only contract that can execute) and is gated on the
     // binding-creator permission. See wizardSteps.BINDING_TYPES.
@@ -58,7 +58,7 @@ export const INTENT_OPTIONS = [
     type: 'removeRoleMembers',
     icon: FiUserMinus,
     title: 'Remove people from a role',
-    description: 'Choose one or more current role holders to remove.',
+    description: 'Choose current role holders to remove.',
     binding: true,
     v2Only: true,
   },
@@ -104,13 +104,15 @@ const IntentCard = ({ option, onSelect, disabledReason = '', accessV2 = false })
       as="button"
       type="button"
       textAlign="left"
-      p={4}
-      borderRadius="md"
+      p={5}
+      h="100%"
+      minW={0}
+      borderRadius="lg"
       cursor={isDisabled ? 'not-allowed' : 'pointer'}
       bg="whiteAlpha.50"
       border="1px solid"
       borderColor="rgba(148, 115, 220, 0.2)"
-      opacity={isDisabled ? 0.45 : 1}
+      opacity={isDisabled ? 0.65 : 1}
       // aria-disabled (not the native attr): native disabled buttons swallow
       // pointer/focus events, which would mute the explanatory Tooltip and
       // make the reason unreachable by keyboard. The onClick guard enforces.
@@ -129,11 +131,11 @@ const IntentCard = ({ option, onSelect, disabledReason = '', accessV2 = false })
     >
       <HStack spacing={3} align="flex-start">
         <Icon as={IconComponent} boxSize={5} color="purple.300" mt={0.5} flexShrink={0} />
-        <VStack align="start" spacing={0.5}>
+        <VStack align="start" spacing={1.5} minW={0}>
           <Text fontSize="sm" fontWeight="bold" color="white">
             {title}
           </Text>
-          <Text fontSize="xs" color="gray.400">
+          <Text fontSize="sm" lineHeight="1.5" color="gray.400">
             {description}
           </Text>
         </VStack>
@@ -144,6 +146,10 @@ const IntentCard = ({ option, onSelect, disabledReason = '', accessV2 = false })
   return (
     <Tooltip
       hasArrow
+      bg="purple.800"
+      color="white"
+      px={3}
+      py={2}
       label={disabledReason}
     >
       {card}

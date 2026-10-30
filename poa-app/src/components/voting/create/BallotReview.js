@@ -17,7 +17,7 @@ import {
   BOUNTY_POOL_OPTION_NAMES,
   transferOptionNames,
 } from '@/lib/voting/treasuryBatches';
-import { formatVotingEnds } from './DurationField';
+import { formatVotingEnds } from '@/components/voting/create/DurationField';
 
 /**
  * "Review your ballot" — the confirm view for the create-a-vote wizard.
@@ -96,12 +96,12 @@ const BallotReview = ({
 
   return (
     <VStack
-      spacing={4}
+      spacing={5}
       align="stretch"
-      p={4}
+      p={{ base: 4, md: 5 }}
       borderRadius="md"
       bg="whiteAlpha.50"
-      border="1px solid rgba(148, 115, 220, 0.3)"
+      border="1px solid rgba(190, 162, 225, 0.16)"
     >
       <HStack justify="space-between" align="center" flexWrap="wrap" gap={2}>
         <Text fontSize="xs" fontWeight="bold" color="purple.300" textTransform="uppercase" letterSpacing="wide">
@@ -125,7 +125,7 @@ const BallotReview = ({
         </Badge>
       </HStack>
       {explainer && (
-        <Text fontSize="2xs" color="gray.400" mt={-2}>
+        <Text fontSize="xs" lineHeight="1.6" color="gray.400">
           {explainer}
         </Text>
       )}
@@ -188,7 +188,7 @@ const BallotReview = ({
 
       <Divider borderColor="whiteAlpha.200" />
 
-      <HStack justify="space-between" align="flex-start" spacing={4}>
+      <HStack justify="space-between" align="flex-start" spacing={4} flexWrap="wrap" rowGap={4}>
         <Row label="Voting ends">
           <Text fontSize="sm" color="gray.200">{endsLabel}</Text>
         </Row>

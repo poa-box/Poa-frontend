@@ -588,9 +588,8 @@ const ElectionConfigurator = ({
               <AlertIcon color="yellow.300" />
               <VStack align="stretch" spacing={2} flex="1">
                 <Text fontSize="sm" color="yellow.200">
-                  Changing the role starts this election over and discards{' '}
-                  {workAtRisk.join(', ')}. Your title and description stay if you
-                  wrote them yourself.
+                  Changing roles restarts the election and discards{' '}
+                  {workAtRisk.join(', ')}. Your own title and description stay.
                 </Text>
                 <HStack spacing={2}>
                   <Button size="xs" colorScheme="red" onClick={handleChangeRole}>
@@ -1115,8 +1114,7 @@ const ElectionConfigurator = ({
           >
             <AlertIcon color="blue.300" />
             <Text fontSize="sm" color="gray.300">
-              When voting ends, the winning candidate&apos;s actions will be
-              executed automatically.
+              When voting ends, the winner&apos;s actions run automatically.
             </Text>
           </Alert>
         </>

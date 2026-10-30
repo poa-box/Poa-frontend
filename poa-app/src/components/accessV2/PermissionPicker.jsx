@@ -27,6 +27,9 @@ import { tokensFor } from '@/components/accessV2/roleForm/formTokens';
 import { usePOContext } from '@/context/POContext';
 import { DEFAULT_TOKEN_LABEL } from '@/util/tokenLabel';
 
+// These labels already explain the action; retain help for consequential distinctions.
+const LABEL_ONLY_PERMISSIONS = new Set(['DD_CREATE', 'TM_PERMS', 'PT_APPROVE', 'EDU_CREATE']);
+
 const groupsOf = (catalogue) => {
   const out = [];
   for (const entry of catalogue) {
@@ -101,7 +104,7 @@ export default function PermissionPicker({ value = {}, onChange, exclude = [], v
                   >
                     <VStack align="start" spacing={0} ml={1}>
                       <Text fontSize="sm" fontWeight="medium" color={t.label}>{entry.label}</Text>
-                      <Text fontSize="xs" color={t.help}>{entry.help}</Text>
+                      {!LABEL_ONLY_PERMISSIONS.has(entry.id) && <Text fontSize="xs" color={t.help}>{entry.help}</Text>}
                     </VStack>
                   </Checkbox>
                   {entry.mask && checked && (
